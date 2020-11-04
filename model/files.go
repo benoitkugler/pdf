@@ -4,7 +4,7 @@ import "time"
 
 type EmbeddedFile struct {
 	Name     string
-	FileSpec FileSpec // indirect
+	FileSpec *FileSpec // indirect
 }
 
 type FileSpec struct {

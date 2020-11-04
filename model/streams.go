@@ -24,5 +24,14 @@ type StreamDict struct {
 
 type ContentStream struct {
 	StreamDict
-	content []byte
+	Content []byte
+}
+
+// XObject is a ContentStream with a specialized dictionnary
+type XObject struct {
+	BBox      Rectangle
+	Matrix    *Matrix // optional, default to identity
+	Resources *ResourcesDict
+
+	Content []byte
 }

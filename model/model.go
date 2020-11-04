@@ -11,10 +11,10 @@ import "time"
 // representing a whole PDF file.
 type Document struct {
 	Trailer Trailer
+	Catalog Catalog
 }
 
 type Catalog struct {
-	Version           Name
 	Extensions        Extensions
 	Pages             PageTree
 	Names             NameDictionnary
