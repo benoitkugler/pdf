@@ -12,17 +12,39 @@ import (
 func TestGeneratePDF(t *testing.T) {
 	f := gofpdf.New("", "", "", "")
 	f.SetProtection(0, "aaa", "aaaa")
-	f.OutputFileAndClose("Protected.pdf")
+	if err := f.OutputFileAndClose("datatest/Protected.pdf"); err != nil {
+		t.Fatal(err)
+	}
+
+	g := gofpdf.New("", "", "", "")
+	g.AddPage()
+	// a := gofpdf.Attachment{
+	// 	Filename:    "Test.txt",
+	// 	Content:     []byte("AOIEPOZNSLKDSD"),
+	// 	Description: "Nice file !",
+	// }
+	// g.AddAttachmentAnnotation(&a, 10, 10, 20, 20)
+	// g.SetAttachments([]gofpdf.Attachment{
+	// 	a, a,
+	// })
+	l := g.AddLink()
+	g.Link(20, 30, 40, 50, l)
+	if err := g.OutputFileAndClose("datatest/Links.pdf"); err != nil {
+		t.Fatal(err)
+	}
 }
 
 func TestOpen(t *testing.T) {
-	f, err := os.Open("ModeleRecuFiscalEditable.pdf")
-	// f, err := os.Open("SameFields.pdf")
-	// f, err := os.Open("Protected.pdf")
+	// f, err := os.Open("datatest/descriptif.pdf")
+	f, err := os.Open("datatest/Links.pdf")
+	// f, err := os.Open("datatest/transparents.pdf")
+	// f, err := os.Open("datatest/ModeleRecuFiscalEditable.pdf")
+	// f, err := os.Open("datatest/Protected.pdf")
+	// f, err := os.Open("datatest/PDF_SPEC.pdf")
 	if err != nil {
 		t.Fatal(err)
 	}
-	doc, err := ParsePDF(f, "aaa")
+	doc, err := ParsePDF(f, "")
 	if err != nil {
 		t.Fatal(err)
 	}

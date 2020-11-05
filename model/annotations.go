@@ -53,14 +53,16 @@ type AppearanceDict struct {
 // In the first case, the map is of length 1, with the empty string as key
 type AppearanceEntry map[Name]*XObject
 
+func (FileAttachmentAnnotation) isAnnotation() {}
+func (LinkAnnotation) isAnnotation()           {}
+func (WidgetAnnotation) isAnnotation()         {}
+
 // ------------------------ specializations ------------------------
 
 type FileAttachmentAnnotation struct {
 	T  string
 	FS *FileSpec // indirect ref
 }
-
-func (FileAttachmentAnnotation) isAnnotation() {}
 
 // ---------------------------------------------------
 

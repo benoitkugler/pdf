@@ -6,11 +6,29 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"time"
 
 	"github.com/benoitkugler/pdf/model"
 	"github.com/benoitkugler/pdf/reader/encodings"
 	"github.com/pdfcpu/pdfcpu/pkg/pdfcpu"
 )
+
+// maintain tables mapping PDF indirect object numbers
+// to model objects
+type resolver struct {
+	xref *pdfcpu.XRefTable
+
+	formFields        map[pdfcpu.IndirectRef]*model.FormField
+	appearanceDicts   map[pdfcpu.IndirectRef]*model.AppearanceDict
+	appearanceEntries map[pdfcpu.IndirectRef]*model.AppearanceEntry
+	xObjects          map[pdfcpu.IndirectRef]*model.XObject
+	resources         map[pdfcpu.IndirectRef]*model.ResourcesDict
+	fonts             map[pdfcpu.IndirectRef]*model.Font
+	encodings         map[pdfcpu.IndirectRef]*model.EncodingDict
+	annotations       map[pdfcpu.IndirectRef]*model.Annotation
+	fileSpecs         map[pdfcpu.IndirectRef]*model.FileSpec
+	fileContents      map[pdfcpu.IndirectRef]*model.EmbeddedFileStream
+}
 
 func decodeStringLit(s pdfcpu.StringLiteral) string {
 	b, err := pdfcpu.Unescape(s.Value())
@@ -82,10 +100,13 @@ func ParsePDF(source io.ReadSeeker, userPassword string) (*model.Document, error
 	config := pdfcpu.NewDefaultConfiguration()
 	config.UserPW = userPassword
 	config.DecodeAllStreams = true
+	ti := time.Now()
 	ctx, err := pdfcpu.Read(source, config)
 	if err != nil {
 		return nil, fmt.Errorf("can't read PDF: %w", err)
 	}
+	fmt.Printf("pdfcpu processing: %s\n", time.Since(ti))
+	ti = time.Now()
 	var out model.Document
 	xref := ctx.XRefTable
 
@@ -102,6 +123,8 @@ func ParsePDF(source io.ReadSeeker, userPassword string) (*model.Document, error
 	if err != nil {
 		return nil, err
 	}
+
+	fmt.Printf("model processing: %s\n", time.Since(ti))
 
 	return &out, nil
 }
@@ -121,6 +144,9 @@ func catalog(xref *pdfcpu.XRefTable) (model.Catalog, error) {
 		resources:         make(map[pdfcpu.IndirectRef]*model.ResourcesDict),
 		fonts:             make(map[pdfcpu.IndirectRef]*model.Font),
 		encodings:         make(map[pdfcpu.IndirectRef]*model.EncodingDict),
+		annotations:       make(map[pdfcpu.IndirectRef]*model.Annotation),
+		fileSpecs:         make(map[pdfcpu.IndirectRef]*model.FileSpec),
+		fileContents:      make(map[pdfcpu.IndirectRef]*model.EmbeddedFileStream),
 	}
 
 	out.AcroForm, err = r.processAcroForm(d)
@@ -132,21 +158,6 @@ func catalog(xref *pdfcpu.XRefTable) (model.Catalog, error) {
 		return out, err
 	}
 	return out, nil
-}
-
-// maintain tables mapping PDF indirect object numbers
-// to model objects
-type resolver struct {
-	xref *pdfcpu.XRefTable
-
-	formFields        map[pdfcpu.IndirectRef]*model.FormField
-	appearanceDicts   map[pdfcpu.IndirectRef]*model.AppearanceDict
-	appearanceEntries map[pdfcpu.IndirectRef]*model.AppearanceEntry
-	xObjects          map[pdfcpu.IndirectRef]*model.XObject
-	resources         map[pdfcpu.IndirectRef]*model.ResourcesDict
-	fonts             map[pdfcpu.IndirectRef]*model.Font
-	encodings         map[pdfcpu.IndirectRef]*model.EncodingDict
-	annotations       map[pdfcpu.IndirectRef]*model.Annotation
 }
 
 // might return nil, since, (PDF spec, clause 7.3.10)

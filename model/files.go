@@ -9,7 +9,7 @@ type EmbeddedFile struct {
 
 type FileSpec struct {
 	UF   string
-	EF   EmbeddedFileStream
+	EF   *EmbeddedFileStream
 	Desc string
 }
 
