@@ -70,6 +70,7 @@ type Encoding interface {
 }
 
 func (PredefinedEncoding) isEncoding() {}
+func (*EncodingDict) isEncoding()      {}
 
 type PredefinedEncoding Name
 
@@ -79,8 +80,20 @@ const (
 	WinAnsiEncoding   PredefinedEncoding = "WinAnsiEncoding"
 )
 
+// NewPrededinedEncoding validated the string `s`
+// and return either a valid `PredefinedEncoding` or nil
+func NewPrededinedEncoding(s string) Encoding {
+	e := PredefinedEncoding(s)
+	switch e {
+	case MacExpertEncoding, MacRomanEncoding, WinAnsiEncoding:
+		return e
+	default:
+		return nil
+	}
+}
+
 // Differences describes the differences from the encoding specified by BaseEncoding
-// It is written in a PDF file as a more condensed form: it's an array:
+// It is written in a PDF file as a more condensed form: it is an array:
 // 	[ code1, name1_1, name1_2, code2, name2_1, name2_2, name2_3 ... ]
 type Differences map[byte]Name
 

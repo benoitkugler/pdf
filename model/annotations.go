@@ -85,16 +85,18 @@ type Destination struct {
 }
 
 // ---------------------------------------------------
+
 type Highlighting Name
 
 const (
-	None    Highlighting = "N" //  No highlighting.
+	None    Highlighting = "N" // No highlighting.
 	Invert  Highlighting = "I" // Invert the contents of the annotation rectangle.
 	Outline Highlighting = "O" // Invert the annotation’s border.
 	Push    Highlighting = "P" // Display the annotation’s down appearance, if any
 	Toggle  Highlighting = "T" // Same as P (which is preferred).
 )
 
+// TODO:
 type WidgetAnnotation struct {
 	H Highlighting
 }

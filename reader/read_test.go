@@ -26,8 +26,7 @@ func TestOpen(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	fmt.Println((*doc.Catalog.AcroForm.Fields[9].AP.N)["Oui"].Resources)
-	fmt.Println(doc.Catalog.AcroForm.Fields[9].AP.D)
+	fmt.Println(doc.Catalog.Pages.Count())
 }
 
 func TestAlterFields(t *testing.T) {

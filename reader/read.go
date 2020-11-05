@@ -106,6 +106,34 @@ func ParsePDF(source io.ReadSeeker, userPassword string) (*model.Document, error
 	return &out, nil
 }
 
+func catalog(xref *pdfcpu.XRefTable) (model.Catalog, error) {
+	var out model.Catalog
+	d, err := xref.Catalog()
+	if err != nil {
+		return out, fmt.Errorf("can't resolve Catalog: %w", err)
+	}
+	r := resolver{
+		xref:              xref,
+		formFields:        make(map[pdfcpu.IndirectRef]*model.FormField),
+		appearanceDicts:   make(map[pdfcpu.IndirectRef]*model.AppearanceDict),
+		appearanceEntries: make(map[pdfcpu.IndirectRef]*model.AppearanceEntry),
+		xObjects:          make(map[pdfcpu.IndirectRef]*model.XObject),
+		resources:         make(map[pdfcpu.IndirectRef]*model.ResourcesDict),
+		fonts:             make(map[pdfcpu.IndirectRef]*model.Font),
+		encodings:         make(map[pdfcpu.IndirectRef]*model.EncodingDict),
+	}
+
+	out.AcroForm, err = r.processAcroForm(d)
+	if err != nil {
+		return out, err
+	}
+	out.Pages, err = r.processPages(d)
+	if err != nil {
+		return out, err
+	}
+	return out, nil
+}
+
 // maintain tables mapping PDF indirect object numbers
 // to model objects
 type resolver struct {
@@ -117,4 +145,19 @@ type resolver struct {
 	xObjects          map[pdfcpu.IndirectRef]*model.XObject
 	resources         map[pdfcpu.IndirectRef]*model.ResourcesDict
 	fonts             map[pdfcpu.IndirectRef]*model.Font
+	encodings         map[pdfcpu.IndirectRef]*model.EncodingDict
+	annotations       map[pdfcpu.IndirectRef]*model.Annotation
+}
+
+// might return nil, since, (PDF spec, clause 7.3.10)
+// An indirect reference to an undefined object shall not be considered an error by a conforming reader;
+// it shall be treated as a reference to the null object.
+func (r resolver) resolve(o pdfcpu.Object) pdfcpu.Object {
+	// despite it's signature, Dereference always return a nil error
+	out, _ := r.xref.Dereference(o)
+	return out
+}
+
+func errType(label string, o pdfcpu.Object) error {
+	return fmt.Errorf("unexpected type for %s: %T", label, o)
 }

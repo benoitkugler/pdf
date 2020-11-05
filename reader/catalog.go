@@ -7,17 +7,6 @@ import (
 	"github.com/pdfcpu/pdfcpu/pkg/pdfcpu"
 )
 
-func (r resolver) resolveRef(ref pdfcpu.IndirectRef) pdfcpu.Object {
-	// 7.3.10
-	// An indirect reference to an undefined object shall not be considered an error by a conforming reader;
-	// it shall be treated as a reference to the null object.
-	entry, found := r.xref.FindTableEntryForIndRef(&ref)
-	if !found || entry.Free {
-		return nil
-	}
-	return entry.Object
-}
-
 func (r resolver) resolveFormField(o pdfcpu.Object) (*model.FormField, error) {
 	var err error
 	ref, isRef := o.(pdfcpu.IndirectRef)
@@ -27,14 +16,14 @@ func (r resolver) resolveFormField(o pdfcpu.Object) (*model.FormField, error) {
 			return ff, nil
 		}
 		// we haven't resolved it yet: do it
-		o = r.resolveRef(ref)
+		o = r.resolve(ref)
 	}
 	if o == nil {
 		return nil, nil
 	}
 	f, isDict := o.(pdfcpu.Dict)
 	if !isDict {
-		return nil, fmt.Errorf("unexpected type for FormField: %T", o)
+		return nil, errType("FormField", o)
 	}
 	var fi model.FormField
 	if typ := f.NameEntry("FT"); typ != nil {
@@ -61,7 +50,9 @@ func (r resolver) resolveFormField(o pdfcpu.Object) (*model.FormField, error) {
 		fi.DA = decodeStringLit(*da)
 	}
 
-	fi.Rect = rectangleFromArray(f.ArrayEntry("Rect"))
+	if rect := rectangleFromArray(f.ArrayEntry("Rect")); rect != nil {
+		fi.Rect = *rect
+	}
 
 	contents, _ := f["Contents"].(pdfcpu.StringLiteral)
 	fi.Contents = decodeStringLit(contents)
@@ -77,15 +68,15 @@ func (r resolver) resolveFormField(o pdfcpu.Object) (*model.FormField, error) {
 	return &fi, nil
 }
 
-func rectangleFromArray(ar pdfcpu.Array) model.Rectangle {
+func rectangleFromArray(ar pdfcpu.Array) *model.Rectangle {
 	if len(ar) < 4 {
-		return model.Rectangle{}
+		return nil
 	}
 	llx, _ := ar[0].(pdfcpu.Float)
 	lly, _ := ar[1].(pdfcpu.Float)
 	urx, _ := ar[2].(pdfcpu.Float)
 	ury, _ := ar[3].(pdfcpu.Float)
-	return model.Rectangle{Llx: llx.Value(), Lly: lly.Value(), Urx: urx.Value(), Ury: ury.Value()}
+	return &model.Rectangle{Llx: llx.Value(), Lly: lly.Value(), Urx: urx.Value(), Ury: ury.Value()}
 }
 
 func matrixFromArray(ar pdfcpu.Array) *model.Matrix {
@@ -106,14 +97,14 @@ func (r resolver) resolveAppearanceDict(o pdfcpu.Object) (*model.AppearanceDict,
 		if ff := r.appearanceDicts[ref]; ff != nil {
 			return ff, nil
 		}
-		o = r.resolveRef(ref)
+		o = r.resolve(ref)
 	}
 	if o == nil {
 		return nil, nil
 	}
 	a, isDict := o.(pdfcpu.Dict)
 	if !isDict {
-		return nil, fmt.Errorf("unexpected type for AppearanceDict: %T", o)
+		return nil, errType("AppearanceDict", o)
 	}
 	var (
 		out model.AppearanceDict
@@ -146,7 +137,7 @@ func (r resolver) resolveAppearanceDict(o pdfcpu.Object) (*model.AppearanceDict,
 func (r resolver) resolveAppearanceEntry(obj pdfcpu.Object) (*model.AppearanceEntry, error) {
 	refApp, isRef := obj.(pdfcpu.IndirectRef)
 	if isRef {
-		obj = r.resolveRef(refApp)
+		obj = r.resolve(refApp)
 	}
 	out := make(model.AppearanceEntry)
 	var err error
@@ -163,11 +154,11 @@ func (r resolver) resolveAppearanceEntry(obj pdfcpu.Object) (*model.AppearanceEn
 				// nothing to do
 			} else {
 				if isStreamRef {
-					stream = r.resolveRef(refStream)
+					stream = r.resolve(refStream)
 				}
 				streamDict, ok := stream.(pdfcpu.StreamDict)
 				if !ok {
-					return nil, fmt.Errorf("unexpected type for Stream object: %T", stream)
+					return nil, errType("Stream object", stream)
 				}
 				ap, err = r.processXObject(streamDict)
 				if err != nil {
@@ -195,14 +186,16 @@ func (r resolver) resolveAppearanceEntry(obj pdfcpu.Object) (*model.AppearanceEn
 		}
 		out = model.AppearanceEntry{"": ap}
 	default:
-		return nil, fmt.Errorf("unexpected type for Appearance: %T", obj)
+		return nil, errType("Appearance", obj)
 	}
 	return &out, nil
 }
 
 func (r resolver) processXObject(obj pdfcpu.StreamDict) (*model.XObject, error) {
 	var ap model.XObject
-	ap.BBox = rectangleFromArray(obj.Dict.ArrayEntry("BBox"))
+	if rect := rectangleFromArray(obj.Dict.ArrayEntry("BBox")); rect != nil {
+		ap.BBox = *rect
+	}
 	ap.Matrix = matrixFromArray(obj.Dict.ArrayEntry("Matrix"))
 	if res := obj.Dict["Resources"]; res != nil {
 		var err error
@@ -216,28 +209,6 @@ func (r resolver) processXObject(obj pdfcpu.StreamDict) (*model.XObject, error) 
 	}
 	ap.Content = obj.Content
 	return &ap, nil
-}
-
-func catalog(xref *pdfcpu.XRefTable) (model.Catalog, error) {
-	var out model.Catalog
-	d, err := xref.Catalog()
-	if err != nil {
-		return out, fmt.Errorf("can't resolve Catalog: %w", err)
-	}
-	r := resolver{
-		xref:              xref,
-		appearanceDicts:   make(map[pdfcpu.IndirectRef]*model.AppearanceDict),
-		appearanceEntries: make(map[pdfcpu.IndirectRef]*model.AppearanceEntry),
-		formFields:        make(map[pdfcpu.IndirectRef]*model.FormField),
-		resources:         make(map[pdfcpu.IndirectRef]*model.ResourcesDict),
-		xObjects:          make(map[pdfcpu.IndirectRef]*model.XObject),
-	}
-
-	out.AcroForm, err = r.processAcroForm(d)
-	if err != nil {
-		return out, err
-	}
-	return out, nil
 }
 
 func (r resolver) processAcroForm(catalog pdfcpu.Dict) (model.AcroForm, error) {

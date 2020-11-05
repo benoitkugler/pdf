@@ -16,6 +16,16 @@ const (
 	ThreeQuarter
 )
 
+// NewRotation validate the input and returns
+// a rotation, which may be nil
+func NewRotation(degrees int) *Rotation {
+	if degrees%90 != 0 {
+		return nil
+	}
+	r := Rotation((degrees / 90) % 4)
+	return &r
+}
+
 func (r Rotation) Degrees() int {
 	return 90 * int(r)
 }
