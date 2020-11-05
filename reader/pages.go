@@ -7,8 +7,8 @@ import (
 	"github.com/pdfcpu/pdfcpu/pkg/pdfcpu"
 )
 
-func (r resolver) processPages(catalog pdfcpu.Dict) (model.PageTree, error) {
-	pages := r.resolve(catalog["Pages"])
+func (r resolver) processPages(entry pdfcpu.Object) (model.PageTree, error) {
+	pages := r.resolve(entry)
 	pagesDict, isDict := pages.(pdfcpu.Dict)
 	if !isDict {
 		return model.PageTree{}, errType("Pages", pages)
@@ -20,7 +20,7 @@ func (r resolver) processPages(catalog pdfcpu.Dict) (model.PageTree, error) {
 	return *root, err
 }
 
-func (r resolver) resolvePageObject(node pdfcpu.Dict, parent *model.PageTree) (*model.PageObject, error) {
+func (r *resolver) resolvePageObject(node pdfcpu.Dict, parent *model.PageTree) (*model.PageObject, error) {
 	resources, err := r.resolveResources(node["Resources"])
 	if err != nil {
 		return nil, err
@@ -93,7 +93,7 @@ func (r resolver) resolvePageObject(node pdfcpu.Dict, parent *model.PageTree) (*
 }
 
 // node, possibly root
-func (r resolver) resolvePageTree(node pdfcpu.Dict, parent *model.PageTree) (*model.PageTree, error) {
+func (r *resolver) resolvePageTree(node pdfcpu.Dict, parent *model.PageTree) (*model.PageTree, error) {
 	resources, err := r.resolveResources(node["Resources"])
 	if err != nil {
 		return nil, err
@@ -103,8 +103,8 @@ func (r resolver) resolvePageTree(node pdfcpu.Dict, parent *model.PageTree) (*mo
 	page.Resources = resources
 	kids, _ := r.resolve(node["Kids"]).(pdfcpu.Array)
 	for _, node := range kids {
-		// each page should be distinct, don't bother
-		// tracking the refs
+		// track the refs to page object, needed by destinations
+		ref, isRef := node.(pdfcpu.IndirectRef)
 		node = r.resolve(node)
 		nodeDict, ok := node.(pdfcpu.Dict)
 		if !ok {
@@ -114,12 +114,15 @@ func (r resolver) resolvePageTree(node pdfcpu.Dict, parent *model.PageTree) (*mo
 		if err != nil {
 			return nil, err
 		}
+		if pagePtr, ok := kid.(*model.PageObject); ok && isRef {
+			r.pages[ref] = pagePtr
+		}
 		page.Kids = append(page.Kids, kid)
 	}
 	return &page, nil
 }
 
-func (r resolver) processPageNode(node pdfcpu.Dict, parent *model.PageTree) (model.PageNode, error) {
+func (r *resolver) processPageNode(node pdfcpu.Dict, parent *model.PageTree) (model.PageNode, error) {
 	switch node["Type"] {
 	case pdfcpu.Name("Pages"):
 		return r.resolvePageTree(node, parent)
@@ -130,12 +133,77 @@ func (r resolver) processPageNode(node pdfcpu.Dict, parent *model.PageTree) (mod
 	}
 }
 
-// TODO:
-func (r resolver) resolveAnnotationSubType(annot pdfcpu.Dict) (model.AnnotationType, error) {
+func (r *resolver) resolveExplicitDestination(dest pdfcpu.Array) (*model.ExplicitDestination, error) {
+	if len(dest) != 5 {
+		return nil, nil
+	}
+	out := new(model.ExplicitDestination)
+	pageRef, isRef := dest[0].(pdfcpu.IndirectRef)
+	if !isRef {
+		return nil, errType("Dest.Page", dest[0])
+	}
+	if dest[1] != pdfcpu.Name("XYZ") {
+		return nil, fmt.Errorf("expected /XYZ in Destination, got %s", dest[1])
+	}
+	if left, ok := isNumber(dest[2]); ok {
+		out.Left = &left
+	}
+	if top, ok := isNumber(dest[3]); ok {
+		out.Top = &top
+	}
+	out.Zoom, _ = isNumber(dest[4])
+	// store the incomplete destination to process later on
+	r.destinationsToComplete = append(r.destinationsToComplete,
+		incompleteDest{ref: pageRef, destination: out})
+	return out, nil
+}
+
+// TODO: support more destination format
+func (r *resolver) processDestination(dest pdfcpu.Object) (model.Destination, error) {
+	switch dest := dest.(type) {
+	case pdfcpu.Name:
+		return model.NamedDestination(dest), nil
+	case pdfcpu.StringLiteral:
+		return model.NamedDestination(decodeStringLit(dest)), nil
+	case pdfcpu.Array:
+		return r.resolveExplicitDestination(dest)
+	default:
+		return nil, errType("Destination", dest)
+	}
+}
+
+// TODO: support more
+func (r *resolver) processAction(action pdfcpu.Dict) (model.Action, error) {
+	switch action["S"] {
+	case pdfcpu.Name("URI"):
+		uri, _ := action["URI"].(pdfcpu.StringLiteral)
+		return model.URIAction(decodeStringLit(uri)), nil
+	case pdfcpu.Name("GoTo"):
+		dest, err := r.processDestination(action["D"])
+		if err != nil {
+			return nil, err
+		}
+		return model.GoToAction{D: dest}, nil
+	default:
+		return nil, nil
+	}
+}
+
+func (r *resolver) resolveAnnotationSubType(annot pdfcpu.Dict) (model.AnnotationType, error) {
 	var err error
 	switch annot["Subtype"] {
 	case pdfcpu.Name("Link"):
-		return model.LinkAnnotation{}, nil
+		var an model.LinkAnnotation
+		aDict, isDict := r.resolve(annot["A"]).(pdfcpu.Dict)
+		if isDict {
+			an.A, err = r.processAction(aDict)
+			return an, err
+		}
+		an.Dest, err = r.processDestination(annot["Dest"])
+		if err != nil {
+			return an, err
+		}
+		return an, nil
 	case pdfcpu.Name("FileAttachment"):
 		var an model.FileAttachmentAnnotation
 		title, _ := annot["T"].(pdfcpu.StringLiteral)
@@ -143,6 +211,7 @@ func (r resolver) resolveAnnotationSubType(annot pdfcpu.Dict) (model.AnnotationT
 		an.FS, err = r.resolveFileSpec(annot["FS"])
 		return an, err
 	case pdfcpu.Name("Widget"):
+		// TODO:
 		return model.WidgetAnnotation{}, nil
 	default:
 		return nil, nil

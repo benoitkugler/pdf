@@ -69,18 +69,35 @@ type FileAttachmentAnnotation struct {
 // LinkAnnotation either opens an URI (field A)
 // or an internal page (field Dest)
 type LinkAnnotation struct {
-	A    *ActionDict
-	Dest *Destination
+	A    Action      // optional, represented by a dictionary in PDF
+	Dest Destination // may only be present is A is nil
 }
 
-// TODO: only URI is supported
-type ActionDict struct {
-	// S   Name
-	URI string
+type Action interface {
+	S() string // return the action type
 }
 
-// Destination is an explicit destination to a page
-type Destination struct {
+type URIAction string
+
+func (URIAction) S() string { return "URI" }
+
+type GoToAction struct {
+	D Destination
+}
+
+func (GoToAction) S() string { return "GoTo" }
+
+type Destination interface {
+	isDestination()
+}
+
+func (ExplicitDestination) isDestination() {}
+func (NamedDestination) isDestination()    {}
+
+type NamedDestination string
+
+// ExplicitDestination is an explicit destination to a page
+type ExplicitDestination struct {
 	Page      *PageObject
 	Left, Top *float64 // nil means Don't change the current value
 	Zoom      float64

@@ -28,6 +28,17 @@ type resolver struct {
 	annotations       map[pdfcpu.IndirectRef]*model.Annotation
 	fileSpecs         map[pdfcpu.IndirectRef]*model.FileSpec
 	fileContents      map[pdfcpu.IndirectRef]*model.EmbeddedFileStream
+	pages             map[pdfcpu.IndirectRef]*model.PageObject
+
+	// annotations may reference pages which are not yet processed
+	// we store them and update the Page field later
+	// see processPages, processDictDests
+	destinationsToComplete []incompleteDest
+}
+
+type incompleteDest struct {
+	destination *model.ExplicitDestination
+	ref         pdfcpu.IndirectRef
 }
 
 func decodeStringLit(s pdfcpu.StringLiteral) string {
@@ -49,6 +60,18 @@ func decodeStringLit(s pdfcpu.StringLiteral) string {
 	}
 
 	return encodings.PDFDocEncodingToString([]byte(s))
+}
+
+// return the number and true is o is an int or a number
+func isNumber(o pdfcpu.Object) (float64, bool) {
+	switch o := o.(type) {
+	case pdfcpu.Float:
+		return o.Value(), true
+	case pdfcpu.Integer:
+		return float64(o.Value()), true
+	default:
+		return 0, false
+	}
 }
 
 func info(xref *pdfcpu.XRefTable) (model.Info, error) {
@@ -147,16 +170,37 @@ func catalog(xref *pdfcpu.XRefTable) (model.Catalog, error) {
 		annotations:       make(map[pdfcpu.IndirectRef]*model.Annotation),
 		fileSpecs:         make(map[pdfcpu.IndirectRef]*model.FileSpec),
 		fileContents:      make(map[pdfcpu.IndirectRef]*model.EmbeddedFileStream),
+		pages:             make(map[pdfcpu.IndirectRef]*model.PageObject),
 	}
 
-	out.AcroForm, err = r.processAcroForm(d)
+	out.AcroForm, err = r.processAcroForm(d["AcroForm"])
 	if err != nil {
 		return out, err
 	}
-	out.Pages, err = r.processPages(d)
+	out.Pages, err = r.processPages(d["Pages"])
 	if err != nil {
 		return out, err
 	}
+
+	out.Dests, err = r.processDictDests(d["Dests"])
+	if err != nil {
+		return out, err
+	}
+
+	out.Names, err = r.processNameDict(d["Names"])
+	if err != nil {
+		return out, err
+	}
+
+	// complete the destinations
+	for _, dest := range r.destinationsToComplete {
+		po := r.pages[dest.ref]
+		if po == nil {
+			return out, fmt.Errorf("reference %s not found in pages: ignoring destination", dest.ref)
+		}
+		dest.destination.Page = po
+	}
+
 	return out, nil
 }
 

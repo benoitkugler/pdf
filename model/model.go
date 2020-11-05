@@ -20,10 +20,12 @@ type Catalog struct {
 	Names             NameDictionnary
 	ViewerPreferences ViewerPreferences
 	AcroForm          AcroForm
+	Dests             DestTree
 }
 
 type NameDictionnary struct {
 	EmbeddedFiles []EmbeddedFile
+	Dests         DestTree
 	// AP
 }
 

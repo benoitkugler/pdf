@@ -27,8 +27,11 @@ func TestGeneratePDF(t *testing.T) {
 	// g.SetAttachments([]gofpdf.Attachment{
 	// 	a, a,
 	// })
+	g.AddPage()
 	l := g.AddLink()
+	g.SetLink(l, 10, 1)
 	g.Link(20, 30, 40, 50, l)
+	g.Rect(20, 30, 40, 50, "D")
 	if err := g.OutputFileAndClose("datatest/Links.pdf"); err != nil {
 		t.Fatal(err)
 	}
@@ -36,11 +39,11 @@ func TestGeneratePDF(t *testing.T) {
 
 func TestOpen(t *testing.T) {
 	// f, err := os.Open("datatest/descriptif.pdf")
-	f, err := os.Open("datatest/Links.pdf")
+	// f, err := os.Open("datatest/Links.pdf")
 	// f, err := os.Open("datatest/transparents.pdf")
 	// f, err := os.Open("datatest/ModeleRecuFiscalEditable.pdf")
 	// f, err := os.Open("datatest/Protected.pdf")
-	// f, err := os.Open("datatest/PDF_SPEC.pdf")
+	f, err := os.Open("datatest/PDF_SPEC.pdf")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -48,7 +51,8 @@ func TestOpen(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	fmt.Println(doc.Catalog.Pages.Count())
+	fmt.Println(len(doc.Catalog.Dests.LookupTable()))
+	fmt.Println(len(doc.Catalog.Names.Dests.LookupTable()))
 }
 
 func TestAlterFields(t *testing.T) {

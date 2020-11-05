@@ -18,16 +18,22 @@ type PageTree struct {
 // Count returns the number of Page objects (leaf node)
 // in all the descendants of `p` (not only in its direct children)
 func (p *PageTree) Count() int {
-	total := 0
+	return len(p.Flatten())
+}
+
+// Flatten returns all the leaf of the tree.
+// Be aware that inherited resource are not resolved
+func (p *PageTree) Flatten() []*PageObject {
+	var out []*PageObject
 	for _, kid := range p.Kids {
 		switch kid := kid.(type) {
 		case *PageTree:
-			total += kid.Count()
+			out = append(out, kid.Flatten()...)
 		case *PageObject:
-			total += 1
+			out = append(out, kid)
 		}
 	}
-	return total
+	return out
 }
 
 type PageObject struct {
