@@ -126,3 +126,12 @@ func TestBytes(t *testing.T) {
 	}
 	fmt.Println(string(bs))
 }
+
+func TestUnicode(t *testing.T) {
+	b := byte(155)
+	r := rune(0x203a)
+	fmt.Println([]byte(string(r)))
+	fmt.Println(string(b), string(r))
+
+	fmt.Println(int(0x7d) - 20)
+}
