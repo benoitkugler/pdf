@@ -24,6 +24,7 @@ type resolver struct {
 	xObjects          map[pdfcpu.IndirectRef]*model.XObject
 	resources         map[pdfcpu.IndirectRef]*model.ResourcesDict
 	fonts             map[pdfcpu.IndirectRef]*model.Font
+	graphicsStates    map[pdfcpu.IndirectRef]*model.GraphicState
 	encodings         map[pdfcpu.IndirectRef]*model.EncodingDict
 	annotations       map[pdfcpu.IndirectRef]*model.Annotation
 	fileSpecs         map[pdfcpu.IndirectRef]*model.FileSpec
@@ -166,6 +167,7 @@ func catalog(xref *pdfcpu.XRefTable) (model.Catalog, error) {
 		xObjects:          make(map[pdfcpu.IndirectRef]*model.XObject),
 		resources:         make(map[pdfcpu.IndirectRef]*model.ResourcesDict),
 		fonts:             make(map[pdfcpu.IndirectRef]*model.Font),
+		graphicsStates:    make(map[pdfcpu.IndirectRef]*model.GraphicState),
 		encodings:         make(map[pdfcpu.IndirectRef]*model.EncodingDict),
 		annotations:       make(map[pdfcpu.IndirectRef]*model.Annotation),
 		fileSpecs:         make(map[pdfcpu.IndirectRef]*model.FileSpec),
@@ -188,6 +190,11 @@ func catalog(xref *pdfcpu.XRefTable) (model.Catalog, error) {
 	}
 
 	out.Names, err = r.processNameDict(d["Names"])
+	if err != nil {
+		return out, err
+	}
+
+	err = r.resolvePageLabelsTree(d["PageLabels"], &out.PageLabels)
 	if err != nil {
 		return out, err
 	}

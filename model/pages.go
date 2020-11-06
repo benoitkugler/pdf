@@ -21,7 +21,9 @@ func (p *PageTree) Count() int {
 	return len(p.Flatten())
 }
 
-// Flatten returns all the leaf of the tree.
+// Flatten returns all the leaf of the tree,
+// respecting the indexing convention for pages (0-based):
+// the page with index i is Flatten()[i].
 // Be aware that inherited resource are not resolved
 func (p *PageTree) Flatten() []*PageObject {
 	var out []*PageObject

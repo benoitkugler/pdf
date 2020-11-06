@@ -11,7 +11,6 @@ import (
 type nameTree interface {
 	createKid() nameTree
 	appendKid(kid nameTree) // kid will be the value returned by createKid
-	setLimits(limits [2]string)
 	resolveLeafValueAppend(r *resolver, name string, value pdfcpu.Object) error
 }
 
@@ -24,12 +23,12 @@ func (r *resolver) resolveNameTree(entry pdfcpu.Object, output nameTree) error {
 		return errType("Name Tree value", entry)
 	}
 
-	limits := dict.ArrayEntry("Limits")
-	if len(limits) == 2 {
-		low, _ := limits[0].(pdfcpu.StringLiteral)
-		high, _ := limits[1].(pdfcpu.StringLiteral)
-		output.setLimits([2]string{decodeStringLit(low), decodeStringLit(high)})
-	}
+	// limits is inferred from the content
+	// if len(limits) == 2 {
+	// 	low, _ := limits[0].(pdfcpu.StringLiteral)
+	// 	high, _ := limits[1].(pdfcpu.StringLiteral)
+	// 	output.setLimits([2]string{decodeStringLit(low), decodeStringLit(high)})
+	// }
 
 	if kids := dict.ArrayEntry("Kids"); kids != nil {
 		// intermediate node
@@ -73,9 +72,6 @@ func (d destNameTree) createKid() nameTree {
 func (d destNameTree) appendKid(kid nameTree) {
 	d.out.Kids = append(d.out.Kids, kid.(destNameTree).out)
 }
-func (d destNameTree) setLimits(limits [2]string) {
-	d.out.Limits = limits
-}
 func (d destNameTree) resolveLeafValueAppend(r *resolver, name string, value pdfcpu.Object) error {
 	expDest, err := r.resolveOneNamedDest(value)
 	d.out.Names = append(d.out.Names, model.NameToDest{Name: name, Destination: expDest})
@@ -94,9 +90,70 @@ func (d embFileNameTree) appendKid(kid nameTree) {
 	values := *kid.(embFileNameTree).out
 	*d.out = append(*d.out, values...)
 }
-func (d embFileNameTree) setLimits(limits [2]string) {} // no op
 func (d embFileNameTree) resolveLeafValueAppend(r *resolver, name string, value pdfcpu.Object) error {
 	fileSpec, err := r.resolveFileSpec(value)
 	*d.out = append(*d.out, model.NameToFile{Name: name, FileSpec: fileSpec})
 	return err
+}
+
+// number tree
+
+func (r *resolver) resolvePageLabelsTree(entry pdfcpu.Object, output *model.PageLabelsTree) error {
+	entry = r.resolve(entry)
+	dict, isDict := entry.(pdfcpu.Dict)
+	if !isDict {
+		return errType("Name Tree value", entry)
+	}
+
+	// limits is inferred from the content
+
+	if kids := dict.ArrayEntry("Kids"); kids != nil {
+		// intermediate node
+		// one node shouldn't be refered twice,
+		// dont bother tracking ref
+		for _, kid := range kids {
+			kidModel := new(model.PageLabelsTree)
+			err := r.resolvePageLabelsTree(kid, kidModel)
+			if err != nil {
+				return err
+			}
+			output.Kids = append(output.Kids, kidModel)
+		}
+		return nil
+	}
+
+	// leaf node
+	nums := dict.ArrayEntry("Nums")
+	L := len(nums)
+	if L%2 != 0 {
+		return fmt.Errorf("expected even length array in number tree, got %s", nums)
+	}
+	for l := 0; l < L/2; l++ {
+		num, _ := nums[2*l].(pdfcpu.Integer)
+		value := nums[2*l+1]
+		pageLabel, err := r.processPageLabel(value)
+		if err != nil {
+			return err
+		}
+		output.Nums = append(output.Nums, model.NumToPageLabel{Num: num.Value(), PageLabel: pageLabel})
+	}
+	return nil
+}
+
+func (r resolver) processPageLabel(entry pdfcpu.Object) (model.PageLabel, error) {
+	entry = r.resolve(entry)
+	entryDict, isDict := entry.(pdfcpu.Dict)
+	if !isDict {
+		return model.PageLabel{}, errType("Page Label", entry)
+	}
+	var out model.PageLabel
+	if s := entryDict.NameEntry("S"); s != nil {
+		out.S = model.Name(*s)
+	}
+	p, _ := entryDict["P"].(pdfcpu.StringLiteral)
+	out.P = decodeStringLit(p)
+	if st := entryDict.IntEntry("St"); st != nil {
+		out.St = *st
+	}
+	return out, nil
 }

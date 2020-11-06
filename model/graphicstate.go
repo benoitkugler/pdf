@@ -1,12 +1,12 @@
 package model
 
 type DashPattern struct {
-	Array []float64
-	Phase int
+	Array []uint
+	Phase uint
 }
 
 type FontStyle struct {
-	Font Font
+	Font *Font
 	Size float64
 }
 
@@ -21,6 +21,8 @@ type GraphicState struct {
 	CA   float64
 	Ca   float64 // non-stroking
 	AIS  bool
+	SM   float64
+	SA   bool
 }
 
 type SeparationColor struct {

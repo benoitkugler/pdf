@@ -21,6 +21,7 @@ type Catalog struct {
 	ViewerPreferences ViewerPreferences
 	AcroForm          AcroForm
 	Dests             DestTree
+	PageLabels        PageLabelsTree
 }
 
 type NameDictionnary struct {

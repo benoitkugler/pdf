@@ -20,6 +20,24 @@ func (r resolver) processPages(entry pdfcpu.Object) (model.PageTree, error) {
 	return *root, err
 }
 
+func (r resolver) processContentStream(content pdfcpu.Object) (*model.ContentStream, error) {
+	var err error
+	content = r.resolve(content)
+	if content == nil {
+		return nil, nil
+	}
+	stream, ok := content.(pdfcpu.StreamDict)
+	if !ok {
+		return nil, errType("Content stream", content)
+	}
+	var out model.ContentStream
+	// length will be deduced from the content
+	out.Content = stream.Raw
+	out.StreamDict, err = r.processStreamDict(stream.Dict)
+	return &out, err
+}
+
+// TODO:
 func (r *resolver) resolvePageObject(node pdfcpu.Dict, parent *model.PageTree) (*model.PageObject, error) {
 	resources, err := r.resolveResources(node["Resources"])
 	if err != nil {
@@ -45,6 +63,31 @@ func (r *resolver) resolvePageObject(node pdfcpu.Dict, parent *model.PageTree) (
 	}
 	if rot := node.IntEntry("Rotate"); rot != nil {
 		page.Rotate = model.NewRotation(*rot)
+	}
+
+	// one content stream won't probably be referenced twice:
+	// dont both tracking the refs
+	contents := r.resolve(node["Contents"])
+	switch contents := contents.(type) {
+	case pdfcpu.Array: // array of streams
+		page.Contents = make(model.Contents, len(contents))
+		for _, v := range contents {
+			cts, err := r.processContentStream(v)
+			if err != nil {
+				return nil, err
+			}
+			if cts != nil {
+				page.Contents = append(page.Contents, *cts)
+			}
+		}
+	case pdfcpu.StreamDict:
+		ct, err := r.processContentStream(contents)
+		if err != nil {
+			return nil, err
+		}
+		if ct != nil {
+			page.Contents = append(page.Contents, *ct)
+		}
 	}
 
 	annots := node.ArrayEntry("Annots")
@@ -329,7 +372,7 @@ func (r resolver) processDecodeParms(parms pdfcpu.Object) map[model.Name]int {
 
 func (r resolver) processStreamDict(dict pdfcpu.Dict) (model.StreamDict, error) {
 	var out model.StreamDict
-	filters := r.resolve(dict["Filters"])
+	filters := r.resolve(dict["Filter"])
 	if filterName, isName := filters.(pdfcpu.Name); isName {
 		filters = pdfcpu.Array{filterName}
 	}

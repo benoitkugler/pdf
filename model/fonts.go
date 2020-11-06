@@ -9,14 +9,12 @@ type FontType interface {
 	isFontType()
 }
 
-type Type0 struct{}
-
 type Type1 struct {
 	BaseFont            Name
 	FirstChar, LastChar byte
 	Widths              []float64 // length (LastChar − FirstChar + 1) index i is char FirstChar + i
 	FontDescriptor      FontDescriptor
-	Encoding            Encoding // optional
+	Encoding            SimpleEncoding // optional
 }
 type TrueType Type1
 
@@ -24,7 +22,7 @@ type Type3 struct {
 	FontBBox            Rectangle
 	FontMatrix          Matrix
 	CharProcs           map[Name]ContentStream
-	Encoding            Encoding
+	Encoding            SimpleEncoding
 	FirstChar, LastChar byte
 	Widths              []float64 // length (LastChar − FirstChar + 1) index i is char FirstChar + i
 	FontDescriptor      FontDescriptor
@@ -65,12 +63,13 @@ type FontDescriptor struct {
 	MissingWidth    float64
 }
 
-type Encoding interface {
-	isEncoding()
+// SimpleEncoding is a font encoding for simple fonts
+type SimpleEncoding interface {
+	isSimpleEncoding()
 }
 
-func (PredefinedEncoding) isEncoding() {}
-func (*EncodingDict) isEncoding()      {}
+func (PredefinedEncoding) isSimpleEncoding() {}
+func (*EncodingDict) isSimpleEncoding()      {}
 
 type PredefinedEncoding Name
 
@@ -82,7 +81,7 @@ const (
 
 // NewPrededinedEncoding validated the string `s`
 // and return either a valid `PredefinedEncoding` or nil
-func NewPrededinedEncoding(s string) Encoding {
+func NewPrededinedEncoding(s string) SimpleEncoding {
 	e := PredefinedEncoding(s)
 	switch e {
 	case MacExpertEncoding, MacRomanEncoding, WinAnsiEncoding:
@@ -100,4 +99,74 @@ type Differences map[byte]Name
 type EncodingDict struct {
 	BaseEncoding Name        // optionnal
 	Differences  Differences // optionnal
+}
+
+// -------------------------- Type 0 --------------------------
+
+type Type0 struct {
+	BaseFont        Name
+	Encoding        CMapEncoding
+	DescendantFonts CIDFontDictionnary // in PDF, array of one indirect object
+	ToUnicode       *ContentStream     // optionnal, as indirect object
+}
+
+// CMapEncoding maps character codes to font numbers and CIDs
+type CMapEncoding interface {
+	isCMapEncoding()
+}
+
+func (PredefinedCMapEncoding) isCMapEncoding() {}
+func (EmbeddedCMapEncoding) isCMapEncoding()   {}
+
+type PredefinedCMapEncoding Name
+
+type EmbeddedCMapEncoding ContentStream
+
+type CIDFontDictionnary struct {
+	Subtype        Name // CIDFontType0 or CIDFontType2
+	BaseFont       Name
+	CIDSystemInfo  CIDSystemInfo
+	FontDescriptor FontDescriptor // indirect object
+	DW             int            // optionnal, default to 1000
+	W              []CIDWidth     // optionnal
+	DW2            [2]int         // optionnal, default to [ 880 −1000 ]
+	W2             []CIDWidth     // optionnal
+}
+
+type CIDSystemInfo struct {
+	Registry   string
+	Ordering   string
+	Supplement int
+}
+
+// CIDWidth groups the two ways of defining widths for CID
+type CIDWidth interface {
+	// Widths returns the widths for each character, defined in user units
+	Widths() map[rune]int
+}
+
+type CIDWidthRange struct {
+	First, Last rune
+	Width       int
+}
+
+func (c CIDWidthRange) Widths() map[rune]int {
+	out := make(map[rune]int, c.Last-c.First)
+	for r := c.First; r <= c.Last; r++ {
+		out[r] = c.Width
+	}
+	return out
+}
+
+type CIDWidthArray struct {
+	Start rune
+	W     []int
+}
+
+func (c CIDWidthArray) Widths() map[rune]int {
+	out := make(map[rune]int, len(c.W))
+	for i, w := range c.W {
+		out[c.Start+rune(i)] = w
+	}
+	return out
 }

@@ -39,9 +39,18 @@ var booleanNames = map[Name]bool{
 type StreamDict struct {
 	// Length      int
 	Filters []Filter
-	// nil, or same length than Filters
+	// nil, or same length than Filters.
 	// boolean value are stored as 0 (false) or 1 (true)
 	DecodeParms []map[Name]int
+}
+
+// ParamsForFilter is a convenience which returns
+// the additionnal arguments of the i-th filter
+func (s StreamDict) ParamsForFilter(index int) map[Name]int {
+	if len(s.DecodeParms) == 0 {
+		return nil
+	}
+	return s.DecodeParms[index]
 }
 
 // ContentStream is a PDF stream.

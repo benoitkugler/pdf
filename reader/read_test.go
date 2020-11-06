@@ -1,10 +1,15 @@
 package reader
 
 import (
+	"bytes"
 	"fmt"
+	"io"
+	"io/ioutil"
 	"os"
 	"testing"
 
+	"github.com/benoitkugler/pdf/model"
+	"github.com/pdfcpu/pdfcpu/pkg/filter"
 	"github.com/pdfcpu/pdfcpu/pkg/pdfcpu"
 	"github.com/phpdave11/gofpdf"
 )
@@ -37,13 +42,32 @@ func TestGeneratePDF(t *testing.T) {
 	}
 }
 
+func decodeStream(stream model.ContentStream) ([]byte, error) {
+	var current io.Reader = bytes.NewReader(stream.Content)
+	for i, f := range stream.Filters {
+		params := map[string]int{}
+		for n, v := range stream.ParamsForFilter(i) {
+			params[string(n)] = v
+		}
+		fp, err := filter.NewFilter(string(f), params)
+		if err != nil {
+			return nil, err
+		}
+		current, err = fp.Decode(current)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return ioutil.ReadAll(current)
+}
+
 func TestOpen(t *testing.T) {
 	// f, err := os.Open("datatest/descriptif.pdf")
-	f, err := os.Open("datatest/Links.pdf")
+	// f, err := os.Open("datatest/Links.pdf")
 	// f, err := os.Open("datatest/transparents.pdf")
 	// f, err := os.Open("datatest/ModeleRecuFiscalEditable.pdf")
 	// f, err := os.Open("datatest/Protected.pdf")
-	// f, err := os.Open("datatest/PDF_SPEC.pdf")
+	f, err := os.Open("datatest/PDF_SPEC.pdf")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -51,8 +75,22 @@ func TestOpen(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	fmt.Println(doc.Catalog.Names.EmbeddedFiles)
-	fmt.Println(doc.Catalog.Names.Dests.LookupTable())
+	fmt.Println(doc.Trailer.Info)
+
+	fontUsage := map[*model.Font]int{}
+	for _, page := range doc.Catalog.Pages.Flatten() {
+		for _, font := range page.Resources.Font {
+			fontUsage[font]++
+		}
+	}
+	fmt.Println(fontUsage)
+
+	// ct, err := decodeStream(doc.Catalog.Pages.Flatten()[15].Contents[0])
+	// if err != nil {
+	// 	t.Fatal(err)
+	// }
+	// fmt.Println(string(ct))
+	// fmt.Println(doc.Catalog.Names.Dests.LookupTable())
 }
 
 func TestAlterFields(t *testing.T) {
