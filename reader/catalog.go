@@ -281,62 +281,37 @@ func (r *resolver) processDictDests(entry pdfcpu.Object) (model.DestTree, error)
 }
 
 func (r *resolver) resolveDestTree(entry pdfcpu.Object) (*model.DestTree, error) {
-	entry = r.resolve(entry)
-	dict, isDict := entry.(pdfcpu.Dict)
-	if !isDict {
-		return nil, errType("Dests value", entry)
-	}
-	var out model.DestTree
-	limits := dict.ArrayEntry("Limits")
-	if len(limits) == 2 {
-		low, _ := limits[0].(pdfcpu.StringLiteral)
-		high, _ := limits[1].(pdfcpu.StringLiteral)
-		out.Limits[0] = decodeStringLit(low)
-		out.Limits[1] = decodeStringLit(high)
-	}
+	out := new(model.DestTree)
+	err := r.resolveNameTree(entry, destNameTree{out: out})
+	return out, err
+}
 
-	if kids := dict.ArrayEntry("Kids"); kids != nil {
-		// intermediate node
-		// one node shouldn't be refered twice,
-		// dont bother tracking ref
-		for _, kid := range kids {
-			kidModel, err := r.resolveDestTree(kid)
-			if err != nil {
-				return nil, err
-			}
-			out.Kids = append(out.Kids, kidModel)
-		}
-		return &out, nil
-	}
-
-	// leaf node
-	names := dict.ArrayEntry("Names")
-	L := len(names)
-	if L%2 != 0 {
-		return nil, fmt.Errorf("expected even length array, got %s", names)
-	}
-	for l := 0; l < L/2; l++ {
-		name, _ := names[2*l].(pdfcpu.StringLiteral)
-		value := names[2*l+1]
-		expDest, err := r.resolveOneNamedDest(value)
-		if err != nil {
-			return nil, err
-		}
-		out.Names = append(out.Names, model.NameToDest{Name: decodeStringLit(name), Destination: expDest})
-	}
-	return &out, nil
+func (r *resolver) resolveEmbeddedFilesTree(files pdfcpu.Object) (model.EmbeddedFileTree, error) {
+	out := new(model.EmbeddedFileTree)
+	err := r.resolveNameTree(files, embFileNameTree{out: out})
+	return *out, err
 }
 
 func (r *resolver) processNameDict(entry pdfcpu.Object) (model.NameDictionnary, error) {
-	var out model.NameDictionnary
+	var (
+		out model.NameDictionnary
+		err error
+	)
 
 	dict, _ := r.resolve(entry).(pdfcpu.Dict)
 	if destsEntry := dict["Dests"]; destsEntry != nil {
-		dests, err := r.resolveDestTree(dict["Dests"])
+		dests, err := r.resolveDestTree(destsEntry)
 		if err != nil {
 			return out, err
 		}
 		out.Dests = *dests
+	}
+
+	if embeddedFiles := dict["EmbeddedFiles"]; embeddedFiles != nil {
+		out.EmbeddedFiles, err = r.resolveEmbeddedFilesTree(embeddedFiles)
+		if err != nil {
+			return out, err
+		}
 	}
 
 	// TODO: other names

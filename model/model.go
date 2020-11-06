@@ -24,7 +24,7 @@ type Catalog struct {
 }
 
 type NameDictionnary struct {
-	EmbeddedFiles []EmbeddedFile
+	EmbeddedFiles EmbeddedFileTree
 	Dests         DestTree
 	// AP
 }

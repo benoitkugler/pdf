@@ -18,15 +18,15 @@ func TestGeneratePDF(t *testing.T) {
 
 	g := gofpdf.New("", "", "", "")
 	g.AddPage()
-	// a := gofpdf.Attachment{
-	// 	Filename:    "Test.txt",
-	// 	Content:     []byte("AOIEPOZNSLKDSD"),
-	// 	Description: "Nice file !",
-	// }
-	// g.AddAttachmentAnnotation(&a, 10, 10, 20, 20)
-	// g.SetAttachments([]gofpdf.Attachment{
-	// 	a, a,
-	// })
+	a := gofpdf.Attachment{
+		Filename:    "Test.txt",
+		Content:     []byte("AOIEPOZNSLKDSD"),
+		Description: "Nice file !",
+	}
+	g.AddAttachmentAnnotation(&a, 10, 10, 20, 20)
+	g.SetAttachments([]gofpdf.Attachment{
+		a, a,
+	})
 	g.AddPage()
 	l := g.AddLink()
 	g.SetLink(l, 10, 1)
@@ -39,11 +39,11 @@ func TestGeneratePDF(t *testing.T) {
 
 func TestOpen(t *testing.T) {
 	// f, err := os.Open("datatest/descriptif.pdf")
-	// f, err := os.Open("datatest/Links.pdf")
+	f, err := os.Open("datatest/Links.pdf")
 	// f, err := os.Open("datatest/transparents.pdf")
 	// f, err := os.Open("datatest/ModeleRecuFiscalEditable.pdf")
 	// f, err := os.Open("datatest/Protected.pdf")
-	f, err := os.Open("datatest/PDF_SPEC.pdf")
+	// f, err := os.Open("datatest/PDF_SPEC.pdf")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -51,8 +51,8 @@ func TestOpen(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	fmt.Println(len(doc.Catalog.Dests.LookupTable()))
-	fmt.Println(len(doc.Catalog.Names.Dests.LookupTable()))
+	fmt.Println(doc.Catalog.Names.EmbeddedFiles)
+	fmt.Println(doc.Catalog.Names.Dests.LookupTable())
 }
 
 func TestAlterFields(t *testing.T) {
