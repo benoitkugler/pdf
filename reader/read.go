@@ -30,6 +30,8 @@ type resolver struct {
 	fileSpecs         map[pdfcpu.IndirectRef]*model.FileSpec
 	fileContents      map[pdfcpu.IndirectRef]*model.EmbeddedFileStream
 	pages             map[pdfcpu.IndirectRef]*model.PageObject
+	shadings          map[pdfcpu.IndirectRef]*model.ShadingDict
+	functions         map[pdfcpu.IndirectRef]*model.Function
 
 	// annotations may reference pages which are not yet processed
 	// we store them and update the Page field later

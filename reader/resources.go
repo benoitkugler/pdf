@@ -1,6 +1,7 @@
 package reader
 
 import (
+	"errors"
 	"fmt"
 	"log"
 
@@ -472,4 +473,138 @@ func (r resolver) parseStateDict(state pdfcpu.Dict) (*model.GraphicState, error)
 		out.Font.Font = fontModel
 	}
 	return &out, nil
+}
+
+func (r resolver) resolveShadings(shadings pdfcpu.Object) (*model.ShadingDict, error) {
+	shRef, isRef := shadings.(pdfcpu.IndirectRef)
+	if sh := r.shadings[shRef]; isRef && sh != nil {
+		return sh, nil
+	}
+	shadings = r.resolve(shadings)
+	if stream, isStream := shadings.(pdfcpu.StreamDict); isStream {
+		fmt.Println(stream)
+		return nil, errors.New("not supported")
+	}
+	shDict, isDict := shadings.(pdfcpu.Dict)
+	if !isDict {
+		return nil, errType("Shading", shadings)
+	}
+	var (
+		out model.ShadingDict
+		err error
+	)
+	// common fields
+	bg := shDict.ArrayEntry("Background")
+	out.Background = make([]float64, len(bg))
+	for i, v := range bg {
+		out.Background[i], _ = isNumber(v)
+	}
+	bbox := shDict.ArrayEntry("BBOx")
+	out.BBox = rectangleFromArray(bbox)
+	if aa := shDict.BooleanEntry("AntiAlias"); aa != nil {
+		out.AntiAlias = *aa
+	}
+	// color space
+	switch cs := shDict["ColorSpace"].(type) {
+	case pdfcpu.Name:
+		out.ColorSpace, err = model.NewNameColorSpace(cs.Value())
+	case pdfcpu.Array:
+		out.ColorSpace, err = r.resolveArrayCS(cs)
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	if isRef {
+		r.shadings[shRef] = &out
+	}
+	return &out, nil
+}
+
+func (r resolver) resolveArrayCS(ar pdfcpu.Array) (model.ColorSpace, error) {
+	if len(ar) == 0 {
+		return nil, fmt.Errorf("array for Color Space is empty")
+	}
+	switch ar[0] {
+	case pdfcpu.Name("Separation"):
+		if len(ar) != 4 {
+			return nil, fmt.Errorf("expected 4-elements array in Separation Color, got %v", ar)
+		}
+		var out model.SeparationColor
+		name, _ := ar[1].(pdfcpu.Name)
+		out.Name = model.Name(name)
+		as, _ := ar[2].(pdfcpu.Name)
+		out.AlternateSpace = model.Name(as)
+		fn, err := r.resolveFunction(ar[3])
+		if err != nil {
+			return nil, err
+		}
+		out.TintTransform = *fn
+		return out, nil
+	default: // TODO
+		fmt.Println(ar)
+		return nil, nil
+	}
+}
+
+// if not error return a non nil pointer
+func (r resolver) resolveFunction(fn pdfcpu.Object) (*model.Function, error) {
+	fnRef, isRef := fn.(pdfcpu.IndirectRef)
+	if fnM := r.functions[fnRef]; isRef && fnM != nil {
+		return fnM, nil
+	}
+	fn = r.resolve(fn)
+	var (
+		out model.Function
+		err error
+	)
+	fnDict, ok := fn.(pdfcpu.Dict)
+	if !ok {
+		return nil, errType("Function", fn)
+	}
+	// common fields
+	domain := fnDict.ArrayEntry("Domain")
+	out.Domain, err = processRange(domain)
+	if err != nil {
+		return nil, err
+	}
+	range_ := fnDict.ArrayEntry("Range")
+	out.Range, err = processRange(range_)
+	if err != nil {
+		return nil, err
+	}
+
+	// specialization
+	fType, _ := fnDict["FunctionType"].(pdfcpu.Integer)
+	switch fType {
+	case 0:
+		out.FunctionType = model.SampledFunction{}
+	case 2:
+		out.FunctionType = model.ExpInterpolationFunction{}
+	case 3:
+		out.FunctionType = model.StitchingFunction{}
+	case 4:
+		out.FunctionType = model.PostScriptCalculatorFunction{}
+	}
+
+	if isRef {
+		r.functions[fnRef] = &out
+	}
+	return &out, nil
+}
+
+func processRange(range_ pdfcpu.Array) ([]model.Range, error) {
+	if len(range_)%2 != 0 {
+		return nil, fmt.Errorf("expected even length for array, got %v", range_)
+	}
+	out := make([]model.Range, len(range_)/2)
+	for i := range out {
+		a, _ := isNumber(range_[2*i])
+		b, _ := isNumber(range_[2*i+1])
+		if a > b {
+			return nil, fmt.Errorf("invalid ranges range %v > %v", a, b)
+		}
+		out[i] = model.Range{a, b}
+	}
+	return out, nil
 }

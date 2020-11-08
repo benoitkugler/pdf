@@ -1,5 +1,7 @@
 package model
 
+import "fmt"
+
 type DashPattern struct {
 	Array []uint
 	Phase uint
@@ -25,13 +27,26 @@ type GraphicState struct {
 	SA   bool
 }
 
+// SeparationColor is defined in PDF as an array
+// [ /Separation name alternateSpace tintTransform ]
 type SeparationColor struct {
 	Name           Name
 	AlternateSpace Name
-	TintTransform  Function
+	TintTransform  Function // required, may be an indirect object
 }
 
-type NameColorSpace string
+type NameColorSpace Name
+
+// NewNameColorSpace validate the color space
+func NewNameColorSpace(cs string) (NameColorSpace, error) {
+	c := NameColorSpace(cs)
+	switch c {
+	case DeviceRGB, DeviceGray, DeviceCMYK:
+		return c, nil
+	default:
+		return "", fmt.Errorf("invalid Color Space %s", cs)
+	}
+}
 
 const (
 	DeviceRGB  NameColorSpace = "DeviceRGB"
@@ -102,9 +117,11 @@ type TensorProduct struct{} // TODO:
 type ShadingDict struct {
 	ShadingType ShadingType
 	ColorSpace  ColorSpace
-	Background  []float64  // colour components appropriate to the colour space
-	BBox        *Rectangle // in shading’s target coordinate space
-	AntiAlias   bool
+	// colour components appropriate to the colour space
+	// only applied when part of a (shading) pattern
+	Background []float64
+	BBox       *Rectangle // in shading’s target coordinate space
+	AntiAlias  bool
 }
 
 // Shading is a type2 pattern

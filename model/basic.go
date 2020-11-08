@@ -34,15 +34,14 @@ func (r Rotation) Degrees() int {
 // and it is included in PDF without encoding, by prepending /
 type Name string
 
-type FunctionType uint8
+type FunctionType interface {
+	isFunction()
+}
 
-const (
-	Sampled FunctionType = iota
-	_
-	ExpInterpolation
-	Stitching
-	PostScript
-)
+func (SampledFunction) isFunction()              {}
+func (ExpInterpolationFunction) isFunction()     {}
+func (StitchingFunction) isFunction()            {}
+func (PostScriptCalculatorFunction) isFunction() {}
 
 // Range represents an interval [a,b] where a < b
 type Range [2]float64
@@ -53,6 +52,28 @@ type Function struct {
 	Domain       []Range // length m
 	Range        []Range // length n
 }
+
+// TODO:
+type SampledFunction struct{}
+
+// ExpInterpolationFunction defines an exponential interpolation of one input
+// value and n output values
+type ExpInterpolationFunction struct {
+	C0 []float64 // length n, optional, default to 0
+	C1 []float64 // length n, optional, default to 1
+	N  int       // interpolation exponent (N=1 for linear interpolation)
+}
+
+// StitchingFunction defines a stitching of the subdomains of several 1-input functions
+// to produce a single new 1-input function
+type StitchingFunction struct {
+	Functions []*Function  // array of k 1-input functions
+	Bounds    []float64    // array of k − 1 numbers
+	Encode    [][2]float64 // length k
+}
+
+// TODO:
+type PostScriptCalculatorFunction struct{}
 
 // Matrix maps an input (x,y) to an output (x',y') defined by
 // x′ = a × x + c × y + e
