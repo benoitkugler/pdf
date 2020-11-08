@@ -2,6 +2,7 @@ package reader
 
 import (
 	"bytes"
+	"encoding/ascii85"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -78,12 +79,46 @@ func TestOpen(t *testing.T) {
 	fmt.Println(doc.Trailer.Info)
 
 	fontUsage := map[*model.Font]int{}
+	iccUsage := map[*model.ICCBasedColorSpace]int{}
+	patUsage := map[model.Pattern]int{}
+
+	inspectCs := func(cs model.ColorSpace) {
+		switch cs := cs.(type) {
+		case *model.ICCBasedColorSpace:
+			iccUsage[cs]++
+		case model.UncoloredTilingPattern:
+			if underlyingCs, ok := cs.UnderlyingColorSpace.(*model.ICCBasedColorSpace); ok {
+				iccUsage[underlyingCs]++
+			}
+		case model.IndexedColorSpace:
+			if baseCs, ok := cs.Base.(*model.ICCBasedColorSpace); ok {
+				iccUsage[baseCs]++
+			}
+		}
+	}
+
 	for _, page := range doc.Catalog.Pages.Flatten() {
 		for _, font := range page.Resources.Font {
 			fontUsage[font]++
 		}
+		for _, sh := range page.Resources.Shading {
+			inspectCs(sh.ColorSpace)
+		}
+		for _, pat := range page.Resources.Pattern {
+			patUsage[pat]++
+			if tiling, ok := pat.(*model.TilingPatern); ok {
+				for _, cs := range tiling.Resources.ColorSpace {
+					inspectCs(cs)
+				}
+			}
+		}
+		for _, cs := range page.Resources.ColorSpace {
+			inspectCs(cs)
+		}
 	}
 	fmt.Println(fontUsage)
+	fmt.Println(iccUsage)
+	fmt.Println(patUsage)
 
 	// ct, err := decodeStream(doc.Catalog.Pages.Flatten()[15].Contents[0])
 	// if err != nil {
@@ -134,4 +169,17 @@ func TestUnicode(t *testing.T) {
 	fmt.Println(string(b), string(r))
 
 	fmt.Println(int(0x7d) - 20)
+
+	s := "http://www.iso.org/iso/iso_catalogue/catalogue_tc/catalogue_detail.htm?csnumber=51502"
+	var bu bytes.Buffer
+	w := ascii85.NewEncoder(&bu)
+	_, err := w.Write([]byte(s))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = w.Close(); err != nil {
+		t.Fatal(err)
+	}
+	fmt.Println(bu.Bytes())
+	fmt.Println(bu.String())
 }

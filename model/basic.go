@@ -50,11 +50,18 @@ type Range [2]float64
 type Function struct {
 	FunctionType FunctionType
 	Domain       []Range // length m
-	Range        []Range // length n
+	Range        []Range // length n, optionnal for ExpInterpolationFunction and StitchingFunction
 }
 
-// TODO:
-type SampledFunction struct{}
+type SampledFunction struct {
+	ContentStream
+
+	Size          []int        // length m
+	BitsPerSample uint8        // 1, 2, 4, 8, 12, 16, 24 or 32
+	Order         uint8        // 1 (linear) or 3 (cubic), optional, default to 1
+	Encode        [][2]float64 // length m, optional, default to [ 0 (Size_0 − 1) 0 (Size_1 − 1) ... ]
+	Decode        []Range      // length n, optionnal, default to Range
+}
 
 // ExpInterpolationFunction defines an exponential interpolation of one input
 // value and n output values
@@ -67,13 +74,14 @@ type ExpInterpolationFunction struct {
 // StitchingFunction defines a stitching of the subdomains of several 1-input functions
 // to produce a single new 1-input function
 type StitchingFunction struct {
-	Functions []*Function  // array of k 1-input functions
+	Functions []Function   // array of k 1-input functions
 	Bounds    []float64    // array of k − 1 numbers
 	Encode    [][2]float64 // length k
 }
 
-// TODO:
-type PostScriptCalculatorFunction struct{}
+// PostScriptCalculatorFunction is stream
+// containing code written in a small subset of the PostScript language
+type PostScriptCalculatorFunction ContentStream
 
 // Matrix maps an input (x,y) to an output (x',y') defined by
 // x′ = a × x + c × y + e

@@ -39,7 +39,7 @@ func (r resolver) processContentStream(content pdfcpu.Object) (*model.ContentStr
 
 // TODO:
 func (r *resolver) resolvePageObject(node pdfcpu.Dict, parent *model.PageTree) (*model.PageObject, error) {
-	resources, err := r.resolveResources(node["Resources"])
+	resources, err := r.resolveOneResourceDict(node["Resources"])
 	if err != nil {
 		return nil, err
 	}
@@ -107,8 +107,8 @@ func (r *resolver) resolvePageObject(node pdfcpu.Dict, parent *model.PageTree) (
 			annotModel.Rect = *rect
 		}
 
-		contents, _ := annotDict["Contents"].(pdfcpu.StringLiteral)
-		annotModel.Contents = decodeStringLit(contents)
+		contents, _ := isString(annotDict["Contents"])
+		annotModel.Contents = decodeTextString(contents)
 
 		if f := annotDict.IntEntry("F"); f != nil {
 			annotModel.F = *f
@@ -137,7 +137,7 @@ func (r *resolver) resolvePageObject(node pdfcpu.Dict, parent *model.PageTree) (
 
 // node, possibly root
 func (r *resolver) resolvePageTree(node pdfcpu.Dict, parent *model.PageTree) (*model.PageTree, error) {
-	resources, err := r.resolveResources(node["Resources"])
+	resources, err := r.resolveOneResourceDict(node["Resources"])
 	if err != nil {
 		return nil, err
 	}
@@ -206,8 +206,9 @@ func (r *resolver) processDestination(dest pdfcpu.Object) (model.Destination, er
 	switch dest := dest.(type) {
 	case pdfcpu.Name:
 		return model.NamedDestination(dest), nil
-	case pdfcpu.StringLiteral:
-		return model.NamedDestination(decodeStringLit(dest)), nil
+	case pdfcpu.StringLiteral, pdfcpu.HexLiteral:
+		d, _ := isString(dest)
+		return model.NamedDestination(decodeTextString(d)), nil
 	case pdfcpu.Array:
 		return r.resolveExplicitDestination(dest)
 	default:
@@ -219,8 +220,8 @@ func (r *resolver) processDestination(dest pdfcpu.Object) (model.Destination, er
 func (r *resolver) processAction(action pdfcpu.Dict) (model.Action, error) {
 	switch action["S"] {
 	case pdfcpu.Name("URI"):
-		uri, _ := action["URI"].(pdfcpu.StringLiteral)
-		return model.URIAction(decodeStringLit(uri)), nil
+		uri, _ := isString(action["URI"])
+		return model.URIAction(uri), nil
 	case pdfcpu.Name("GoTo"):
 		dest, err := r.processDestination(action["D"])
 		if err != nil {
@@ -249,8 +250,8 @@ func (r *resolver) resolveAnnotationSubType(annot pdfcpu.Dict) (model.Annotation
 		return an, nil
 	case pdfcpu.Name("FileAttachment"):
 		var an model.FileAttachmentAnnotation
-		title, _ := annot["T"].(pdfcpu.StringLiteral)
-		an.T = decodeStringLit(title)
+		title, _ := isString(annot["T"])
+		an.T = decodeTextString(title)
 		an.FS, err = r.resolveFileSpec(annot["FS"])
 		return an, err
 	case pdfcpu.Name("Widget"):
@@ -273,10 +274,10 @@ func (r resolver) resolveFileSpec(fs pdfcpu.Object) (*model.FileSpec, error) {
 	if !isDict {
 		return nil, errType("FileSpec", fsObj)
 	}
-	uf, _ := fsDict["UF"].(pdfcpu.StringLiteral)
-	desc, _ := fsDict["Desc"].(pdfcpu.StringLiteral)
-	file.UF = decodeStringLit(uf)
-	file.Desc = decodeStringLit(desc)
+	uf, _ := isString(fsDict["UF"])
+	desc, _ := isString(fsDict["Desc"])
+	file.UF = decodeTextString(uf)
+	file.Desc = decodeTextString(desc)
 
 	ef := r.resolve(fsDict["EF"])
 	efDict, isDict := ef.(pdfcpu.Dict)
@@ -322,14 +323,14 @@ func (r resolver) resolveFileContent(fileEntry pdfcpu.Object) (*model.EmbeddedFi
 		paramsModel.Size = *size
 	}
 
-	checkSum, _ := paramsDict["CheckSum"].(pdfcpu.StringLiteral)
-	paramsModel.CheckSum = decodeStringLit(checkSum)
+	checkSum, _ := isString(paramsDict["CheckSum"])
+	paramsModel.CheckSum = checkSum
 
-	if cd := paramsDict.StringLiteralEntry("CreationDate"); cd != nil {
-		paramsModel.CreationDate, _ = pdfcpu.DateTime(cd.Value())
+	if cd, ok := isString(paramsDict["CreationDate"]); ok {
+		paramsModel.CreationDate, _ = pdfcpu.DateTime(cd)
 	}
-	if md := paramsDict.StringLiteralEntry("ModDate"); md != nil {
-		paramsModel.ModDate, _ = pdfcpu.DateTime(md.Value())
+	if md, ok := isString(paramsDict["ModDate"]); ok {
+		paramsModel.ModDate, _ = pdfcpu.DateTime(md)
 	}
 
 	var (

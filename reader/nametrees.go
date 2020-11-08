@@ -23,13 +23,6 @@ func (r *resolver) resolveNameTree(entry pdfcpu.Object, output nameTree) error {
 		return errType("Name Tree value", entry)
 	}
 
-	// limits is inferred from the content
-	// if len(limits) == 2 {
-	// 	low, _ := limits[0].(pdfcpu.StringLiteral)
-	// 	high, _ := limits[1].(pdfcpu.StringLiteral)
-	// 	output.setLimits([2]string{decodeStringLit(low), decodeStringLit(high)})
-	// }
-
 	if kids := dict.ArrayEntry("Kids"); kids != nil {
 		// intermediate node
 		// one node shouldn't be refered twice,
@@ -52,9 +45,9 @@ func (r *resolver) resolveNameTree(entry pdfcpu.Object, output nameTree) error {
 		return fmt.Errorf("expected even length array in name tree, got %s", names)
 	}
 	for l := 0; l < L/2; l++ {
-		name, _ := names[2*l].(pdfcpu.StringLiteral)
+		name, _ := isString(names[2*l])
 		value := names[2*l+1]
-		err := output.resolveLeafValueAppend(r, decodeStringLit(name), value)
+		err := output.resolveLeafValueAppend(r, name, value)
 		if err != nil {
 			return err
 		}
@@ -150,8 +143,8 @@ func (r resolver) processPageLabel(entry pdfcpu.Object) (model.PageLabel, error)
 	if s := entryDict.NameEntry("S"); s != nil {
 		out.S = model.Name(*s)
 	}
-	p, _ := entryDict["P"].(pdfcpu.StringLiteral)
-	out.P = decodeStringLit(p)
+	p, _ := isString(entryDict["P"])
+	out.P = decodeTextString(p)
 	if st := entryDict.IntEntry("St"); st != nil {
 		out.St = *st
 	}

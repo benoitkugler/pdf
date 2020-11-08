@@ -46,16 +46,17 @@ func (r resolver) resolveFormField(o pdfcpu.Object) (*model.FormField, error) {
 	if f := f.IntEntry("F"); f != nil {
 		fi.F = *f
 	}
-	if da := f.StringLiteralEntry("DA"); da != nil {
-		fi.DA = decodeStringLit(*da)
+
+	if da, ok := isString(f["DA"]); ok {
+		fi.DA = da
 	}
 
 	if rect := rectangleFromArray(f.ArrayEntry("Rect")); rect != nil {
 		fi.Rect = *rect
 	}
 
-	contents, _ := f["Contents"].(pdfcpu.StringLiteral)
-	fi.Contents = decodeStringLit(contents)
+	contents, _ := isString(f["Contents"])
+	fi.Contents = decodeTextString(contents)
 
 	fi.AP, err = r.resolveAppearanceDict(f["AP"])
 	if err != nil {
@@ -80,7 +81,7 @@ func rectangleFromArray(ar pdfcpu.Array) *model.Rectangle {
 }
 
 func matrixFromArray(ar pdfcpu.Array) *model.Matrix {
-	if len(ar) < 6 {
+	if len(ar) != 6 {
 		return nil
 	}
 	var out model.Matrix
@@ -198,7 +199,7 @@ func (r resolver) processXObject(obj pdfcpu.StreamDict) (*model.XObject, error) 
 	ap.Matrix = matrixFromArray(obj.Dict.ArrayEntry("Matrix"))
 	if res := obj.Dict["Resources"]; res != nil {
 		var err error
-		ap.Resources, err = r.resolveResources(res)
+		ap.Resources, err = r.resolveOneResourceDict(res)
 		if err != nil {
 			return nil, err
 		}
@@ -275,7 +276,7 @@ func (r *resolver) processDictDests(entry pdfcpu.Object) (model.DestTree, error)
 		if err != nil {
 			return out, err
 		}
-		out.Names = append(out.Names, model.NameToDest{Name: decodeStringLit(pdfcpu.StringLiteral(name)), Destination: expDest})
+		out.Names = append(out.Names, model.NameToDest{Name: name, Destination: expDest})
 	}
 	return out, nil
 }

@@ -32,6 +32,8 @@ type resolver struct {
 	pages             map[pdfcpu.IndirectRef]*model.PageObject
 	shadings          map[pdfcpu.IndirectRef]*model.ShadingDict
 	functions         map[pdfcpu.IndirectRef]*model.Function
+	iccs              map[pdfcpu.IndirectRef]*model.ICCBasedColorSpace
+	patterns          map[pdfcpu.IndirectRef]model.Pattern
 
 	// annotations may reference pages which are not yet processed
 	// we store them and update the Page field later
@@ -44,8 +46,10 @@ type incompleteDest struct {
 	ref         pdfcpu.IndirectRef
 }
 
-func decodeStringLit(s pdfcpu.StringLiteral) string {
-	b, err := pdfcpu.Unescape(s.Value())
+// decodeTextString expects a "text string" as defined in PDF spec,
+// that is, either a PDFDocEncoded string or a UTF-16BE string
+func decodeTextString(s string) string {
+	b, err := pdfcpu.Unescape(s)
 	if err != nil {
 		log.Printf("error decoding string literal %s : %s", s, err)
 		return ""
@@ -77,6 +81,18 @@ func isNumber(o pdfcpu.Object) (float64, bool) {
 	}
 }
 
+// return the string and true if o is a StringLitteral (...) or a HexadecimalLitteral <...>
+func isString(o pdfcpu.Object) (string, bool) {
+	switch o := o.(type) {
+	case pdfcpu.StringLiteral:
+		return o.Value(), true
+	case pdfcpu.HexLiteral:
+		return o.Value(), true
+	default:
+		return "", false
+	}
+}
+
 func info(xref *pdfcpu.XRefTable) (model.Info, error) {
 	var info model.Info
 	if xref.Info != nil {
@@ -84,22 +100,22 @@ func info(xref *pdfcpu.XRefTable) (model.Info, error) {
 		if err != nil {
 			return info, fmt.Errorf("can't resolve Info dictionnary: %w", err)
 		}
-		producer, _ := d["Producer"].(pdfcpu.StringLiteral)
-		title, _ := d["Title"].(pdfcpu.StringLiteral)
-		subject, _ := d["Subject"].(pdfcpu.StringLiteral)
-		author, _ := d["Author"].(pdfcpu.StringLiteral)
-		keywords, _ := d["Keywords"].(pdfcpu.StringLiteral)
-		creator, _ := d["Creator"].(pdfcpu.StringLiteral)
-		creationDate, _ := d["CreationDate"].(pdfcpu.StringLiteral)
-		modDate, _ := d["ModDate"].(pdfcpu.StringLiteral)
-		info.Producer = decodeStringLit(producer)
-		info.Title = decodeStringLit(title)
-		info.Subject = decodeStringLit(subject)
-		info.Author = decodeStringLit(author)
-		info.Keywords = decodeStringLit(keywords)
-		info.Creator = decodeStringLit(creator)
-		info.CreationDate, _ = pdfcpu.DateTime(string(creationDate))
-		info.ModDate, _ = pdfcpu.DateTime(string(modDate))
+		producer, _ := isString(d["Producer"])
+		title, _ := isString(d["Title"])
+		subject, _ := isString(d["Subject"])
+		author, _ := isString(d["Author"])
+		keywords, _ := isString(d["Keywords"])
+		creator, _ := isString(d["Creator"])
+		creationDate, _ := isString(d["CreationDate"])
+		modDate, _ := isString(d["ModDate"])
+		info.Producer = decodeTextString(producer)
+		info.Title = decodeTextString(title)
+		info.Subject = decodeTextString(subject)
+		info.Author = decodeTextString(author)
+		info.Keywords = decodeTextString(keywords)
+		info.Creator = decodeTextString(creator)
+		info.CreationDate, _ = pdfcpu.DateTime(creationDate)
+		info.ModDate, _ = pdfcpu.DateTime(modDate)
 	}
 	return info, nil
 }
@@ -175,6 +191,10 @@ func catalog(xref *pdfcpu.XRefTable) (model.Catalog, error) {
 		fileSpecs:         make(map[pdfcpu.IndirectRef]*model.FileSpec),
 		fileContents:      make(map[pdfcpu.IndirectRef]*model.EmbeddedFileStream),
 		pages:             make(map[pdfcpu.IndirectRef]*model.PageObject),
+		functions:         make(map[pdfcpu.IndirectRef]*model.Function),
+		shadings:          make(map[pdfcpu.IndirectRef]*model.ShadingDict),
+		iccs:              make(map[pdfcpu.IndirectRef]*model.ICCBasedColorSpace),
+		patterns:          make(map[pdfcpu.IndirectRef]model.Pattern),
 	}
 
 	out.AcroForm, err = r.processAcroForm(d["AcroForm"])

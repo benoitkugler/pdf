@@ -54,8 +54,8 @@ type Contents []ContentStream
 
 type ResourcesDict struct {
 	ExtGState  map[Name]*GraphicState // optionnal
-	ColorSpace map[Name]*ColorSpace
-	Pattern    map[Name]*Pattern
-	Shading    map[Name]*Shading
+	ColorSpace map[Name]ColorSpace
+	Shading    map[Name]*ShadingDict
+	Pattern    map[Name]Pattern
 	Font       map[Name]*Font
 }

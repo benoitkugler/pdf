@@ -1,7 +1,6 @@
 package reader
 
 import (
-	"errors"
 	"fmt"
 	"log"
 
@@ -9,8 +8,7 @@ import (
 	"github.com/pdfcpu/pdfcpu/pkg/pdfcpu"
 )
 
-// TODO:
-func (r resolver) resolveResources(o pdfcpu.Object) (*model.ResourcesDict, error) {
+func (r resolver) resolveOneResourceDict(o pdfcpu.Object) (*model.ResourcesDict, error) {
 	ref, isRef := o.(pdfcpu.IndirectRef)
 	if isRef {
 		if res := r.resources[ref]; isRef && res != nil {
@@ -29,13 +27,28 @@ func (r resolver) resolveResources(o pdfcpu.Object) (*model.ResourcesDict, error
 		out model.ResourcesDict
 		err error
 	)
-	// Fonts
-	out.Font, err = r.resolveFonts(resDict["Font"])
+	// Graphic state
+	out.ExtGState, err = r.resolveExtGState(resDict["ExtGState"])
 	if err != nil {
 		return nil, err
 	}
-	// Graphic state
-	out.ExtGState, err = r.resolveExtGState(resDict["ExtGState"])
+	// Color spaces
+	out.ColorSpace, err = r.resolveColorSpace(resDict["ColorSpace"])
+	if err != nil {
+		return nil, err
+	}
+	// Shadings
+	out.Shading, err = r.resolveShading(resDict["Shading"])
+	if err != nil {
+		return nil, err
+	}
+	// Patterns
+	out.Pattern, err = r.resolvePattern(resDict["Pattern"])
+	if err != nil {
+		return nil, err
+	}
+	// Fonts
+	out.Font, err = r.resolveFonts(resDict["Font"])
 	if err != nil {
 		return nil, err
 	}
@@ -44,7 +57,7 @@ func (r resolver) resolveResources(o pdfcpu.Object) (*model.ResourcesDict, error
 		r.resources[ref] = &out
 	}
 
-	return &out, err
+	return &out, nil
 }
 
 func (r resolver) resolveOneFont(font pdfcpu.Object) (*model.Font, error) {
@@ -277,7 +290,10 @@ func (r resolver) resolveFontT0(font pdfcpu.Dict) (model.Type0, error) {
 }
 
 func (r resolver) resolveCIDFontDict(cid pdfcpu.Dict) (model.CIDFontDictionnary, error) {
-	var out model.CIDFontDictionnary
+	var (
+		out model.CIDFontDictionnary
+		err error
+	)
 	if subtype := cid.NameEntry("Subtype"); subtype != nil {
 		out.Subtype = model.Name(*subtype)
 	}
@@ -290,17 +306,16 @@ func (r resolver) resolveCIDFontDict(cid pdfcpu.Dict) (model.CIDFontDictionnary,
 	if !isDict {
 		return model.CIDFontDictionnary{}, errType("CIDSystemInfo", cidSystem)
 	}
-	if reg := cidSystemDict.StringLiteralEntry("Registry"); reg != nil {
-		out.CIDSystemInfo.Registry = decodeStringLit(*reg)
+	if reg, ok := isString(cidSystemDict["Registry"]); ok {
+		out.CIDSystemInfo.Registry = reg
 	}
-	if ord := cidSystemDict.StringLiteralEntry("Ordering"); ord != nil {
-		out.CIDSystemInfo.Ordering = decodeStringLit(*ord)
+	if ord, ok := isString(cidSystemDict["Ordering"]); ok {
+		out.CIDSystemInfo.Ordering = ord
 	}
 	if sup := cidSystemDict.IntEntry("Supplement"); sup != nil {
 		out.CIDSystemInfo.Supplement = *sup
 	}
 
-	var err error
 	out.FontDescriptor, err = r.resolveFontDescriptor(cid["FontDescriptor"])
 	if err != nil {
 		return out, err
@@ -390,31 +405,41 @@ func (r resolver) resolveExtGState(states pdfcpu.Object) (map[model.Name]*model.
 	}
 	out := make(map[model.Name]*model.GraphicState)
 	for name, state := range statesDict {
-		stateRef, isRef := state.(pdfcpu.IndirectRef)
-		if isRef {
-			if gState := r.graphicsStates[stateRef]; isRef && gState != nil {
-				out[model.Name(name)] = gState
-				continue
-			}
-			state = r.resolve(stateRef)
-		}
-		if state == nil { // ignore the name
-			continue
-		}
-		stateDict, isDict := state.(pdfcpu.Dict)
-		if !isDict {
-			return nil, errType("Font", state)
-		}
-		gStateModel, err := r.parseStateDict(stateDict)
+		gs, err := r.resolveOneExtGState(state)
 		if err != nil {
 			return nil, err
 		}
-		if isRef {
-			r.graphicsStates[stateRef] = gStateModel
+		if gs == nil { // ignore the name
+			continue
 		}
-		out[model.Name(name)] = gStateModel
+		out[model.Name(name)] = gs
 	}
 	return out, nil
+}
+
+func (r resolver) resolveOneExtGState(state pdfcpu.Object) (*model.GraphicState, error) {
+	stateRef, isRef := state.(pdfcpu.IndirectRef)
+	if isRef {
+		if gState := r.graphicsStates[stateRef]; isRef && gState != nil {
+			return gState, nil
+		}
+		state = r.resolve(stateRef)
+	}
+	if state == nil {
+		return nil, nil
+	}
+	stateDict, isDict := state.(pdfcpu.Dict)
+	if !isDict {
+		return nil, errType("Font", state)
+	}
+	gStateModel, err := r.parseStateDict(stateDict)
+	if err != nil {
+		return nil, err
+	}
+	if isRef {
+		r.graphicsStates[stateRef] = gStateModel
+	}
+	return gStateModel, nil
 }
 
 func (r resolver) parseStateDict(state pdfcpu.Dict) (*model.GraphicState, error) {
@@ -475,136 +500,25 @@ func (r resolver) parseStateDict(state pdfcpu.Dict) (*model.GraphicState, error)
 	return &out, nil
 }
 
-func (r resolver) resolveShadings(shadings pdfcpu.Object) (*model.ShadingDict, error) {
-	shRef, isRef := shadings.(pdfcpu.IndirectRef)
-	if sh := r.shadings[shRef]; isRef && sh != nil {
-		return sh, nil
+func (r resolver) resolveColorSpace(colorSpace pdfcpu.Object) (map[model.Name]model.ColorSpace, error) {
+	colorSpace = r.resolve(colorSpace)
+	if colorSpace == nil {
+		return nil, nil
 	}
-	shadings = r.resolve(shadings)
-	if stream, isStream := shadings.(pdfcpu.StreamDict); isStream {
-		fmt.Println(stream)
-		return nil, errors.New("not supported")
-	}
-	shDict, isDict := shadings.(pdfcpu.Dict)
+	colorSpaceDict, isDict := colorSpace.(pdfcpu.Dict)
 	if !isDict {
-		return nil, errType("Shading", shadings)
+		return nil, errType("Color space Dict", colorSpace)
 	}
-	var (
-		out model.ShadingDict
-		err error
-	)
-	// common fields
-	bg := shDict.ArrayEntry("Background")
-	out.Background = make([]float64, len(bg))
-	for i, v := range bg {
-		out.Background[i], _ = isNumber(v)
-	}
-	bbox := shDict.ArrayEntry("BBOx")
-	out.BBox = rectangleFromArray(bbox)
-	if aa := shDict.BooleanEntry("AntiAlias"); aa != nil {
-		out.AntiAlias = *aa
-	}
-	// color space
-	switch cs := shDict["ColorSpace"].(type) {
-	case pdfcpu.Name:
-		out.ColorSpace, err = model.NewNameColorSpace(cs.Value())
-	case pdfcpu.Array:
-		out.ColorSpace, err = r.resolveArrayCS(cs)
-	}
-	if err != nil {
-		return nil, err
-	}
-
-	if isRef {
-		r.shadings[shRef] = &out
-	}
-	return &out, nil
-}
-
-func (r resolver) resolveArrayCS(ar pdfcpu.Array) (model.ColorSpace, error) {
-	if len(ar) == 0 {
-		return nil, fmt.Errorf("array for Color Space is empty")
-	}
-	switch ar[0] {
-	case pdfcpu.Name("Separation"):
-		if len(ar) != 4 {
-			return nil, fmt.Errorf("expected 4-elements array in Separation Color, got %v", ar)
-		}
-		var out model.SeparationColor
-		name, _ := ar[1].(pdfcpu.Name)
-		out.Name = model.Name(name)
-		as, _ := ar[2].(pdfcpu.Name)
-		out.AlternateSpace = model.Name(as)
-		fn, err := r.resolveFunction(ar[3])
+	out := make(map[model.Name]model.ColorSpace)
+	for name, cs := range colorSpaceDict {
+		gs, err := r.resolveOneColorSpace(cs)
 		if err != nil {
 			return nil, err
 		}
-		out.TintTransform = *fn
-		return out, nil
-	default: // TODO
-		fmt.Println(ar)
-		return nil, nil
-	}
-}
-
-// if not error return a non nil pointer
-func (r resolver) resolveFunction(fn pdfcpu.Object) (*model.Function, error) {
-	fnRef, isRef := fn.(pdfcpu.IndirectRef)
-	if fnM := r.functions[fnRef]; isRef && fnM != nil {
-		return fnM, nil
-	}
-	fn = r.resolve(fn)
-	var (
-		out model.Function
-		err error
-	)
-	fnDict, ok := fn.(pdfcpu.Dict)
-	if !ok {
-		return nil, errType("Function", fn)
-	}
-	// common fields
-	domain := fnDict.ArrayEntry("Domain")
-	out.Domain, err = processRange(domain)
-	if err != nil {
-		return nil, err
-	}
-	range_ := fnDict.ArrayEntry("Range")
-	out.Range, err = processRange(range_)
-	if err != nil {
-		return nil, err
-	}
-
-	// specialization
-	fType, _ := fnDict["FunctionType"].(pdfcpu.Integer)
-	switch fType {
-	case 0:
-		out.FunctionType = model.SampledFunction{}
-	case 2:
-		out.FunctionType = model.ExpInterpolationFunction{}
-	case 3:
-		out.FunctionType = model.StitchingFunction{}
-	case 4:
-		out.FunctionType = model.PostScriptCalculatorFunction{}
-	}
-
-	if isRef {
-		r.functions[fnRef] = &out
-	}
-	return &out, nil
-}
-
-func processRange(range_ pdfcpu.Array) ([]model.Range, error) {
-	if len(range_)%2 != 0 {
-		return nil, fmt.Errorf("expected even length for array, got %v", range_)
-	}
-	out := make([]model.Range, len(range_)/2)
-	for i := range out {
-		a, _ := isNumber(range_[2*i])
-		b, _ := isNumber(range_[2*i+1])
-		if a > b {
-			return nil, fmt.Errorf("invalid ranges range %v > %v", a, b)
+		if gs == nil { // ignore the name
+			continue
 		}
-		out[i] = model.Range{a, b}
+		out[model.Name(name)] = gs
 	}
 	return out, nil
 }

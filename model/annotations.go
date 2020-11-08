@@ -77,7 +77,7 @@ type Action interface {
 	S() string // return the action type
 }
 
-type URIAction string
+type URIAction string // in PDF, ASCII encoded
 
 func (URIAction) S() string { return "URI" }
 
