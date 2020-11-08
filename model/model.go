@@ -3,6 +3,7 @@
 // The structure is not directly the one found or written
 // in a PDF, but it serves as an intermediate representation
 // to facilitate PDF modifications.
+// The entry point of the package is the type `Document`.
 package model
 
 import "time"

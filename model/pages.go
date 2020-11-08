@@ -1,5 +1,6 @@
 package model
 
+// PageNode is either a `PageTree` or a `PageObject`
 type PageNode interface {
 	isPageNode()
 }
@@ -44,7 +45,7 @@ type PageObject struct {
 	MediaBox                  *Rectangle     // if nil, will be inherited from the parent
 	CropBox                   *Rectangle     // if nil, will be inherited. if still nil, default to MediaBox
 	BleedBox, TrimBox, ArtBox *Rectangle     // if nil, default to CropBox
-	Rotate                    *Rotation      // multiple of 90. if nil, will be inherited from the parent
+	Rotate                    *Rotation      // if nil, will be inherited from the parent. Only multiple of 90 are allowed
 	Annots                    []*Annotation
 	Contents                  Contents
 }
