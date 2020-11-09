@@ -67,11 +67,51 @@ func (c ContentStream) Length() int {
 	return len(c.Content)
 }
 
-// XObject is a ContentStream with a specialized dictionnary
-type XObject struct {
+// XObject is either an image or PDF form
+type XObject interface {
+	isXObject()
+}
+
+func (*XObjectForm) isXObject()  {}
+func (*XObjectImage) isXObject() {}
+
+// XObjectForm is a is a self-contained description of an arbitrary sequence of
+// graphics objects
+type XObjectForm struct {
+	ContentStream
+
 	BBox      Rectangle
 	Matrix    *Matrix // optional, default to identity
 	Resources *ResourcesDict
+}
 
-	Content []byte
+// ----------------------- images -----------------------
+
+// TODO:
+type Mask interface {
+	isMask()
+}
+
+// XObjectImage represents a sampled visual image such as a photograph
+type XObjectImage struct {
+	ContentStream
+
+	Width, Height    int
+	ColorSpace       ColorSpace // any type of colour space except Pattern
+	BitsPerComponent uint8      // 1, 2, 4, 8, or  16.
+	Intent           Name       // optional
+	ImageMask        bool       // optional
+	Mask             Mask       // optional
+	// optional.  length : number of color component required by color space.
+	// Special case for Mask image where [1 0] is also allowed (despite not having 1 <= 0)
+	Decode      []Range
+	Interpolate bool             // optional
+	Alternates  []AlternateImage // optional
+	SMask       *XObjectImage    // optional
+	SMaskInData uint8            // optional, 0, 1 or 2
+}
+
+type AlternateImage struct {
+	Image              *XObjectImage
+	DefaultForPrinting bool // optional
 }

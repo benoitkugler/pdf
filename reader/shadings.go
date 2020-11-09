@@ -125,11 +125,16 @@ func (r resolver) resolveArrayCS(ar pdfcpu.Array) (model.ColorSpace, error) {
 		if len(ar) != 4 {
 			return nil, fmt.Errorf("expected 4-elements array in Separation Color, got %v", ar)
 		}
-		var out model.SeparationColorSpace
+		var (
+			out model.SeparationColorSpace
+			err error
+		)
 		name, _ := ar[1].(pdfcpu.Name)
 		out.Name = model.Name(name)
-		as, _ := ar[2].(pdfcpu.Name)
-		out.AlternateSpace = model.Name(as)
+		out.AlternateSpace, err = r.resolveAlternateColorSpace(ar[2])
+		if err != nil {
+			return nil, err
+		}
 		fn, err := r.resolveFunction(ar[3])
 		if err != nil {
 			return nil, err
@@ -211,6 +216,19 @@ func (r resolver) resolveArrayCS(ar pdfcpu.Array) (model.ColorSpace, error) {
 		fmt.Println("TODO array CS", ar)
 		return nil, nil
 	}
+}
+
+// check that the alternate is not a special color space
+// avoiding potential circle
+func (r resolver) resolveAlternateColorSpace(alternate pdfcpu.Object) (model.ColorSpace, error) {
+	if ar, ok := alternate.(pdfcpu.Array); ok && len(ar) >= 1 {
+		name, _ := ar[0].(pdfcpu.Name)
+		switch name {
+		case "Pattern", "Indexed", "Separation", "DeviceN": // forbiden special colour spaces
+			return nil, fmt.Errorf("alternate space must not be a special color space")
+		}
+	}
+	return r.resolveOneColorSpace(alternate)
 }
 
 // resolve a func (possibly indirect) or an array of func

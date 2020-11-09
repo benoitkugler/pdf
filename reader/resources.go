@@ -52,6 +52,11 @@ func (r resolver) resolveOneResourceDict(o pdfcpu.Object) (*model.ResourcesDict,
 	if err != nil {
 		return nil, err
 	}
+	// XObjects
+	out.XObject, err = r.resolveXObjects(resDict["XObject"])
+	if err != nil {
+		return nil, err
+	}
 
 	if isRef { // write back to the cache
 		r.resources[ref] = &out

@@ -51,7 +51,7 @@ type AppearanceDict struct {
 // AppearanceEntry is either a dictionnary, or a subdictionnary
 // containing multiple appearances
 // In the first case, the map is of length 1, with the empty string as key
-type AppearanceEntry map[Name]*XObject
+type AppearanceEntry map[Name]*XObjectForm
 
 func (FileAttachmentAnnotation) isAnnotation() {}
 func (LinkAnnotation) isAnnotation()           {}

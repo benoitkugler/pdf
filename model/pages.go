@@ -5,7 +5,7 @@ type PageNode interface {
 	isPageNode()
 }
 
-func (*PageTree) isPageNode()   {}
+func (PageTree) isPageNode()    {}
 func (*PageObject) isPageNode() {}
 
 // PageTree describe the page hierarchy
@@ -18,7 +18,7 @@ type PageTree struct {
 
 // Count returns the number of Page objects (leaf node)
 // in all the descendants of `p` (not only in its direct children)
-func (p *PageTree) Count() int {
+func (p PageTree) Count() int {
 	return len(p.Flatten())
 }
 
@@ -26,7 +26,7 @@ func (p *PageTree) Count() int {
 // respecting the indexing convention for pages (0-based):
 // the page with index i is Flatten()[i].
 // Be aware that inherited resource are not resolved
-func (p *PageTree) Flatten() []*PageObject {
+func (p PageTree) Flatten() []*PageObject {
 	var out []*PageObject
 	for _, kid := range p.Kids {
 		switch kid := kid.(type) {
@@ -59,4 +59,47 @@ type ResourcesDict struct {
 	Shading    map[Name]*ShadingDict
 	Pattern    map[Name]Pattern
 	Font       map[Name]*Font
+	XObject    map[Name]XObject
 }
+
+// ----------------------- structure -----------------------
+
+type StructureTree struct {
+	K          []*StructureElement // 1-array may be written in PDF directly as a dict
+	IDTree     IDTree
+	ParentTree ParentTree
+	RoleMap    map[Name]Name
+	ClassMap   map[Name][]AttributeObject // for each key, 1-array may be written in PDF directly
+}
+
+// An integer greater than any key in the parent tree, which shall be
+// used as a key for the next entry added to the tree
+func (s StructureTree) ParentTreeNextKey() int {
+	high := s.ParentTree.Limits()[1]
+	return high + 1
+}
+
+type StructureElement struct {
+	S          Name
+	P          *StructureElement // parent
+	ID         string            // byte string
+	Pg         *PageObject       // optional
+	K          []ContentItem     // 1-array may be written in PDF directly
+	A          []AttributeObject // 1-array may be written in PDF directly
+	C          []Name            // 1-array may be written in PDF directly
+	R          int               // optional
+	T          string            // optional, text string
+	Lang       string            // optional, text string
+	Alt        string            // optional, text string
+	E          string            // optional, text string
+	ActualText string            // optional, text string
+}
+
+// ContentItem may be *StructureElement,
+type ContentItem interface {
+	//TODO:
+	isContentItem()
+}
+
+//TODO:
+type AttributeObject struct{}

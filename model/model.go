@@ -23,6 +23,7 @@ type Catalog struct {
 	AcroForm          AcroForm
 	Dests             DestTree
 	PageLabels        PageLabelsTree
+	StructTreeRoot    *StructureTree // optional
 }
 
 type NameDictionnary struct {

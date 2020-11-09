@@ -1,6 +1,7 @@
 package reader
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/benoitkugler/pdf/model"
@@ -135,79 +136,59 @@ func (r resolver) resolveAppearanceDict(o pdfcpu.Object) (*model.AppearanceDict,
 }
 
 func (r resolver) resolveAppearanceEntry(obj pdfcpu.Object) (*model.AppearanceEntry, error) {
-	refApp, isRef := obj.(pdfcpu.IndirectRef)
-	if isRef {
-		obj = r.resolve(refApp)
-	}
 	out := make(model.AppearanceEntry)
-	var err error
+
 	// obj might be either a subdictionary or a streamdictionary
-	switch obj := obj.(type) {
-	case pdfcpu.Dict: // subdictionary
-		if ap := r.appearanceEntries[refApp]; isRef && ap != nil {
-			return ap, nil
-		}
-		for name, stream := range obj {
-			refStream, isStreamRef := stream.(pdfcpu.IndirectRef)
-			ap := r.xObjects[refStream]
-			if isStreamRef && ap != nil {
-				// nothing to do
-			} else {
-				if isStreamRef {
-					stream = r.resolve(refStream)
-				}
-				streamDict, ok := stream.(pdfcpu.StreamDict)
-				if !ok {
-					return nil, errType("Stream object", stream)
-				}
-				ap, err = r.processXObject(streamDict)
-				if err != nil {
-					return nil, err
-				}
-				if isStreamRef {
-					r.xObjects[refStream] = ap
-				}
-			}
-			out[model.Name(name)] = ap
-		}
-		r.appearanceEntries[refApp] = &out
-	case pdfcpu.StreamDict: // stream
-		ap := r.xObjects[refApp]
-		if isRef && ap != nil {
-			// nothing to do
-		} else {
-			ap, err = r.processXObject(obj)
+	if subDict, isResolvedDict := r.resolve(obj).(pdfcpu.Dict); isResolvedDict {
+		// subdictionary
+		for name, stream := range subDict {
+			formObj, err := r.resolveOneXObjectForm(stream)
 			if err != nil {
 				return nil, err
 			}
-			if isRef {
-				r.xObjects[refApp] = ap
-			}
+			out[model.Name(name)] = formObj
+		}
+	} else { // stream (surely indirect)
+		ap, err := r.resolveOneXObjectForm(obj)
+		if err != nil {
+			return nil, err
 		}
 		out = model.AppearanceEntry{"": ap}
-	default:
-		return nil, errType("Appearance", obj)
 	}
 	return &out, nil
 }
 
-func (r resolver) processXObject(obj pdfcpu.StreamDict) (*model.XObject, error) {
-	var ap model.XObject
-	if rect := rectangleFromArray(obj.Dict.ArrayEntry("BBox")); rect != nil {
+// return an error if obj is nil
+func (r resolver) resolveOneXObjectForm(obj pdfcpu.Object) (*model.XObjectForm, error) {
+	xObjRef, isRef := obj.(pdfcpu.IndirectRef)
+	if out := r.xObjectForms[xObjRef]; isRef && out != nil {
+		return out, nil
+	}
+	obj = r.resolve(obj)
+	cs, err := r.processContentStream(obj)
+	if err != nil {
+		return nil, err
+	}
+	if cs == nil {
+		return nil, errors.New("missing Form XObject")
+	}
+	stream, _ := obj.(pdfcpu.StreamDict) // here, we are sure obj is a stream
+	ap := model.XObjectForm{ContentStream: *cs}
+	if rect := rectangleFromArray(stream.Dict.ArrayEntry("BBox")); rect != nil {
 		ap.BBox = *rect
 	}
-	ap.Matrix = matrixFromArray(obj.Dict.ArrayEntry("Matrix"))
-	if res := obj.Dict["Resources"]; res != nil {
+	ap.Matrix = matrixFromArray(stream.Dict.ArrayEntry("Matrix"))
+	if res := stream.Dict["Resources"]; res != nil {
 		var err error
 		ap.Resources, err = r.resolveOneResourceDict(res)
 		if err != nil {
 			return nil, err
 		}
 	}
-	if err := obj.Decode(); err != nil {
-		return nil, fmt.Errorf("can't decode Xobject stream: %w", err)
+
+	if isRef {
+		r.xObjectForms[xObjRef] = &ap
 	}
-	ap.Content = obj.Content
 	return &ap, nil
 }
 

@@ -47,8 +47,8 @@ func (UncoloredTilingPattern) isColorSpace() {}
 // [ /Separation name alternateSpace tintTransform ]
 type SeparationColorSpace struct {
 	Name           Name
-	AlternateSpace Name
-	TintTransform  Function // required, may be an indirect object
+	AlternateSpace ColorSpace // may not be another special colour space
+	TintTransform  Function   // required, may be an indirect object
 }
 
 type NameColorSpace Name

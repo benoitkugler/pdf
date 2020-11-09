@@ -63,7 +63,7 @@ func (d destNameTree) createKid() nameTree {
 	return destNameTree{out: new(model.DestTree)}
 }
 func (d destNameTree) appendKid(kid nameTree) {
-	d.out.Kids = append(d.out.Kids, kid.(destNameTree).out)
+	d.out.Kids = append(d.out.Kids, *kid.(destNameTree).out)
 }
 func (d destNameTree) resolveLeafValueAppend(r *resolver, name string, value pdfcpu.Object) error {
 	expDest, err := r.resolveOneNamedDest(value)
@@ -110,7 +110,7 @@ func (r *resolver) resolvePageLabelsTree(entry pdfcpu.Object, output *model.Page
 			if err != nil {
 				return err
 			}
-			output.Kids = append(output.Kids, kidModel)
+			output.Kids = append(output.Kids, *kidModel)
 		}
 		return nil
 	}

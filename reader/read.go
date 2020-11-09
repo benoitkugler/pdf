@@ -18,22 +18,23 @@ import (
 type resolver struct {
 	xref *pdfcpu.XRefTable
 
-	formFields        map[pdfcpu.IndirectRef]*model.FormField
-	appearanceDicts   map[pdfcpu.IndirectRef]*model.AppearanceDict
-	appearanceEntries map[pdfcpu.IndirectRef]*model.AppearanceEntry
-	xObjects          map[pdfcpu.IndirectRef]*model.XObject
-	resources         map[pdfcpu.IndirectRef]*model.ResourcesDict
-	fonts             map[pdfcpu.IndirectRef]*model.Font
-	graphicsStates    map[pdfcpu.IndirectRef]*model.GraphicState
-	encodings         map[pdfcpu.IndirectRef]*model.EncodingDict
-	annotations       map[pdfcpu.IndirectRef]*model.Annotation
-	fileSpecs         map[pdfcpu.IndirectRef]*model.FileSpec
-	fileContents      map[pdfcpu.IndirectRef]*model.EmbeddedFileStream
-	pages             map[pdfcpu.IndirectRef]*model.PageObject
-	shadings          map[pdfcpu.IndirectRef]*model.ShadingDict
-	functions         map[pdfcpu.IndirectRef]*model.Function
-	iccs              map[pdfcpu.IndirectRef]*model.ICCBasedColorSpace
-	patterns          map[pdfcpu.IndirectRef]model.Pattern
+	formFields      map[pdfcpu.IndirectRef]*model.FormField
+	appearanceDicts map[pdfcpu.IndirectRef]*model.AppearanceDict
+	// appearanceEntries map[pdfcpu.IndirectRef]*model.AppearanceEntry
+	resources      map[pdfcpu.IndirectRef]*model.ResourcesDict
+	fonts          map[pdfcpu.IndirectRef]*model.Font
+	graphicsStates map[pdfcpu.IndirectRef]*model.GraphicState
+	encodings      map[pdfcpu.IndirectRef]*model.EncodingDict
+	annotations    map[pdfcpu.IndirectRef]*model.Annotation
+	fileSpecs      map[pdfcpu.IndirectRef]*model.FileSpec
+	fileContents   map[pdfcpu.IndirectRef]*model.EmbeddedFileStream
+	pages          map[pdfcpu.IndirectRef]*model.PageObject
+	shadings       map[pdfcpu.IndirectRef]*model.ShadingDict
+	functions      map[pdfcpu.IndirectRef]*model.Function
+	iccs           map[pdfcpu.IndirectRef]*model.ICCBasedColorSpace
+	patterns       map[pdfcpu.IndirectRef]model.Pattern
+	xObjectForms   map[pdfcpu.IndirectRef]*model.XObjectForm
+	images         map[pdfcpu.IndirectRef]*model.XObjectImage
 
 	// annotations may reference pages which are not yet processed
 	// we store them and update the Page field later
@@ -178,23 +179,24 @@ func catalog(xref *pdfcpu.XRefTable) (model.Catalog, error) {
 		return out, fmt.Errorf("can't resolve Catalog: %w", err)
 	}
 	r := resolver{
-		xref:              xref,
-		formFields:        make(map[pdfcpu.IndirectRef]*model.FormField),
-		appearanceDicts:   make(map[pdfcpu.IndirectRef]*model.AppearanceDict),
-		appearanceEntries: make(map[pdfcpu.IndirectRef]*model.AppearanceEntry),
-		xObjects:          make(map[pdfcpu.IndirectRef]*model.XObject),
-		resources:         make(map[pdfcpu.IndirectRef]*model.ResourcesDict),
-		fonts:             make(map[pdfcpu.IndirectRef]*model.Font),
-		graphicsStates:    make(map[pdfcpu.IndirectRef]*model.GraphicState),
-		encodings:         make(map[pdfcpu.IndirectRef]*model.EncodingDict),
-		annotations:       make(map[pdfcpu.IndirectRef]*model.Annotation),
-		fileSpecs:         make(map[pdfcpu.IndirectRef]*model.FileSpec),
-		fileContents:      make(map[pdfcpu.IndirectRef]*model.EmbeddedFileStream),
-		pages:             make(map[pdfcpu.IndirectRef]*model.PageObject),
-		functions:         make(map[pdfcpu.IndirectRef]*model.Function),
-		shadings:          make(map[pdfcpu.IndirectRef]*model.ShadingDict),
-		iccs:              make(map[pdfcpu.IndirectRef]*model.ICCBasedColorSpace),
-		patterns:          make(map[pdfcpu.IndirectRef]model.Pattern),
+		xref:            xref,
+		formFields:      make(map[pdfcpu.IndirectRef]*model.FormField),
+		appearanceDicts: make(map[pdfcpu.IndirectRef]*model.AppearanceDict),
+		// appearanceEntries: make(map[pdfcpu.IndirectRef]*model.AppearanceEntry),
+		resources:      make(map[pdfcpu.IndirectRef]*model.ResourcesDict),
+		fonts:          make(map[pdfcpu.IndirectRef]*model.Font),
+		graphicsStates: make(map[pdfcpu.IndirectRef]*model.GraphicState),
+		encodings:      make(map[pdfcpu.IndirectRef]*model.EncodingDict),
+		annotations:    make(map[pdfcpu.IndirectRef]*model.Annotation),
+		fileSpecs:      make(map[pdfcpu.IndirectRef]*model.FileSpec),
+		fileContents:   make(map[pdfcpu.IndirectRef]*model.EmbeddedFileStream),
+		pages:          make(map[pdfcpu.IndirectRef]*model.PageObject),
+		functions:      make(map[pdfcpu.IndirectRef]*model.Function),
+		shadings:       make(map[pdfcpu.IndirectRef]*model.ShadingDict),
+		iccs:           make(map[pdfcpu.IndirectRef]*model.ICCBasedColorSpace),
+		patterns:       make(map[pdfcpu.IndirectRef]model.Pattern),
+		xObjectForms:   make(map[pdfcpu.IndirectRef]*model.XObjectForm),
+		images:         make(map[pdfcpu.IndirectRef]*model.XObjectImage),
 	}
 
 	out.AcroForm, err = r.processAcroForm(d["AcroForm"])
@@ -217,6 +219,11 @@ func catalog(xref *pdfcpu.XRefTable) (model.Catalog, error) {
 	}
 
 	err = r.resolvePageLabelsTree(d["PageLabels"], &out.PageLabels)
+	if err != nil {
+		return out, err
+	}
+
+	out.StructTreeRoot, err = r.resolveStructureTree(d["StructTreeRoot"])
 	if err != nil {
 		return out, err
 	}
