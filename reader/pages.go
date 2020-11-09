@@ -1,6 +1,7 @@
 package reader
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/benoitkugler/pdf/model"
@@ -21,7 +22,6 @@ func (r resolver) processPages(entry pdfcpu.Object) (model.PageTree, error) {
 }
 
 func (r resolver) processContentStream(content pdfcpu.Object) (*model.ContentStream, error) {
-	var err error
 	content = r.resolve(content)
 	if content == nil {
 		return nil, nil
@@ -33,8 +33,37 @@ func (r resolver) processContentStream(content pdfcpu.Object) (*model.ContentStr
 	var out model.ContentStream
 	// length will be deduced from the content
 	out.Content = stream.Raw
-	out.StreamDict, err = r.processStreamDict(stream.Dict)
-	return &out, err
+
+	filters := r.resolve(stream.Dict["Filter"])
+	if filterName, isName := filters.(pdfcpu.Name); isName {
+		filters = pdfcpu.Array{filterName}
+	}
+	ar, _ := filters.(pdfcpu.Array)
+	for _, name := range ar {
+		if filterName, isName := name.(pdfcpu.Name); isName {
+			if f := model.NewFilter(string(filterName)); f != "" {
+				out.Filters = []model.Filter{f}
+			}
+		}
+	}
+	decode := r.resolve(stream.Dict["DecodeParms"])
+	switch decode := decode.(type) {
+	case pdfcpu.Array: // one dict param per filter
+		if len(decode) != len(out.Filters) {
+			return nil, fmt.Errorf("unexpected length for DecodeParms array: %d", len(decode))
+		}
+		for _, parms := range decode {
+			parmsModel := r.processDecodeParms(parms)
+			out.DecodeParms = append(out.DecodeParms, parmsModel)
+		}
+	case pdfcpu.Dict: // one filter and one dict param
+		if len(out.Filters) != 1 {
+			return nil, errType("DecodeParms", decode)
+		}
+		out.DecodeParms = append(out.DecodeParms, r.processDecodeParms(decode))
+	}
+
+	return &out, nil
 }
 
 // TODO:
@@ -338,11 +367,14 @@ func (r resolver) resolveFileContent(fileEntry pdfcpu.Object) (*model.EmbeddedFi
 		err error
 	)
 	out.Params = paramsModel
-	out.Content = stream.Raw
-	out.StreamDict, err = r.processStreamDict(stream.Dict)
+	cs, err := r.processContentStream(stream)
 	if err != nil {
 		return nil, err
 	}
+	if cs == nil {
+		return nil, errors.New("missing file content stream")
+	}
+	out.ContentStream = *cs
 	if isFileRef { // write back to the cache
 		r.fileContents[fileEntryRef] = &out
 	}
@@ -369,37 +401,4 @@ func (r resolver) processDecodeParms(parms pdfcpu.Object) map[model.Name]int {
 		parmsModel[model.Name(paramName)] = intVal
 	}
 	return parmsModel
-}
-
-func (r resolver) processStreamDict(dict pdfcpu.Dict) (model.StreamDict, error) {
-	var out model.StreamDict
-	filters := r.resolve(dict["Filter"])
-	if filterName, isName := filters.(pdfcpu.Name); isName {
-		filters = pdfcpu.Array{filterName}
-	}
-	ar, _ := filters.(pdfcpu.Array)
-	for _, name := range ar {
-		if filterName, isName := name.(pdfcpu.Name); isName {
-			if f := model.NewFilter(string(filterName)); f != "" {
-				out.Filters = []model.Filter{f}
-			}
-		}
-	}
-	decode := r.resolve(dict["DecodeParms"])
-	switch decode := decode.(type) {
-	case pdfcpu.Array: // one dict param per filter
-		if len(decode) != len(out.Filters) {
-			return out, fmt.Errorf("unexpected length for DecodeParms array: %d", len(decode))
-		}
-		for _, parms := range decode {
-			parmsModel := r.processDecodeParms(parms)
-			out.DecodeParms = append(out.DecodeParms, parmsModel)
-		}
-	case pdfcpu.Dict: // one filter and one dict param
-		if len(out.Filters) != 1 {
-			return out, errType("DecodeParms", decode)
-		}
-		out.DecodeParms = append(out.DecodeParms, r.processDecodeParms(decode))
-	}
-	return out, nil
 }

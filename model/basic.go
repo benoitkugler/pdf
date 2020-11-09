@@ -1,9 +1,17 @@
 package model
 
+import (
+	"fmt"
+)
+
 // implements basic types found in PDF files
 
 type Rectangle struct {
 	Llx, Lly, Urx, Ury float64 // lower-left x, lower-left y, upper-right x, and upper-right y coordinates of the rectangle
+}
+
+func (r Rectangle) PDFstring() string {
+	return fmt.Sprintf("[%.3f %.3f %.3f %.3f]", r.Llx, r.Lly, r.Urx, r.Ury)
 }
 
 // Rotation encodes a clock-wise rotation
@@ -33,6 +41,10 @@ func (r Rotation) Degrees() int {
 // Name is a symbol to be referenced,
 // and it is included in PDF without encoding, by prepending /
 type Name string
+
+func (n Name) PDFString() string {
+	return "/" + string(n)
+}
 
 type FunctionType interface {
 	isFunction()

@@ -43,6 +43,13 @@ func TestGeneratePDF(t *testing.T) {
 	}
 }
 
+func TestGenerateEmpty(t *testing.T) {
+	g := gofpdf.New("", "", "", "")
+	if err := g.OutputFileAndClose("datatest/Empty.pdf"); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func decodeStream(stream model.ContentStream) ([]byte, error) {
 	var current io.Reader = bytes.NewReader(stream.Content)
 	for i, f := range stream.Filters {

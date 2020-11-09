@@ -218,12 +218,25 @@ func catalog(xref *pdfcpu.XRefTable) (model.Catalog, error) {
 		return out, err
 	}
 
-	err = r.resolvePageLabelsTree(d["PageLabels"], &out.PageLabels)
+	p, _ := d["PageLayout"].(pdfcpu.Name)
+	out.PageLayout = model.Name(p)
+	p, _ = d["PageMode"].(pdfcpu.Name)
+	out.PageMode = model.Name(p)
+
+	if pl := d["PageLabels"]; pl != nil {
+		out.PageLabels = new(model.PageLabelsTree)
+		err = r.resolvePageLabelsTree(pl, out.PageLabels)
+		if err != nil {
+			return out, err
+		}
+	}
+
+	out.StructTreeRoot, err = r.resolveStructureTree(d["StructTreeRoot"])
 	if err != nil {
 		return out, err
 	}
 
-	out.StructTreeRoot, err = r.resolveStructureTree(d["StructTreeRoot"])
+	out.ViewerPreferences, err = r.resolveViewerPreferences(d["ViewerPreferences"])
 	if err != nil {
 		return out, err
 	}

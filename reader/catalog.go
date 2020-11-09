@@ -2,7 +2,6 @@ package reader
 
 import (
 	"errors"
-	"fmt"
 
 	"github.com/benoitkugler/pdf/model"
 	"github.com/pdfcpu/pdfcpu/pkg/pdfcpu"
@@ -192,27 +191,29 @@ func (r resolver) resolveOneXObjectForm(obj pdfcpu.Object) (*model.XObjectForm, 
 	return &ap, nil
 }
 
-func (r resolver) processAcroForm(acroForm pdfcpu.Object) (model.AcroForm, error) {
-	var out model.AcroForm
-	if acroForm != nil {
-		form, err := r.xref.DereferenceDict(acroForm)
-		if err != nil {
-			return out, fmt.Errorf("can't resolve Catalog.AcroForm: %w", err)
-		}
-		fields := form.ArrayEntry("Fields")
-		out.Fields = make([]*model.FormField, len(fields))
-		for i, f := range fields {
-			ff, err := r.resolveFormField(f)
-			if err != nil {
-				return out, err
-			}
-			out.Fields[i] = ff
-		}
-		if na := form.BooleanEntry("NeedAppearances"); na != nil {
-			out.NeedAppearances = *na
-		}
+func (r resolver) processAcroForm(acroForm pdfcpu.Object) (*model.AcroForm, error) {
+	acroForm = r.resolve(acroForm)
+	if acroForm == nil {
+		return nil, nil
 	}
-	return out, nil
+	form, ok := acroForm.(pdfcpu.Dict)
+	if !ok {
+		return nil, errType("AcroForm", acroForm)
+	}
+	var out model.AcroForm
+	fields := form.ArrayEntry("Fields")
+	out.Fields = make([]*model.FormField, len(fields))
+	for i, f := range fields {
+		ff, err := r.resolveFormField(f)
+		if err != nil {
+			return nil, err
+		}
+		out.Fields[i] = ff
+	}
+	if na := form.BooleanEntry("NeedAppearances"); na != nil {
+		out.NeedAppearances = *na
+	}
+	return &out, nil
 }
 
 // The value of this entry shall be a dictionary in which
@@ -242,24 +243,24 @@ func (r *resolver) resolveOneNamedDest(dest pdfcpu.Object) (*model.ExplicitDesti
 // the entry is a simple dictonnary
 // In PDF 1.1, the correspondence between name objects and destinations shall be defined by the Dests entry in
 // the document catalogue (see 7.7.2, “Document Catalog”).
-func (r *resolver) processDictDests(entry pdfcpu.Object) (model.DestTree, error) {
+func (r *resolver) processDictDests(entry pdfcpu.Object) (*model.DestTree, error) {
 	entry = r.resolve(entry)
 	if entry == nil {
-		return model.DestTree{}, nil
+		return nil, nil
 	}
 	nameDict, isDict := entry.(pdfcpu.Dict)
 	if !isDict {
-		return model.DestTree{}, errType("Dests", entry)
+		return nil, errType("Dests", entry)
 	}
 	var out model.DestTree
 	for name, dest := range nameDict {
 		expDest, err := r.resolveOneNamedDest(dest)
 		if err != nil {
-			return out, err
+			return nil, err
 		}
 		out.Names = append(out.Names, model.NameToDest{Name: name, Destination: expDest})
 	}
-	return out, nil
+	return &out, nil
 }
 
 func (r *resolver) resolveDestTree(entry pdfcpu.Object) (*model.DestTree, error) {
@@ -286,7 +287,7 @@ func (r *resolver) processNameDict(entry pdfcpu.Object) (model.NameDictionnary, 
 		if err != nil {
 			return out, err
 		}
-		out.Dests = *dests
+		out.Dests = dests
 	}
 
 	if embeddedFiles := dict["EmbeddedFiles"]; embeddedFiles != nil {
@@ -298,4 +299,23 @@ func (r *resolver) processNameDict(entry pdfcpu.Object) (model.NameDictionnary, 
 
 	// TODO: other names
 	return out, nil
+}
+
+func (r resolver) resolveViewerPreferences(entry pdfcpu.Object) (*model.ViewerPreferences, error) {
+	entry = r.resolve(entry)
+	if entry == nil {
+		return nil, nil
+	}
+	dict, ok := entry.(pdfcpu.Dict)
+	if !ok {
+		return nil, errType("ViewerPreferences", entry)
+	}
+	var out model.ViewerPreferences
+	if ft := dict.BooleanEntry("FitWindow"); ft != nil {
+		out.FitWindow = *ft
+	}
+	if ct := dict.BooleanEntry("CenterWindow"); ct != nil {
+		out.CenterWindow = *ct
+	}
+	return &out, nil
 }

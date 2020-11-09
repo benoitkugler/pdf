@@ -282,7 +282,7 @@ func PDFDocEncodingToString(b []byte) string {
 	return string(runes)
 }
 
-// StringToPDFDocEncoding encoded go string `s` to PdfDocEncoding.
+// StringToPDFDocEncoding encode go string `s` to PdfDocEncoding.
 func StringToPDFDocEncoding(s string) []byte {
 	var buf bytes.Buffer
 	for _, r := range s {

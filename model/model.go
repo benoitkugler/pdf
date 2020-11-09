@@ -18,17 +18,19 @@ type Document struct {
 type Catalog struct {
 	Extensions        Extensions
 	Pages             PageTree
-	Names             NameDictionnary
-	ViewerPreferences ViewerPreferences
-	AcroForm          AcroForm
-	Dests             DestTree
-	PageLabels        PageLabelsTree
-	StructTreeRoot    *StructureTree // optional
+	Names             NameDictionnary    // optional
+	ViewerPreferences *ViewerPreferences // optional
+	PageLayout        Name               // optional
+	PageMode          Name               // optional
+	AcroForm          *AcroForm          // optional
+	Dests             *DestTree          // optional
+	PageLabels        *PageLabelsTree    // optional
+	StructTreeRoot    *StructureTree     // optional
 }
 
 type NameDictionnary struct {
 	EmbeddedFiles EmbeddedFileTree
-	Dests         DestTree
+	Dests         *DestTree // optional
 	// AP
 }
 
