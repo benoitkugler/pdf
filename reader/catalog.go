@@ -134,7 +134,7 @@ func (r resolver) resolveAppearanceDict(o pdfcpu.Object) (*model.AppearanceDict,
 	return &out, nil
 }
 
-func (r resolver) resolveAppearanceEntry(obj pdfcpu.Object) (*model.AppearanceEntry, error) {
+func (r resolver) resolveAppearanceEntry(obj pdfcpu.Object) (model.AppearanceEntry, error) {
 	out := make(model.AppearanceEntry)
 
 	// obj might be either a subdictionary or a streamdictionary
@@ -154,7 +154,7 @@ func (r resolver) resolveAppearanceEntry(obj pdfcpu.Object) (*model.AppearanceEn
 		}
 		out = model.AppearanceEntry{"": ap}
 	}
-	return &out, nil
+	return out, nil
 }
 
 // return an error if obj is nil
@@ -275,9 +275,9 @@ func (r *resolver) resolveEmbeddedFilesTree(files pdfcpu.Object) (model.Embedded
 	return *out, err
 }
 
-func (r *resolver) processNameDict(entry pdfcpu.Object) (model.NameDictionnary, error) {
+func (r *resolver) processNameDict(entry pdfcpu.Object) (model.NameDictionary, error) {
 	var (
-		out model.NameDictionnary
+		out model.NameDictionary
 		err error
 	)
 

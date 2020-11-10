@@ -7,7 +7,7 @@ import (
 
 func TestStream(t *testing.T) {
 	s := ContentStream{
-		Filters: []Filter{JPX, ASCII85, ASCIIHex, JBIG2, Flate},
+		Filter:  []Filter{JPX, ASCII85, ASCIIHex, JBIG2, Flate},
 		Content: make([]byte, 245),
 	}
 	st1 := s.PDFCommonFields()

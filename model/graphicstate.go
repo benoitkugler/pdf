@@ -2,9 +2,15 @@ package model
 
 import "fmt"
 
+const Undef = -1
+
 type DashPattern struct {
-	Array []uint
-	Phase uint
+	Array []float64
+	Phase float64
+}
+
+func (d DashPattern) PDFString() string {
+	return fmt.Sprintf("[%s %.3f]", writeFloatArray(d.Array), d.Phase)
 }
 
 type FontStyle struct {
@@ -12,36 +18,134 @@ type FontStyle struct {
 	Size float64
 }
 
+func (f FontStyle) PDFString(pdf PDFWriter) string {
+	ref := pdf.addItem(f.Font)
+	return fmt.Sprintf("[%s %.3f]", ref, f.Size)
+}
+
 type GraphicState struct {
 	LW   float64
-	LC   int
-	LJ   int
+	LC   int // optional, >= 0, Undef for not specified
+	LJ   int // optional, >= 0, Undef for not specified
 	ML   float64
-	D    DashPattern
+	D    *DashPattern // optional
 	RI   Name
 	Font FontStyle // font and size
-	CA   float64
-	Ca   float64 // non-stroking
+	CA   float64   // optional, >= 0, Undef for not specified
+	Ca   float64   // non-stroking, optional, >= 0, Undef for not specified
 	AIS  bool
 	SM   float64
 	SA   bool
 }
 
+func (g *GraphicState) PDFBytes(pdf PDFWriter) []byte {
+	b := newBuffer()
+	b.WriteString("<<")
+	if g.LW != 0 {
+		b.fmt(" /LW %.3f", g.LW)
+	}
+	if g.LC != Undef {
+		b.fmt(" /LC %d", g.LC)
+	}
+	if g.LJ != Undef {
+		b.fmt(" /LJ %d", g.LJ)
+	}
+	if g.ML != 0 {
+		b.fmt(" /ML %.3f", g.ML)
+	}
+	if g.D != nil {
+		b.fmt(" /D %s", g.D.PDFString())
+	}
+	if g.RI != "" {
+		b.fmt(" /RI %s", g.RI)
+	}
+	if g.Font.Font != nil {
+		b.fmt(" /Font %s", g.Font.PDFString(pdf))
+	}
+	if g.CA != Undef {
+		b.fmt(" /CA %.3f", g.CA)
+	}
+	if g.Ca != Undef {
+		b.fmt(" /ca %.3f", g.Ca)
+	}
+	b.fmt(" /AIS %v", g.AIS)
+	if g.SM != Undef {
+		b.fmt(" /SM %.3f", g.SM)
+	}
+	b.fmt(" /SA %v", g.SA)
+	b.WriteString(">>")
+	return b.Bytes()
+}
+
 // ----------------------- colors spaces -----------------------
+
+// check conformity with either cachable or directColorSpace
+
+var _ cachable = (*ICCBasedColorSpace)(nil)
+var _ directColorSpace = SeparationColorSpace{}
+var _ directColorSpace = NameColorSpace("")
+var _ directColorSpace = CalGrayColorSpace{}
+var _ directColorSpace = CalRGBColorSpace{}
+var _ directColorSpace = LabColorSpace{}
+var _ directColorSpace = IndexedColorSpace{}
+var _ directColorSpace = UncoloredTilingPattern{}
 
 // ColorSpace is either a Name or a more complex object
 type ColorSpace interface {
 	isColorSpace()
 }
 
+type directColorSpace interface {
+	PDFString(pdf PDFWriter) string
+}
+
+func (*ICCBasedColorSpace) isColorSpace()    {}
+func (SeparationColorSpace) isColorSpace()   {}
 func (NameColorSpace) isColorSpace()         {}
 func (CalGrayColorSpace) isColorSpace()      {}
 func (CalRGBColorSpace) isColorSpace()       {}
 func (LabColorSpace) isColorSpace()          {}
-func (*ICCBasedColorSpace) isColorSpace()    {}
-func (SeparationColorSpace) isColorSpace()   {}
 func (IndexedColorSpace) isColorSpace()      {}
 func (UncoloredTilingPattern) isColorSpace() {}
+
+// return either an indirect reference or a direct object
+func writeColorSpace(c ColorSpace, pdf PDFWriter) string {
+	if c, ok := c.(directColorSpace); ok {
+		return c.PDFString(pdf)
+	}
+	// if it's not direct, it must be cachable
+	ca, _ := c.(cachable)
+	ref := pdf.addItem(ca)
+	return ref.String()
+}
+
+type ICCBasedColorSpace struct {
+	ContentStream
+
+	N         int        // 1, 3 or 4
+	Alternate ColorSpace // optional
+	Range     []Range    // optional, default to [{0, 1}, ...]
+}
+
+// PDFBytes returns the stream object. `pdf` is used
+// to write potential alternate space.
+func (c *ICCBasedColorSpace) PDFBytes(pdf PDFWriter) []byte {
+	baseArgs := c.PDFCommonFields()
+	b := newBuffer()
+	b.fmt("<</N %d %s", c.N, baseArgs)
+	if c.Alternate != nil {
+		alt := writeColorSpace(c.Alternate, pdf)
+		b.fmt(" /Alternate %s", alt)
+	}
+	if len(c.Range) != 0 {
+		b.fmt(" /Range %s", writeRangeArray(c.Range))
+	}
+	b.line(">>")
+	b.line("stream")
+	b.Write(c.Content)
+	b.WriteString("\nendstream")
+	return b.Bytes()
+}
 
 // SeparationColorSpace is defined in PDF as an array
 // [ /Separation name alternateSpace tintTransform ]
@@ -49,6 +153,12 @@ type SeparationColorSpace struct {
 	Name           Name
 	AlternateSpace ColorSpace // may not be another special colour space
 	TintTransform  Function   // required, may be an indirect object
+}
+
+func (s SeparationColorSpace) PDFString(pdf PDFWriter) string {
+	cs := writeColorSpace(s.AlternateSpace, pdf)
+	funcRef := pdf.addObject(s.TintTransform.PDFBytes(pdf))
+	return fmt.Sprintf("[/Separation %s %s %s]", s.Name, cs, funcRef)
 }
 
 type NameColorSpace Name
@@ -62,6 +172,10 @@ func NewNameColorSpace(cs string) (NameColorSpace, error) {
 	default:
 		return "", fmt.Errorf("invalid named color space %s", cs)
 	}
+}
+
+func (n NameColorSpace) PDFString(PDFWriter) string {
+	return Name(n).String()
 }
 
 const (
@@ -80,6 +194,18 @@ type CalGrayColorSpace struct {
 	Gamma      float64    // optional, default to 1
 }
 
+func (c CalGrayColorSpace) PDFString(PDFWriter) string {
+	out := fmt.Sprintf("<</WhitePoint %s", writeFloatArray(c.WhitePoint[:]))
+	if c.BlackPoint != [3]float64{} {
+		out += fmt.Sprintf(" /BlackPoint %s", writeFloatArray(c.BlackPoint[:]))
+	}
+	if c.Gamma != 0 {
+		out += fmt.Sprintf(" /Gamma %.3f", c.Gamma)
+	}
+	out += ">>"
+	return out
+}
+
 type CalRGBColorSpace struct {
 	WhitePoint [3]float64
 	BlackPoint [3]float64 // optional, default to [0 0 0]
@@ -87,24 +213,58 @@ type CalRGBColorSpace struct {
 	Matrix     [9]float64 // [ X_A Y_A Z_A X_B Y_B Z_B X_C Y_C Z_C ], optional, default to identity
 }
 
+func (c CalRGBColorSpace) PDFString(PDFWriter) string {
+	out := fmt.Sprintf("<</WhitePoint %s", writeFloatArray(c.WhitePoint[:]))
+	if c.BlackPoint != [3]float64{} {
+		out += fmt.Sprintf(" /BlackPoint %s", writeFloatArray(c.BlackPoint[:]))
+	}
+	if c.Gamma != [3]float64{} {
+		out += fmt.Sprintf(" /Gamma %s", writeFloatArray(c.Gamma[:]))
+	}
+	if c.Matrix != [9]float64{} {
+		out += fmt.Sprintf(" /Matrix %s", writeFloatArray(c.Matrix[:]))
+	}
+	out += ">>"
+	return out
+}
+
 type LabColorSpace struct {
 	WhitePoint [3]float64
 	BlackPoint [3]float64 // optional, default to [0 0 0]
-	Range      [4]float64 // [ a min a max b min b max ], optional, default to [−100 100 −100 100 ]
+	Range      [4]float64 // [ a_min a_max b_min b_max ], optional, default to [−100 100 −100 100 ]
 }
 
-type ICCBasedColorSpace struct {
-	ContentStream
-
-	N         int        // 1, 3 or 4
-	Alternate ColorSpace // optional
-	Range     []Range    // optional, default to [{0, 1}, ...]
+func (c LabColorSpace) PDFString(PDFWriter) string {
+	out := fmt.Sprintf("<</WhitePoint %s", writeFloatArray(c.WhitePoint[:]))
+	if c.BlackPoint != [3]float64{} {
+		out += fmt.Sprintf(" /BlackPoint %s", writeFloatArray(c.BlackPoint[:]))
+	}
+	if c.Range != [4]float64{} {
+		out += fmt.Sprintf(" /Range %s", writeFloatArray(c.Range[:]))
+	}
+	out += ">>"
+	return out
 }
 
+// IndexedColorSpace is written in PDF as
+// [ /Indexed base hival lookup ]
 type IndexedColorSpace struct {
 	Base   ColorSpace
 	Hival  uint8
 	Lookup ColorTable
+}
+
+func (c IndexedColorSpace) PDFString(pdf PDFWriter) string {
+	base := writeColorSpace(c.Base, pdf)
+	var tableString string
+	switch table := c.Lookup.(type) {
+	case *ColorTableStream:
+		ref := pdf.addItem(table)
+		tableString = ref.String()
+	case ColorTableBytes:
+		tableString = string(table)
+	}
+	return fmt.Sprintf("[/Indexed %s %d %s]", base, c.Hival, tableString)
 }
 
 // ColorTable is either a content stream or a simple byte string
@@ -112,15 +272,28 @@ type ColorTable interface {
 	isColorTable()
 }
 
-func (ColorTableStream) isColorTable() {}
-func (ColorTableBytes) isColorTable()  {}
+func (*ColorTableStream) isColorTable() {}
+func (ColorTableBytes) isColorTable()   {}
 
 type ColorTableStream ContentStream
 
+// PDFBytes return the content of the stream.
+// PDFWriter is not used
+func (table *ColorTableStream) PDFBytes(PDFWriter) []byte {
+	return (*ContentStream)(table).PDFBytes()
+}
+
 type ColorTableBytes []byte
 
+// UncoloredTilingPattern is written in PDF
+// [ /Pattern underlyingColorSpace ]
 type UncoloredTilingPattern struct {
 	UnderlyingColorSpace ColorSpace
+}
+
+func (c UncoloredTilingPattern) PDFString(pdf PDFWriter) string {
+	under := writeColorSpace(c.UnderlyingColorSpace, pdf)
+	return fmt.Sprintf("[/Pattern %s]", under)
 }
 
 // ----------------------- Patterns -----------------------
@@ -128,6 +301,7 @@ type UncoloredTilingPattern struct {
 // Pattern is either a Tiling or a Shading pattern
 type Pattern interface {
 	isPattern()
+	cachable
 }
 
 func (*TilingPatern) isPattern()  {}
@@ -146,10 +320,16 @@ type TilingPatern struct {
 	Matrix     Matrix // optional, default to identity
 }
 
+// TODO: tiling patern
+func (t *TilingPatern) PDFBytes(pdf PDFWriter) []byte {
+	return []byte("<<>>")
+}
+
 // ShadingType may FunctionBased, Axial, Radial, FreeForm,
 // Lattice, Coons, TensorProduct
 type ShadingType interface {
 	isShading()
+	PDFBytes(commonFields string, pdf PDFWriter) []byte
 }
 
 func (FunctionBased) isShading() {}
@@ -165,19 +345,65 @@ type FunctionBased struct {
 	Matrix   Matrix     // optional, default to identity
 	Function []Function // either one 2 -> n function, or n 2 -> 1 functions
 }
+
+func (s FunctionBased) PDFBytes(commonFields string, pdf PDFWriter) []byte {
+	b := newBuffer()
+	fns := pdf.writeFunctions(s.Function)
+	b.fmt("<</ShadingType 1 %s /Function %s", commonFields, writeRefArray(fns))
+	if s.Domain != [4]float64{} {
+		b.fmt(" /Domain %s", writeFloatArray(s.Domain[:]))
+	}
+	if (s.Matrix != Matrix{}) {
+		b.fmt("/Matrix %s", s.Matrix)
+	}
+	b.fmt(">>")
+	return b.Bytes()
+}
+
 type BaseGradient struct {
 	Domain   [2]float64 // optional, default to [0 1]
 	Function []Function // either one 1 -> n function, or n 1->1 functions
 	Extend   [2]bool    // optional, default to [false, false]
 }
+
+// PDFFields return the inner fields, without << >>
+// `pdf` is used to write the functions
+func (g BaseGradient) PDFFields(pdf PDFWriter) string {
+	fns := pdf.writeFunctions(g.Function)
+	out := fmt.Sprintf("/Function %s", writeRefArray(fns))
+	if g.Domain != [2]float64{} {
+		out += fmt.Sprintf(" /Domain %s", writeFloatArray(g.Domain[:]))
+	}
+	if g.Extend != [2]bool{} {
+		out += fmt.Sprintf(" /Extend [%v %v]", g.Extend[0], g.Extend[1])
+	}
+	return out
+}
+
 type Axial struct {
 	BaseGradient
 	Coords [4]float64 // x0, y0, x1, y1
 }
+
+func (s Axial) PDFBytes(commonFields string, pdf PDFWriter) []byte {
+	gradArgs := s.BaseGradient.PDFFields(pdf)
+	out := fmt.Sprintf("<</ShadingType 2 %s %s /Coords %s>>",
+		commonFields, gradArgs, writeFloatArray(s.Coords[:]))
+	return []byte(out)
+}
+
 type Radial struct {
 	BaseGradient
 	Coords [6]float64 // x0, y0, r0, x1, y1, r1
 }
+
+func (s Radial) PDFBytes(commonFields string, pdf PDFWriter) []byte {
+	gradArgs := s.BaseGradient.PDFFields(pdf)
+	out := fmt.Sprintf("<</ShadingType 3 %s %s /Coords %s>>",
+		commonFields, gradArgs, writeFloatArray(s.Coords[:]))
+	return []byte(out)
+}
+
 type FreeForm struct{} // TODO:
 type Lattice struct{}  // TODO:
 type Coons struct {
@@ -187,8 +413,25 @@ type Coons struct {
 	BitsPerComponent  uint8 // 1, 2, 4, 8, 12, or 16
 	BitsPerFlag       uint8 // 2, 4, or 8
 	Decode            []Range
-	Function          []Function // a 1->n function or n 1->1 functions (n is the number of colour components)
+	Function          []Function // optional, one 1->n function or n 1->1 functions (n is the number of colour components)
 }
+
+func (c Coons) PDFBytes(commonFields string, pdf PDFWriter) []byte {
+	args := c.PDFCommonFields()
+	b := newBuffer()
+	b.fmt("<</ShadingType 6 %s %s /BitsPerCoordinate %d /BitsPerComponent %d /BitsPerFlag %d /Decode %s",
+		commonFields, args, c.BitsPerCoordinate, c.BitsPerComponent, c.BitsPerFlag, writeRangeArray(c.Decode))
+	if len(c.Function) != 0 {
+		fns := pdf.writeFunctions(c.Function)
+		b.fmt(" /Function %s", writeRefArray(fns))
+	}
+	b.line(">>")
+	b.line("stream")
+	b.Write(c.Content)
+	b.WriteString("\nendstream")
+	return b.Bytes()
+}
+
 type TensorProduct struct{} // TODO:
 
 // ShadingDict is either a plain dict, or is a stream (+ dict)
@@ -197,14 +440,43 @@ type ShadingDict struct {
 	ColorSpace  ColorSpace
 	// colour components appropriate to the colour space
 	// only applied when part of a (shading) pattern
-	Background []float64
-	BBox       *Rectangle // in shading’s target coordinate space
-	AntiAlias  bool
+	Background []float64  // optional
+	BBox       *Rectangle // optional in shading’s target coordinate space
+	AntiAlias  bool       // optional, default to false
+}
+
+func (s *ShadingDict) PDFBytes(pdf PDFWriter) []byte {
+	b := newBuffer()
+	cs := writeColorSpace(s.ColorSpace, pdf)
+	b.fmt("/ColorSpace %s", cs)
+	if len(s.Background) != 0 {
+		b.fmt(" /Background %s", writeFloatArray(s.Background))
+	}
+	if s.BBox != nil {
+		b.fmt(" /BBox %s", s.BBox.PDFstring())
+	}
+	b.fmt(" /AntiAlias %v", s.AntiAlias)
+	return s.ShadingType.PDFBytes(b.String(), pdf)
 }
 
 // ShadingPatern is a type2 pattern
 type ShadingPatern struct {
-	Shading   ShadingDict
+	Shading   *ShadingDict  // required
 	Matrix    Matrix        // optionnal, default to Identity
 	ExtGState *GraphicState // optionnal
+}
+
+func (s *ShadingPatern) PDFBytes(pdf PDFWriter) []byte {
+	b := newBuffer()
+	shadingRef := pdf.addItem(s.Shading)
+	b.fmt("<</PatternType 2 /Shading %s", shadingRef)
+	if s.Matrix != (Matrix{}) {
+		b.fmt(" /Matrix %s", s.Matrix)
+	}
+	if s.ExtGState != nil {
+		stateRef := pdf.addItem(s.ExtGState)
+		b.fmt(" /ExtGState %s", stateRef)
+	}
+	b.fmt(">>")
+	return b.Bytes()
 }

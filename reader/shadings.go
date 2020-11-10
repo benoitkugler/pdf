@@ -54,10 +54,7 @@ func (r resolver) resolveOneShading(shadings pdfcpu.Object) (*model.ShadingDict,
 	)
 	// common fields
 	bg := shDict.ArrayEntry("Background")
-	out.Background = make([]float64, len(bg))
-	for i, v := range bg {
-		out.Background[i], _ = isNumber(v)
-	}
+	out.Background = processFloatArray(bg)
 	bbox := shDict.ArrayEntry("BBox")
 	out.BBox = rectangleFromArray(bbox)
 	if aa := shDict.BooleanEntry("AntiAlias"); aa != nil {
@@ -193,6 +190,7 @@ func (r resolver) resolveArrayCS(ar pdfcpu.Array) (model.ColorSpace, error) {
 		if lookupString, is := isString(ar[3]); is {
 			out.Lookup = model.ColorTableBytes(lookupString)
 		} else { // stream
+			lookupRef, isRef := ar[3].(pdfcpu.IndirectRef)
 			cs, err := r.processContentStream(ar[3])
 			if err != nil {
 				return nil, err
@@ -200,7 +198,10 @@ func (r resolver) resolveArrayCS(ar pdfcpu.Array) (model.ColorSpace, error) {
 			if cs == nil {
 				return nil, errors.New("missing stream for lookup of Indexed color space")
 			}
-			out.Lookup = model.ColorTableStream(*cs)
+			out.Lookup = (*model.ColorTableStream)(cs)
+			if isRef {
+				r.colorTableStreams[lookupRef] = (*model.ColorTableStream)(cs)
+			}
 		}
 		return out, nil
 	case pdfcpu.Name("Pattern"): // uncoloured tiling pattern
@@ -460,7 +461,7 @@ func (r resolver) resolveShadingPattern(pat pdfcpu.Dict) (*model.ShadingPatern, 
 		return nil, err
 	}
 	var out model.ShadingPatern
-	out.Shading = *sh
+	out.Shading = sh
 	if m := matrixFromArray(pat.ArrayEntry("Matrix")); m != nil {
 		out.Matrix = *m
 	}

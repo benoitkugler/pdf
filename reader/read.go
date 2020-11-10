@@ -18,23 +18,24 @@ import (
 type resolver struct {
 	xref *pdfcpu.XRefTable
 
-	formFields      map[pdfcpu.IndirectRef]*model.FormField
-	appearanceDicts map[pdfcpu.IndirectRef]*model.AppearanceDict
 	// appearanceEntries map[pdfcpu.IndirectRef]*model.AppearanceEntry
-	resources      map[pdfcpu.IndirectRef]*model.ResourcesDict
-	fonts          map[pdfcpu.IndirectRef]*model.Font
-	graphicsStates map[pdfcpu.IndirectRef]*model.GraphicState
-	encodings      map[pdfcpu.IndirectRef]*model.EncodingDict
-	annotations    map[pdfcpu.IndirectRef]*model.Annotation
-	fileSpecs      map[pdfcpu.IndirectRef]*model.FileSpec
-	fileContents   map[pdfcpu.IndirectRef]*model.EmbeddedFileStream
-	pages          map[pdfcpu.IndirectRef]*model.PageObject
-	shadings       map[pdfcpu.IndirectRef]*model.ShadingDict
-	functions      map[pdfcpu.IndirectRef]*model.Function
-	iccs           map[pdfcpu.IndirectRef]*model.ICCBasedColorSpace
-	patterns       map[pdfcpu.IndirectRef]model.Pattern
-	xObjectForms   map[pdfcpu.IndirectRef]*model.XObjectForm
-	images         map[pdfcpu.IndirectRef]*model.XObjectImage
+	formFields        map[pdfcpu.IndirectRef]*model.FormField
+	appearanceDicts   map[pdfcpu.IndirectRef]*model.AppearanceDict
+	resources         map[pdfcpu.IndirectRef]*model.ResourcesDict
+	fonts             map[pdfcpu.IndirectRef]*model.Font
+	graphicsStates    map[pdfcpu.IndirectRef]*model.GraphicState
+	encodings         map[pdfcpu.IndirectRef]*model.EncodingDict
+	annotations       map[pdfcpu.IndirectRef]*model.Annotation
+	fileSpecs         map[pdfcpu.IndirectRef]*model.FileSpec
+	fileContents      map[pdfcpu.IndirectRef]*model.EmbeddedFileStream
+	pages             map[pdfcpu.IndirectRef]*model.PageObject
+	shadings          map[pdfcpu.IndirectRef]*model.ShadingDict
+	functions         map[pdfcpu.IndirectRef]*model.Function
+	patterns          map[pdfcpu.IndirectRef]model.Pattern
+	xObjectForms      map[pdfcpu.IndirectRef]*model.XObjectForm
+	images            map[pdfcpu.IndirectRef]*model.XObjectImage
+	iccs              map[pdfcpu.IndirectRef]*model.ICCBasedColorSpace
+	colorTableStreams map[pdfcpu.IndirectRef]*model.ColorTableStream
 
 	// annotations may reference pages which are not yet processed
 	// we store them and update the Page field later
@@ -94,12 +95,20 @@ func isString(o pdfcpu.Object) (string, bool) {
 	}
 }
 
+func processFloatArray(ar pdfcpu.Array) []float64 {
+	out := make([]float64, len(ar))
+	for i, v := range ar {
+		out[i], _ = isNumber(v)
+	}
+	return out
+}
+
 func info(xref *pdfcpu.XRefTable) (model.Info, error) {
 	var info model.Info
 	if xref.Info != nil {
 		d, err := xref.DereferenceDict(*xref.Info)
 		if err != nil {
-			return info, fmt.Errorf("can't resolve Info dictionnary: %w", err)
+			return info, fmt.Errorf("can't resolve Info Dictionary: %w", err)
 		}
 		producer, _ := isString(d["Producer"])
 		title, _ := isString(d["Title"])
@@ -126,7 +135,7 @@ func encrypt(xref *pdfcpu.XRefTable) (model.Encrypt, error) {
 	if xref.Encrypt != nil {
 		d, err := xref.DereferenceDict(*xref.Encrypt)
 		if err != nil {
-			return out, fmt.Errorf("can't resolve Encrypt dictionnary: %w", err)
+			return out, fmt.Errorf("can't resolve Encrypt Dictionary: %w", err)
 		}
 		filter, _ := d["Filter"].(pdfcpu.Name)
 		out.Filter = model.Name(filter)
@@ -139,37 +148,37 @@ func encrypt(xref *pdfcpu.XRefTable) (model.Encrypt, error) {
 	return out, nil
 }
 
-func ParsePDF(source io.ReadSeeker, userPassword string) (*model.Document, error) {
+func ParsePDF(source io.ReadSeeker, userPassword string) (model.Document, error) {
+	var out model.Document
 	config := pdfcpu.NewDefaultConfiguration()
 	config.UserPW = userPassword
 	config.DecodeAllStreams = true
 	ti := time.Now()
 	ctx, err := pdfcpu.Read(source, config)
 	if err != nil {
-		return nil, fmt.Errorf("can't read PDF: %w", err)
+		return out, fmt.Errorf("can't read PDF: %w", err)
 	}
 	fmt.Printf("pdfcpu processing: %s\n", time.Since(ti))
 	ti = time.Now()
-	var out model.Document
 	xref := ctx.XRefTable
 
 	out.Trailer.Info, err = info(xref)
 	if err != nil {
-		return nil, err
+		return out, err
 	}
 	out.Trailer.Encrypt, err = encrypt(xref)
 	if err != nil {
-		return nil, err
+		return out, err
 	}
 
 	out.Catalog, err = catalog(xref)
 	if err != nil {
-		return nil, err
+		return out, err
 	}
 
 	fmt.Printf("model processing: %s\n", time.Since(ti))
 
-	return &out, nil
+	return out, nil
 }
 
 func catalog(xref *pdfcpu.XRefTable) (model.Catalog, error) {
@@ -183,20 +192,21 @@ func catalog(xref *pdfcpu.XRefTable) (model.Catalog, error) {
 		formFields:      make(map[pdfcpu.IndirectRef]*model.FormField),
 		appearanceDicts: make(map[pdfcpu.IndirectRef]*model.AppearanceDict),
 		// appearanceEntries: make(map[pdfcpu.IndirectRef]*model.AppearanceEntry),
-		resources:      make(map[pdfcpu.IndirectRef]*model.ResourcesDict),
-		fonts:          make(map[pdfcpu.IndirectRef]*model.Font),
-		graphicsStates: make(map[pdfcpu.IndirectRef]*model.GraphicState),
-		encodings:      make(map[pdfcpu.IndirectRef]*model.EncodingDict),
-		annotations:    make(map[pdfcpu.IndirectRef]*model.Annotation),
-		fileSpecs:      make(map[pdfcpu.IndirectRef]*model.FileSpec),
-		fileContents:   make(map[pdfcpu.IndirectRef]*model.EmbeddedFileStream),
-		pages:          make(map[pdfcpu.IndirectRef]*model.PageObject),
-		functions:      make(map[pdfcpu.IndirectRef]*model.Function),
-		shadings:       make(map[pdfcpu.IndirectRef]*model.ShadingDict),
-		iccs:           make(map[pdfcpu.IndirectRef]*model.ICCBasedColorSpace),
-		patterns:       make(map[pdfcpu.IndirectRef]model.Pattern),
-		xObjectForms:   make(map[pdfcpu.IndirectRef]*model.XObjectForm),
-		images:         make(map[pdfcpu.IndirectRef]*model.XObjectImage),
+		resources:         make(map[pdfcpu.IndirectRef]*model.ResourcesDict),
+		fonts:             make(map[pdfcpu.IndirectRef]*model.Font),
+		graphicsStates:    make(map[pdfcpu.IndirectRef]*model.GraphicState),
+		encodings:         make(map[pdfcpu.IndirectRef]*model.EncodingDict),
+		annotations:       make(map[pdfcpu.IndirectRef]*model.Annotation),
+		fileSpecs:         make(map[pdfcpu.IndirectRef]*model.FileSpec),
+		fileContents:      make(map[pdfcpu.IndirectRef]*model.EmbeddedFileStream),
+		pages:             make(map[pdfcpu.IndirectRef]*model.PageObject),
+		functions:         make(map[pdfcpu.IndirectRef]*model.Function),
+		shadings:          make(map[pdfcpu.IndirectRef]*model.ShadingDict),
+		patterns:          make(map[pdfcpu.IndirectRef]model.Pattern),
+		xObjectForms:      make(map[pdfcpu.IndirectRef]*model.XObjectForm),
+		images:            make(map[pdfcpu.IndirectRef]*model.XObjectImage),
+		iccs:              make(map[pdfcpu.IndirectRef]*model.ICCBasedColorSpace),
+		colorTableStreams: make(map[pdfcpu.IndirectRef]*model.ColorTableStream),
 	}
 
 	out.AcroForm, err = r.processAcroForm(d["AcroForm"])

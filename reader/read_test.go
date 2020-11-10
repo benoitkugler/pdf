@@ -52,7 +52,7 @@ func TestGenerateEmpty(t *testing.T) {
 
 func decodeStream(stream model.ContentStream) ([]byte, error) {
 	var current io.Reader = bytes.NewReader(stream.Content)
-	for i, f := range stream.Filters {
+	for i, f := range stream.Filter {
 		params := map[string]int{}
 		for n, v := range stream.ParamsForFilter(i) {
 			params[string(n)] = v
@@ -79,26 +79,35 @@ func TestOpen(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer f.Close()
+
 	doc, err := ParsePDF(f, "")
 	if err != nil {
 		t.Fatal(err)
 	}
-	fmt.Println(doc.Trailer.Info)
+	fmt.Println(doc.Trailer.Encrypt)
 
-	// for _, page := range doc.Catalog.Pages.Flatten() {
-	// 	fmt.Println(page.Resources)
-	// }
+	fmt.Println(string(doc.Catalog.Pages.Flatten()[0].Contents[0].Content[0:20]))
+	fmt.Println(doc.Catalog.Pages.Flatten()[0].Contents[0].Content[0:20])
 
-	for n, label := range doc.Catalog.PageLabels.LookupTable() {
-		fmt.Println(n, label)
+}
+
+func TestStream(t *testing.T) {
+	ctx, err := pdfcpu.ReadFile("datatest/PDF_SPEC.pdf", nil)
+	if err != nil {
+		t.Fatal(err)
 	}
+	stream, err := ctx.XRefTable.DereferenceStreamDict(*pdfcpu.NewIndirectRef(2, 0))
+	if err != nil {
+		t.Fatal(err)
+	}
+	f, err := os.Open("datatest/PDF_SPEC.pdf")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+	fmt.Println(string(stream.Raw[0:20]))
 
-	// ct, err := decodeStream(doc.Catalog.Pages.Flatten()[15].Contents[0])
-	// if err != nil {
-	// 	t.Fatal(err)
-	// }
-	// fmt.Println(string(ct))
-	// fmt.Println(doc.Catalog.Names.Dests.LookupTable())
 }
 
 func TestAlterFields(t *testing.T) {

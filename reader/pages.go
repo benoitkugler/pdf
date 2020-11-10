@@ -33,6 +33,10 @@ func (r resolver) processContentStream(content pdfcpu.Object) (*model.ContentStr
 	var out model.ContentStream
 	// length will be deduced from the content
 	out.Content = stream.Raw
+	stream.Decode()
+	if len(stream.Content) >= 10 {
+		fmt.Println(string(stream.Content[0:10]))
+	}
 
 	filters := r.resolve(stream.Dict["Filter"])
 	if filterName, isName := filters.(pdfcpu.Name); isName {
@@ -42,14 +46,14 @@ func (r resolver) processContentStream(content pdfcpu.Object) (*model.ContentStr
 	for _, name := range ar {
 		if filterName, isName := name.(pdfcpu.Name); isName {
 			if f := model.NewFilter(string(filterName)); f != "" {
-				out.Filters = []model.Filter{f}
+				out.Filter = []model.Filter{f}
 			}
 		}
 	}
 	decode := r.resolve(stream.Dict["DecodeParms"])
 	switch decode := decode.(type) {
 	case pdfcpu.Array: // one dict param per filter
-		if len(decode) != len(out.Filters) {
+		if len(decode) != len(out.Filter) {
 			return nil, fmt.Errorf("unexpected length for DecodeParms array: %d", len(decode))
 		}
 		for _, parms := range decode {
@@ -57,7 +61,7 @@ func (r resolver) processContentStream(content pdfcpu.Object) (*model.ContentStr
 			out.DecodeParms = append(out.DecodeParms, parmsModel)
 		}
 	case pdfcpu.Dict: // one filter and one dict param
-		if len(out.Filters) != 1 {
+		if len(out.Filter) != 1 {
 			return nil, errType("DecodeParms", decode)
 		}
 		out.DecodeParms = append(out.DecodeParms, r.processDecodeParms(decode))
@@ -99,7 +103,7 @@ func (r *resolver) resolvePageObject(node pdfcpu.Dict, parent *model.PageTree) (
 	contents := r.resolve(node["Contents"])
 	switch contents := contents.(type) {
 	case pdfcpu.Array: // array of streams
-		page.Contents = make(model.Contents, len(contents))
+		page.Contents = make([]model.ContentStream, len(contents))
 		for _, v := range contents {
 			cts, err := r.processContentStream(v)
 			if err != nil {
@@ -121,56 +125,78 @@ func (r *resolver) resolvePageObject(node pdfcpu.Dict, parent *model.PageTree) (
 
 	annots := node.ArrayEntry("Annots")
 	for _, annot := range annots {
-		annotRef, isRef := annot.(pdfcpu.IndirectRef)
-		if annotModel := r.annotations[annotRef]; isRef && annotModel != nil {
-			page.Annots = append(page.Annots, annotModel)
-			continue
-		}
-		annot = r.resolve(annot)
-		annotDict, isDict := annot.(pdfcpu.Dict)
-		if !isDict {
-			return nil, errType("Annotation", annot)
-		}
-		var annotModel model.Annotation
-		if rect := rectangleFromArray(annotDict.ArrayEntry("Rect")); rect != nil {
-			annotModel.Rect = *rect
-		}
-
-		contents, _ := isString(annotDict["Contents"])
-		annotModel.Contents = decodeTextString(contents)
-
-		if f := annotDict.IntEntry("F"); f != nil {
-			annotModel.F = *f
-		}
-		if name := annotDict.NameEntry("Name"); name != nil {
-			annotModel.AS = model.Name(*name)
-		}
-
-		annotModel.AP, err = r.resolveAppearanceDict(annotDict["AP"])
+		an, err := r.resolveAnnotation(annot)
 		if err != nil {
 			return nil, err
 		}
-
-		annotModel.Subtype, err = r.resolveAnnotationSubType(annotDict)
-		if err != nil {
-			return nil, err
-		}
-
-		if isRef { // write the annotation back into the cache
-			r.annotations[annotRef] = &annotModel
-		}
-		page.Annots = append(page.Annots, &annotModel)
+		page.Annots = append(page.Annots, an)
 	}
 	return &page, nil
 }
 
+// TODO: annotation
+func (r *resolver) resolveAnnotation(annot pdfcpu.Object) (*model.Annotation, error) {
+	annotRef, isRef := annot.(pdfcpu.IndirectRef)
+	if annotModel := r.annotations[annotRef]; isRef && annotModel != nil {
+		return annotModel, nil
+	}
+	annot = r.resolve(annot)
+	annotDict, isDict := annot.(pdfcpu.Dict)
+	if !isDict {
+		return nil, errType("Annotation", annot)
+	}
+	var (
+		annotModel model.Annotation
+		err        error
+	)
+	if rect := rectangleFromArray(annotDict.ArrayEntry("Rect")); rect != nil {
+		annotModel.Rect = *rect
+	}
+
+	contents, _ := isString(annotDict["Contents"])
+	annotModel.Contents = decodeTextString(contents)
+
+	if f := annotDict.IntEntry("F"); f != nil {
+		annotModel.F = *f
+	}
+	if name := annotDict.NameEntry("Name"); name != nil {
+		annotModel.AS = model.Name(*name)
+	}
+	border := annotDict.ArrayEntry("Border")
+	var bo model.Border
+	if len(border) >= 3 {
+		bo.HCornerRadius, _ = isNumber(border[0])
+		bo.VCornerRadius, _ = isNumber(border[1])
+		bo.BorderWidth, _ = isNumber(border[2])
+		if len(border) == 4 {
+			dash, _ := border[4].(pdfcpu.Array)
+			bo.DashArray = processFloatArray(dash)
+		}
+		annotModel.Border = &bo
+	}
+	annotModel.AP, err = r.resolveAppearanceDict(annotDict["AP"])
+	if err != nil {
+		return nil, err
+	}
+
+	annotModel.Subtype, err = r.resolveAnnotationSubType(annotDict)
+	if err != nil {
+		return nil, err
+	}
+
+	if isRef { // write the annotation back into the cache
+		r.annotations[annotRef] = &annotModel
+	}
+	return &annotModel, nil
+}
+
 // node, possibly root
 func (r *resolver) resolvePageTree(node pdfcpu.Dict, parent *model.PageTree) (*model.PageTree, error) {
+	var page model.PageTree
 	resources, err := r.resolveOneResourceDict(node["Resources"])
 	if err != nil {
 		return nil, err
 	}
-	var page model.PageTree
 	page.Parent = parent
 	page.Resources = resources
 	kids, _ := r.resolve(node["Kids"]).(pdfcpu.Array)
@@ -234,10 +260,10 @@ func (r *resolver) resolveExplicitDestination(dest pdfcpu.Array) (*model.Explici
 func (r *resolver) processDestination(dest pdfcpu.Object) (model.Destination, error) {
 	switch dest := dest.(type) {
 	case pdfcpu.Name:
-		return model.NamedDestination(dest), nil
+		return model.DestinationName(dest), nil
 	case pdfcpu.StringLiteral, pdfcpu.HexLiteral:
 		d, _ := isString(dest)
-		return model.NamedDestination(decodeTextString(d)), nil
+		return model.DestinationString(decodeTextString(d)), nil
 	case pdfcpu.Array:
 		return r.resolveExplicitDestination(dest)
 	default:
@@ -296,34 +322,37 @@ func (r resolver) resolveFileSpec(fs pdfcpu.Object) (*model.FileSpec, error) {
 	if fileSpec := r.fileSpecs[fsRef]; isFsRef && fileSpec != nil {
 		return fileSpec, nil
 	}
-
+	fs = r.resolve(fs)
 	var file model.FileSpec
-	fsObj := r.resolve(fs)
-	fsDict, isDict := fsObj.(pdfcpu.Dict)
-	if !isDict {
-		return nil, errType("FileSpec", fsObj)
-	}
-	uf, _ := isString(fsDict["UF"])
-	desc, _ := isString(fsDict["Desc"])
-	file.UF = decodeTextString(uf)
-	file.Desc = decodeTextString(desc)
-
-	ef := r.resolve(fsDict["EF"])
-	efDict, isDict := ef.(pdfcpu.Dict)
-	if !isDict {
-		return nil, errType("EF Dict", ef)
-	}
-	fileEntry := efDict["UF"]
-	for _, alt := range [...]string{"F", "DOS", "Mac", "Unix"} {
-		if fileEntry != nil {
-			break
+	if fileString, ok := isString(fs); ok { // File Specification String
+		file.UF = fileString
+	} else { // File Specification Dictionary
+		fsDict, isDict := fs.(pdfcpu.Dict)
+		if !isDict {
+			return nil, errType("FileSpec", fs)
 		}
-		fileEntry = efDict[alt]
-	}
-	var err error
-	file.EF, err = r.resolveFileContent(fileEntry)
-	if err != nil {
-		return nil, err
+		uf, _ := isString(fsDict["UF"])
+		desc, _ := isString(fsDict["Desc"])
+		file.UF = decodeTextString(uf)
+		file.Desc = decodeTextString(desc)
+
+		ef := r.resolve(fsDict["EF"])
+		efDict, isDict := ef.(pdfcpu.Dict)
+		if !isDict {
+			return nil, errType("EF Dict", ef)
+		}
+		fileEntry := efDict["UF"]
+		for _, alt := range [...]string{"F", "DOS", "Mac", "Unix"} {
+			if fileEntry != nil {
+				break
+			}
+			fileEntry = efDict[alt]
+		}
+		var err error
+		file.EF, err = r.resolveFileContent(fileEntry)
+		if err != nil {
+			return nil, err
+		}
 	}
 	if isFsRef { // write back to the cache
 		r.fileSpecs[fsRef] = &file

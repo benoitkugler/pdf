@@ -1,6 +1,7 @@
 package model
 
 import (
+	"bytes"
 	"fmt"
 )
 
@@ -11,7 +12,7 @@ type Rectangle struct {
 }
 
 func (r Rectangle) PDFstring() string {
-	return fmt.Sprintf("[%.3f %.3f %.3f %.3f]", r.Llx, r.Lly, r.Urx, r.Ury)
+	return writeFloatArray([]float64{r.Llx, r.Lly, r.Urx, r.Ury})
 }
 
 // Rotation encodes a clock-wise rotation
@@ -42,7 +43,8 @@ func (r Rotation) Degrees() int {
 // and it is included in PDF without encoding, by prepending /
 type Name string
 
-func (n Name) PDFString() string {
+// String returns the PDF representation of a name
+func (n Name) String() string {
 	return "/" + string(n)
 }
 
@@ -63,6 +65,97 @@ type Function struct {
 	FunctionType FunctionType
 	Domain       []Range // length m
 	Range        []Range // length n, optionnal for ExpInterpolationFunction and StitchingFunction
+}
+
+// PDFBytes return the object content of `f`
+// `pdf` is used to write and reference the sub-functions of a `StitchingFunction`
+func (f Function) PDFBytes(pdf PDFWriter) []byte {
+	baseArgs := fmt.Sprintf("/Domain %s", writeRangeArray(f.Domain))
+	if len(f.Range) != 0 {
+		baseArgs += fmt.Sprintf(" /Range %s", writeRangeArray(f.Range))
+	}
+	var content []byte
+	switch ft := f.FunctionType.(type) {
+	case SampledFunction:
+		content = ft.PDFBytes(baseArgs)
+	case ExpInterpolationFunction:
+		content = ft.PDFBytes(baseArgs)
+	case StitchingFunction:
+		// start by writing the "child" functions
+		content = ft.PDFBytes(baseArgs, pdf)
+	case PostScriptCalculatorFunction:
+		content = ft.PDFBytes(baseArgs)
+	}
+	return content
+}
+
+// PDFBytes adds to the common arguments the specificities of a `SampledFunction`
+func (f SampledFunction) PDFBytes(baseArgs string) []byte {
+	var b bytes.Buffer
+	b.WriteString("<< /FunctionType 0 ")
+	b.WriteString(baseArgs)
+	b.WriteString(f.ContentStream.PDFCommonFields())
+	b.WriteString(fmt.Sprintf(" /Size %s /BitsPerSample %d", writeIntArray(f.Size), f.BitsPerSample))
+	if f.Order != 0 {
+		b.WriteString(fmt.Sprintf(" /Order %d", f.Order))
+	}
+	if len(f.Encode) != 0 {
+		b.WriteString(" /Encode [ ")
+		for _, v := range f.Encode {
+			b.WriteString(fmt.Sprintf("%.3f %.3f ", v[0], v[1]))
+		}
+		b.WriteByte(']')
+	}
+	if len(f.Decode) != 0 {
+		b.WriteString(" /Decode ")
+		b.WriteString(writeRangeArray(f.Decode))
+	}
+	b.WriteString(" >>\n")
+	b.WriteString("stream\n")
+	b.Write(f.Content)
+	b.WriteString("\nendstream")
+	return b.Bytes()
+}
+
+// PDFBytes adds to the common arguments the specificities of a `ExpInterpolationFunction`
+func (f ExpInterpolationFunction) PDFBytes(baseArgs string) []byte {
+	c0, c1 := "", ""
+	if len(f.C0) != 0 {
+		c0 = " /C0 " + writeFloatArray(f.C0)
+	}
+	if len(f.C1) != 0 {
+		c1 = " /C1 " + writeFloatArray(f.C1)
+	}
+	return []byte(fmt.Sprintf("<</FunctionType 2 %s%s%s /N %d>>", baseArgs, c0, c1, f.N))
+}
+
+// convenience: write the functions and returns the corresponding reference
+func (pdf PDFWriter) writeFunctions(fns []Function) []Reference {
+	refs := make([]Reference, len(fns))
+	for i, f := range fns {
+		refs[i] = pdf.addObject(f.PDFBytes(pdf))
+	}
+	return refs
+}
+
+// PDFBytes adds to the common arguments the specificities of a `StitchingFunction`.
+// In particular, the sub-functions must have been previously written and provided as references
+func (f StitchingFunction) PDFBytes(baseArgs string, pdf PDFWriter) []byte {
+	// start by writing the "child" functions
+	refs := pdf.writeFunctions(f.Functions)
+	return []byte(fmt.Sprintf("<</FunctionType 3 %s /Functions %s /Bounds %s /Encode %s>>",
+		baseArgs, writeRefArray(refs), writeFloatArray(f.Bounds), writePointArray(f.Encode)))
+}
+
+// PDFBytes adds to the common arguments the specificities of a `PostScriptCalculatorFunction`.
+func (f PostScriptCalculatorFunction) PDFBytes(baseArgs string) []byte {
+	s := ContentStream(f).PDFCommonFields()
+	var b bytes.Buffer
+	b.WriteString(fmt.Sprintf("<</FunctionType 4 %s %s>>\n", baseArgs, s))
+	b.WriteString("stream\n")
+	b.Write(f.Content)
+	b.WriteString("\nendstream")
+	return b.Bytes()
 }
 
 type SampledFunction struct {
@@ -99,3 +192,8 @@ type PostScriptCalculatorFunction ContentStream
 // x′ = a × x + c × y + e
 // y′ = b × x + d × y + f
 type Matrix [6]float64 // a,b,c,d,e,f
+
+// String return the PDF representation
+func (m Matrix) String() string {
+	return writeFloatArray(m[:])
+}

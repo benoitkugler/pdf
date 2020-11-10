@@ -34,3 +34,7 @@ type AcroForm struct {
 	Fields          []*FormField
 	NeedAppearances bool
 }
+
+func (a AcroForm) pdfBytes(pdf PDFWriter) []byte {
+	return nil
+}

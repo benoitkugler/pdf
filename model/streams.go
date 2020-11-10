@@ -46,7 +46,7 @@ var booleanNames = map[Name]bool{
 // to obtain `Content`
 type ContentStream struct {
 	// Length      int
-	Filters []Filter
+	Filter []Filter
 	// nil, or same length than Filters.
 	// boolean value are stored as 0 (false) or 1 (true)
 	DecodeParms []map[Name]int
@@ -67,15 +67,19 @@ func (s ContentStream) ParamsForFilter(index int) map[Name]int {
 	return s.DecodeParms[index]
 }
 
-// PDFCommonArgs returns the content of the dictionnary of `s`
+// PDFCommonArgs returns the content of the Dictionary of `s`
 // without the enclosing << >>.
 // It will usually be used in combination with other fields.
 func (s ContentStream) PDFCommonFields() string {
-	fs := make([]string, len(s.Filters))
-	for i, f := range s.Filters {
-		fs[i] = Name(f).PDFString()
+	b := newBuffer()
+	b.fmt("/Length %d", s.Length())
+	if len(s.Filter) != 0 {
+		fs := make([]string, len(s.Filter))
+		for i, f := range s.Filter {
+			fs[i] = Name(f).String()
+		}
+		b.fmt(" /Filter [%s]", strings.Join(fs, " "))
 	}
-	decode := ""
 	if len(s.DecodeParms) != 0 {
 		var st strings.Builder
 		for _, v := range s.DecodeParms {
@@ -89,17 +93,31 @@ func (s ContentStream) PDFCommonFields() string {
 				if booleanNames[n] {
 					arg = k == 1
 				}
-				st.WriteString(n.PDFString() + fmt.Sprintf(" %v ", arg))
+				st.WriteString(fmt.Sprintf("%s %v ", n, arg))
 			}
 			st.WriteString(" >> ")
 		}
-		decode = fmt.Sprintf("/DecodeParams [ %s]", st.String())
+		b.fmt(" /DecodeParams [ %s]", st.String())
 	}
-	return fmt.Sprintf("/Length %d /Filters [%s] %s", s.Length(), strings.Join(fs, " "), decode)
+	return b.String()
+}
+
+// PDFBytes return the stream object content
+// Often, additional arguments will be needed, so `PDFCommonFields`
+// should be used instead.
+func (s ContentStream) PDFBytes() []byte {
+	arg := s.PDFCommonFields()
+	b := newBuffer()
+	b.line("<<%s>>", arg)
+	b.line("stream")
+	b.Write(s.Content)
+	b.WriteString("\nendstream")
+	return b.Bytes()
 }
 
 // XObject is either an image or PDF form
 type XObject interface {
+	cachable
 	isXObject()
 }
 
@@ -114,6 +132,20 @@ type XObjectForm struct {
 	BBox      Rectangle
 	Matrix    *Matrix // optional, default to identity
 	Resources *ResourcesDict
+}
+
+func (f *XObjectForm) PDFBytes(pdf PDFWriter) []byte {
+	args := f.ContentStream.PDFCommonFields()
+	b := newBuffer()
+	b.fmt("<</Subtype /Form %s /BBox %s", args, f.BBox.PDFstring())
+	if f.Matrix != nil {
+		b.fmt(" /Matrix %s", *f.Matrix)
+	}
+	if f.Resources != nil {
+		b.line(" /Resources %s", f.Resources.PDFString(pdf))
+	}
+	b.fmt(">>")
+	return b.Bytes()
 }
 
 // ----------------------- images -----------------------
@@ -133,7 +165,8 @@ type XObjectImage struct {
 	Intent           Name       // optional
 	ImageMask        bool       // optional
 	Mask             Mask       // optional
-	// optional.  length : number of color component required by color space.
+
+	// optional. Array of length : number of color component required by color space.
 	// Special case for Mask image where [1 0] is also allowed (despite not having 1 <= 0)
 	Decode      []Range
 	Interpolate bool             // optional
@@ -142,7 +175,47 @@ type XObjectImage struct {
 	SMaskInData uint8            // optional, 0, 1 or 2
 }
 
+// TODO: images -> bytes
+func (f *XObjectImage) PDFBytes(pdf PDFWriter) []byte {
+	b := newBuffer()
+	base := f.PDFCommonFields()
+	b.line("<</Subtype /Image %s /Width %d /Height %d /BitsPerComponent %d",
+		base, f.Width, f.Height, f.BitsPerComponent)
+	b.fmt("/ImageMask %v", f.ImageMask)
+	if f.ColorSpace != nil {
+		cs := writeColorSpace(f.ColorSpace, pdf)
+		b.fmt(" /ColorSpace %s", cs)
+	}
+	if f.Intent != "" {
+		b.fmt(" /Intent %s", f.Intent)
+	}
+	//TODO: mask
+	if len(f.Decode) != 0 {
+		b.fmt(" /Decode %s", writeRangeArray(f.Decode))
+	}
+	b.line(" /Interpolate %v", f.Interpolate)
+	if len(f.Alternates) != 0 {
+		chunks := make([]string, len(f.Alternates))
+		for i, alt := range f.Alternates {
+			chunks[i] = alt.pdfString(pdf)
+		}
+		b.line("/Alternates [%s]", strings.Join(chunks, " "))
+	}
+	b.fmt("/SMaskInData %d", f.SMaskInData)
+	if f.SMask != nil {
+		ref := pdf.addItem(f.SMask)
+		b.fmt(" /SMask %s", ref)
+	}
+	b.WriteString(">>")
+	return b.Bytes()
+}
+
 type AlternateImage struct {
 	Image              *XObjectImage
 	DefaultForPrinting bool // optional
+}
+
+func (alt AlternateImage) pdfString(pdf PDFWriter) string {
+	imgRef := pdf.addItem(alt.Image)
+	return fmt.Sprintf("<</DefaultForPrinting %v /Image %s", alt.DefaultForPrinting, imgRef)
 }

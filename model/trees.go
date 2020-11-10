@@ -117,6 +117,10 @@ func (d DestTree) LookupTable() map[string]*ExplicitDestination {
 	return out
 }
 
+func (p DestTree) pdfBytes(pdf PDFWriter) []byte {
+	return []byte("<<>>")
+}
+
 // ----------------------------------------------------------------------
 
 type NameToFile struct {
@@ -143,6 +147,10 @@ func (d EmbeddedFileTree) kids() []nameTree {
 
 func (efs EmbeddedFileTree) Limits() [2]string {
 	return limitsName(efs)
+}
+
+func (p EmbeddedFileTree) pdfBytes(pdf PDFWriter) []byte {
+	return nil
 }
 
 // -----------------------------------------------------------------------
@@ -199,6 +207,11 @@ func (d PageLabelsTree) LookupTable() map[int]PageLabel {
 		}
 	}
 	return out
+}
+
+// TODO: PageLabelsTree
+func (p PageLabelsTree) pdfBytes(pdf PDFWriter) []byte {
+	return []byte("<<>>")
 }
 
 // ------------------------------------------------------------

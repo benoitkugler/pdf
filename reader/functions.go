@@ -93,12 +93,8 @@ func processExpInterpolationFn(fn pdfcpu.Dict) (model.ExpInterpolationFunction, 
 		return model.ExpInterpolationFunction{}, errors.New("array length must be equal for C0 and C1")
 	}
 	var out model.ExpInterpolationFunction
-	out.C0 = make([]float64, len(C0))
-	out.C1 = make([]float64, len(C1))
-	for i := range out.C0 {
-		out.C0[i], _ = isNumber(C0[i])
-		out.C1[i], _ = isNumber(C1[i])
-	}
+	out.C0 = processFloatArray(C0)
+	out.C1 = processFloatArray(C1)
 	if N := fn.IntEntry("N"); N != nil {
 		out.N = *N
 	}
@@ -121,10 +117,8 @@ func (r resolver) resolveStitchingFn(fn pdfcpu.Dict) (model.StitchingFunction, e
 	if len(bounds) != K-1 {
 		return out, fmt.Errorf("expected k-1 elements array for Bounds, got %v", bounds)
 	}
-	out.Bounds = make([]float64, K-1)
-	for i, v := range bounds {
-		out.Bounds[i], _ = isNumber(v)
-	}
+	out.Bounds = processFloatArray(bounds)
+
 	encode := fn.ArrayEntry("Encode")
 	if len(encode) != 2*K {
 		return out, fmt.Errorf("expected 2 x k elements array for Bounds, got %v", encode)

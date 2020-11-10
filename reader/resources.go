@@ -175,22 +175,19 @@ func (r resolver) resolveFontTT1orTT(font pdfcpu.Dict) (model.Type1, error) {
 	}
 	if fc := font.IntEntry("FirstChar"); fc != nil {
 		if *fc > 255 {
-			panic("overflow")
+			return out, fmt.Errorf("overflow for FirstChar %d", *fc)
 		}
 		out.FirstChar = byte(*fc)
 	}
 	if lc := font.IntEntry("LastChar"); lc != nil {
 		if *lc > 255 {
-			panic("overflow")
+			return out, fmt.Errorf("overflow for FirstChar %d", *lc)
 		}
 		out.LastChar = byte(*lc)
 	}
 
 	widths, _ := r.resolve(font["Widths"]).(pdfcpu.Array)
-	out.Widths = make([]float64, len(widths))
-	for i, w := range widths {
-		out.Widths[i], _ = isNumber(w)
-	}
+	out.Widths = processFloatArray(widths)
 	// be careful to byte overflow when LastChar = 255 and FirstChar = 0
 	if exp := int(out.LastChar) - int(out.FirstChar) + 1; exp != len(out.Widths) {
 		log.Printf("invalid length for font Widths array: expected %d, got %d", exp, len(out.Widths))
@@ -237,8 +234,8 @@ func (r resolver) resolveFontDescriptor(entry pdfcpu.Object) (model.FontDescript
 	if f, ok := isNumber(fontDescriptor["MissingWidth"]); ok {
 		out.MissingWidth = f
 	}
-	if it := fontDescriptor.IntEntry("ItalicAngle"); it != nil {
-		out.ItalicAngle = *it
+	if it, ok := isNumber(fontDescriptor["ItalicAngle"]); ok {
+		out.ItalicAngle = it
 	}
 	if fl := fontDescriptor.IntEntry("Flags"); fl != nil && *fl >= 0 {
 		out.Flags = uint32(*fl)
@@ -294,9 +291,9 @@ func (r resolver) resolveFontT0(font pdfcpu.Dict) (model.Type0, error) {
 	return out, nil
 }
 
-func (r resolver) resolveCIDFontDict(cid pdfcpu.Dict) (model.CIDFontDictionnary, error) {
+func (r resolver) resolveCIDFontDict(cid pdfcpu.Dict) (model.CIDFontDictionary, error) {
 	var (
-		out model.CIDFontDictionnary
+		out model.CIDFontDictionary
 		err error
 	)
 	if subtype := cid.NameEntry("Subtype"); subtype != nil {
@@ -309,7 +306,7 @@ func (r resolver) resolveCIDFontDict(cid pdfcpu.Dict) (model.CIDFontDictionnary,
 	cidSystem := r.resolve(cid["CIDSystemInfo"])
 	cidSystemDict, isDict := cidSystem.(pdfcpu.Dict)
 	if !isDict {
-		return model.CIDFontDictionnary{}, errType("CIDSystemInfo", cidSystem)
+		return model.CIDFontDictionary{}, errType("CIDSystemInfo", cidSystem)
 	}
 	if reg, ok := isString(cidSystemDict["Registry"]); ok {
 		out.CIDSystemInfo.Registry = reg
@@ -449,6 +446,12 @@ func (r resolver) resolveOneExtGState(state pdfcpu.Object) (*model.GraphicState,
 
 func (r resolver) parseStateDict(state pdfcpu.Dict) (*model.GraphicState, error) {
 	var out model.GraphicState
+	// undefined values
+	out.LC = model.Undef
+	out.LJ = model.Undef
+	out.CA = model.Undef
+	out.Ca = model.Undef
+	out.SM = model.Undef
 	if lw, ok := isNumber(state["LW"]); ok {
 		out.LW = lw
 	}
@@ -482,16 +485,9 @@ func (r resolver) parseStateDict(state pdfcpu.Dict) (*model.GraphicState, error)
 	d := state.ArrayEntry("D")
 	if len(d) == 2 {
 		dash, _ := d[0].(pdfcpu.Array)
-		phase, _ := d[1].(pdfcpu.Integer)
-		out.D.Array = make([]uint, len(dash))
-		for i, motif := range dash {
-			motif, _ := motif.(pdfcpu.Integer)
-			if motif <= 0 {
-				return nil, fmt.Errorf("negative dash length %d", motif)
-			}
-			out.D.Array[i] = uint(motif)
-		}
-		out.D.Phase = uint(phase.Value())
+		phase, _ := isNumber(d[1])
+		out.D.Array = processFloatArray(dash)
+		out.D.Phase = phase
 	}
 	font := state.ArrayEntry("Font")
 	if len(font) == 2 {
