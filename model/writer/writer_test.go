@@ -96,7 +96,7 @@ func TestWritePDFSpec(t *testing.T) {
 	fmt.Println(string(doc.Catalog.Pages.Flatten()[0].Contents[0].Content[0:20]))
 	fmt.Println(doc.Catalog.Pages.Flatten()[0].Contents[0].Content[0:20])
 
-	out, err := os.Create("test.pdf")
+	out, err := os.Create("datatest/test.pdf")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -109,7 +109,7 @@ func TestWritePDFSpec(t *testing.T) {
 	}
 	fmt.Printf("PDF  wrote in %s", time.Since(ti))
 
-	_, err = pdfcpu.ReadFile("test.pdf", nil)
+	_, err = pdfcpu.ReadFile("datatest/test.pdf", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
