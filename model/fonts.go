@@ -26,11 +26,18 @@ func (TrueType) isFontType() {}
 func (Type3) isFontType()    {}
 
 type Type1 struct {
-	BaseFont            Name
-	FirstChar, LastChar byte
-	Widths              []float64 // length (LastChar − FirstChar + 1) index i is char FirstChar + i
-	FontDescriptor      FontDescriptor
-	Encoding            SimpleEncoding // optional
+	BaseFont  Name
+	FirstChar byte
+	// length (LastChar − FirstChar + 1) index i is char FirstChar + i
+	// width are measured in units in which 1000 units correspond to 1 unit in text space
+	Widths         []int
+	FontDescriptor FontDescriptor
+	Encoding       SimpleEncoding // optional
+}
+
+// LastChar return the last caracter encoded by the font (see Widths)
+func (t Type1) LastChar() byte {
+	return byte(len(t.Widths)) + t.FirstChar - 1
 }
 
 // font must be Type1 or TrueType,
@@ -46,9 +53,9 @@ func t1orttPDFString(font FontType, pdf PDFWriter) string {
 	fd := pdf.addObject(t.FontDescriptor.pdfString(pdf, font), nil) // FontDescriptor need the type of font
 	b := newBuffer()
 	b.line("<</Type /Font /Subtype /Type1 /BaseFont %s /FirstChar %d /LastChar %d",
-		t.BaseFont, t.FirstChar, t.LastChar)
+		t.BaseFont, t.FirstChar, t.LastChar())
 	b.line("/FontDescriptor %s", fd)
-	b.line("/Widths %s", writeFloatArray(t.Widths))
+	b.line("/Widths %s", writeIntArray(t.Widths))
 	if t.Encoding != nil {
 		enc := writeSimpleEncoding(t.Encoding, pdf)
 		b.line("/Encoding %s", enc)
@@ -69,14 +76,19 @@ func (t TrueType) fontPDFString(pdf PDFWriter) string {
 }
 
 type Type3 struct {
-	FontBBox            Rectangle
-	FontMatrix          Matrix
-	CharProcs           map[Name]ContentStream
-	Encoding            SimpleEncoding
-	FirstChar, LastChar byte
-	Widths              []float64 // length (LastChar − FirstChar + 1) index i is char FirstChar + i
-	FontDescriptor      FontDescriptor
-	Resources           ResourcesDict
+	FontBBox       Rectangle
+	FontMatrix     Matrix
+	CharProcs      map[Name]ContentStream
+	Encoding       SimpleEncoding
+	FirstChar      byte
+	Widths         []int // length (LastChar − FirstChar + 1) index i is char FirstChar + i
+	FontDescriptor FontDescriptor
+	Resources      ResourcesDict
+}
+
+// LastChar return the last caracter encoded by the font (see Widths)
+func (t Type3) LastChar() byte {
+	return byte(len(t.Widths)) + t.FirstChar - 1
 }
 
 // TODO: type3 font
@@ -89,22 +101,23 @@ type FontFlag uint32
 
 const (
 	FixedPitch  FontFlag = 1
-	Serif       FontFlag = 1 << 2
-	Symbolic    FontFlag = 1 << 3
-	Script      FontFlag = 1 << 4
-	Nonsymbolic FontFlag = 1 << 6
-	Italic      FontFlag = 1 << 7
-	AllCap      FontFlag = 1 << 17
-	SmallCap    FontFlag = 1 << 18
-	ForceBold   FontFlag = 1 << 19
+	Serif       FontFlag = 1 << 1
+	Symbolic    FontFlag = 1 << 2
+	Script      FontFlag = 1 << 3
+	Nonsymbolic FontFlag = 1 << 5
+	Italic      FontFlag = 1 << 6
+	AllCap      FontFlag = 1 << 16
+	SmallCap    FontFlag = 1 << 17
+	ForceBold   FontFlag = 1 << 18
 )
 
 type FontDescriptor struct {
 	// PostScript name of the font: the value of BaseFont in the font or
 	// CIDFont dictionary that refers to this font descriptor
-	FontName Name
-	Flags    FontFlag
-	FontBBox Rectangle // specify the font bounding box, expressed in the glyph coordinate system
+	FontName   Name
+	FontFamily string // byte string, optional
+	Flags      FontFlag
+	FontBBox   Rectangle // specify the font bounding box, expressed in the glyph coordinate system
 	// angle, expressed in degrees counterclockwise from
 	// the vertical, of the dominant vertical strokes of the font.
 	ItalicAngle  float64

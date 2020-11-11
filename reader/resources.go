@@ -5,6 +5,7 @@ import (
 	"log"
 
 	"github.com/benoitkugler/pdf/model"
+	"github.com/benoitkugler/pdf/standardfonts"
 	"github.com/pdfcpu/pdfcpu/pkg/pdfcpu"
 )
 
@@ -173,23 +174,37 @@ func (r resolver) resolveFontTT1orTT(font pdfcpu.Dict) (model.Type1, error) {
 	if err != nil {
 		return model.Type1{}, err
 	}
+
+	// for the standard fonts, the font descriptor, first char and widths might be omited
+	if standard, ok := standardfonts.Fonts[string(out.BaseFont)]; ok {
+		out.FirstChar = standard.FirstChar
+		out.Widths = standard.Widths
+		out.FontDescriptor = standard.Descriptor
+		return out, nil
+	}
+
 	if fc := font.IntEntry("FirstChar"); fc != nil {
 		if *fc > 255 {
 			return out, fmt.Errorf("overflow for FirstChar %d", *fc)
 		}
 		out.FirstChar = byte(*fc)
 	}
+	var lastChar byte
 	if lc := font.IntEntry("LastChar"); lc != nil {
 		if *lc > 255 {
 			return out, fmt.Errorf("overflow for FirstChar %d", *lc)
 		}
-		out.LastChar = byte(*lc)
+		lastChar = byte(*lc)
 	}
 
 	widths, _ := r.resolve(font["Widths"]).(pdfcpu.Array)
-	out.Widths = processFloatArray(widths)
+	out.Widths = make([]int, len(widths))
+	for i, w := range widths {
+		wf, _ := isNumber(w) // also accept float
+		out.Widths[i] = int(wf)
+	}
 	// be careful to byte overflow when LastChar = 255 and FirstChar = 0
-	if exp := int(out.LastChar) - int(out.FirstChar) + 1; exp != len(out.Widths) {
+	if exp := int(lastChar) - int(out.FirstChar) + 1; font["Widths"] != nil && exp != len(out.Widths) {
 		log.Printf("invalid length for font Widths array: expected %d, got %d", exp, len(out.Widths))
 	}
 
