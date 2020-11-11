@@ -33,10 +33,6 @@ func (r resolver) processContentStream(content pdfcpu.Object) (*model.ContentStr
 	var out model.ContentStream
 	// length will be deduced from the content
 	out.Content = stream.Raw
-	stream.Decode()
-	if len(stream.Content) >= 10 {
-		fmt.Println(string(stream.Content[0:10]))
-	}
 
 	filters := r.resolve(stream.Dict["Filter"])
 	if filterName, isName := filters.(pdfcpu.Name); isName {

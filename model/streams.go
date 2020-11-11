@@ -102,17 +102,12 @@ func (s ContentStream) PDFCommonFields() string {
 	return b.String()
 }
 
-// PDFBytes return the stream object content
+// PDFContent return the stream object content
 // Often, additional arguments will be needed, so `PDFCommonFields`
 // should be used instead.
-func (s ContentStream) PDFBytes() []byte {
+func (s ContentStream) PDFContent() (string, []byte) {
 	arg := s.PDFCommonFields()
-	b := newBuffer()
-	b.line("<<%s>>", arg)
-	b.line("stream")
-	b.Write(s.Content)
-	b.WriteString("\nendstream")
-	return b.Bytes()
+	return fmt.Sprintf("<<%s>>", arg), s.Content
 }
 
 // XObject is either an image or PDF form
@@ -134,7 +129,7 @@ type XObjectForm struct {
 	Resources *ResourcesDict
 }
 
-func (f *XObjectForm) PDFBytes(pdf PDFWriter) []byte {
+func (f *XObjectForm) pdfContent(pdf PDFWriter) (string, []byte) {
 	args := f.ContentStream.PDFCommonFields()
 	b := newBuffer()
 	b.fmt("<</Subtype /Form %s /BBox %s", args, f.BBox.PDFstring())
@@ -145,7 +140,7 @@ func (f *XObjectForm) PDFBytes(pdf PDFWriter) []byte {
 		b.line(" /Resources %s", f.Resources.PDFString(pdf))
 	}
 	b.fmt(">>")
-	return b.Bytes()
+	return b.String(), f.Content
 }
 
 // ----------------------- images -----------------------
@@ -175,8 +170,7 @@ type XObjectImage struct {
 	SMaskInData uint8            // optional, 0, 1 or 2
 }
 
-// TODO: images -> bytes
-func (f *XObjectImage) PDFBytes(pdf PDFWriter) []byte {
+func (f *XObjectImage) pdfContent(pdf PDFWriter) (string, []byte) {
 	b := newBuffer()
 	base := f.PDFCommonFields()
 	b.line("<</Subtype /Image %s /Width %d /Height %d /BitsPerComponent %d",
@@ -207,7 +201,7 @@ func (f *XObjectImage) PDFBytes(pdf PDFWriter) []byte {
 		b.fmt(" /SMask %s", ref)
 	}
 	b.WriteString(">>")
-	return b.Bytes()
+	return b.String(), f.Content
 }
 
 type AlternateImage struct {

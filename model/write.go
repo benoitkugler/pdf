@@ -37,12 +37,15 @@ type PDFOutput interface {
 
 	// WriteObject write the content of the object `ref`
 	// This method will be called at most once for each reference.
-	WriteObject(content []byte, ref Reference)
+	// For stream object, `content` will contain the dictionary,
+	// and `stream` the inner stream bytes. For other objects, `stream` will be nil.
+	// Stream content should be encrypted if needed.
+	WriteObject(content string, stream []byte, ref Reference)
 }
 
 type cachable interface {
 	isCachable()
-	PDFBytes(pdf PDFWriter) []byte
+	pdfContent(pdf PDFWriter) (content string, stream []byte)
 }
 
 func (*FormField) isCachable()          {}
@@ -72,26 +75,12 @@ type PDFWriter struct {
 	pages map[*PageObject]Reference
 }
 
-func NewPDFWritter(w PDFOutput) PDFWriter {
-	return PDFWriter{PDFOutput: w, cache: make(map[cachable]Reference), pages: make(map[*PageObject]Reference)}
-}
-
 // addObject is a convenience shortcut to write `content` into a new object
 // and return the created reference
-func (p PDFWriter) addObject(content []byte) Reference {
+func (p PDFWriter) addObject(content string, stream []byte) Reference {
 	ref := p.CreateObject()
-	p.WriteObject(content, ref)
+	p.WriteObject(content, stream, ref)
 	return ref
-}
-
-// Write walks the entire document and writes its content
-// using `pdf` as an output.
-// It returns two references, needed by a PDF writer to finalize
-// the file (that is, to write the trailer)
-func (pdf PDFWriter) Write(doc Document) (root, info Reference) {
-	root = pdf.addObject(doc.Catalog.PDFBytes(pdf))
-	info = pdf.addObject(doc.Trailer.Info.PDFBytes(pdf))
-	return root, info
 }
 
 // writerCache
@@ -101,7 +90,7 @@ func (pdf PDFWriter) addItem(item cachable) Reference {
 	if ref, has := pdf.cache[item]; has {
 		return ref
 	}
-	ref := pdf.addObject(item.PDFBytes(pdf))
+	ref := pdf.addObject(item.pdfContent(pdf))
 	pdf.cache[item] = ref
 	return ref
 }

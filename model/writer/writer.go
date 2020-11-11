@@ -80,10 +80,15 @@ func (w output) ASCIIString(s string) string {
 
 // WriteObject write the content, and update the offsets
 // `ref` must have been allocated previously
-func (w *output) WriteObject(content []byte, ref model.Reference) {
+func (w *output) WriteObject(content string, stream []byte, ref model.Reference) {
 	w.objOffsets[ref] = w.written
 	w.bytes([]byte(fmt.Sprintf("%d 0 obj\n", ref)))
-	w.bytes(content)
+	w.bytes([]byte(content))
+	if stream != nil { // TODO: encryption
+		w.bytes([]byte("\nstream\n"))
+		w.bytes(stream)
+		w.bytes([]byte("\nendstream"))
+	}
 	w.bytes([]byte("\nendobj\n"))
 }
 
@@ -140,9 +145,7 @@ func Write(document model.Document, dest io.Writer) error {
 
 	w.writeHeader()
 
-	processor := model.NewPDFWritter(w)
-
-	root, info := processor.Write(document)
+	root, info := document.Write(w)
 
 	w.writeFooter(document.Trailer.Encrypt, root, info)
 

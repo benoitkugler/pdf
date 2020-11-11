@@ -67,30 +67,33 @@ type Function struct {
 	Range        []Range // length n, optionnal for ExpInterpolationFunction and StitchingFunction
 }
 
-// PDFBytes return the object content of `f`
+// pdfContent return the object content of `f`
 // `pdf` is used to write and reference the sub-functions of a `StitchingFunction`
-func (f Function) PDFBytes(pdf PDFWriter) []byte {
+func (f Function) pdfContent(pdf PDFWriter) (string, []byte) {
 	baseArgs := fmt.Sprintf("/Domain %s", writeRangeArray(f.Domain))
 	if len(f.Range) != 0 {
 		baseArgs += fmt.Sprintf(" /Range %s", writeRangeArray(f.Range))
 	}
-	var content []byte
+	var (
+		content string
+		stream  []byte
+	)
 	switch ft := f.FunctionType.(type) {
 	case SampledFunction:
-		content = ft.PDFBytes(baseArgs)
+		content, stream = ft.pdfContent(baseArgs)
 	case ExpInterpolationFunction:
-		content = ft.PDFBytes(baseArgs)
+		content = ft.pdfString(baseArgs)
 	case StitchingFunction:
 		// start by writing the "child" functions
-		content = ft.PDFBytes(baseArgs, pdf)
+		content = ft.pdfString(baseArgs, pdf)
 	case PostScriptCalculatorFunction:
-		content = ft.PDFBytes(baseArgs)
+		content, stream = ft.pdfContent(baseArgs)
 	}
-	return content
+	return content, stream
 }
 
-// PDFBytes adds to the common arguments the specificities of a `SampledFunction`
-func (f SampledFunction) PDFBytes(baseArgs string) []byte {
+// adds to the common arguments the specificities of a `SampledFunction`
+func (f SampledFunction) pdfContent(baseArgs string) (string, []byte) {
 	var b bytes.Buffer
 	b.WriteString("<< /FunctionType 0 ")
 	b.WriteString(baseArgs)
@@ -110,15 +113,12 @@ func (f SampledFunction) PDFBytes(baseArgs string) []byte {
 		b.WriteString(" /Decode ")
 		b.WriteString(writeRangeArray(f.Decode))
 	}
-	b.WriteString(" >>\n")
-	b.WriteString("stream\n")
-	b.Write(f.Content)
-	b.WriteString("\nendstream")
-	return b.Bytes()
+	b.WriteString(" >>")
+	return b.String(), f.Content
 }
 
-// PDFBytes adds to the common arguments the specificities of a `ExpInterpolationFunction`
-func (f ExpInterpolationFunction) PDFBytes(baseArgs string) []byte {
+// adds to the common arguments the specificities of a `ExpInterpolationFunction`
+func (f ExpInterpolationFunction) pdfString(baseArgs string) string {
 	c0, c1 := "", ""
 	if len(f.C0) != 0 {
 		c0 = " /C0 " + writeFloatArray(f.C0)
@@ -126,36 +126,30 @@ func (f ExpInterpolationFunction) PDFBytes(baseArgs string) []byte {
 	if len(f.C1) != 0 {
 		c1 = " /C1 " + writeFloatArray(f.C1)
 	}
-	return []byte(fmt.Sprintf("<</FunctionType 2 %s%s%s /N %d>>", baseArgs, c0, c1, f.N))
+	return fmt.Sprintf("<</FunctionType 2 %s%s%s /N %d>>", baseArgs, c0, c1, f.N)
 }
 
 // convenience: write the functions and returns the corresponding reference
 func (pdf PDFWriter) writeFunctions(fns []Function) []Reference {
 	refs := make([]Reference, len(fns))
 	for i, f := range fns {
-		refs[i] = pdf.addObject(f.PDFBytes(pdf))
+		refs[i] = pdf.addObject(f.pdfContent(pdf))
 	}
 	return refs
 }
 
-// PDFBytes adds to the common arguments the specificities of a `StitchingFunction`.
-// In particular, the sub-functions must have been previously written and provided as references
-func (f StitchingFunction) PDFBytes(baseArgs string, pdf PDFWriter) []byte {
+// adds to the common arguments the specificities of a `StitchingFunction`.
+func (f StitchingFunction) pdfString(baseArgs string, pdf PDFWriter) string {
 	// start by writing the "child" functions
 	refs := pdf.writeFunctions(f.Functions)
-	return []byte(fmt.Sprintf("<</FunctionType 3 %s /Functions %s /Bounds %s /Encode %s>>",
-		baseArgs, writeRefArray(refs), writeFloatArray(f.Bounds), writePointArray(f.Encode)))
+	return fmt.Sprintf("<</FunctionType 3 %s /Functions %s /Bounds %s /Encode %s>>",
+		baseArgs, writeRefArray(refs), writeFloatArray(f.Bounds), writePointArray(f.Encode))
 }
 
-// PDFBytes adds to the common arguments the specificities of a `PostScriptCalculatorFunction`.
-func (f PostScriptCalculatorFunction) PDFBytes(baseArgs string) []byte {
+// adds to the common arguments the specificities of a `PostScriptCalculatorFunction`.
+func (f PostScriptCalculatorFunction) pdfContent(baseArgs string) (string, []byte) {
 	s := ContentStream(f).PDFCommonFields()
-	var b bytes.Buffer
-	b.WriteString(fmt.Sprintf("<</FunctionType 4 %s %s>>\n", baseArgs, s))
-	b.WriteString("stream\n")
-	b.Write(f.Content)
-	b.WriteString("\nendstream")
-	return b.Bytes()
+	return fmt.Sprintf("<</FunctionType 4 %s %s>>\n", baseArgs, s), f.Content
 }
 
 type SampledFunction struct {

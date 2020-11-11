@@ -52,8 +52,18 @@ func (r resolver) resolveStructureTree(obj pdfcpu.Object) (*model.StructureTree,
 		out.RoleMap[model.Name(k)] = model.Name(v)
 	}
 	class := structDict.DictEntry("ClassMap")
+	out.ClassMap = make(map[model.Name][]model.AttributeObject, len(class))
 	for k, v := range class {
-		fmt.Println(k, v)
+		//TODO: class map
+		switch v := v.(type) {
+		case pdfcpu.Array: // more than one attribute
+
+		case pdfcpu.IndirectRef: // only one attribute
+
+		default:
+			fmt.Println(k, v)
+
+		}
 	}
 	return &out, nil
 }

@@ -11,19 +11,19 @@ type Font struct {
 	Subtype FontType
 }
 
-func (f *Font) PDFBytes(pdf PDFWriter) []byte {
-	return f.Subtype.fontPDFBytes(pdf)
+func (f *Font) pdfContent(pdf PDFWriter) (string, []byte) {
+	return f.Subtype.fontPDFString(pdf), nil
 }
 
 type FontType interface {
 	isFontType()
-	fontPDFBytes(pdf PDFWriter) []byte
+	fontPDFString(pdf PDFWriter) string
 }
 
 func (Type0) isFontType()    {}
 func (Type1) isFontType()    {}
-func (Type3) isFontType()    {}
 func (TrueType) isFontType() {}
+func (Type3) isFontType()    {}
 
 type Type1 struct {
 	BaseFont            Name
@@ -33,8 +33,17 @@ type Type1 struct {
 	Encoding            SimpleEncoding // optional
 }
 
-func (t Type1) fontPDFBytes(pdf PDFWriter) []byte {
-	fd := pdf.addObject(t.FontDescriptor.pdfBytes())
+// font must be Type1 or TrueType,
+// and is needed for the FontDescriptor
+func t1orttPDFString(font FontType, pdf PDFWriter) string {
+	var t Type1
+	switch font := font.(type) {
+	case Type1:
+		t = font
+	case TrueType:
+		t = Type1(font)
+	}
+	fd := pdf.addObject(t.FontDescriptor.pdfString(pdf, font), nil) // FontDescriptor need the type of font
 	b := newBuffer()
 	b.line("<</Type /Font /Subtype /Type1 /BaseFont %s /FirstChar %d /LastChar %d",
 		t.BaseFont, t.FirstChar, t.LastChar)
@@ -45,13 +54,18 @@ func (t Type1) fontPDFBytes(pdf PDFWriter) []byte {
 		b.line("/Encoding %s", enc)
 	}
 	b.WriteString(">>")
-	return b.Bytes()
+	return b.String()
+}
+
+func (t Type1) fontPDFString(pdf PDFWriter) string {
+	return t1orttPDFString(t, pdf)
 }
 
 type TrueType Type1
 
-func (t TrueType) fontPDFBytes(pdf PDFWriter) []byte {
-	return Type1(t).fontPDFBytes(pdf)
+func (t TrueType) fontPDFString(pdf PDFWriter) string {
+	return t1orttPDFString(t, pdf)
+
 }
 
 type Type3 struct {
@@ -66,10 +80,11 @@ type Type3 struct {
 }
 
 // TODO: type3 font
-func (f Type3) fontPDFBytes(pdf PDFWriter) []byte {
-	return []byte("<<>>")
+func (f Type3) fontPDFString(pdf PDFWriter) string {
+	return "<<>>"
 }
 
+// FontFlag specify various characteristics of a font.
 type FontFlag uint32
 
 const (
@@ -85,23 +100,31 @@ const (
 )
 
 type FontDescriptor struct {
-	FontName        Name
-	Flags           uint32
-	FontBBox        Rectangle
-	ItalicAngle     float64
-	Ascent, Descent float64
-	Leading         float64
-	CapHeight       float64
-	XHeight         float64
-	StemV, StemH    float64
-	AvgWidth        float64
-	MaxWidth        float64
-	MissingWidth    float64
+	// PostScript name of the font: the value of BaseFont in the font or
+	// CIDFont dictionary that refers to this font descriptor
+	FontName Name
+	Flags    FontFlag
+	FontBBox Rectangle // specify the font bounding box, expressed in the glyph coordinate system
+	// angle, expressed in degrees counterclockwise from
+	// the vertical, of the dominant vertical strokes of the font.
+	ItalicAngle  float64
+	Ascent       float64 // maximum height above the baseline reached by glyphs in this font
+	Descent      float64 // (negative number) maximum depth below the baseline reached by glyphs in this font
+	Leading      float64 // optional, default to 0. Spacing between baselines of consecutive lines of text
+	CapHeight    float64 // vertical coordinate of the top of flat capital letters, measured from the baseline
+	XHeight      float64 // optional, default to 0. Vertical coordinate of the top of flat nonascending lowercase letters
+	StemV        float64 // thickness, measured horizontally, of the dominant vertical stems of glyphs in the font
+	StemH        float64 // optional, default to 0. Thickness, measured vertically, of the dominant horizontal stems of glyphs in the font.
+	AvgWidth     float64 // optional, default to 0. Average width of glyphs in the font.
+	MaxWidth     float64 // optional, default to 0. Maximum width of glyphs in the font.
+	MissingWidth float64 // optional, default to 0. Width to use for character codes whose widths are not specified
 
-	//TODO: check stream fontfile
+	FontFile *FontFile // optional, written in PDF under the key FontFile (for Type1), FontFile2 (for TrueType), FontFile3 (for Type 1 compact fonts, Type 0 compact CIDFonts or OpenType)
+	CharSet  string    // optional, ASCII string or byte string. Meaningful only in Type 1 font
 }
 
-func (f FontDescriptor) pdfBytes() []byte {
+// font is used to choose the key for the potential FontFile
+func (f FontDescriptor) pdfString(pdf PDFWriter, font FontType) string {
 	b := newBuffer()
 	b.line("<</Type /FontDescriptor /FontName %s /Flags %d /FontBBox %s /ItalicAngle %.3f /Ascent %.3f /Descent %.3f",
 		f.FontName, f.Flags, f.FontBBox.PDFstring(), f.ItalicAngle, f.Ascent, f.Descent)
@@ -125,8 +148,21 @@ func (f FontDescriptor) pdfBytes() []byte {
 	if f.MissingWidth != 0 {
 		b.fmt("/MissingWidth %.3f ", f.MissingWidth)
 	}
+	if f.FontFile != nil {
+		var key Name
+		switch font.(type) {
+		case Type1:
+			key = "FontFile"
+		case TrueType:
+			key = "FontFile2"
+		case Type3:
+			key = "FontFile3"
+		}
+		ref := pdf.addObject(f.FontFile.pdfContent())
+		b.fmt("%s %s ", key, ref)
+	}
 	b.fmt(">>")
-	return b.Bytes()
+	return b.String()
 }
 
 // SimpleEncoding is a font encoding for simple fonts
@@ -200,7 +236,7 @@ type EncodingDict struct {
 	Differences  Differences // optionnal
 }
 
-func (e *EncodingDict) PDFBytes(PDFWriter) []byte {
+func (e *EncodingDict) pdfContent(PDFWriter) (string, []byte) {
 	out := "<<"
 	if e.BaseEncoding != "" {
 		out += "/BaseEncoding " + e.BaseEncoding.String()
@@ -209,7 +245,7 @@ func (e *EncodingDict) PDFBytes(PDFWriter) []byte {
 		out += "/Differences " + e.Differences.pdfString()
 	}
 	out += ">>"
-	return []byte(out)
+	return out, nil
 }
 
 // -------------------------- Type 0 --------------------------
@@ -221,17 +257,17 @@ type Type0 struct {
 	ToUnicode       *ContentStream    // optionnal, as indirect object
 }
 
-func (f Type0) fontPDFBytes(pdf PDFWriter) []byte {
+func (f Type0) fontPDFString(pdf PDFWriter) string {
 	enc := writeCMapEncoding(f.Encoding, pdf)
-	desc := pdf.addObject(f.DescendantFonts.pdfBytes(pdf))
+	desc := pdf.addObject(f.DescendantFonts.pdfString(pdf), nil)
 	out := fmt.Sprintf("<</Type /Font /Subtype /Type0 /BaseFont %s /Encoding %s /DescendantFonts [%s]",
 		f.BaseFont, enc, desc)
 	if f.ToUnicode != nil {
-		toU := pdf.addObject(f.ToUnicode.PDFBytes())
+		toU := pdf.addObject(f.ToUnicode.PDFContent())
 		out += " /ToUnicode " + toU.String()
 	}
 	out += ">>"
-	return []byte(out)
+	return out
 }
 
 // CMapEncoding maps character codes to font numbers and CIDs
@@ -252,7 +288,7 @@ func writeCMapEncoding(enc CMapEncoding, pdf PDFWriter) string {
 	case PredefinedCMapEncoding:
 		return Name(enc).String()
 	case EmbeddedCMapEncoding:
-		ref := pdf.addObject(ContentStream(enc).PDFBytes())
+		ref := pdf.addObject(ContentStream(enc).PDFContent())
 		return ref.String()
 	default:
 		panic("exhaustive switch")
@@ -270,9 +306,9 @@ type CIDFontDictionary struct {
 	W2             []CIDWidth     // optionnal
 }
 
-func (c CIDFontDictionary) pdfBytes(pdf PDFWriter) []byte {
+func (c CIDFontDictionary) pdfString(pdf PDFWriter) string {
 	b := newBuffer()
-	fD := pdf.addObject(c.FontDescriptor.pdfBytes())
+	fD := pdf.addObject(c.FontDescriptor.pdfString(pdf, Type0{}), nil)
 	b.line("<</Type /Font /Subtype %s /BaseFont %s /CIDSystemInfo %s /FontDescriptor %s",
 		c.Subtype, c.BaseFont, c.CIDSystemInfo.pdfString(pdf), fD)
 	if c.DW != 0 {
@@ -296,7 +332,7 @@ func (c CIDFontDictionary) pdfBytes(pdf PDFWriter) []byte {
 		b.line("/W2 [%s]", strings.Join(chunks, " "))
 	}
 	b.fmt(">>")
-	return b.Bytes()
+	return b.String()
 }
 
 type CIDSystemInfo struct {
@@ -355,4 +391,24 @@ func (c CIDWidthArray) Widths() map[rune]int {
 
 func (c CIDWidthArray) String() string {
 	return fmt.Sprintf("%d %s", c.Start, writeIntArray(c.W))
+}
+
+type FontFile struct {
+	ContentStream
+
+	Length1 int
+	Length2 int
+	Length3 int
+	Subtype Name // optional, one of Type1C for Type 1 compact fonts, CIDFontType0C for Type 0 compact CIDFonts, or OpenType
+}
+
+func (f *FontFile) pdfContent() (string, []byte) {
+	args := f.ContentStream.PDFCommonFields()
+	out := fmt.Sprintf("<<%s /Length1 %d /Length2 %d /Length3 %d",
+		args, f.Length1, f.Length2, f.Length3)
+	if f.Subtype != "" {
+		out += fmt.Sprintf(" /Subtype %s", f.Subtype)
+	}
+	out += ">>"
+	return out, f.Content
 }

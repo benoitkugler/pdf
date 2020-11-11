@@ -36,15 +36,38 @@ import (
 
 type Border struct {
 	HCornerRadius, VCornerRadius, BorderWidth float64
-	DashArray                                 []float64
+	DashArray                                 []float64 // optional (nil not to specify it)
 }
 
-func (b Border) PDFString() string {
+func (b Border) pdfString() string {
 	out := fmt.Sprintf("[%3.f %3.f %3.f", b.HCornerRadius, b.VCornerRadius, b.BorderWidth)
-	if len(b.DashArray) != 0 {
+	if b.DashArray != nil {
 		out += " " + writeFloatArray(b.DashArray)
 	}
 	return out + "]"
+}
+
+// BorderStyle specifies the border characteristics for some types of annotations
+type BorderStyle struct {
+	W float64   // optional, default to 1, Undef not to specify it
+	S Name      // optional
+	D []float64 // optional, default to [3], nil not to specify it
+}
+
+func (bo BorderStyle) pdfString() string {
+	b := newBuffer()
+	b.WriteString("<<")
+	if bo.W != Undef {
+		b.fmt(" /W %.3f", bo.W)
+	}
+	if bo.S != "" {
+		b.fmt(" /S %s", bo.S)
+	}
+	if bo.D != nil {
+		b.fmt(" /D %s", writeFloatArray(bo.D))
+	}
+	b.fmt(">>")
+	return b.String()
 }
 
 type Annotation struct {
@@ -60,7 +83,7 @@ type Annotation struct {
 	Border *Border // optional
 }
 
-func (a *Annotation) PDFBytes(pdf PDFWriter) []byte {
+func (a *Annotation) pdfContent(pdf PDFWriter) (string, []byte) {
 	b := newBuffer()
 	subtype := a.Subtype.annotationFields(pdf)
 	b.fmt("<<%s /Rectangle %s", subtype, a.Rect.PDFstring())
@@ -77,10 +100,10 @@ func (a *Annotation) PDFBytes(pdf PDFWriter) []byte {
 		b.fmt(" /F %d", f)
 	}
 	if bo := a.Border; bo != nil {
-		b.fmt(" /Border %s", bo.PDFString())
+		b.fmt(" /Border %s", bo.pdfString())
 	}
 	b.fmt(">>")
-	return b.Bytes()
+	return b.String(), nil
 }
 
 type AppearanceDict struct {
@@ -227,9 +250,21 @@ const (
 
 // TODO:
 type WidgetAnnotation struct {
-	H Highlighting
+	H  Highlighting
+	A  Action
+	BS *BorderStyle
 }
 
 func (w WidgetAnnotation) annotationFields(pdf PDFWriter) string {
-	return fmt.Sprintf("/Subtype /Widget /H %s", w.H)
+	out := fmt.Sprintf("/Subtype /Widget")
+	if w.H != "" {
+		out += fmt.Sprintf(" /H %s", w.H)
+	}
+	if w.A != nil {
+		out += fmt.Sprintf(" /A %s", w.A.ActionDictionary(pdf))
+	}
+	if w.BS != nil {
+		out += fmt.Sprintf(" /BS %s", w.BS.pdfString())
+	}
+	return out
 }

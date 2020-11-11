@@ -238,7 +238,7 @@ func (r resolver) resolveFontDescriptor(entry pdfcpu.Object) (model.FontDescript
 		out.ItalicAngle = it
 	}
 	if fl := fontDescriptor.IntEntry("Flags"); fl != nil && *fl >= 0 {
-		out.Flags = uint32(*fl)
+		out.Flags = model.FontFlag(*fl)
 	}
 	if name := fontDescriptor.NameEntry("FontName"); name != nil {
 		out.FontName = model.Name(*name)
@@ -246,7 +246,50 @@ func (r resolver) resolveFontDescriptor(entry pdfcpu.Object) (model.FontDescript
 	if bbox := rectangleFromArray(fontDescriptor.ArrayEntry("FontBBox")); bbox != nil {
 		out.FontBBox = *bbox
 	}
+
+	var err error
+	if fontFile := fontDescriptor["FontFile"]; fontFile != nil {
+		out.FontFile, err = r.processFontFile(fontFile)
+	} else if fontFile := fontDescriptor["FontFile2"]; fontFile != nil {
+		out.FontFile, err = r.processFontFile(fontFile)
+	} else if fontFile := fontDescriptor["FontFile3"]; fontFile != nil {
+		out.FontFile, err = r.processFontFile(fontFile)
+	}
+	if err != nil {
+		return out, err
+	}
+
+	if charSet, ok := isString(fontDescriptor["CharSet"]); ok {
+		out.CharSet = charSet
+	}
+
 	return out, nil
+}
+
+func (r resolver) processFontFile(object pdfcpu.Object) (*model.FontFile, error) {
+	cs, err := r.processContentStream(object)
+	if err != nil {
+		return nil, err
+	}
+	if cs == nil {
+		return nil, nil
+	}
+	stream, _ := r.resolve(object).(pdfcpu.StreamDict)
+	out := model.FontFile{ContentStream: *cs}
+
+	subtype, _ := stream.Dict["Subtype"].(pdfcpu.Name)
+	out.Subtype = model.Name(subtype)
+
+	if l := stream.IntEntry("Length1"); l != nil {
+		out.Length1 = *l
+	}
+	if l := stream.IntEntry("Length2"); l != nil {
+		out.Length2 = *l
+	}
+	if l := stream.IntEntry("Length3"); l != nil {
+		out.Length3 = *l
+	}
+	return &out, nil
 }
 
 func (r resolver) resolveFontT0(font pdfcpu.Dict) (model.Type0, error) {
@@ -389,7 +432,7 @@ func (r resolver) parseFontDict(font pdfcpu.Dict) (model.FontType, error) {
 		return model.TrueType(t1), err
 	case pdfcpu.Name("Type3"):
 		// TODO:
-		fmt.Println(font)
+		fmt.Println("TODO font type 3", font)
 		return model.Type3{}, nil
 	default:
 		return nil, nil

@@ -1,6 +1,7 @@
 package model
 
 import (
+	"fmt"
 	"time"
 )
 
@@ -13,23 +14,23 @@ type FileSpec struct {
 	Desc string // optional
 }
 
-// PDFString returns the dictionnay. `pdf` is used
+// returns the dictionnay. `pdf` is used
 // to create the EmbeddedFileStream object.
-func (f *FileSpec) PDFBytes(pdf PDFWriter) []byte {
+func (f *FileSpec) pdfContent(pdf PDFWriter) (string, []byte) {
 	b := newBuffer()
 	b.fmt("<</Type /Filespec")
 	if f.UF != "" {
 		b.fmt(" /UF %s", pdf.EncodeTextString(f.UF))
 	}
 	if f.EF != nil {
-		ref := pdf.addObject(f.EF.PDFBytes())
+		ref := pdf.addObject(f.EF.pdfContent())
 		b.fmt(" /EF %s", ref)
 	}
 	if f.Desc != "" {
 		b.fmt(" /Desc %s", pdf.EncodeTextString(f.Desc))
 	}
 	b.fmt(">>")
-	return b.Bytes()
+	return b.String(), nil
 }
 
 type EmbeddedFileParams struct {
@@ -39,7 +40,7 @@ type EmbeddedFileParams struct {
 	CheckSum     string    // optional, should be hex16 encoded
 }
 
-func (params EmbeddedFileParams) PDFBytes() []byte {
+func (params EmbeddedFileParams) String() string {
 	b := newBuffer()
 	b.fmt("<<")
 	if params.Size != 0 {
@@ -55,7 +56,7 @@ func (params EmbeddedFileParams) PDFBytes() []byte {
 		b.fmt("/CheckSum <%s>", params.CheckSum)
 	}
 	b.fmt(">>")
-	return b.Bytes()
+	return b.String()
 }
 
 type EmbeddedFileStream struct {
@@ -63,14 +64,8 @@ type EmbeddedFileStream struct {
 	Params EmbeddedFileParams
 }
 
-func (emb EmbeddedFileStream) PDFBytes() []byte {
+func (emb EmbeddedFileStream) pdfContent() (string, []byte) {
 	args := emb.PDFCommonFields()
-	b := newBuffer()
-	b.line("<</Type /EmbeddedFile %s /Params ", args)
-	b.Write(emb.Params.PDFBytes())
-	b.line(">>")
-	b.line("stream")
-	b.Write(emb.Content)
-	b.WriteString("\nendstream")
-	return b.Bytes()
+	out := fmt.Sprintf("<</Type /EmbeddedFile %s /Params %s>>", args, emb.Params)
+	return out, emb.Content
 }

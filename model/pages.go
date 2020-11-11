@@ -2,7 +2,6 @@ package model
 
 import (
 	"fmt"
-	"log"
 )
 
 // PageNode is either a `PageTree` or a `PageObject`
@@ -36,6 +35,7 @@ func (p *PageTree) count() int {
 	for _, kid := range p.Kids {
 		out += kid.count()
 	}
+	p.countValue = &out
 	return out
 }
 
@@ -69,10 +69,10 @@ func (p PageTree) allocateReferences(pdf PDFWriter) {
 	}
 }
 
-// PDFBytes returns the Dictionary for `pages`.
+// returns the Dictionary for `pages`.
 // It requires a reference passed to its children, and its parent reference.
 // `parentReference` will be negative (or zero) only for the root node.
-func (pages PageTree) PDFBytes(pdf PDFWriter, ownReference, parentRef Reference) []byte {
+func (pages *PageTree) pdfString(pdf PDFWriter, ownReference, parentRef Reference) string {
 	kidRefs := make([]Reference, len(pages.Kids))
 	for i, page := range pages.Kids {
 		kidRefs[i] = writePageNode(pdf, page, ownReference)
@@ -81,9 +81,12 @@ func (pages PageTree) PDFBytes(pdf PDFWriter, ownReference, parentRef Reference)
 	if parentRef > 0 {
 		parent = fmt.Sprintf(" /Parent %s", parentRef)
 	}
-	//TODO: resources
-	content := []byte(fmt.Sprintf("<</Type /Pages /Count %d /Kids %s%s>>",
-		pages.count(), writeRefArray(kidRefs), parent))
+	res := ""
+	if pages.Resources != nil {
+		res = fmt.Sprintf(" /Resources %s", pages.Resources.PDFString(pdf))
+	}
+	content := fmt.Sprintf("<</Type /Pages /Count %d /Kids %s%s%s>>",
+		pages.count(), writeRefArray(kidRefs), parent, res)
 	return content
 }
 
@@ -91,18 +94,16 @@ func writePageNode(pdf PDFWriter, page PageNode, parentRef Reference) Reference 
 	switch page := page.(type) {
 	case *PageTree:
 		ownRef := pdf.CreateObject()
-		content := page.PDFBytes(pdf, ownRef, parentRef)
-		pdf.WriteObject(content, ownRef)
+		content := page.pdfString(pdf, ownRef, parentRef)
+		pdf.WriteObject(content, nil, ownRef)
 		return ownRef
 	case *PageObject:
 		ref := pdf.pages[page] // previously allocated
-		content := page.PDFBytes(pdf, parentRef)
-		pdf.WriteObject(content, ref)
+		content := page.pdfString(pdf, parentRef)
+		pdf.WriteObject(content, nil, ref)
 		return ref
 	default:
-		log.Panicf("exhaustive switch %T", page)
-
-		return 0
+		panic("exhaustive switch")
 	}
 
 }
@@ -118,11 +119,14 @@ type PageObject struct {
 	Contents                  []ContentStream // array of stream (often of length 1)
 }
 
-func (p PageObject) PDFBytes(pdf PDFWriter, parentReference Reference) []byte {
+func (p PageObject) pdfString(pdf PDFWriter, parentReference Reference) string {
 	b := newBuffer()
 	b.line("<<")
 	b.line("/Type /Page")
 	b.line("/Parent %s", parentReference)
+	if p.Resources != nil {
+		b.line("/Resources %s", p.Resources.PDFString(pdf))
+	}
 	if p.MediaBox != nil {
 		b.line("/MediaBox %s", p.MediaBox.PDFstring())
 	}
@@ -150,16 +154,16 @@ func (p PageObject) PDFBytes(pdf PDFWriter, parentReference Reference) []byte {
 	}
 	contents := make([]Reference, len(p.Contents))
 	for i, c := range p.Contents {
-		contents[i] = pdf.addObject(c.PDFBytes())
+		contents[i] = pdf.addObject(c.PDFContent())
 	}
 	if len(contents) != 0 {
 		b.line("/Contents %s", writeRefArray(contents))
 	}
 	b.WriteString(">>")
-	return b.Bytes()
+	return b.String()
 }
 
-func (*PageObject) count() int { return 1 }
+func (PageObject) count() int { return 1 }
 
 type ResourcesDict struct {
 	ExtGState  map[Name]*GraphicState // optionnal

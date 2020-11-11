@@ -63,6 +63,10 @@ func (r resolver) resolveFormField(o pdfcpu.Object) (*model.FormField, error) {
 		return nil, err
 	}
 
+	if kids := f.ArrayEntry("Kids"); len(kids) != 0 {
+		return nil, errors.New("not supported: Kids entry in field dictionary")
+	}
+
 	if isRef { // write back to the cache
 		r.formFields[ref] = &fi
 	}

@@ -27,7 +27,7 @@ type FormField struct {
 	Ff         FormFlag
 	MaxLen     int // optional, -1 when not set
 	DA         string
-	Annotation // might be merged
+	Annotation // might be merged, Subtype will be a WidgetAnnotation
 }
 
 type AcroForm struct {
@@ -35,6 +35,7 @@ type AcroForm struct {
 	NeedAppearances bool
 }
 
-func (a AcroForm) pdfBytes(pdf PDFWriter) []byte {
-	return nil
+// TODO: AcroForm
+func (a AcroForm) pdfString(pdf PDFWriter) string {
+	return "<<>>"
 }

@@ -17,6 +17,19 @@ type Document struct {
 	Catalog Catalog
 }
 
+// Write walks the entire document and writes its content
+// using `pdf` as an output.
+// It returns two references, needed by a PDF writer to finalize
+// the file (that is, to write the trailer)
+func (doc Document) Write(pdf PDFOutput) (root, info Reference) {
+	wr := PDFWriter{PDFOutput: pdf, cache: make(map[cachable]Reference), pages: make(map[*PageObject]Reference)}
+
+	root = wr.addObject(doc.Catalog.pdfString(wr), nil)
+	info = wr.addObject(doc.Trailer.Info.PDFString(pdf), nil)
+
+	return root, info
+}
+
 type Catalog struct {
 	Extensions        Extensions
 	Pages             PageTree
@@ -30,8 +43,8 @@ type Catalog struct {
 	StructTreeRoot    *StructureTree     // optional
 }
 
-// PDFBytes returns the Dictionary of `cat`
-func (cat Catalog) PDFBytes(pdf PDFWriter) []byte {
+// returns the Dictionary of `cat`
+func (cat Catalog) pdfString(pdf PDFWriter) string {
 	b := newBuffer()
 	b.fmt("<<\n/Type /Catalog\n")
 
@@ -44,32 +57,32 @@ func (cat Catalog) PDFBytes(pdf PDFWriter) []byte {
 	cat.Pages.allocateReferences(pdf)
 
 	ref := pdf.CreateObject()
-	content := cat.Pages.PDFBytes(pdf, ref, -1)
-	pdf.WriteObject(content, ref)
+	content := cat.Pages.pdfString(pdf, ref, -1)
+	pdf.WriteObject(content, nil, ref)
 	b.fmt("/Pages %s\n", ref)
 
 	if pLabel := cat.PageLabels; pLabel != nil {
-		ref := pdf.addObject(pLabel.pdfBytes(pdf))
+		ref := pdf.addObject(pLabel.pdfString(pdf), nil)
 		b.fmt("/PageLabels %s\n", ref)
 	}
 
 	b.fmt("/Names <<")
 	if dests := cat.Names.Dests; dests != nil {
-		ref := pdf.addObject(dests.pdfBytes(pdf))
+		ref := pdf.addObject(dests.pdfString(pdf), nil)
 		b.fmt("/Dests %s", ref)
 	}
 	if emb := cat.Names.EmbeddedFiles; emb != nil {
-		ref := pdf.addObject(emb.pdfBytes(pdf))
+		ref := pdf.addObject(emb.pdfString(pdf), nil)
 		b.fmt("/EmbeddedFiles %s", ref)
 	}
 	b.fmt(">>\n")
 
 	if dests := cat.Dests; dests != nil {
-		ref := pdf.addObject(dests.pdfBytes(pdf))
+		ref := pdf.addObject(dests.pdfString(pdf), nil)
 		b.fmt("/Dests %s\n", ref)
 	}
 	if viewerPref := cat.ViewerPreferences; viewerPref != nil {
-		ref := pdf.addObject(viewerPref.pdfBytes(pdf))
+		ref := pdf.addObject(viewerPref.pdfString(pdf), nil)
 		b.fmt("/ViewerPreferences %s\n", ref)
 	}
 	if p := cat.PageLayout; p != "" {
@@ -79,12 +92,12 @@ func (cat Catalog) PDFBytes(pdf PDFWriter) []byte {
 		b.fmt("/PageMode %s\n", p)
 	}
 	if ac := cat.AcroForm; ac != nil {
-		ref := pdf.addObject(ac.pdfBytes(pdf))
+		ref := pdf.addObject(ac.pdfString(pdf), nil)
 		b.fmt("/AcroForm %s\n", ref)
 	}
 	b.fmt(">>")
 
-	return b.Bytes()
+	return b.String()
 }
 
 type NameDictionary struct {
@@ -98,8 +111,9 @@ type ViewerPreferences struct {
 	CenterWindow bool
 }
 
-func (p ViewerPreferences) pdfBytes(pdf PDFWriter) []byte {
-	return nil
+// TODO: ViewerPreferences
+func (p ViewerPreferences) pdfString(pdf PDFWriter) string {
+	return "<<>>"
 }
 
 type Trailer struct {
@@ -118,8 +132,8 @@ type Info struct {
 	ModDate      time.Time
 }
 
-// PDFBytes return the Dictionary for `info`
-func (info Info) PDFBytes(pdf PDFOutput) []byte {
+// PDFString return the Dictionary for `info`
+func (info Info) PDFString(pdf PDFOutput) string {
 	b := newBuffer()
 	b.fmt("<<\n")
 	if t := info.Producer; t != "" {
@@ -147,7 +161,7 @@ func (info Info) PDFBytes(pdf PDFOutput) []byte {
 		b.fmt("/ModDate %s\n", pdf.EncodeTextString(dateString(t)))
 	}
 	b.fmt(">>")
-	return b.Bytes()
+	return b.String()
 }
 
 type EncryptionAlgorithm uint8

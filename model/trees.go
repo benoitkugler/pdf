@@ -117,8 +117,9 @@ func (d DestTree) LookupTable() map[string]*ExplicitDestination {
 	return out
 }
 
-func (p DestTree) pdfBytes(pdf PDFWriter) []byte {
-	return []byte("<<>>")
+//TODO: dest tree
+func (p DestTree) pdfString(pdf PDFWriter) string {
+	return "<<>>"
 }
 
 // ----------------------------------------------------------------------
@@ -149,8 +150,9 @@ func (efs EmbeddedFileTree) Limits() [2]string {
 	return limitsName(efs)
 }
 
-func (p EmbeddedFileTree) pdfBytes(pdf PDFWriter) []byte {
-	return nil
+// TODO: EmbeddedFileTree
+func (p EmbeddedFileTree) pdfString(pdf PDFWriter) string {
+	return "<<>>"
 }
 
 // -----------------------------------------------------------------------
@@ -210,8 +212,8 @@ func (d PageLabelsTree) LookupTable() map[int]PageLabel {
 }
 
 // TODO: PageLabelsTree
-func (p PageLabelsTree) pdfBytes(pdf PDFWriter) []byte {
-	return []byte("<<>>")
+func (p PageLabelsTree) pdfString(pdf PDFWriter) string {
+	return "<<>>"
 }
 
 // ------------------------------------------------------------
