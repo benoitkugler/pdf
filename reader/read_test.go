@@ -71,11 +71,11 @@ func decodeStream(stream model.ContentStream) ([]byte, error) {
 
 func TestOpen(t *testing.T) {
 	// f, err := os.Open("datatest/descriptif.pdf")
-	// f, err := os.Open("datatest/Links.pdf")
+	f, err := os.Open("datatest/Links.pdf")
 	// f, err := os.Open("datatest/transparents.pdf")
 	// f, err := os.Open("datatest/ModeleRecuFiscalEditable.pdf")
 	// f, err := os.Open("datatest/Protected.pdf")
-	f, err := os.Open("datatest/PDF_SPEC.pdf")
+	// f, err := os.Open("datatest/PDF_SPEC.pdf")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -87,11 +87,17 @@ func TestOpen(t *testing.T) {
 	}
 	fmt.Println(doc.Trailer.Encrypt)
 
-	fmt.Println(doc.Catalog.Outlines.Count())
-	fmt.Println(doc.Catalog.Outlines.First.Count())
-	fmt.Println(doc.Catalog.Outlines.Last().Count())
+	// fmt.Println(doc.Catalog.Outlines.Count())
+	// fmt.Println(doc.Catalog.Outlines.First.Count())
+	// fmt.Println(doc.Catalog.Outlines.Last().Count())
 	// fmt.Println(string(doc.Catalog.Pages.Flatten()[0].Contents[0].Content[0:20]))
 	// fmt.Println(doc.Catalog.Pages.Flatten()[0].Contents[0].Content[0:20])
+
+	for _, file := range doc.Catalog.Names.EmbeddedFiles {
+		fmt.Println(file.Name, file.FileSpec.UF)
+		fmt.Println(file.FileSpec.EF.Length())
+	}
+
 }
 
 func TestStream(t *testing.T) {
