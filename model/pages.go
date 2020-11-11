@@ -7,7 +7,7 @@ import (
 // PageNode is either a `PageTree` or a `PageObject`
 type PageNode interface {
 	isPageNode()
-	count() int
+	Count() int
 }
 
 func (*PageTree) isPageNode()   {}
@@ -20,22 +20,16 @@ type PageTree struct {
 	Kids      []PageNode
 	Resources *ResourcesDict // if nil, will be inherited from the parent
 
-	countValue *int // cached for performance
+	// countValue *int // cached for performance
 }
 
-// count returns the number of Page objects (leaf node)
+// Count returns the number of Page objects (leaf node)
 // in all the descendants of `p` (not only in its direct children)
-// Its result is cached, meaning that the page tree must not
-// be mutated after calling it
-func (p *PageTree) count() int {
-	if p.countValue != nil {
-		return *p.countValue
-	}
+func (p *PageTree) Count() int {
 	out := 0
 	for _, kid := range p.Kids {
-		out += kid.count()
+		out += kid.Count()
 	}
-	p.countValue = &out
 	return out
 }
 
@@ -58,7 +52,7 @@ func (p PageTree) Flatten() []*PageObject {
 
 // walk to associate an object number to each pages object (leaf)
 // in the `pages` attribute of `pdf`
-func (p PageTree) allocateReferences(pdf PDFWriter) {
+func (p PageTree) allocateReferences(pdf pdfWriter) {
 	for _, kid := range p.Kids {
 		switch kid := kid.(type) {
 		case *PageTree:
@@ -72,7 +66,7 @@ func (p PageTree) allocateReferences(pdf PDFWriter) {
 // returns the Dictionary for `pages`.
 // It requires a reference passed to its children, and its parent reference.
 // `parentReference` will be negative (or zero) only for the root node.
-func (pages *PageTree) pdfString(pdf PDFWriter, ownReference, parentRef Reference) string {
+func (pages *PageTree) pdfString(pdf pdfWriter, ownReference, parentRef Reference) string {
 	kidRefs := make([]Reference, len(pages.Kids))
 	for i, page := range pages.Kids {
 		kidRefs[i] = writePageNode(pdf, page, ownReference)
@@ -86,11 +80,11 @@ func (pages *PageTree) pdfString(pdf PDFWriter, ownReference, parentRef Referenc
 		res = fmt.Sprintf(" /Resources %s", pages.Resources.PDFString(pdf))
 	}
 	content := fmt.Sprintf("<</Type /Pages /Count %d /Kids %s%s%s>>",
-		pages.count(), writeRefArray(kidRefs), parent, res)
+		pages.Count(), writeRefArray(kidRefs), parent, res)
 	return content
 }
 
-func writePageNode(pdf PDFWriter, page PageNode, parentRef Reference) Reference {
+func writePageNode(pdf pdfWriter, page PageNode, parentRef Reference) Reference {
 	switch page := page.(type) {
 	case *PageTree:
 		ownRef := pdf.CreateObject()
@@ -119,7 +113,7 @@ type PageObject struct {
 	Contents                  []ContentStream // array of stream (often of length 1)
 }
 
-func (p PageObject) pdfString(pdf PDFWriter, parentReference Reference) string {
+func (p PageObject) pdfString(pdf pdfWriter, parentReference Reference) string {
 	b := newBuffer()
 	b.line("<<")
 	b.line("/Type /Page")
@@ -163,7 +157,8 @@ func (p PageObject) pdfString(pdf PDFWriter, parentReference Reference) string {
 	return b.String()
 }
 
-func (PageObject) count() int { return 1 }
+// Count return the number of PageObject-that is 1
+func (PageObject) Count() int { return 1 }
 
 type ResourcesDict struct {
 	ExtGState  map[Name]*GraphicState // optionnal
@@ -174,7 +169,7 @@ type ResourcesDict struct {
 	XObject    map[Name]XObject       // optionnal
 }
 
-func (r ResourcesDict) PDFString(pdf PDFWriter) string {
+func (r ResourcesDict) PDFString(pdf pdfWriter) string {
 	b := newBuffer()
 	b.line("<<")
 	if r.ExtGState != nil {
@@ -270,3 +265,172 @@ type ContentItem interface {
 
 //TODO:
 type AttributeObject struct{}
+
+// ------------------------------- Bookmarks -------------------------------
+
+//TODO: read and write
+
+// Outline is the root of the ouline hierarchie
+type Outline struct {
+	First *OutlineItem
+}
+
+// Last returns the last of this item’s immediate children in the outline hierarchy
+func (o *Outline) Last() *OutlineItem { return last(o) }
+
+// Count returns the total number of visible outline items
+// at all levels of the outline.
+func (o *Outline) Count() int {
+	c := 0
+	for child := o.First; child != nil; child = child.Next {
+		c += 1 // child is a top-level item
+		if child.Open {
+			c += child.Count()
+		}
+	}
+	return c
+}
+
+// ref should be the object number of the outline, need for the child
+// to reference their parent
+func (o *Outline) pdfString(pdf pdfWriter, ref Reference) string {
+	firstRef := pdf.CreateObject()
+	pdf.outlines[o.First] = firstRef
+	pdf.WriteObject(o.First.pdfString(pdf, firstRef, ref), nil, firstRef)
+	lastRef := pdf.CreateObject()
+	last := o.Last()
+	pdf.outlines[last] = lastRef
+	pdf.WriteObject(last.pdfString(pdf, lastRef, ref), nil, lastRef)
+	return fmt.Sprintf("<</First %s /Last %s /Count %d>>", firstRef, lastRef, o.Count())
+}
+
+type OutlineNode interface {
+	first() *OutlineItem
+}
+
+func (o *Outline) first() *OutlineItem     { return o.First }
+func (o *OutlineItem) first() *OutlineItem { return o.First }
+
+// OutlineFlag specify style characteristics for displaying an outline item.
+type OutlineFlag uint8
+
+const (
+	OutlineItalic OutlineFlag = 1
+	OutlineBold   OutlineFlag = 1 << 2
+)
+
+// OutlineItem serves as visual table of
+// contents to display the document’s structure to the user
+type OutlineItem struct {
+	Title  string       // text string
+	Parent OutlineNode  // parent of this item in the outline hierarchy
+	First  *OutlineItem // first of this item’s immediate children in the outline hierarchy
+	Next   *OutlineItem // next item at this outline level
+	// Prev and Last are deduced
+
+	// indicate if this outline item is open
+	// in PDF, it is encoded by the sign of the Count property
+	Open bool
+	Dest Destination       // optional
+	A    Action            // optional
+	SE   *StructureElement // optional
+	C    [3]float64        // optional, default to [0 0 0]
+	F    OutlineFlag       // optional, default to 0
+}
+
+// Prev returns the previous item at this outline level
+func (o *OutlineItem) Prev() *OutlineItem {
+	elem := o.Parent.first() // start at first sibling
+	if elem == o {           // o is the first
+		return nil
+	}
+	for ; elem.Next != o; elem = elem.Next {
+	}
+	return elem
+}
+
+func last(outline OutlineNode) *OutlineItem {
+	elem := outline.first()
+	if elem == nil {
+		return nil
+	}
+	for ; elem.Next != nil; elem = elem.Next {
+	}
+	return elem
+}
+
+// Last returns the last of this item’s immediate children in the outline hierarchy
+func (o *OutlineItem) Last() *OutlineItem { return last(o) }
+
+// Count returns the number of visible descendent outline items at all level
+// This is the abolute value of the property Count defined in the PDF spec
+func (o *OutlineItem) Count() int {
+	if o.First == nil {
+		return 0
+	}
+	c := 0
+	// Add to Count the number of immediate children
+	for child := o.First; child != nil; child = child.Next {
+		c++
+		if child.Open { // for each of those immediate children whose Count is positive
+			c += child.Count()
+		}
+	}
+	return c
+}
+
+// convenience
+func (pdf pdfWriter) addOutlineItem(item *OutlineItem, parent Reference) Reference {
+	nextRef, has := pdf.outlines[item]
+	if !has {
+		nextRef = pdf.CreateObject()
+		pdf.outlines[item] = nextRef
+		pdf.WriteObject(item.pdfString(pdf, nextRef, parent), nil, nextRef)
+	}
+	return nextRef
+}
+
+// ref should be the object number of the outline item, need for the child
+// to reference it. parent is the parent of the outline item
+// since an item will be processed several times (from its siblings)
+// we use a cache to keep track of the already written items
+func (o *OutlineItem) pdfString(pdf pdfWriter, ref, parent Reference) string {
+	b := newBuffer()
+	b.fmt("<</Title %s /Parent %s", pdf.EncodeTextString(o.Title), parent)
+	if o.Next != nil {
+		nextRef := pdf.addOutlineItem(o.Next, parent)
+		b.fmt(" /Next %s", nextRef)
+	}
+	if prev := o.Prev(); prev != nil {
+		prevRef := pdf.addOutlineItem(prev, parent)
+		b.fmt(" /Prev %s", prevRef)
+	}
+	if first := o.First; first != nil {
+		firstRef := pdf.addOutlineItem(first, ref)
+		b.fmt(" /First %s", firstRef)
+	}
+	if last := o.Last(); last != nil {
+		lastRef := pdf.addOutlineItem(last, ref)
+		b.fmt(" /Last %s", lastRef)
+	}
+	count := o.Count() // absolute value
+	if !o.Open {       // closed -> count negative
+		count = -count
+	}
+	b.fmt(" /Count %d", count)
+	if o.Dest != nil {
+		b.fmt(" /Dest %s", o.Dest.pdfDestination(pdf))
+	}
+	if o.A != nil {
+		b.fmt(" /A %s", o.A.ActionDictionary(pdf))
+	}
+	// TODO: structure element
+	if o.C != [3]float64{} {
+		b.fmt(" /C %s", writeFloatArray(o.C[:]))
+	}
+	if o.F != 0 {
+		b.fmt(" /F %d", o.F)
+	}
+	b.fmt(">>")
+	return b.String()
+}

@@ -45,7 +45,7 @@ type PDFOutput interface {
 
 type cachable interface {
 	isCachable()
-	pdfContent(pdf PDFWriter) (content string, stream []byte)
+	pdfContent(pdf pdfWriter) (content string, stream []byte)
 }
 
 func (*FormField) isCachable()          {}
@@ -65,19 +65,28 @@ func (*ColorTableStream) isCachable()   {}
 func (*XObjectForm) isCachable()        {}
 func (*XObjectImage) isCachable()       {}
 
-// PDFWriter uses `PDFOutput` and an internal cache
+// pdfWriter uses `PDFOutput` and an internal cache
 // to write a Document.
 // The internal cache avoids duplication of indirect object,
 // by associating an object number to a pointer
-type PDFWriter struct {
+type pdfWriter struct {
 	PDFOutput
-	cache map[cachable]Reference
-	pages map[*PageObject]Reference
+	cache    map[cachable]Reference
+	pages    map[*PageObject]Reference
+	outlines map[*OutlineItem]Reference
+}
+
+func newWriter(pdf PDFOutput) pdfWriter {
+	return pdfWriter{PDFOutput: pdf,
+		cache:    make(map[cachable]Reference),
+		pages:    make(map[*PageObject]Reference),
+		outlines: make(map[*OutlineItem]Reference),
+	}
 }
 
 // addObject is a convenience shortcut to write `content` into a new object
 // and return the created reference
-func (p PDFWriter) addObject(content string, stream []byte) Reference {
+func (p pdfWriter) addObject(content string, stream []byte) Reference {
 	ref := p.CreateObject()
 	p.WriteObject(content, stream, ref)
 	return ref
@@ -86,7 +95,7 @@ func (p PDFWriter) addObject(content string, stream []byte) Reference {
 // writerCache
 
 // check the cache and write a new item if not found
-func (pdf PDFWriter) addItem(item cachable) Reference {
+func (pdf pdfWriter) addItem(item cachable) Reference {
 	if ref, has := pdf.cache[item]; has {
 		return ref
 	}

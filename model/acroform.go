@@ -36,6 +36,6 @@ type AcroForm struct {
 }
 
 // TODO: AcroForm
-func (a AcroForm) pdfString(pdf PDFWriter) string {
+func (a AcroForm) pdfString(pdf pdfWriter) string {
 	return "<<>>"
 }

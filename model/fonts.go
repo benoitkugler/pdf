@@ -11,13 +11,13 @@ type Font struct {
 	Subtype FontType
 }
 
-func (f *Font) pdfContent(pdf PDFWriter) (string, []byte) {
+func (f *Font) pdfContent(pdf pdfWriter) (string, []byte) {
 	return f.Subtype.fontPDFString(pdf), nil
 }
 
 type FontType interface {
 	isFontType()
-	fontPDFString(pdf PDFWriter) string
+	fontPDFString(pdf pdfWriter) string
 }
 
 func (Type0) isFontType()    {}
@@ -42,7 +42,7 @@ func (t Type1) LastChar() byte {
 
 // font must be Type1 or TrueType,
 // and is needed for the FontDescriptor
-func t1orttPDFString(font FontType, pdf PDFWriter) string {
+func t1orttPDFString(font FontType, pdf pdfWriter) string {
 	var t Type1
 	switch font := font.(type) {
 	case Type1:
@@ -64,13 +64,13 @@ func t1orttPDFString(font FontType, pdf PDFWriter) string {
 	return b.String()
 }
 
-func (t Type1) fontPDFString(pdf PDFWriter) string {
+func (t Type1) fontPDFString(pdf pdfWriter) string {
 	return t1orttPDFString(t, pdf)
 }
 
 type TrueType Type1
 
-func (t TrueType) fontPDFString(pdf PDFWriter) string {
+func (t TrueType) fontPDFString(pdf pdfWriter) string {
 	return t1orttPDFString(t, pdf)
 
 }
@@ -92,7 +92,7 @@ func (t Type3) LastChar() byte {
 }
 
 // TODO: type3 font
-func (f Type3) fontPDFString(pdf PDFWriter) string {
+func (f Type3) fontPDFString(pdf pdfWriter) string {
 	return "<<>>"
 }
 
@@ -137,7 +137,7 @@ type FontDescriptor struct {
 }
 
 // font is used to choose the key for the potential FontFile
-func (f FontDescriptor) pdfString(pdf PDFWriter, font FontType) string {
+func (f FontDescriptor) pdfString(pdf pdfWriter, font FontType) string {
 	b := newBuffer()
 	b.line("<</Type /FontDescriptor /FontName %s /Flags %d /FontBBox %s /ItalicAngle %.3f /Ascent %.3f /Descent %.3f",
 		f.FontName, f.Flags, f.FontBBox.PDFstring(), f.ItalicAngle, f.Ascent, f.Descent)
@@ -187,7 +187,7 @@ func (PredefinedEncoding) isSimpleEncoding() {}
 func (*EncodingDict) isSimpleEncoding()      {}
 
 // return either a name or an indirect ref
-func writeSimpleEncoding(enc SimpleEncoding, pdf PDFWriter) string {
+func writeSimpleEncoding(enc SimpleEncoding, pdf pdfWriter) string {
 	switch enc := enc.(type) {
 	case PredefinedEncoding:
 		return Name(enc).String()
@@ -249,7 +249,7 @@ type EncodingDict struct {
 	Differences  Differences // optionnal
 }
 
-func (e *EncodingDict) pdfContent(PDFWriter) (string, []byte) {
+func (e *EncodingDict) pdfContent(pdfWriter) (string, []byte) {
 	out := "<<"
 	if e.BaseEncoding != "" {
 		out += "/BaseEncoding " + e.BaseEncoding.String()
@@ -270,7 +270,7 @@ type Type0 struct {
 	ToUnicode       *ContentStream    // optionnal, as indirect object
 }
 
-func (f Type0) fontPDFString(pdf PDFWriter) string {
+func (f Type0) fontPDFString(pdf pdfWriter) string {
 	enc := writeCMapEncoding(f.Encoding, pdf)
 	desc := pdf.addObject(f.DescendantFonts.pdfString(pdf), nil)
 	out := fmt.Sprintf("<</Type /Font /Subtype /Type0 /BaseFont %s /Encoding %s /DescendantFonts [%s]",
@@ -296,7 +296,7 @@ type PredefinedCMapEncoding Name
 type EmbeddedCMapEncoding ContentStream
 
 // return either a ref or a name
-func writeCMapEncoding(enc CMapEncoding, pdf PDFWriter) string {
+func writeCMapEncoding(enc CMapEncoding, pdf pdfWriter) string {
 	switch enc := enc.(type) {
 	case PredefinedCMapEncoding:
 		return Name(enc).String()
@@ -319,7 +319,7 @@ type CIDFontDictionary struct {
 	W2             []CIDWidth     // optionnal
 }
 
-func (c CIDFontDictionary) pdfString(pdf PDFWriter) string {
+func (c CIDFontDictionary) pdfString(pdf pdfWriter) string {
 	b := newBuffer()
 	fD := pdf.addObject(c.FontDescriptor.pdfString(pdf, Type0{}), nil)
 	b.line("<</Type /Font /Subtype %s /BaseFont %s /CIDSystemInfo %s /FontDescriptor %s",
@@ -355,7 +355,7 @@ type CIDSystemInfo struct {
 }
 
 // String returns a dictionary representation
-func (c CIDSystemInfo) pdfString(pdf PDFWriter) string {
+func (c CIDSystemInfo) pdfString(pdf pdfWriter) string {
 	return fmt.Sprintf("<</Registry %s /Ordering %s /Supplement %d>>",
 		pdf.ASCIIString(c.Registry), pdf.ASCIIString(c.Ordering), c.Supplement)
 }

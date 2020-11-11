@@ -16,7 +16,7 @@ type FileSpec struct {
 
 // returns the dictionnay. `pdf` is used
 // to create the EmbeddedFileStream object.
-func (f *FileSpec) pdfContent(pdf PDFWriter) (string, []byte) {
+func (f *FileSpec) pdfContent(pdf pdfWriter) (string, []byte) {
 	b := newBuffer()
 	b.fmt("<</Type /Filespec")
 	if f.UF != "" {

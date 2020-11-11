@@ -69,7 +69,7 @@ type Function struct {
 
 // pdfContent return the object content of `f`
 // `pdf` is used to write and reference the sub-functions of a `StitchingFunction`
-func (f Function) pdfContent(pdf PDFWriter) (string, []byte) {
+func (f Function) pdfContent(pdf pdfWriter) (string, []byte) {
 	baseArgs := fmt.Sprintf("/Domain %s", writeRangeArray(f.Domain))
 	if len(f.Range) != 0 {
 		baseArgs += fmt.Sprintf(" /Range %s", writeRangeArray(f.Range))
@@ -130,7 +130,7 @@ func (f ExpInterpolationFunction) pdfString(baseArgs string) string {
 }
 
 // convenience: write the functions and returns the corresponding reference
-func (pdf PDFWriter) writeFunctions(fns []Function) []Reference {
+func (pdf pdfWriter) writeFunctions(fns []Function) []Reference {
 	refs := make([]Reference, len(fns))
 	for i, f := range fns {
 		refs[i] = pdf.addObject(f.pdfContent(pdf))
@@ -139,7 +139,7 @@ func (pdf PDFWriter) writeFunctions(fns []Function) []Reference {
 }
 
 // adds to the common arguments the specificities of a `StitchingFunction`.
-func (f StitchingFunction) pdfString(baseArgs string, pdf PDFWriter) string {
+func (f StitchingFunction) pdfString(baseArgs string, pdf pdfWriter) string {
 	// start by writing the "child" functions
 	refs := pdf.writeFunctions(f.Functions)
 	return fmt.Sprintf("<</FunctionType 3 %s /Functions %s /Bounds %s /Encode %s>>",

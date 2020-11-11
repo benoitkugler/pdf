@@ -83,7 +83,7 @@ type Annotation struct {
 	Border *Border // optional
 }
 
-func (a *Annotation) pdfContent(pdf PDFWriter) (string, []byte) {
+func (a *Annotation) pdfContent(pdf pdfWriter) (string, []byte) {
 	b := newBuffer()
 	subtype := a.Subtype.annotationFields(pdf)
 	b.fmt("<<%s /Rectangle %s", subtype, a.Rect.PDFstring())
@@ -91,7 +91,7 @@ func (a *Annotation) pdfContent(pdf PDFWriter) (string, []byte) {
 		b.fmt(" /Contents %s", pdf.EncodeTextString(a.Contents))
 	}
 	if ap := a.AP; ap != nil {
-		b.fmt(" /AP %s", ap.PDFString(pdf))
+		b.fmt(" /AP %s", ap.pdfString(pdf))
 	}
 	if as := a.AS; as != "" {
 		b.fmt(" /AS %s", as)
@@ -112,17 +112,17 @@ type AppearanceDict struct {
 	D AppearanceEntry // annotation’s down appearance, optional, default to N
 }
 
-func (a AppearanceDict) PDFString(pdf PDFWriter) string {
+func (a AppearanceDict) pdfString(pdf pdfWriter) string {
 	b := newBuffer()
 	b.fmt("<<")
 	if a.N != nil {
-		b.fmt("/N %s", a.N.PDFString(pdf))
+		b.fmt("/N %s", a.N.pdfString(pdf))
 	}
 	if a.R != nil {
-		b.fmt("/R %s", a.R.PDFString(pdf))
+		b.fmt("/R %s", a.R.pdfString(pdf))
 	}
 	if a.D != nil {
-		b.fmt("/D %s", a.D.PDFString(pdf))
+		b.fmt("/D %s", a.D.pdfString(pdf))
 	}
 	b.fmt(">>")
 	return b.String()
@@ -133,9 +133,9 @@ func (a AppearanceDict) PDFString(pdf PDFWriter) string {
 // In the first case, the map is of length 1, with the empty string as key
 type AppearanceEntry map[Name]*XObjectForm
 
-// PDFString returns the Dictionary for the appearance
+// pdfString returns the Dictionary for the appearance
 // `pdf` is used to write the form XObjects
-func (ap AppearanceEntry) PDFString(pdf PDFWriter) string {
+func (ap AppearanceEntry) pdfString(pdf pdfWriter) string {
 	chunks := make([]string, 0, len(ap))
 	for n, f := range ap {
 		ref := pdf.addItem(f)
@@ -146,7 +146,7 @@ func (ap AppearanceEntry) PDFString(pdf PDFWriter) string {
 
 type AnnotationType interface {
 	// return the specialized fields (including Subtype)
-	annotationFields(pdf PDFWriter) string
+	annotationFields(pdf pdfWriter) string
 }
 
 // ------------------------ specializations ------------------------
@@ -156,7 +156,7 @@ type FileAttachmentAnnotation struct {
 	FS *FileSpec
 }
 
-func (f FileAttachmentAnnotation) annotationFields(pdf PDFWriter) string {
+func (f FileAttachmentAnnotation) annotationFields(pdf pdfWriter) string {
 	ref := pdf.addItem(f.FS)
 	return fmt.Sprintf("/Subtype /FileAttachment /T %s /FS %s", pdf.EncodeTextString(f.T), ref)
 }
@@ -170,12 +170,12 @@ type LinkAnnotation struct {
 	Dest Destination // may only be present is A is nil
 }
 
-func (l LinkAnnotation) annotationFields(pdf PDFWriter) string {
+func (l LinkAnnotation) annotationFields(pdf pdfWriter) string {
 	out := "/Subtype /Link"
 	if l.A != nil {
 		out += " /A " + l.A.ActionDictionary(pdf)
 	} else if l.Dest != nil {
-		out += " /Dest " + l.Dest.PDFDestination(pdf)
+		out += " /Dest " + l.Dest.pdfDestination(pdf)
 	}
 	return out
 }
@@ -183,13 +183,13 @@ func (l LinkAnnotation) annotationFields(pdf PDFWriter) string {
 type Action interface {
 	// ActionDictionary returns the dictionary defining the action
 	// as written in PDF
-	ActionDictionary(PDFWriter) string
+	ActionDictionary(pdfWriter) string
 }
 
 // URIAction is a URI which should be ASCII encoded
 type URIAction string
 
-func (uri URIAction) ActionDictionary(pdf PDFWriter) string {
+func (uri URIAction) ActionDictionary(pdf pdfWriter) string {
 	return fmt.Sprintf("<</S /URI /URI (%s)>>", pdf.ASCIIString(string(uri)))
 }
 
@@ -197,12 +197,13 @@ type GoToAction struct {
 	D Destination
 }
 
-func (ac GoToAction) ActionDictionary(pdf PDFWriter) string {
-	return fmt.Sprintf("<</S /GoTo /D %s>>", ac.D.PDFDestination(pdf))
+func (ac GoToAction) ActionDictionary(pdf pdfWriter) string {
+	return fmt.Sprintf("<</S /GoTo /D %s>>", ac.D.pdfDestination(pdf))
 }
 
 type Destination interface {
-	PDFDestination(PDFWriter) string
+	// return the PDF content of the destination
+	pdfDestination(pdfWriter) string
 }
 
 // ExplicitDestination is an explicit destination to a page
@@ -212,7 +213,7 @@ type ExplicitDestination struct {
 	Zoom      float64
 }
 
-func (d ExplicitDestination) PDFDestination(pdf PDFWriter) string {
+func (d ExplicitDestination) pdfDestination(pdf pdfWriter) string {
 	pageRef := pdf.pages[d.Page]
 	left, top := "null", "null"
 	if d.Left != nil {
@@ -226,26 +227,24 @@ func (d ExplicitDestination) PDFDestination(pdf PDFWriter) string {
 
 type DestinationName Name
 
-func (n DestinationName) PDFDestination(PDFWriter) string {
+func (n DestinationName) pdfDestination(pdfWriter) string {
 	return Name(n).String()
 }
 
 type DestinationString string
 
-func (s DestinationString) PDFDestination(pdf PDFWriter) string {
-	return pdf.EncodeTextString(string(s))
-}
+func (s DestinationString) pdfDestination(pdf pdfWriter) string { return fmt.Sprintf("(%s)", s) }
 
 // ---------------------------------------------------
 
 type Highlighting Name
 
 const (
-	None    Highlighting = "N" // No highlighting.
-	Invert  Highlighting = "I" // Invert the contents of the annotation rectangle.
-	Outline Highlighting = "O" // Invert the annotation’s border.
-	Push    Highlighting = "P" // Display the annotation’s down appearance, if any
-	Toggle  Highlighting = "T" // Same as P (which is preferred).
+	HNone    Highlighting = "N" // No highlighting.
+	HInvert  Highlighting = "I" // Invert the contents of the annotation rectangle.
+	HOutline Highlighting = "O" // Invert the annotation’s border.
+	HPush    Highlighting = "P" // Display the annotation’s down appearance, if any
+	HToggle  Highlighting = "T" // Same as P (which is preferred).
 )
 
 // TODO:
@@ -255,7 +254,7 @@ type WidgetAnnotation struct {
 	BS *BorderStyle
 }
 
-func (w WidgetAnnotation) annotationFields(pdf PDFWriter) string {
+func (w WidgetAnnotation) annotationFields(pdf pdfWriter) string {
 	out := fmt.Sprintf("/Subtype /Widget")
 	if w.H != "" {
 		out += fmt.Sprintf(" /H %s", w.H)

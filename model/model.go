@@ -22,7 +22,7 @@ type Document struct {
 // It returns two references, needed by a PDF writer to finalize
 // the file (that is, to write the trailer)
 func (doc Document) Write(pdf PDFOutput) (root, info Reference) {
-	wr := PDFWriter{PDFOutput: pdf, cache: make(map[cachable]Reference), pages: make(map[*PageObject]Reference)}
+	wr := newWriter(pdf)
 
 	root = wr.addObject(doc.Catalog.pdfString(wr), nil)
 	info = wr.addObject(doc.Trailer.Info.PDFString(pdf), nil)
@@ -40,13 +40,14 @@ type Catalog struct {
 	AcroForm          *AcroForm          // optional
 	Dests             *DestTree          // optional
 	PageLabels        *PageLabelsTree    // optional
+	Outlines          *Outline           // optional
 	StructTreeRoot    *StructureTree     // optional
 }
 
 // returns the Dictionary of `cat`
-func (cat Catalog) pdfString(pdf PDFWriter) string {
+func (cat Catalog) pdfString(pdf pdfWriter) string {
 	b := newBuffer()
-	b.fmt("<<\n/Type /Catalog\n")
+	b.line("<<\n/Type /Catalog")
 
 	// Some pages may need to know in advance the
 	// object number of an arbitrary page, such as annotation link
@@ -59,11 +60,11 @@ func (cat Catalog) pdfString(pdf PDFWriter) string {
 	ref := pdf.CreateObject()
 	content := cat.Pages.pdfString(pdf, ref, -1)
 	pdf.WriteObject(content, nil, ref)
-	b.fmt("/Pages %s\n", ref)
+	b.line("/Pages %s", ref)
 
 	if pLabel := cat.PageLabels; pLabel != nil {
 		ref := pdf.addObject(pLabel.pdfString(pdf), nil)
-		b.fmt("/PageLabels %s\n", ref)
+		b.line("/PageLabels %s", ref)
 	}
 
 	b.fmt("/Names <<")
@@ -75,25 +76,30 @@ func (cat Catalog) pdfString(pdf PDFWriter) string {
 		ref := pdf.addObject(emb.pdfString(pdf), nil)
 		b.fmt("/EmbeddedFiles %s", ref)
 	}
-	b.fmt(">>\n")
+	b.line(">>")
 
 	if dests := cat.Dests; dests != nil {
 		ref := pdf.addObject(dests.pdfString(pdf), nil)
-		b.fmt("/Dests %s\n", ref)
+		b.line("/Dests %s", ref)
 	}
 	if viewerPref := cat.ViewerPreferences; viewerPref != nil {
 		ref := pdf.addObject(viewerPref.pdfString(pdf), nil)
-		b.fmt("/ViewerPreferences %s\n", ref)
+		b.line("/ViewerPreferences %s", ref)
 	}
 	if p := cat.PageLayout; p != "" {
-		b.fmt("/PageLayout %s\n", p)
+		b.line("/PageLayout %s", p)
 	}
 	if p := cat.PageMode; p != "" {
-		b.fmt("/PageMode %s\n", p)
+		b.line("/PageMode %s", p)
 	}
 	if ac := cat.AcroForm; ac != nil {
 		ref := pdf.addObject(ac.pdfString(pdf), nil)
-		b.fmt("/AcroForm %s\n", ref)
+		b.line("/AcroForm %s", ref)
+	}
+	if outline := cat.Outlines; outline != nil {
+		outlineRef := pdf.CreateObject()
+		pdf.WriteObject(outline.pdfString(pdf, outlineRef), nil, outlineRef)
+		b.line("/Outlines %s", outlineRef)
 	}
 	b.fmt(">>")
 
@@ -112,7 +118,7 @@ type ViewerPreferences struct {
 }
 
 // TODO: ViewerPreferences
-func (p ViewerPreferences) pdfString(pdf PDFWriter) string {
+func (p ViewerPreferences) pdfString(pdf pdfWriter) string {
 	return "<<>>"
 }
 

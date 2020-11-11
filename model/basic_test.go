@@ -38,8 +38,7 @@ func (p *inMemoryOutput) WriteObject(content string, stream []byte, ref Referenc
 
 func TestFunction(t *testing.T) {
 	out := newOut()
-	w := PDFWriter{PDFOutput: out, cache: make(map[cachable]Reference), pages: make(map[*PageObject]Reference)}
-
+	w := newWriter(out)
 	fn := Function{Domain: make([]Range, 4), Range: make([]Range, 3)}
 
 	f1 := SampledFunction{

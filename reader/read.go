@@ -246,6 +246,12 @@ func catalog(xref *pdfcpu.XRefTable) (model.Catalog, error) {
 		return out, err
 	}
 
+	// may need pages
+	out.Outlines, err = r.resolveOutline(d["Outlines"])
+	if err != nil {
+		return out, err
+	}
+
 	out.ViewerPreferences, err = r.resolveViewerPreferences(d["ViewerPreferences"])
 	if err != nil {
 		return out, err

@@ -323,3 +323,75 @@ func (r resolver) resolveViewerPreferences(entry pdfcpu.Object) (*model.ViewerPr
 	}
 	return &out, nil
 }
+
+func (r resolver) resolveOutline(entry pdfcpu.Object) (*model.Outline, error) {
+	entry = r.resolve(entry)
+	if entry == nil {
+		return nil, nil
+	}
+	dict, ok := entry.(pdfcpu.Dict)
+	if !ok {
+		return nil, errType("Outlines", entry)
+	}
+	var (
+		out model.Outline
+		err error
+	)
+	out.First, err = r.resolveOutlineItem(dict["First"], &out)
+	if err != nil {
+		return nil, err
+	}
+
+	return &out, nil
+}
+
+func (r resolver) resolveOutlineItem(object pdfcpu.Object, parent model.OutlineNode) (*model.OutlineItem, error) {
+	object = r.resolve(object)
+	dict, ok := object.(pdfcpu.Dict)
+	if !ok {
+		return nil, errType("Outline item", object)
+	}
+	var (
+		out model.OutlineItem
+		err error
+	)
+	title, _ := isString(dict["Title"])
+	out.Title = decodeTextString(title)
+	out.Parent = parent
+	if first := dict["First"]; first != nil {
+		out.First, err = r.resolveOutlineItem(dict["First"], &out)
+		if err != nil {
+			return nil, err
+		}
+	}
+	if next := dict["Next"]; next != nil {
+		out.Next, err = r.resolveOutlineItem(dict["Next"], parent)
+		if err != nil {
+			return nil, err
+		}
+	}
+	if c, _ := dict["Count"].(pdfcpu.Integer); c >= 0 {
+		out.Open = true
+	}
+	if dest := dict["Dest"]; dest != nil {
+		out.Dest, err = r.processDestination(dest)
+		if err != nil {
+			return nil, err
+		}
+	} else if action := dict.DictEntry("Action"); action != nil {
+		out.A, err = r.processAction(action)
+		if err != nil {
+			return nil, err
+		}
+	}
+	// TODO: SE entry (structure hierarchy)
+	if c := dict.ArrayEntry("C"); len(c) == 3 {
+		out.C[0], _ = isNumber(c[0])
+		out.C[1], _ = isNumber(c[1])
+		out.C[2], _ = isNumber(c[2])
+	}
+	if f := dict.IntEntry("F"); f != nil {
+		out.F = model.OutlineFlag(*f)
+	}
+	return &out, nil
+}

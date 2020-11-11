@@ -87,6 +87,9 @@ func TestOpen(t *testing.T) {
 	}
 	fmt.Println(doc.Trailer.Encrypt)
 
+	fmt.Println(doc.Catalog.Outlines.Count())
+	fmt.Println(doc.Catalog.Outlines.First.Count())
+	fmt.Println(doc.Catalog.Outlines.Last().Count())
 	// fmt.Println(string(doc.Catalog.Pages.Flatten()[0].Contents[0].Content[0:20]))
 	// fmt.Println(doc.Catalog.Pages.Flatten()[0].Contents[0].Content[0:20])
 }

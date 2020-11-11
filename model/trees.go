@@ -117,9 +117,27 @@ func (d DestTree) LookupTable() map[string]*ExplicitDestination {
 	return out
 }
 
-//TODO: dest tree
-func (p DestTree) pdfString(pdf PDFWriter) string {
-	return "<<>>"
+func (p DestTree) pdfString(pdf pdfWriter) string {
+	b := newBuffer()
+	limits := p.Limits()
+	b.line("<</Limits [(%s) (%s)]", limits[0], limits[1])
+	if len(p.Kids) != 0 {
+		b.fmt("/Kids [")
+		for _, kid := range p.Kids {
+			ref := pdf.addObject(kid.pdfString(pdf), nil)
+			b.fmt("%s ", ref)
+		}
+		b.line("]")
+	}
+	if len(p.Names) != 0 {
+		b.fmt("/Names [ ")
+		for _, name := range p.Names {
+			b.fmt("(%s) %s ", name.Name, name.Destination.pdfDestination(pdf))
+		}
+		b.line("]")
+	}
+	b.fmt(">>")
+	return b.String()
 }
 
 // ----------------------------------------------------------------------
@@ -151,7 +169,7 @@ func (efs EmbeddedFileTree) Limits() [2]string {
 }
 
 // TODO: EmbeddedFileTree
-func (p EmbeddedFileTree) pdfString(pdf PDFWriter) string {
+func (p EmbeddedFileTree) pdfString(pdf pdfWriter) string {
 	return "<<>>"
 }
 
@@ -212,7 +230,7 @@ func (d PageLabelsTree) LookupTable() map[int]PageLabel {
 }
 
 // TODO: PageLabelsTree
-func (p PageLabelsTree) pdfString(pdf PDFWriter) string {
+func (p PageLabelsTree) pdfString(pdf pdfWriter) string {
 	return "<<>>"
 }
 
