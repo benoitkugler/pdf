@@ -396,7 +396,7 @@ func (pdf pdfWriter) addOutlineItem(item *OutlineItem, parent Reference) Referen
 // we use a cache to keep track of the already written items
 func (o *OutlineItem) pdfString(pdf pdfWriter, ref, parent Reference) string {
 	b := newBuffer()
-	b.fmt("<</Title %s /Parent %s", pdf.EncodeTextString(o.Title), parent)
+	b.fmt("<</Title %s /Parent %s", pdf.EncodeString(o.Title, TextString), parent)
 	if o.Next != nil {
 		nextRef := pdf.addOutlineItem(o.Next, parent)
 		b.fmt(" /Next %s", nextRef)

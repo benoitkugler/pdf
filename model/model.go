@@ -25,7 +25,7 @@ func (doc Document) Write(pdf PDFOutput) (root, info Reference) {
 	wr := newWriter(pdf)
 
 	root = wr.addObject(doc.Catalog.pdfString(wr), nil)
-	info = wr.addObject(doc.Trailer.Info.PDFString(pdf), nil)
+	info = wr.addObject(doc.Trailer.Info.pdfString(wr), nil)
 
 	return root, info
 }
@@ -138,33 +138,33 @@ type Info struct {
 	ModDate      time.Time
 }
 
-// PDFString return the Dictionary for `info`
-func (info Info) PDFString(pdf PDFOutput) string {
+// pdfString return the Dictionary for `info`
+func (info Info) pdfString(pdf pdfWriter) string {
 	b := newBuffer()
 	b.fmt("<<\n")
 	if t := info.Producer; t != "" {
-		b.fmt("/Producer %s\n", pdf.EncodeTextString(t))
+		b.fmt("/Producer %s\n", pdf.EncodeString(t, TextString))
 	}
 	if t := info.Title; t != "" {
-		b.fmt("/Title %s\n", pdf.EncodeTextString(t))
+		b.fmt("/Title %s\n", pdf.EncodeString(t, TextString))
 	}
 	if t := info.Subject; t != "" {
-		b.fmt("/Subject %s\n", pdf.EncodeTextString(t))
+		b.fmt("/Subject %s\n", pdf.EncodeString(t, TextString))
 	}
 	if t := info.Author; t != "" {
-		b.fmt("/Author %s\n", pdf.EncodeTextString(t))
+		b.fmt("/Author %s\n", pdf.EncodeString(t, TextString))
 	}
 	if t := info.Keywords; t != "" {
-		b.fmt("/Keywords %s\n", pdf.EncodeTextString(t))
+		b.fmt("/Keywords %s\n", pdf.EncodeString(t, TextString))
 	}
 	if t := info.Creator; t != "" {
-		b.fmt("/Creator %s\n", pdf.EncodeTextString(t))
+		b.fmt("/Creator %s\n", pdf.EncodeString(t, TextString))
 	}
 	if t := info.CreationDate; !t.IsZero() {
-		b.fmt("/CreationDate %s\n", pdf.EncodeTextString(dateString(t)))
+		b.fmt("/CreationDate %s\n", pdf.dateString(t))
 	}
 	if t := info.ModDate; !t.IsZero() {
-		b.fmt("/ModDate %s\n", pdf.EncodeTextString(dateString(t)))
+		b.fmt("/ModDate %s\n", pdf.dateString(t))
 	}
 	b.fmt(">>")
 	return b.String()

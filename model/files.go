@@ -20,14 +20,14 @@ func (f *FileSpec) pdfContent(pdf pdfWriter) (string, []byte) {
 	b := newBuffer()
 	b.fmt("<</Type /Filespec")
 	if f.UF != "" {
-		b.fmt(" /UF %s", pdf.EncodeTextString(f.UF))
+		b.fmt(" /UF %s", pdf.EncodeString(f.UF, TextString))
 	}
 	if f.EF != nil {
-		ref := pdf.addObject(f.EF.pdfContent())
+		ref := pdf.addObject(f.EF.pdfContent(pdf))
 		b.fmt(" /EF %s", ref)
 	}
 	if f.Desc != "" {
-		b.fmt(" /Desc %s", pdf.EncodeTextString(f.Desc))
+		b.fmt(" /Desc %s", pdf.EncodeString(f.Desc, TextString))
 	}
 	b.fmt(">>")
 	return b.String(), nil
@@ -40,17 +40,17 @@ type EmbeddedFileParams struct {
 	CheckSum     string    // optional, should be hex16 encoded
 }
 
-func (params EmbeddedFileParams) String() string {
+func (params EmbeddedFileParams) pdfString(pdf pdfWriter) string {
 	b := newBuffer()
 	b.fmt("<<")
 	if params.Size != 0 {
 		b.fmt("/Size %d", params.Size)
 	}
 	if !params.CreationDate.IsZero() {
-		b.fmt("/CreationDate %s", dateString(params.CreationDate))
+		b.fmt("/CreationDate %s", pdf.dateString(params.CreationDate))
 	}
 	if !params.ModDate.IsZero() {
-		b.fmt("/ModDate %s", dateString(params.ModDate))
+		b.fmt("/ModDate %s", pdf.dateString(params.ModDate))
 	}
 	if params.CheckSum != "" {
 		b.fmt("/CheckSum <%s>", params.CheckSum)
@@ -64,8 +64,8 @@ type EmbeddedFileStream struct {
 	Params EmbeddedFileParams
 }
 
-func (emb EmbeddedFileStream) pdfContent() (string, []byte) {
+func (emb EmbeddedFileStream) pdfContent(pdf pdfWriter) (string, []byte) {
 	args := emb.PDFCommonFields()
-	out := fmt.Sprintf("<</Type /EmbeddedFile %s /Params %s>>", args, emb.Params)
+	out := fmt.Sprintf("<</Type /EmbeddedFile %s /Params %s>>", args, emb.Params.pdfString(pdf))
 	return out, emb.Content
 }

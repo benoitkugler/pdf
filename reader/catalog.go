@@ -7,6 +7,7 @@ import (
 	"github.com/pdfcpu/pdfcpu/pkg/pdfcpu"
 )
 
+// TODO: fix form tree parsing
 func (r resolver) resolveFormField(o pdfcpu.Object) (*model.FormField, error) {
 	var err error
 	ref, isRef := o.(pdfcpu.IndirectRef)

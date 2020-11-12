@@ -15,10 +15,7 @@ func newOut() *inMemoryOutput {
 	return &inMemoryOutput{Buffer: &bytes.Buffer{}}
 }
 
-func (*inMemoryOutput) EncodeTextString(s string) string {
-	return s
-}
-func (*inMemoryOutput) ASCIIString(s string) string {
+func (*inMemoryOutput) EncodeString(s string, mode StringEncoding) string {
 	return s
 }
 func (p *inMemoryOutput) CreateObject() Reference {

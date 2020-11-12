@@ -2,6 +2,7 @@ package writer
 
 import (
 	"bytes"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"strings"
@@ -43,39 +44,35 @@ var (
 	utf16Enc = unicode.UTF16(unicode.BigEndian, unicode.UseBOM)
 )
 
-// encodeTextString use UTF16-BE to encode `s`
-// it also espace charac and add ()
-func (w output) EncodeTextString(s string) string {
+func (w output) EncodeString(s string, mode model.StringEncoding) string {
 	if w.err != nil {
 		return ""
 	}
-	s = replacer.Replace(s)
-	s, err := utf16Enc.NewEncoder().String(s)
-	if err != nil {
-		w.err = fmt.Errorf("invalid text string %s: %w", s, err)
-		return ""
-	}
-	//TODO:
-	// if f.protect.encrypted {
-	// 	b := []byte(s)
-	// 	f.protect.rc4(uint32(f.n), &b)
-	// 	s = string(b)
-	// }
-	return "(" + s + ")"
-}
 
-func (w output) ASCIIString(s string) string {
-	if w.err != nil {
-		return ""
-	}
-	s = replacer.Replace(s)
-	//TODO:
+	// TODO: encryption
 	// if f.protect.encrypted {
 	// 	b := []byte(s)
 	// 	f.protect.rc4(uint32(f.n), &b)
 	// 	s = string(b)
 	// }
-	return "(" + s + ")"
+
+	switch mode {
+	case model.ASCIIString, model.ByteString: // TODO: check is we must ensure ASCII
+		s = replacer.Replace(s)
+		return "(" + s + ")"
+	case model.HexString:
+		return "<" + hex.EncodeToString([]byte(s)) + ">"
+	case model.TextString:
+		s = replacer.Replace(s)
+		s, err := utf16Enc.NewEncoder().String(s)
+		if err != nil {
+			w.err = fmt.Errorf("invalid text string %s: %w", s, err)
+			return ""
+		}
+		return "(" + s + ")"
+	default:
+		panic("should be an exhaustive switch")
+	}
 }
 
 // WriteObject write the content, and update the offsets

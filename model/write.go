@@ -17,19 +17,23 @@ func (r Reference) String() string {
 	return fmt.Sprintf("%d 0 R", r)
 }
 
+type StringEncoding uint8
+
+const (
+	ASCIIString StringEncoding = iota // ASCII encoding and escaping
+	ByteString                        // no special treatment, except escaping
+	HexString                         // hex form
+	TextString                        // one of the PDF encoding: PDFDocEncoding or UTF16-BE
+)
+
 // PDFOutput abstracts away the complexity of
 // writing a PDF file.
 // Package `writer` provides a defaut PDFOutput implementation.
 type PDFOutput interface {
-	// EncodeTextString should encode `s` to one of the PDF encoding:
-	// PDFDocEncoding or UTF16-BE
-	// If should also encrypt `s`, if needed
-	EncodeTextString(s string) string
-
-	// ASCIIString should return the PDF form of `s`,
-	// which should already be ASCII,
-	// escaped and encrypted if need
-	ASCIIString(s string) string
+	// EncodeString should transform an UTF-8 string `s` to satisfy the PDF
+	// format required
+	// It should also encrypt `s`, if needed
+	EncodeString(s string, mode StringEncoding) string
 
 	// CreateObject return a new reference which shoud be update later on.
 	// This is needed to write objects that must reference their "parent".
@@ -133,7 +137,7 @@ func writePointArray(rs [][2]float64) string {
 	for i, a := range rs {
 		b[i] = fmt.Sprintf("%.3f %.3f ", a[0], a[1])
 	}
-	return fmt.Sprintf("[ %s]", strings.Join(b, " "))
+	return fmt.Sprintf("[%s]", strings.Join(b, " "))
 }
 
 func writeRangeArray(rs []Range) string {
@@ -141,15 +145,32 @@ func writeRangeArray(rs []Range) string {
 	for i, a := range rs {
 		b[i] = fmt.Sprintf("%.3f %.3f ", a[0], a[1])
 	}
-	return fmt.Sprintf("[ %s]", strings.Join(b, " "))
+	return fmt.Sprintf("[%s]", strings.Join(b, " "))
 }
 
-func dateString(t time.Time) string {
+func writeNameArray(rs []Name) string {
+	b := make([]string, len(rs))
+	for i, a := range rs {
+		b[i] = a.String()
+	}
+	return fmt.Sprintf("[%s]", strings.Join(b, " "))
+}
+
+func (pdf pdfWriter) dateString(t time.Time) string {
 	_, tz := t.Zone()
-	return fmt.Sprintf("D:%d%02d%02d%02d%02d%02d+%02d'%02d'",
+	str := fmt.Sprintf("D:%d%02d%02d%02d%02d%02d+%02d'%02d'",
 		t.Year(), t.Month(), t.Day(),
 		t.Hour(), t.Minute(), t.Second(),
 		tz/60/60, tz/60%60)
+	return pdf.EncodeString(str, TextString)
+}
+
+func (pdf pdfWriter) stringsArray(ar []string, mode StringEncoding) string {
+	chunks := make([]string, len(ar))
+	for i, val := range ar {
+		chunks[i] = pdf.EncodeString(val, mode)
+	}
+	return fmt.Sprintf("[%s]", strings.Join(chunks, " "))
 }
 
 // helper to shorten the writting of formatted strings
