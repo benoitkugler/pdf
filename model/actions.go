@@ -9,6 +9,25 @@ type FormFielAdditionalActions struct {
 	C JavaScriptAction // optional, to recalculate
 }
 
+func (f FormFielAdditionalActions) pdfString(pdf pdfWriter) string {
+	b := newBuffer()
+	b.WriteString("<<")
+	if f.K != (JavaScriptAction{}) {
+		b.line("/K %s", f.K.ActionDictionary(pdf))
+	}
+	if f.F != (JavaScriptAction{}) {
+		b.line("/F %s", f.F.ActionDictionary(pdf))
+	}
+	if f.V != (JavaScriptAction{}) {
+		b.line("/V %s", f.V.ActionDictionary(pdf))
+	}
+	if f.C != (JavaScriptAction{}) {
+		b.line("/C %s", f.C.ActionDictionary(pdf))
+	}
+	b.fmt(">>")
+	return b.String()
+}
+
 type Action interface {
 	// ActionDictionary returns the dictionary defining the action
 	// as written in PDF

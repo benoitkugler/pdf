@@ -7,74 +7,8 @@ import (
 	"github.com/pdfcpu/pdfcpu/pkg/pdfcpu"
 )
 
-// TODO: fix form tree parsing
-func (r resolver) resolveFormField(o pdfcpu.Object) (*model.FormField, error) {
-	var err error
-	ref, isRef := o.(pdfcpu.IndirectRef)
-	if isRef {
-		// did we already resolve this value ?
-		if ff := r.formFields[ref]; ff != nil {
-			return ff, nil
-		}
-		// we haven't resolved it yet: do it
-		o = r.resolve(ref)
-	}
-	if o == nil {
-		return nil, nil
-	}
-	f, isDict := o.(pdfcpu.Dict)
-	if !isDict {
-		return nil, errType("FormField", o)
-	}
-	var fi model.FormField
-	if typ := f.NameEntry("FT"); typ != nil {
-		fi.Ft = model.FormType(*typ)
-	}
-	if t := f.StringEntry("T"); t != nil {
-		fi.T = *t
-	}
-	if as := f.NameEntry("AS"); as != nil {
-		fi.AS = model.Name(*as)
-	}
-	if ff := f.IntEntry("Ff"); ff != nil {
-		fi.Ff = model.FormFlag(*ff)
-	}
-	if ml := f.IntEntry("MaxLen"); ml != nil {
-		fi.MaxLen = *ml
-	} else {
-		fi.MaxLen = -1
-	}
-	if f := f.IntEntry("F"); f != nil {
-		fi.F = *f
-	}
-
-	if da, ok := isString(f["DA"]); ok {
-		fi.DA = da
-	}
-
-	if rect := rectangleFromArray(f.ArrayEntry("Rect")); rect != nil {
-		fi.Rect = *rect
-	}
-
-	contents, _ := isString(f["Contents"])
-	fi.Contents = decodeTextString(contents)
-
-	fi.AP, err = r.resolveAppearanceDict(f["AP"])
-	if err != nil {
-		return nil, err
-	}
-
-	if kids := f.ArrayEntry("Kids"); len(kids) != 0 {
-		return nil, errors.New("not supported: Kids entry in field dictionary")
-	}
-
-	if isRef { // write back to the cache
-		r.formFields[ref] = &fi
-	}
-	return &fi, nil
-}
-
-func rectangleFromArray(ar pdfcpu.Array) *model.Rectangle {
+func rectangleFromArray(array pdfcpu.Object) *model.Rectangle {
+	ar, _ := array.(pdfcpu.Array)
 	if len(ar) < 4 {
 		return nil
 	}
@@ -85,7 +19,8 @@ func rectangleFromArray(ar pdfcpu.Array) *model.Rectangle {
 	return &model.Rectangle{Llx: llx, Lly: lly, Urx: urx, Ury: ury}
 }
 
-func matrixFromArray(ar pdfcpu.Array) *model.Matrix {
+func matrixFromArray(array pdfcpu.Object) *model.Matrix {
+	ar, _ := array.(pdfcpu.Array)
 	if len(ar) != 6 {
 		return nil
 	}
@@ -178,10 +113,10 @@ func (r resolver) resolveOneXObjectForm(obj pdfcpu.Object) (*model.XObjectForm, 
 	}
 	stream, _ := obj.(pdfcpu.StreamDict) // here, we are sure obj is a stream
 	ap := model.XObjectForm{ContentStream: *cs}
-	if rect := rectangleFromArray(stream.Dict.ArrayEntry("BBox")); rect != nil {
+	if rect := rectangleFromArray(r.resolve(stream.Dict["BBox"])); rect != nil {
 		ap.BBox = *rect
 	}
-	ap.Matrix = matrixFromArray(stream.Dict.ArrayEntry("Matrix"))
+	ap.Matrix = matrixFromArray(r.resolve(stream.Dict["Matrix"]))
 	if res := stream.Dict["Resources"]; res != nil {
 		var err error
 		ap.Resources, err = r.resolveOneResourceDict(res)
@@ -194,31 +129,6 @@ func (r resolver) resolveOneXObjectForm(obj pdfcpu.Object) (*model.XObjectForm, 
 		r.xObjectForms[xObjRef] = &ap
 	}
 	return &ap, nil
-}
-
-func (r resolver) processAcroForm(acroForm pdfcpu.Object) (*model.AcroForm, error) {
-	acroForm = r.resolve(acroForm)
-	if acroForm == nil {
-		return nil, nil
-	}
-	form, ok := acroForm.(pdfcpu.Dict)
-	if !ok {
-		return nil, errType("AcroForm", acroForm)
-	}
-	var out model.AcroForm
-	fields := form.ArrayEntry("Fields")
-	out.Fields = make([]*model.FormField, len(fields))
-	for i, f := range fields {
-		ff, err := r.resolveFormField(f)
-		if err != nil {
-			return nil, err
-		}
-		out.Fields[i] = ff
-	}
-	if na := form.BooleanEntry("NeedAppearances"); na != nil {
-		out.NeedAppearances = *na
-	}
-	return &out, nil
 }
 
 // The value of this entry shall be a dictionary in which
@@ -316,11 +226,11 @@ func (r resolver) resolveViewerPreferences(entry pdfcpu.Object) (*model.ViewerPr
 		return nil, errType("ViewerPreferences", entry)
 	}
 	var out model.ViewerPreferences
-	if ft := dict.BooleanEntry("FitWindow"); ft != nil {
-		out.FitWindow = *ft
+	if ft, ok := r.resolveBool(dict["FitWindow"]); ok {
+		out.FitWindow = bool(ft)
 	}
-	if ct := dict.BooleanEntry("CenterWindow"); ct != nil {
-		out.CenterWindow = *ct
+	if ct, ok := r.resolveBool(dict["CenterWindow"]); ok {
+		out.CenterWindow = bool(ct)
 	}
 	return &out, nil
 }
@@ -379,20 +289,20 @@ func (r resolver) resolveOutlineItem(object pdfcpu.Object, parent model.OutlineN
 		if err != nil {
 			return nil, err
 		}
-	} else if action := dict.DictEntry("Action"); action != nil {
+	} else if action, _ := r.resolve(dict["Action"]).(pdfcpu.Dict); action != nil {
 		out.A, err = r.processAction(action)
 		if err != nil {
 			return nil, err
 		}
 	}
 	// TODO: SE entry (structure hierarchy)
-	if c := dict.ArrayEntry("C"); len(c) == 3 {
+	if c, _ := r.resolve(dict["C"]).(pdfcpu.Array); len(c) == 3 {
 		out.C[0], _ = isNumber(c[0])
 		out.C[1], _ = isNumber(c[1])
 		out.C[2], _ = isNumber(c[2])
 	}
-	if f := dict.IntEntry("F"); f != nil {
-		out.F = model.OutlineFlag(*f)
+	if f, ok := r.resolveInt(dict["F"]); ok {
+		out.F = model.OutlineFlag(f)
 	}
 	return &out, nil
 }

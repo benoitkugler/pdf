@@ -5,15 +5,6 @@ import (
 	"time"
 )
 
-// type FormType string
-
-// const (
-// 	Tx  FormType = "Tx"
-// 	Btn FormType = "Btn"
-// 	Ch  FormType = "Ch"
-// 	Sig FormType = "Sig"
-// )
-
 type FormFlag uint32
 
 const (
@@ -38,15 +29,23 @@ const (
 	CommitOnSelChange FormFlag = 1 << 26
 )
 
+// FormFields are organized hierarchically into one or more tree structures.
+// Many field attributes are inheritable, meaning that if they are not explicitly
+// specified for a given field, their values are taken from those of its parent in the field hierarchy.
+// We depart from the SPEC in that all fields related to the specialisation
+// of a field (attribut FT) are inherited (or not) at the same time.
+// This should not be a problem in pratice, because if a parent
+// changes its type, the values related to it should change as well.
 type FormField struct {
-	Parent *FormField
+	FT FormFieldType // inheritable, so might be nil
+
+	Parent *FormField   // nil for the top level fields
 	Kids   []*FormField // nil for a leaf node
 	// not nil only for a leaf node
-	// represented in PDF under the Kids entry,
+	// represented in PDF under the /Kids entry,
 	// or merged if their is only one widget
-	Widgets []Annotation
-
-	Ft FormFieldType
+	// The annotation subtype must be WidgetAnnotation
+	Widgets []Widget
 
 	T  string // optional, text string
 	TU string // optional, text string, alternate field name
@@ -56,16 +55,109 @@ type FormField struct {
 
 	// fields for variable text
 
-	DA string // optional
 	Q  uint8  // optional, default to 0
+	DA string // optional
 	DS string // optional, text string
 	RV string // optional, text string, may be written in PDF as a stream
+}
+
+// descendants returns all the (strict) descendants of `f`
+func (f *FormField) descendants() []*FormField {
+	out := f.Kids
+	for _, kid := range f.Kids {
+		out = append(out, kid.descendants()...)
+	}
+	return out
+}
+
+// require it's own reference to pass it to its kids
+// `parent` will be invalid for the root fields
+func (f *FormField) pdfString(pdf pdfWriter, ownRef, parent, catalog Reference) string {
+	b := newBuffer()
+	b.WriteString("<<")
+	if f.FT != nil { // might be nil if inherited
+		b.WriteString(f.FT.formFieldAttrs(pdf, catalog))
+	}
+	if f.Parent != nil {
+		b.fmt("/Parent %s", parent)
+	}
+	if len(f.Kids) != 0 {
+		refs := make([]Reference, len(f.Kids))
+		for i, kid := range f.Kids {
+			kidRef := pdf.CreateObject()
+			pdf.fields[kid] = kidRef // register to the cache
+			pdf.WriteObject(kid.pdfString(pdf, kidRef, ownRef, catalog), nil, kidRef)
+			refs[i] = kidRef
+		}
+		b.fmt("/Kids %s", writeRefArray(refs))
+	} else if len(f.Widgets) != 0 {
+		// we write annotation as indirect objects
+		refs := make([]Reference, len(f.Widgets))
+		for i, w := range f.Widgets {
+			refs[i] = pdf.addObject(w.pdfString(pdf, ownRef), nil)
+		}
+		b.fmt("/Kids %s", writeRefArray(refs))
+	}
+	if f.T != "" {
+		b.fmt("/T %s", pdf.EncodeString(f.T, TextString))
+	}
+	if f.TU != "" {
+		b.fmt("/TU %s", pdf.EncodeString(f.TU, TextString))
+	}
+	if f.TM != "" {
+		b.fmt("/TM %s", pdf.EncodeString(f.TM, TextString))
+	}
+	b.fmt("/Ff %d", f.Ff)
+	if f.AA != nil {
+		b.fmt("/AA %s", f.AA.pdfString(pdf))
+	}
+	if f.Q != 0 {
+		b.fmt("/Q %d", f.Q)
+	}
+	if f.DA != "" {
+		b.line("/DA %s", pdf.EncodeString(f.DA, ByteString))
+	}
+	if f.DS != "" {
+		b.line("/DS %s", pdf.EncodeString(f.DS, TextString))
+	}
+	if f.RV != "" {
+		b.line("/RV %s", pdf.EncodeString(f.RV, TextString))
+	}
+	b.fmt(">>")
+	return b.String()
+}
+
+// ---------------------------------------------------
+
+type Highlighting Name
+
+const (
+	HNone    Highlighting = "N" // No highlighting.
+	HInvert  Highlighting = "I" // Invert the contents of the annotation rectangle.
+	HOutline Highlighting = "O" // Invert the annotation’s border.
+	HPush    Highlighting = "P" // Display the annotation’s down appearance, if any
+	HToggle  Highlighting = "T" // Same as P (which is preferred).
+)
+
+// Widget is an annotation
+// with a static type of Widget
+type Widget struct {
+	BaseAnnotation
+
+	WidgetAnnotation
+}
+
+func (w Widget) pdfString(pdf pdfWriter, parent Reference) string {
+	return fmt.Sprintf("<<%s %s /Parent %s",
+		w.BaseAnnotation.fields(pdf), w.WidgetAnnotation.annotationFields(pdf), parent)
 }
 
 // FormFieldType provides additional form attributes,
 // depending on the field type.
 type FormFieldType interface {
-	formFieldAttrs(pdf pdfWriter) string
+	// must include the type entry /FT
+	// catalog is needed by FieldSignature
+	formFieldAttrs(pdf pdfWriter, catalog Reference) string
 }
 
 // FormFieldText are boxes or spaces in which the user can enter text from the keyboard.
@@ -74,8 +166,8 @@ type FormFieldText struct {
 	MaxLen int    // optional, Undef when not set
 }
 
-func (f FormFieldText) formFieldAttrs(pdf pdfWriter) string {
-	out := fmt.Sprintf("/V %s", pdf.EncodeString(f.V, TextString))
+func (f FormFieldText) formFieldAttrs(pdf pdfWriter, _ Reference) string {
+	out := fmt.Sprintf("/FT /Tx /V %s", pdf.EncodeString(f.V, TextString))
 	if f.MaxLen != Undef {
 		out += fmt.Sprintf(" /MaxLen %d", f.MaxLen)
 	}
@@ -90,8 +182,8 @@ type FormFieldButton struct {
 	Opt []string // optional, text strings, same length as Widgets
 }
 
-func (f FormFieldButton) formFieldAttrs(pdf pdfWriter) string {
-	out := fmt.Sprintf("/V %s", f.V)
+func (f FormFieldButton) formFieldAttrs(pdf pdfWriter, _ Reference) string {
+	out := fmt.Sprintf("/FT /Btn /V %s", f.V)
 	if len(f.Opt) != 0 {
 		out += fmt.Sprintf(" /Opt [%s]", pdf.stringsArray(f.Opt, TextString))
 	}
@@ -125,8 +217,9 @@ type FormFieldChoice struct {
 	I   []int    // optional
 }
 
-func (f FormFieldChoice) formFieldAttrs(pdf pdfWriter) string {
+func (f FormFieldChoice) formFieldAttrs(pdf pdfWriter, _ Reference) string {
 	b := newBuffer()
+	b.fmt("/FT /Ch")
 	if len(f.V) == 0 {
 		b.fmt("/V null")
 	} else if len(f.V) == 1 {
@@ -135,17 +228,17 @@ func (f FormFieldChoice) formFieldAttrs(pdf pdfWriter) string {
 		b.fmt("/V %s", pdf.stringsArray(f.V, TextString))
 	}
 	if len(f.Opt) != 0 {
-		b.fmt(" /Opt [")
+		b.fmt("/Opt [")
 		for _, o := range f.Opt {
 			b.fmt(" " + o.pdfString(pdf))
 		}
 		b.fmt("]")
 	}
 	if f.TI != 0 {
-		b.fmt(" /TI %d", f.TI)
+		b.fmt("/TI %d", f.TI)
 	}
 	if len(f.I) != 0 {
-		b.fmt(" /I %s", writeIntArray(f.I))
+		b.fmt("/I %s", writeIntArray(f.I))
 	}
 	return b.String()
 }
@@ -159,10 +252,10 @@ type FormFieldSignature struct {
 	SV   *SeedDict      // optional
 }
 
-func (f FormFieldSignature) formFieldAttrs(pdf pdfWriter) string {
-	out := ""
+func (f FormFieldSignature) formFieldAttrs(pdf pdfWriter, catalog Reference) string {
+	out := "/FT /Sig"
 	if f.V != nil {
-		out += fmt.Sprintf("/V %s", f.V.pdfString(pdf))
+		out += fmt.Sprintf("/V %s", f.V.pdfString(pdf, catalog))
 	}
 	if lock := f.Lock; lock != nil {
 		ref := pdf.addObject(f.Lock.pdfString(pdf), nil)
@@ -194,62 +287,62 @@ type SignatureDict struct {
 	Prop_AuthType Name                     // optional
 }
 
-func (s SignatureDict) pdfString(pdf pdfWriter) string {
+func (s SignatureDict) pdfString(pdf pdfWriter, catalog Reference) string {
 	b := newBuffer()
 	b.WriteString("<<")
 	if s.Filter != "" {
 		b.fmt("/Filter %s", s.Filter)
 	}
 	if s.SubFilter != "" {
-		b.fmt(" /SubFiler %s", s.SubFilter)
+		b.fmt("/SubFiler %s", s.SubFilter)
 	}
-	b.fmt(" /Contents %s", pdf.EncodeString(s.Contents, HexString))
+	b.fmt("/Contents %s", pdf.EncodeString(s.Contents, HexString))
 	if len(s.Cert) != 0 {
-		b.fmt(" /Cert %s", pdf.stringsArray(s.Cert, TextString))
+		b.fmt("/Cert %s", pdf.stringsArray(s.Cert, TextString))
 	}
 	if len(s.ByteRange) != 0 {
-		b.fmt(" /ByteRange [")
+		b.fmt("/ByteRange [")
 		for _, val := range s.ByteRange {
 			b.fmt(" %d %d", val[0], val[1])
 		}
 		b.fmt("]")
 	}
 	if len(s.Reference) != 0 {
-		b.fmt(" /Reference [")
+		b.fmt("/Reference [")
 		for _, val := range s.Reference {
-			b.fmt(" %s", val.pdfString(pdf))
+			b.fmt(" %s", val.pdfString(pdf, catalog))
 		}
 		b.fmt("]")
 	}
 	if s.Changes != [3]int{} {
-		b.fmt(" /Changes %s", writeIntArray(s.Changes[:]))
+		b.fmt("/Changes %s", writeIntArray(s.Changes[:]))
 	}
 	if s.Name != "" {
-		b.fmt(" /Name %s", pdf.EncodeString(s.Name, TextString))
+		b.fmt("/Name %s", pdf.EncodeString(s.Name, TextString))
 	}
 	if s.Location != "" {
-		b.fmt(" /Location %s", pdf.EncodeString(s.Location, TextString))
+		b.fmt("/Location %s", pdf.EncodeString(s.Location, TextString))
 	}
 	if s.Reason != "" {
-		b.fmt(" /Reason %s", pdf.EncodeString(s.Reason, TextString))
+		b.fmt("/Reason %s", pdf.EncodeString(s.Reason, TextString))
 	}
 	if s.ContactInfo != "" {
-		b.fmt(" /ContactInfo %s", pdf.EncodeString(s.ContactInfo, TextString))
+		b.fmt("/ContactInfo %s", pdf.EncodeString(s.ContactInfo, TextString))
 	}
 	if !s.M.IsZero() {
-		b.fmt(" /M %s", pdf.dateString(s.M))
+		b.fmt("/M %s", pdf.dateString(s.M))
 	}
 	if s.V != 0 {
-		b.fmt(" /V %d", s.V)
+		b.fmt("/V %d", s.V)
 	}
 	if s.Prop_Build != nil {
-		b.fmt(" /Prop_Build %s", s.Prop_Build.SignatureBuildPDFString())
+		b.fmt("/Prop_Build %s", s.Prop_Build.SignatureBuildPDFString())
 	}
 	if !s.Prop_AuthTime.IsZero() {
-		b.fmt(" /Prop_AuthTime %s", pdf.dateString(s.Prop_AuthTime))
+		b.fmt("/Prop_AuthTime %s", pdf.dateString(s.Prop_AuthTime))
 	}
 	if s.Prop_AuthType != "" {
-		b.fmt(" /Prop_AuthType %s", s.Prop_AuthType)
+		b.fmt("/Prop_AuthType %s", s.Prop_AuthType)
 	}
 	b.fmt(">>")
 	return b.String()
@@ -268,6 +361,9 @@ type SignatureBuildDictionary interface {
 	Clone() SignatureBuildDictionary
 }
 
+// SignatureRefDict is a signature reference dictionary
+// Note: The SPEC does not restrict the Data attribute, but
+// we, as other libraries, do: we only allow it to point to the Catalog.
 type SignatureRefDict struct {
 	TransformMethod Name // among DocMDP, UR, FieldMDP
 	TransformParams TransformParams
@@ -275,11 +371,13 @@ type SignatureRefDict struct {
 	DigestMethod Name
 }
 
-func (s SignatureRefDict) pdfString(pdf pdfWriter) string {
-	return fmt.Sprintf("<</TransformMethod %s /TransformParams %s /DigestMethod %s>>",
-		s.TransformMethod, s.TransformParams.transformParamsDict(pdf), s.DigestMethod)
+func (s SignatureRefDict) pdfString(pdf pdfWriter, catalog Reference) string {
+	return fmt.Sprintf("<</TransformMethod %s /TransformParams %s /DigestMethod %s ∕Data %s>>",
+		s.TransformMethod, s.TransformParams.transformParamsDict(pdf), s.DigestMethod, catalog)
 }
 
+// TransformParams determines which objects are included and excluded
+// in revision comparison
 type TransformParams interface {
 	transformParamsDict(pdf pdfWriter) string
 }
@@ -314,41 +412,37 @@ type TransformUR struct {
 
 func (t TransformUR) transformParamsDict(pdf pdfWriter) string {
 	b := newBuffer()
-	b.fmt("<<")
+	b.WriteString("<<")
 	if len(t.Document) != 0 {
 		b.fmt("/Document %s", writeNameArray(t.Document))
 	}
 	if t.Msg != "" {
-		b.fmt(" /Msg %s", pdf.EncodeString(t.Msg, TextString))
+		b.fmt("/Msg %s", pdf.EncodeString(t.Msg, TextString))
 	}
 	if t.V != "" {
-		b.fmt(" /V %s", t.V)
+		b.fmt("/V %s", t.V)
 	}
 	if len(t.Annots) != 0 {
-		b.fmt(" /Annots %s", writeNameArray(t.Annots))
+		b.fmt("/Annots %s", writeNameArray(t.Annots))
 	}
 	if len(t.Form) != 0 {
-		b.fmt(" /Form %s", writeNameArray(t.Form))
+		b.fmt("/Form %s", writeNameArray(t.Form))
 	}
 	if len(t.Signature) != 0 {
-		b.fmt(" /Signature %s", writeNameArray(t.Signature))
+		b.fmt("/Signature %s", writeNameArray(t.Signature))
 	}
 	if len(t.EF) != 0 {
-		b.fmt(" /EF %s", writeNameArray(t.EF))
+		b.fmt("/EF %s", writeNameArray(t.EF))
 	}
-	b.fmt(" /P %v>>", t.P)
+	b.fmt("/P %v>>", t.P)
 	return b.String()
 }
 
 // TransformFieldMDP is used to detect changes to the values of a list of form fields.
-// BUG(bk) the Data field should be a pointer to
-// another item in the Document object. Since the SPEC does not precise it,
-// we can't support it in a general way.
 type TransformFieldMDP struct {
 	Action Name
 	Fields []string // text strings, optional is Action == All
 	V      Name
-	// Data
 }
 
 func (t TransformFieldMDP) transformParamsDict(pdf pdfWriter) string {
@@ -392,38 +486,38 @@ type SeedDict struct {
 
 func (s SeedDict) pdfString(pdf pdfWriter) string {
 	b := newBuffer()
-	b.fmt("<<")
+	b.WriteString("<<")
 	if s.Ff != 0 {
 		b.fmt("/Ff %d", s.Ff)
 	}
 	if s.Filter != "" {
-		b.fmt(" /Filter %s", s.Filter)
+		b.fmt("/Filter %s", s.Filter)
 	}
 	if len(s.SubFilter) != 0 {
-		b.fmt(" /SubFilter %s", writeNameArray(s.SubFilter))
+		b.fmt("/SubFilter %s", writeNameArray(s.SubFilter))
 	}
 	if len(s.DigestMethod) != 0 {
-		b.fmt(" /DigestMethod %s", writeNameArray(s.DigestMethod))
+		b.fmt("/DigestMethod %s", writeNameArray(s.DigestMethod))
 	}
 	if s.V != 0 {
-		b.fmt(" /V %.3f", s.V)
+		b.fmt("/V %.3f", s.V)
 	}
 	if s.Cert != nil {
-		b.fmt(" /Cert %s", s.Cert.pdfString(pdf))
+		b.fmt("/Cert %s", s.Cert.pdfString(pdf))
 	}
 	if len(s.Reasons) != 0 {
-		b.fmt(" /Reasons %s", pdf.stringsArray(s.Reasons, TextString))
+		b.fmt("/Reasons %s", pdf.stringsArray(s.Reasons, TextString))
 	}
 	if s.MDP != Undef {
-		b.fmt(" /MDP <</P %d>>", s.MDP)
+		b.fmt("/MDP <</P %d>>", s.MDP)
 	}
 	if s.TimeStamp != nil {
-		b.fmt(" /TimeStamp %s", s.TimeStamp.pdfString(pdf))
+		b.fmt("/TimeStamp %s", s.TimeStamp.pdfString(pdf))
 	}
 	if len(s.LegalAttestation) != 0 {
-		b.fmt(" /LegalAttestation %s", pdf.stringsArray(s.LegalAttestation, TextString))
+		b.fmt("/LegalAttestation %s", pdf.stringsArray(s.LegalAttestation, TextString))
 	}
-	b.fmt(" /AddRevInfo %v>>", s.AddRevInfo)
+	b.fmt("/AddRevInfo %v>>", s.AddRevInfo)
 	return b.String()
 }
 
@@ -455,12 +549,12 @@ func (c CertDict) pdfString(pdf pdfWriter) string {
 		b.fmt("/Ff %d", c.Ff)
 	}
 	if len(c.Subject) != 0 {
-		b.fmt(" /Subject %s", pdf.stringsArray(c.Subject, ByteString))
+		b.fmt("/Subject %s", pdf.stringsArray(c.Subject, ByteString))
 	}
 	if len(c.SubjectDN) != 0 {
-		b.fmt(" /SubjectDN [")
+		b.fmt("/SubjectDN [")
 		for _, dn := range c.SubjectDN {
-			b.fmt("<<")
+			b.WriteString("<<")
 			for name, value := range dn {
 				b.fmt("%s %s ", name, pdf.EncodeString(value, TextString))
 			}
@@ -469,19 +563,19 @@ func (c CertDict) pdfString(pdf pdfWriter) string {
 		b.fmt("]")
 	}
 	if len(c.KeyUsage) != 0 {
-		b.fmt(" /KeyUsage %s", pdf.stringsArray(c.KeyUsage, ASCIIString))
+		b.fmt("/KeyUsage %s", pdf.stringsArray(c.KeyUsage, ASCIIString))
 	}
 	if len(c.Issuer) != 0 {
-		b.fmt(" /Issuer %s", pdf.stringsArray(c.Issuer, ByteString))
+		b.fmt("/Issuer %s", pdf.stringsArray(c.Issuer, ByteString))
 	}
 	if len(c.OID) != 0 {
-		b.fmt(" /OID %s", pdf.stringsArray(c.OID, ByteString))
+		b.fmt("/OID %s", pdf.stringsArray(c.OID, ByteString))
 	}
 	if c.URL != "" {
-		b.fmt(" /URL %s", pdf.EncodeString(c.URL, ASCIIString))
+		b.fmt("/URL %s", pdf.EncodeString(c.URL, ASCIIString))
 	}
 	if c.URLType != "" {
-		b.fmt(" /URLType %s", c.URLType)
+		b.fmt("/URLType %s", c.URLType)
 	}
 	b.fmt(">>")
 	return b.String()
@@ -529,12 +623,52 @@ type AcroForm struct {
 	CO []*FormField
 	DR *ResourcesDict // optional
 	DA string         // optional
-	Q  int            // optional
+	Q  int            // optional, default to 0
 
 	// TODO: support XFA forms
 }
 
-// TODO: AcroForm
-func (a AcroForm) pdfString(pdf pdfWriter) string {
-	return "<<>>"
+// Flatten walk the tree of form fields and accumulate them
+// in a flat list.
+func (a AcroForm) Flatten() []*FormField {
+	out := a.Fields
+	for _, kid := range a.Fields {
+		out = append(out, kid.descendants()...)
+	}
+	return out
+}
+
+func (a AcroForm) pdfString(pdf pdfWriter, catalog Reference) string {
+	b := newBuffer()
+	refs := make([]Reference, len(a.Fields))
+	for i, f := range a.Fields {
+		fieldRef := pdf.CreateObject()
+		pdf.fields[f] = fieldRef // add to the cache
+		pdf.addObject(f.pdfString(pdf, fieldRef, -1, catalog), nil)
+		refs[i] = fieldRef
+	}
+	b.fmt("<</Fields %s", writeRefArray(refs))
+	b.fmt("/NeedAppearances %v", a.NeedAppearances)
+	if a.SigFlags != 0 {
+		b.fmt("/SigFlags %d", a.SigFlags)
+	}
+	if len(a.CO) != 0 { // wil use the ref from the cache
+		refs := make([]Reference, len(a.CO))
+		for i, co := range a.CO {
+			refs[i] = pdf.fields[co]
+		}
+		b.fmt("/CO %s", writeRefArray(refs))
+	}
+	if a.DR != nil {
+		ref := pdf.addItem(a.DR)
+		b.fmt("/DR %s", ref)
+	}
+	if a.DA != "" {
+		b.fmt("/DA %s", pdf.EncodeString(a.DA, ByteString))
+	}
+	if a.Q != 0 {
+		b.fmt("/Q %d", a.Q)
+	}
+	b.fmt(">>")
+	return b.String()
 }

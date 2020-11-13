@@ -34,6 +34,7 @@ import (
 // 	Redact         AnnotationType = "Redact"
 // )
 
+// Border is written in PDF as an array of 3 or 4 elements
 type Border struct {
 	HCornerRadius, VCornerRadius, BorderWidth float64
 	DashArray                                 []float64 // optional (nil not to specify it)
@@ -58,20 +59,19 @@ func (bo BorderStyle) pdfString() string {
 	b := newBuffer()
 	b.WriteString("<<")
 	if bo.W != Undef {
-		b.fmt(" /W %.3f", bo.W)
+		b.fmt("/W %.3f", bo.W)
 	}
 	if bo.S != "" {
-		b.fmt(" /S %s", bo.S)
+		b.fmt("/S %s", bo.S)
 	}
 	if bo.D != nil {
-		b.fmt(" /D %s", writeFloatArray(bo.D))
+		b.fmt("/D %s", writeFloatArray(bo.D))
 	}
 	b.fmt(">>")
 	return b.String()
 }
 
-type Annotation struct {
-	Subtype  AnnotationType
+type BaseAnnotation struct {
 	Rect     Rectangle
 	Contents string
 	AP       *AppearanceDict // optional
@@ -83,27 +83,37 @@ type Annotation struct {
 	Border *Border // optional
 }
 
-func (a *Annotation) pdfContent(pdf pdfWriter) (string, []byte) {
+func (ba BaseAnnotation) fields(pdf pdfWriter) string {
 	b := newBuffer()
+	b.fmt("/Rectangle %s", ba.Rect.PDFstring())
+	if ba.Contents != "" {
+		b.fmt("/Contents %s", pdf.EncodeString(ba.Contents, TextString))
+	}
+	if ap := ba.AP; ap != nil {
+		b.fmt("/AP %s", ap.pdfString(pdf))
+	}
+	if as := ba.AS; as != "" {
+		b.fmt("/AS %s", as)
+	}
+	if f := ba.F; f != 0 {
+		b.fmt("/F %d", f)
+	}
+	if bo := ba.Border; bo != nil {
+		b.fmt("/Border %s", bo.pdfString())
+	}
+	return b.String()
+}
+
+type Annotation struct {
+	BaseAnnotation
+	Subtype AnnotationType
+}
+
+// pdfContent impements is cachable
+func (a *Annotation) pdfContent(pdf pdfWriter) (string, []byte) {
+	base := a.BaseAnnotation.fields(pdf)
 	subtype := a.Subtype.annotationFields(pdf)
-	b.fmt("<<%s /Rectangle %s", subtype, a.Rect.PDFstring())
-	if a.Contents != "" {
-		b.fmt(" /Contents %s", pdf.EncodeString(a.Contents, TextString))
-	}
-	if ap := a.AP; ap != nil {
-		b.fmt(" /AP %s", ap.pdfString(pdf))
-	}
-	if as := a.AS; as != "" {
-		b.fmt(" /AS %s", as)
-	}
-	if f := a.F; f != 0 {
-		b.fmt(" /F %d", f)
-	}
-	if bo := a.Border; bo != nil {
-		b.fmt(" /Border %s", bo.pdfString())
-	}
-	b.fmt(">>")
-	return b.String(), nil
+	return fmt.Sprintf("<<%s %s >>", base, subtype), nil
 }
 
 type AppearanceDict struct {
@@ -114,7 +124,7 @@ type AppearanceDict struct {
 
 func (a AppearanceDict) pdfString(pdf pdfWriter) string {
 	b := newBuffer()
-	b.fmt("<<")
+	b.WriteString("<<")
 	if a.N != nil {
 		b.fmt("/N %s", a.N.pdfString(pdf))
 	}
@@ -180,19 +190,8 @@ func (l LinkAnnotation) annotationFields(pdf pdfWriter) string {
 	return out
 }
 
-// ---------------------------------------------------
-
-type Highlighting Name
-
-const (
-	HNone    Highlighting = "N" // No highlighting.
-	HInvert  Highlighting = "I" // Invert the contents of the annotation rectangle.
-	HOutline Highlighting = "O" // Invert the annotation’s border.
-	HPush    Highlighting = "P" // Display the annotation’s down appearance, if any
-	HToggle  Highlighting = "T" // Same as P (which is preferred).
-)
-
-// TODO:
+// WidgetAnnotation is an annotation widget,
+// primarily for form fields
 type WidgetAnnotation struct {
 	H  Highlighting
 	A  Action

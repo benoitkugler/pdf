@@ -20,14 +20,14 @@ func (f *FileSpec) pdfContent(pdf pdfWriter) (string, []byte) {
 	b := newBuffer()
 	b.fmt("<</Type /Filespec")
 	if f.UF != "" {
-		b.fmt(" /UF %s", pdf.EncodeString(f.UF, TextString))
+		b.fmt("/UF %s", pdf.EncodeString(f.UF, TextString))
 	}
 	if f.EF != nil {
 		ref := pdf.addObject(f.EF.pdfContent(pdf))
-		b.fmt(" /EF %s", ref)
+		b.fmt("/EF %s", ref)
 	}
 	if f.Desc != "" {
-		b.fmt(" /Desc %s", pdf.EncodeString(f.Desc, TextString))
+		b.fmt("/Desc %s", pdf.EncodeString(f.Desc, TextString))
 	}
 	b.fmt(">>")
 	return b.String(), nil
@@ -42,7 +42,7 @@ type EmbeddedFileParams struct {
 
 func (params EmbeddedFileParams) pdfString(pdf pdfWriter) string {
 	b := newBuffer()
-	b.fmt("<<")
+	b.WriteString("<<")
 	if params.Size != 0 {
 		b.fmt("/Size %d", params.Size)
 	}

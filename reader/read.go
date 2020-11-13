@@ -3,9 +3,11 @@
 package reader
 
 import (
+	"encoding/hex"
 	"fmt"
 	"io"
 	"log"
+	"strings"
 	"time"
 
 	"github.com/benoitkugler/pdf/model"
@@ -83,13 +85,17 @@ func isNumber(o pdfcpu.Object) (float64, bool) {
 	}
 }
 
+var replacer = strings.NewReplacer("\\\\", "\\", "\\(", ")", "\\)", "(", "\\r", "\r")
+
 // return the string and true if o is a StringLitteral (...) or a HexadecimalLitteral <...>
+// the string is unespaced (for StringLitteral) and decoded (for Hexadecimal)
 func isString(o pdfcpu.Object) (string, bool) {
 	switch o := o.(type) {
 	case pdfcpu.StringLiteral:
-		return o.Value(), true
+		return replacer.Replace(o.Value()), true
 	case pdfcpu.HexLiteral:
-		return o.Value(), true
+		out, err := hex.DecodeString(o.Value())
+		return string(out), err == nil
 	default:
 		return "", false
 	}
@@ -276,6 +282,21 @@ func (r resolver) resolve(o pdfcpu.Object) pdfcpu.Object {
 	// despite it's signature, Dereference always return a nil error
 	out, _ := r.xref.Dereference(o)
 	return out
+}
+
+func (r resolver) resolveBool(o pdfcpu.Object) (bool, bool) {
+	b, ok := r.resolve(o).(pdfcpu.Boolean)
+	return bool(b), ok
+}
+
+func (r resolver) resolveInt(o pdfcpu.Object) (int, bool) {
+	b, ok := r.resolve(o).(pdfcpu.Integer)
+	return int(b), ok
+}
+
+func (r resolver) resolveName(o pdfcpu.Object) (model.Name, bool) {
+	b, ok := r.resolve(o).(pdfcpu.Name)
+	return model.Name(b), ok
 }
 
 func errType(label string, o pdfcpu.Object) error {

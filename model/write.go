@@ -78,6 +78,7 @@ type pdfWriter struct {
 	cache    map[cachable]Reference
 	pages    map[*PageObject]Reference
 	outlines map[*OutlineItem]Reference
+	fields   map[*FormField]Reference
 }
 
 func newWriter(pdf PDFOutput) pdfWriter {
@@ -85,6 +86,7 @@ func newWriter(pdf PDFOutput) pdfWriter {
 		cache:    make(map[cachable]Reference),
 		pages:    make(map[*PageObject]Reference),
 		outlines: make(map[*OutlineItem]Reference),
+		fields:   make(map[*FormField]Reference),
 	}
 }
 

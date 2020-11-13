@@ -78,7 +78,7 @@ func (s ContentStream) PDFCommonFields() string {
 		for i, f := range s.Filter {
 			fs[i] = Name(f).String()
 		}
-		b.fmt(" /Filter [%s]", strings.Join(fs, " "))
+		b.fmt("/Filter [%s]", strings.Join(fs, " "))
 	}
 	if len(s.DecodeParms) != 0 {
 		var st strings.Builder
@@ -97,7 +97,7 @@ func (s ContentStream) PDFCommonFields() string {
 			}
 			st.WriteString(" >> ")
 		}
-		b.fmt(" /DecodeParams [ %s]", st.String())
+		b.fmt("/DecodeParams [ %s]", st.String())
 	}
 	return b.String()
 }
@@ -134,10 +134,10 @@ func (f *XObjectForm) pdfContent(pdf pdfWriter) (string, []byte) {
 	b := newBuffer()
 	b.fmt("<</Subtype /Form %s /BBox %s", args, f.BBox.PDFstring())
 	if f.Matrix != nil {
-		b.fmt(" /Matrix %s", *f.Matrix)
+		b.fmt("/Matrix %s", *f.Matrix)
 	}
 	if f.Resources != nil {
-		b.line(" /Resources %s", f.Resources.PDFString(pdf))
+		b.line(" /Resources %s", pdf.addItem(f.Resources))
 	}
 	b.fmt(">>")
 	return b.String(), f.Content
@@ -178,14 +178,14 @@ func (f *XObjectImage) pdfContent(pdf pdfWriter) (string, []byte) {
 	b.fmt("/ImageMask %v", f.ImageMask)
 	if f.ColorSpace != nil {
 		cs := writeColorSpace(f.ColorSpace, pdf)
-		b.fmt(" /ColorSpace %s", cs)
+		b.fmt("/ColorSpace %s", cs)
 	}
 	if f.Intent != "" {
-		b.fmt(" /Intent %s", f.Intent)
+		b.fmt("/Intent %s", f.Intent)
 	}
 	//TODO: mask
 	if len(f.Decode) != 0 {
-		b.fmt(" /Decode %s", writeRangeArray(f.Decode))
+		b.fmt("/Decode %s", writeRangeArray(f.Decode))
 	}
 	b.line(" /Interpolate %v", f.Interpolate)
 	if len(f.Alternates) != 0 {
@@ -198,7 +198,7 @@ func (f *XObjectImage) pdfContent(pdf pdfWriter) (string, []byte) {
 	b.fmt("/SMaskInData %d", f.SMaskInData)
 	if f.SMask != nil {
 		ref := pdf.addItem(f.SMask)
-		b.fmt(" /SMask %s", ref)
+		b.fmt("/SMask %s", ref)
 	}
 	b.WriteString(">>")
 	return b.String(), f.Content

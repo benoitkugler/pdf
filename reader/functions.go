@@ -38,7 +38,7 @@ func (r resolver) resolveFunction(fn pdfcpu.Object) (*model.Function, error) {
 	case 0:
 		out.FunctionType, err = r.processSampledFn(stream)
 	case 2:
-		out.FunctionType, err = processExpInterpolationFn(dict)
+		out.FunctionType, err = r.processExpInterpolationFn(dict)
 	case 3:
 		out.FunctionType, err = r.resolveStitchingFn(dict)
 	case 4:
@@ -53,12 +53,12 @@ func (r resolver) resolveFunction(fn pdfcpu.Object) (*model.Function, error) {
 	}
 
 	// common fields
-	domain := dict.ArrayEntry("Domain")
+	domain, _ := r.resolve(dict["Domain"]).(pdfcpu.Array)
 	out.Domain, err = processRange(domain)
 	if err != nil {
 		return nil, err
 	}
-	range_ := dict.ArrayEntry("Range")
+	range_, _ := r.resolve(dict["Range"]).(pdfcpu.Array)
 	out.Range, err = processRange(range_)
 	if err != nil {
 		return nil, err
@@ -86,23 +86,23 @@ func processRange(range_ pdfcpu.Array) ([]model.Range, error) {
 	return out, nil
 }
 
-func processExpInterpolationFn(fn pdfcpu.Dict) (model.ExpInterpolationFunction, error) {
-	C0 := fn.ArrayEntry("C0")
-	C1 := fn.ArrayEntry("C1")
+func (r resolver) processExpInterpolationFn(fn pdfcpu.Dict) (model.ExpInterpolationFunction, error) {
+	C0, _ := r.resolve(fn["C0"]).(pdfcpu.Array)
+	C1, _ := r.resolve(fn["C1"]).(pdfcpu.Array)
 	if len(C0) != len(C1) {
 		return model.ExpInterpolationFunction{}, errors.New("array length must be equal for C0 and C1")
 	}
 	var out model.ExpInterpolationFunction
 	out.C0 = processFloatArray(C0)
 	out.C1 = processFloatArray(C1)
-	if N := fn.IntEntry("N"); N != nil {
-		out.N = *N
+	if N, ok := r.resolveInt(fn["N"]); ok {
+		out.N = int(N)
 	}
 	return out, nil
 }
 
 func (r resolver) resolveStitchingFn(fn pdfcpu.Dict) (model.StitchingFunction, error) {
-	fns := fn.ArrayEntry("Functions")
+	fns, _ := r.resolve(fn["Functions"]).(pdfcpu.Array)
 	K := len(fns)
 	var out model.StitchingFunction
 	out.Functions = make([]model.Function, K)
@@ -113,13 +113,13 @@ func (r resolver) resolveStitchingFn(fn pdfcpu.Dict) (model.StitchingFunction, e
 		}
 		out.Functions[i] = *fn
 	}
-	bounds := fn.ArrayEntry("Bounds")
+	bounds, _ := r.resolve(fn["Bounds"]).(pdfcpu.Array)
 	if len(bounds) != K-1 {
 		return out, fmt.Errorf("expected k-1 elements array for Bounds, got %v", bounds)
 	}
 	out.Bounds = processFloatArray(bounds)
 
-	encode := fn.ArrayEntry("Encode")
+	encode, _ := r.resolve(fn["Encode"]).(pdfcpu.Array)
 	if len(encode) != 2*K {
 		return out, fmt.Errorf("expected 2 x k elements array for Bounds, got %v", encode)
 	}
@@ -140,20 +140,20 @@ func (r resolver) processSampledFn(stream pdfcpu.StreamDict) (model.SampledFunct
 		return model.SampledFunction{}, errors.New("missing stream for Sampled function")
 	}
 	out := model.SampledFunction{ContentStream: *cs}
-	size := stream.Dict.ArrayEntry("Size")
+	size, _ := r.resolve(stream.Dict["Size"]).(pdfcpu.Array)
 	m := len(size)
 	out.Size = make([]int, m)
 	for i, s := range size {
 		si, _ := s.(pdfcpu.Integer)
 		out.Size[i] = si.Value()
 	}
-	if bs := stream.Dict.IntEntry("BitsPerSample"); bs != nil {
-		out.BitsPerSample = uint8(*bs)
+	if bs, ok := r.resolveInt(stream.Dict["BitsPerSample"]); ok {
+		out.BitsPerSample = uint8(bs)
 	}
-	if o := stream.Dict.IntEntry("Order"); o != nil {
-		out.Order = uint8(*o)
+	if o, ok := r.resolveInt(stream.Dict["Order"]); ok {
+		out.Order = uint8(o)
 	}
-	encode := stream.Dict.ArrayEntry("Encode")
+	encode, _ := r.resolve(stream.Dict["Encode"]).(pdfcpu.Array)
 	if len(encode) != 2*m {
 		return out, fmt.Errorf("expected 2 x m elements array for Bounds, got %v", encode)
 	}
@@ -162,7 +162,9 @@ func (r resolver) processSampledFn(stream pdfcpu.StreamDict) (model.SampledFunct
 		out.Encode[i][0], _ = isNumber(encode[2*i])
 		out.Encode[i][1], _ = isNumber(encode[2*i+1])
 	}
-	out.Decode, err = processRange(stream.Dict.ArrayEntry("Decode"))
+
+	decode, _ := r.resolve(stream.Dict["Decode"]).(pdfcpu.Array)
+	out.Decode, err = processRange(decode)
 
 	return out, err
 }

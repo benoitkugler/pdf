@@ -41,7 +41,7 @@ func (r resolver) resolveOneXObject(obj pdfcpu.Object) (model.XObject, error) {
 	if !ok {
 		return nil, errType("XObject", obj)
 	}
-	name, _ := stream.Dict["Subtype"].(pdfcpu.Name)
+	name, _ := r.resolveName(stream.Dict["Subtype"])
 	switch name {
 	case "Image":
 		return r.resolveOneXObjectImage(obj)
@@ -73,30 +73,30 @@ func (r resolver) resolveOneXObjectImage(img pdfcpu.Object) (*model.XObjectImage
 	}
 	out := model.XObjectImage{ContentStream: *cs}
 
-	if w := stream.Dict.IntEntry("Width"); w != nil {
-		out.Width = *w
+	if w, ok := r.resolveInt(stream.Dict["Width"]); ok {
+		out.Width = int(w)
 	}
-	if h := stream.Dict.IntEntry("Height"); h != nil {
-		out.Height = *h
+	if h, ok := r.resolveInt(stream.Dict["Height"]); ok {
+		out.Height = int(h)
 	}
 	out.ColorSpace, err = r.resolveOneColorSpace(stream.Dict["ColorSpace"])
 	if err != nil {
 		return nil, err
 	}
-	if b := stream.Dict.IntEntry("BitsPerComponent"); b != nil {
-		out.BitsPerComponent = uint8(*b)
+	if b, ok := r.resolveInt(stream.Dict["BitsPerComponent"]); ok {
+		out.BitsPerComponent = uint8(b)
 	}
-	if intent := stream.Dict.NameEntry("Intent"); intent != nil {
-		out.Intent = model.Name(*intent)
+	if intent, ok := r.resolveName(stream.Dict["Intent"]); ok {
+		out.Intent = model.Name(intent)
 	}
-	if m := stream.Dict.BooleanEntry("ImageMask"); m != nil {
-		out.ImageMask = *m
+	if m, ok := r.resolveBool(stream.Dict["ImageMask"]); ok {
+		out.ImageMask = bool(m)
 	}
 	// TODO:
-	if mask := stream.Dict["Mask"]; mask != nil {
+	if mask := r.resolve(stream.Dict["Mask"]); mask != nil {
 		fmt.Println("TODO: Mask", mask)
 	}
-	decode := stream.Dict.ArrayEntry("Decode")
+	decode, _ := r.resolve(stream.Dict["Decode"]).(pdfcpu.Array)
 	if !out.ImageMask {
 		out.Decode, err = processRange(decode)
 		if err != nil {
@@ -111,13 +111,13 @@ func (r resolver) resolveOneXObjectImage(img pdfcpu.Object) (*model.XObjectImage
 		}
 		// else: ignore nil or invalid
 	}
-	if i := stream.Dict.BooleanEntry("Interpolate"); i != nil {
-		out.Interpolate = *i
+	if i, ok := r.resolveBool(stream.Dict["Interpolate"]); ok {
+		out.Interpolate = bool(i)
 	}
-	alts := stream.Dict.ArrayEntry("Alternates")
+	alts, _ := r.resolve(stream.Dict["Alternates"]).(pdfcpu.Array)
 	out.Alternates = make([]model.AlternateImage, len(alts))
 	for i, alt := range alts {
-		alt = r.resolve(alt) // the AlternateImage is itself cheap, don't other tracking its ref
+		alt = r.resolve(alt) // the AlternateImage is itself cheap, don't bother tracking its ref
 		altDict, isDict := alt.(pdfcpu.Dict)
 		if !isDict {
 			return nil, errType("AlternateImage", alt)
@@ -126,8 +126,8 @@ func (r resolver) resolveOneXObjectImage(img pdfcpu.Object) (*model.XObjectImage
 		if err != nil {
 			return nil, err
 		}
-		if b := altDict.BooleanEntry("DefaultForPrinting"); b != nil {
-			out.Alternates[i].DefaultForPrinting = *b
+		if b, ok := r.resolveBool(altDict["DefaultForPrinting"]); ok {
+			out.Alternates[i].DefaultForPrinting = b
 		}
 	}
 	if smask := stream.Dict["SMask"]; smask != nil {
@@ -136,8 +136,8 @@ func (r resolver) resolveOneXObjectImage(img pdfcpu.Object) (*model.XObjectImage
 			return nil, err
 		}
 	}
-	if s := stream.Dict.IntEntry("SMaskInData"); s != nil {
-		out.SMaskInData = uint8(*s)
+	if s, ok := r.resolveInt(stream.Dict["SMaskInData"]); ok {
+		out.SMaskInData = uint8(s)
 	}
 
 	if isRef {

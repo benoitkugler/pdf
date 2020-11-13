@@ -130,7 +130,6 @@ func (r *resolver) resolvePageObject(node pdfcpu.Dict, parent *model.PageTree) (
 	return &page, nil
 }
 
-// TODO: annotation
 func (r *resolver) resolveAnnotation(annot pdfcpu.Object) (*model.Annotation, error) {
 	annotRef, isRef := annot.(pdfcpu.IndirectRef)
 	if annotModel := r.annotations[annotRef]; isRef && annotModel != nil {
@@ -141,6 +140,17 @@ func (r *resolver) resolveAnnotation(annot pdfcpu.Object) (*model.Annotation, er
 	if !isDict {
 		return nil, errType("Annotation", annot)
 	}
+	annotModel, err := r.resolveAnnotationFields(annotDict)
+	if err != nil {
+		return nil, err
+	}
+	if isRef { // write the annotation back into the cache
+		r.annotations[annotRef] = &annotModel
+	}
+	return &annotModel, nil
+}
+
+func (r *resolver) resolveAnnotationFields(annotDict pdfcpu.Dict) (model.Annotation, error) {
 	var (
 		annotModel model.Annotation
 		err        error
@@ -172,18 +182,15 @@ func (r *resolver) resolveAnnotation(annot pdfcpu.Object) (*model.Annotation, er
 	}
 	annotModel.AP, err = r.resolveAppearanceDict(annotDict["AP"])
 	if err != nil {
-		return nil, err
+		return annotModel, err
 	}
 
 	annotModel.Subtype, err = r.resolveAnnotationSubType(annotDict)
 	if err != nil {
-		return nil, err
+		return annotModel, err
 	}
 
-	if isRef { // write the annotation back into the cache
-		r.annotations[annotRef] = &annotModel
-	}
-	return &annotModel, nil
+	return annotModel, nil
 }
 
 // node, possibly root
@@ -284,6 +291,7 @@ func (r *resolver) processAction(action pdfcpu.Dict) (model.Action, error) {
 	}
 }
 
+// TODO: more annotation subtypes
 func (r *resolver) resolveAnnotationSubType(annot pdfcpu.Dict) (model.AnnotationType, error) {
 	var err error
 	switch annot["Subtype"] {

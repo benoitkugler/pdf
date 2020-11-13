@@ -77,7 +77,7 @@ func (pages *PageTree) pdfString(pdf pdfWriter, ownReference, parentRef Referenc
 	}
 	res := ""
 	if pages.Resources != nil {
-		res = fmt.Sprintf(" /Resources %s", pages.Resources.PDFString(pdf))
+		res = fmt.Sprintf(" /Resources %s", pdf.addItem(pages.Resources))
 	}
 	content := fmt.Sprintf("<</Type /Pages /Count %d /Kids %s%s%s>>",
 		pages.Count(), writeRefArray(kidRefs), parent, res)
@@ -119,7 +119,7 @@ func (p PageObject) pdfString(pdf pdfWriter, parentReference Reference) string {
 	b.line("/Type /Page")
 	b.line("/Parent %s", parentReference)
 	if p.Resources != nil {
-		b.line("/Resources %s", p.Resources.PDFString(pdf))
+		b.line("/Resources %s", pdf.addItem(p.Resources))
 	}
 	if p.MediaBox != nil {
 		b.line("/MediaBox %s", p.MediaBox.PDFstring())
@@ -169,7 +169,7 @@ type ResourcesDict struct {
 	XObject    map[Name]XObject       // optionnal
 }
 
-func (r ResourcesDict) PDFString(pdf pdfWriter) string {
+func (r ResourcesDict) pdfContent(pdf pdfWriter) (string, []byte) {
 	b := newBuffer()
 	b.line("<<")
 	if r.ExtGState != nil {
@@ -221,7 +221,7 @@ func (r ResourcesDict) PDFString(pdf pdfWriter) string {
 		b.line(">>")
 	}
 	b.fmt(">>")
-	return b.String()
+	return b.String(), nil
 }
 
 // ----------------------- structure -----------------------
@@ -379,7 +379,8 @@ func (o *OutlineItem) Count() int {
 	return c
 }
 
-// convenience
+// convenience function to write an item only once, and return
+// its reference afterwards
 func (pdf pdfWriter) addOutlineItem(item *OutlineItem, parent Reference) Reference {
 	nextRef, has := pdf.outlines[item]
 	if !has {
@@ -399,37 +400,37 @@ func (o *OutlineItem) pdfString(pdf pdfWriter, ref, parent Reference) string {
 	b.fmt("<</Title %s /Parent %s", pdf.EncodeString(o.Title, TextString), parent)
 	if o.Next != nil {
 		nextRef := pdf.addOutlineItem(o.Next, parent)
-		b.fmt(" /Next %s", nextRef)
+		b.fmt("/Next %s", nextRef)
 	}
 	if prev := o.Prev(); prev != nil {
 		prevRef := pdf.addOutlineItem(prev, parent)
-		b.fmt(" /Prev %s", prevRef)
+		b.fmt("/Prev %s", prevRef)
 	}
 	if first := o.First; first != nil {
 		firstRef := pdf.addOutlineItem(first, ref)
-		b.fmt(" /First %s", firstRef)
+		b.fmt("/First %s", firstRef)
 	}
 	if last := o.Last(); last != nil {
 		lastRef := pdf.addOutlineItem(last, ref)
-		b.fmt(" /Last %s", lastRef)
+		b.fmt("/Last %s", lastRef)
 	}
 	count := o.Count() // absolute value
 	if !o.Open {       // closed -> count negative
 		count = -count
 	}
-	b.fmt(" /Count %d", count)
+	b.fmt("/Count %d", count)
 	if o.Dest != nil {
-		b.fmt(" /Dest %s", o.Dest.pdfDestination(pdf))
+		b.fmt("/Dest %s", o.Dest.pdfDestination(pdf))
 	}
 	if o.A != nil {
-		b.fmt(" /A %s", o.A.ActionDictionary(pdf))
+		b.fmt("/A %s", o.A.ActionDictionary(pdf))
 	}
 	// TODO: structure element
 	if o.C != [3]float64{} {
-		b.fmt(" /C %s", writeFloatArray(o.C[:]))
+		b.fmt("/C %s", writeFloatArray(o.C[:]))
 	}
 	if o.F != 0 {
-		b.fmt(" /F %d", o.F)
+		b.fmt("/F %d", o.F)
 	}
 	b.fmt(">>")
 	return b.String()

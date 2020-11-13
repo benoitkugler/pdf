@@ -327,7 +327,7 @@ func (r resolver) resolveFontT0(font pdfcpu.Dict) (model.Type0, error) {
 		}
 	}
 
-	desc := font.ArrayEntry("DescendantFonts")
+	desc, _ := r.resolve(font["DescendantFonts"]).(pdfcpu.Array)
 	if len(desc) != 1 {
 		return model.Type0{}, fmt.Errorf("expected array of one indirect object, got %s", desc)
 	}

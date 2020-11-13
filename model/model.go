@@ -24,7 +24,8 @@ type Document struct {
 func (doc Document) Write(pdf PDFOutput) (root, info Reference) {
 	wr := newWriter(pdf)
 
-	root = wr.addObject(doc.Catalog.pdfString(wr), nil)
+	root = wr.CreateObject()
+	wr.WriteObject(doc.Catalog.pdfString(wr, root), nil, root)
 	info = wr.addObject(doc.Trailer.Info.pdfString(wr), nil)
 
 	return root, info
@@ -45,7 +46,8 @@ type Catalog struct {
 }
 
 // returns the Dictionary of `cat`
-func (cat Catalog) pdfString(pdf pdfWriter) string {
+// `catalog` is needed by the potential signature fields
+func (cat Catalog) pdfString(pdf pdfWriter, catalog Reference) string {
 	b := newBuffer()
 	b.line("<<\n/Type /Catalog")
 
@@ -57,10 +59,10 @@ func (cat Catalog) pdfString(pdf pdfWriter) string {
 	// (at this point, the cache `pages` is filled)
 	cat.Pages.allocateReferences(pdf)
 
-	ref := pdf.CreateObject()
-	content := cat.Pages.pdfString(pdf, ref, -1)
-	pdf.WriteObject(content, nil, ref)
-	b.line("/Pages %s", ref)
+	pageRef := pdf.CreateObject()
+	content := cat.Pages.pdfString(pdf, pageRef, -1)
+	pdf.WriteObject(content, nil, pageRef)
+	b.line("/Pages %s", pageRef)
 
 	if pLabel := cat.PageLabels; pLabel != nil {
 		ref := pdf.addObject(pLabel.pdfString(pdf), nil)
@@ -93,7 +95,7 @@ func (cat Catalog) pdfString(pdf pdfWriter) string {
 		b.line("/PageMode %s", p)
 	}
 	if ac := cat.AcroForm; ac != nil {
-		ref := pdf.addObject(ac.pdfString(pdf), nil)
+		ref := pdf.addObject(ac.pdfString(pdf, catalog), nil)
 		b.line("/AcroForm %s", ref)
 	}
 	if outline := cat.Outlines; outline != nil {

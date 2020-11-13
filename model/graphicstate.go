@@ -42,37 +42,37 @@ func (g *GraphicState) pdfContent(pdf pdfWriter) (string, []byte) {
 	b := newBuffer()
 	b.WriteString("<<")
 	if g.LW != 0 {
-		b.fmt(" /LW %.3f", g.LW)
+		b.fmt("/LW %.3f", g.LW)
 	}
 	if g.LC != Undef {
-		b.fmt(" /LC %d", g.LC)
+		b.fmt("/LC %d", g.LC)
 	}
 	if g.LJ != Undef {
-		b.fmt(" /LJ %d", g.LJ)
+		b.fmt("/LJ %d", g.LJ)
 	}
 	if g.ML != 0 {
-		b.fmt(" /ML %.3f", g.ML)
+		b.fmt("/ML %.3f", g.ML)
 	}
 	if g.D != nil {
-		b.fmt(" /D %s", *g.D)
+		b.fmt("/D %s", *g.D)
 	}
 	if g.RI != "" {
-		b.fmt(" /RI %s", g.RI)
+		b.fmt("/RI %s", g.RI)
 	}
 	if g.Font.Font != nil {
-		b.fmt(" /Font %s", g.Font.pdfString(pdf))
+		b.fmt("/Font %s", g.Font.pdfString(pdf))
 	}
 	if g.CA != Undef {
-		b.fmt(" /CA %.3f", g.CA)
+		b.fmt("/CA %.3f", g.CA)
 	}
 	if g.Ca != Undef {
-		b.fmt(" /ca %.3f", g.Ca)
+		b.fmt("/ca %.3f", g.Ca)
 	}
-	b.fmt(" /AIS %v", g.AIS)
+	b.fmt("/AIS %v", g.AIS)
 	if g.SM != Undef {
-		b.fmt(" /SM %.3f", g.SM)
+		b.fmt("/SM %.3f", g.SM)
 	}
-	b.fmt(" /SA %v", g.SA)
+	b.fmt("/SA %v", g.SA)
 	b.WriteString(">>")
 	return b.String(), nil
 }
@@ -135,10 +135,10 @@ func (c *ICCBasedColorSpace) pdfContent(pdf pdfWriter) (string, []byte) {
 	b.fmt("<</N %d %s", c.N, baseArgs)
 	if c.Alternate != nil {
 		alt := writeColorSpace(c.Alternate, pdf)
-		b.fmt(" /Alternate %s", alt)
+		b.fmt("/Alternate %s", alt)
 	}
 	if len(c.Range) != 0 {
-		b.fmt(" /Range %s", writeRangeArray(c.Range))
+		b.fmt("/Range %s", writeRangeArray(c.Range))
 	}
 	b.fmt(">>")
 	return b.String(), c.Content
@@ -348,7 +348,7 @@ func (s FunctionBased) pdfContent(commonFields string, pdf pdfWriter) (string, [
 	fns := pdf.writeFunctions(s.Function)
 	b.fmt("<</ShadingType 1 %s /Function %s", commonFields, writeRefArray(fns))
 	if s.Domain != [4]float64{} {
-		b.fmt(" /Domain %s", writeFloatArray(s.Domain[:]))
+		b.fmt("/Domain %s", writeFloatArray(s.Domain[:]))
 	}
 	if (s.Matrix != Matrix{}) {
 		b.fmt("/Matrix %s", s.Matrix)
@@ -420,7 +420,7 @@ func (c Coons) pdfContent(commonFields string, pdf pdfWriter) (string, []byte) {
 		commonFields, args, c.BitsPerCoordinate, c.BitsPerComponent, c.BitsPerFlag, writeRangeArray(c.Decode))
 	if len(c.Function) != 0 {
 		fns := pdf.writeFunctions(c.Function)
-		b.fmt(" /Function %s", writeRefArray(fns))
+		b.fmt("/Function %s", writeRefArray(fns))
 	}
 	b.fmt(">>")
 	return b.String(), nil
@@ -444,12 +444,12 @@ func (s *ShadingDict) pdfContent(pdf pdfWriter) (string, []byte) {
 	cs := writeColorSpace(s.ColorSpace, pdf)
 	b.fmt("/ColorSpace %s", cs)
 	if len(s.Background) != 0 {
-		b.fmt(" /Background %s", writeFloatArray(s.Background))
+		b.fmt("/Background %s", writeFloatArray(s.Background))
 	}
 	if s.BBox != nil {
-		b.fmt(" /BBox %s", s.BBox.PDFstring())
+		b.fmt("/BBox %s", s.BBox.PDFstring())
 	}
-	b.fmt(" /AntiAlias %v", s.AntiAlias)
+	b.fmt("/AntiAlias %v", s.AntiAlias)
 	return s.ShadingType.pdfContent(b.String(), pdf)
 }
 
@@ -465,11 +465,11 @@ func (s *ShadingPatern) pdfContent(pdf pdfWriter) (string, []byte) {
 	shadingRef := pdf.addItem(s.Shading)
 	b.fmt("<</PatternType 2 /Shading %s", shadingRef)
 	if s.Matrix != (Matrix{}) {
-		b.fmt(" /Matrix %s", s.Matrix)
+		b.fmt("/Matrix %s", s.Matrix)
 	}
 	if s.ExtGState != nil {
 		stateRef := pdf.addItem(s.ExtGState)
-		b.fmt(" /ExtGState %s", stateRef)
+		b.fmt("/ExtGState %s", stateRef)
 	}
 	b.fmt(">>")
 	return b.String(), nil
