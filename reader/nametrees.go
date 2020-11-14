@@ -11,6 +11,7 @@ import (
 type nameTree interface {
 	createKid() nameTree
 	appendKid(kid nameTree) // kid will be the value returned by createKid
+	// must handle the case where `value` is indirect
 	resolveLeafValueAppend(r *resolver, name string, value pdfcpu.Object) error
 }
 
@@ -23,7 +24,7 @@ func (r *resolver) resolveNameTree(entry pdfcpu.Object, output nameTree) error {
 		return errType("Name Tree value", entry)
 	}
 
-	if kids := dict.ArrayEntry("Kids"); kids != nil {
+	if kids, _ := r.resolve(dict["Kids"]).(pdfcpu.Array); kids != nil {
 		// intermediate node
 		// one node shouldn't be refered twice,
 		// dont bother tracking ref
@@ -39,13 +40,13 @@ func (r *resolver) resolveNameTree(entry pdfcpu.Object, output nameTree) error {
 	}
 
 	// leaf node
-	names := dict.ArrayEntry("Names")
+	names, _ := r.resolve(dict["Names"]).(pdfcpu.Array)
 	L := len(names)
 	if L%2 != 0 {
 		return fmt.Errorf("expected even length array in name tree, got %s", names)
 	}
 	for l := 0; l < L/2; l++ {
-		name, _ := isString(names[2*l])
+		name, _ := isString(r.resolve(names[2*l]))
 		value := names[2*l+1]
 		err := output.resolveLeafValueAppend(r, name, value)
 		if err != nil {
@@ -100,7 +101,7 @@ func (r *resolver) resolvePageLabelsTree(entry pdfcpu.Object, output *model.Page
 
 	// limits is inferred from the content
 
-	if kids := dict.ArrayEntry("Kids"); kids != nil {
+	if kids, _ := r.resolve(dict["Kids"]).(pdfcpu.Array); kids != nil {
 		// intermediate node
 		// one node shouldn't be refered twice,
 		// dont bother tracking ref
@@ -116,19 +117,19 @@ func (r *resolver) resolvePageLabelsTree(entry pdfcpu.Object, output *model.Page
 	}
 
 	// leaf node
-	nums := dict.ArrayEntry("Nums")
+	nums, _ := r.resolve(dict["Nums"]).(pdfcpu.Array)
 	L := len(nums)
 	if L%2 != 0 {
 		return fmt.Errorf("expected even length array in number tree, got %s", nums)
 	}
 	for l := 0; l < L/2; l++ {
-		num, _ := nums[2*l].(pdfcpu.Integer)
+		num, _ := r.resolveInt(nums[2*l])
 		value := nums[2*l+1]
 		pageLabel, err := r.processPageLabel(value)
 		if err != nil {
 			return err
 		}
-		output.Nums = append(output.Nums, model.NumToPageLabel{Num: num.Value(), PageLabel: pageLabel})
+		output.Nums = append(output.Nums, model.NumToPageLabel{Num: num, PageLabel: pageLabel})
 	}
 	return nil
 }
@@ -140,10 +141,10 @@ func (r resolver) processPageLabel(entry pdfcpu.Object) (model.PageLabel, error)
 		return model.PageLabel{}, errType("Page Label", entry)
 	}
 	var out model.PageLabel
-	if s := entryDict.NameEntry("S"); s != nil {
-		out.S = model.Name(*s)
+	if s, ok := r.resolveName(entryDict["S"]); ok {
+		out.S = s
 	}
-	p, _ := isString(entryDict["P"])
+	p, _ := isString(r.resolve(entryDict["P"]))
 	out.P = decodeTextString(p)
 	if st := entryDict.IntEntry("St"); st != nil {
 		out.St = *st

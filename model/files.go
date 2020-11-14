@@ -37,7 +37,7 @@ type EmbeddedFileParams struct {
 	Size         int       // optional
 	CreationDate time.Time // optional
 	ModDate      time.Time // optional
-	CheckSum     string    // optional, should be hex16 encoded
+	CheckSum     string    // optional, must be hex16 encoded
 }
 
 func (params EmbeddedFileParams) pdfString(pdf pdfWriter) string {

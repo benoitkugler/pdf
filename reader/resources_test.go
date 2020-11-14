@@ -22,7 +22,8 @@ func TestDifferences(t *testing.T) {
 		pdfcpu.Name("bullet"),
 		pdfcpu.Name("emdash"),
 	}
-	diff := parseDiffArray(ar)
+	var r resolver
+	diff := r.parseDiffArray(ar)
 	if !reflect.DeepEqual(diff, expected) {
 		t.Errorf("expected %v, got %v", expected, diff)
 	}

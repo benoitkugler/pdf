@@ -115,14 +115,14 @@ func (r resolver) resolveFonts(ft pdfcpu.Object) (map[model.Name]*model.Font, er
 	return ftMap, nil
 }
 
-func parseDiffArray(ar pdfcpu.Array) model.Differences {
+func (r resolver) parseDiffArray(ar pdfcpu.Array) model.Differences {
 	var (
 		currentCode   byte
 		posInNameList int
 		out           = make(model.Differences)
 	)
 	for _, o := range ar {
-		switch o := o.(type) {
+		switch o := r.resolve(o).(type) {
 		case pdfcpu.Integer: // new code start
 			currentCode = byte(o)
 			posInNameList = 0
@@ -135,7 +135,7 @@ func parseDiffArray(ar pdfcpu.Array) model.Differences {
 }
 
 func (r resolver) resolveEncoding(encoding pdfcpu.Object) (model.SimpleEncoding, error) {
-	if encName, isName := encoding.(pdfcpu.Name); isName {
+	if encName, isName := r.resolveName(encoding); isName {
 		return model.NewPrededinedEncoding(string(encName)), nil
 	}
 	// ref or dict, maybe nil
@@ -151,11 +151,11 @@ func (r resolver) resolveEncoding(encoding pdfcpu.Object) (model.SimpleEncoding,
 		return nil, errType("Encoding", encoding)
 	}
 	var encModel model.EncodingDict
-	if name := encDict.NameEntry("BaseEncoding"); name != nil {
-		encModel.BaseEncoding = model.Name(*name)
+	if name, ok := r.resolveName(encDict["BaseEncoding"]); ok {
+		encModel.BaseEncoding = name
 	}
 	if diff, ok := r.resolve(encDict["Differences"]).(pdfcpu.Array); ok {
-		encModel.Differences = parseDiffArray(diff)
+		encModel.Differences = r.parseDiffArray(diff)
 	}
 	if isRef { // write back encoding to the cache
 		r.encodings[encRef] = &encModel
@@ -167,8 +167,7 @@ func (r resolver) resolveFontTT1orTT(font pdfcpu.Dict) (model.Type1, error) {
 	var err error
 	out := model.Type1{}
 
-	baseFont, _ := font["BaseFont"].(pdfcpu.Name)
-	out.BaseFont = model.Name(baseFont)
+	out.BaseFont, _ = r.resolveName(font["BaseFont"])
 
 	out.Encoding, err = r.resolveEncoding(font["Encoding"])
 	if err != nil {
@@ -183,28 +182,28 @@ func (r resolver) resolveFontTT1orTT(font pdfcpu.Dict) (model.Type1, error) {
 		return out, nil
 	}
 
-	if fc := font.IntEntry("FirstChar"); fc != nil {
-		if *fc > 255 {
-			return out, fmt.Errorf("overflow for FirstChar %d", *fc)
+	if fc, ok := r.resolveInt(font["FirstChar"]); ok {
+		if fc > 255 {
+			return out, fmt.Errorf("overflow for FirstChar %d", fc)
 		}
-		out.FirstChar = byte(*fc)
+		out.FirstChar = byte(fc)
 	}
-	var lastChar byte
-	if lc := font.IntEntry("LastChar"); lc != nil {
-		if *lc > 255 {
-			return out, fmt.Errorf("overflow for FirstChar %d", *lc)
+	var lastChar byte // store it to check the length of Widths
+	if lc, ok := r.resolveInt(font["LastChar"]); ok {
+		if lc > 255 {
+			return out, fmt.Errorf("overflow for FirstChar %d", lc)
 		}
-		lastChar = byte(*lc)
+		lastChar = byte(lc)
 	}
 
 	widths, _ := r.resolve(font["Widths"]).(pdfcpu.Array)
 	out.Widths = make([]int, len(widths))
 	for i, w := range widths {
-		wf, _ := isNumber(w) // also accept float
+		wf, _ := isNumber(r.resolve(w)) // also accept float
 		out.Widths[i] = int(wf)
 	}
 	// be careful to byte overflow when LastChar = 255 and FirstChar = 0
-	if exp := int(lastChar) - int(out.FirstChar) + 1; font["Widths"] != nil && exp != len(out.Widths) {
+	if exp := int(lastChar) - int(out.FirstChar) + 1; widths != nil && exp != len(out.Widths) {
 		log.Printf("invalid length for font Widths array: expected %d, got %d", exp, len(out.Widths))
 	}
 
@@ -219,46 +218,46 @@ func (r resolver) resolveFontDescriptor(entry pdfcpu.Object) (model.FontDescript
 		return model.FontDescriptor{}, errType("FontDescriptor", fd)
 	}
 	var out model.FontDescriptor
-	if f, ok := isNumber(fontDescriptor["Ascent"]); ok {
+	if f, ok := isNumber(r.resolve(fontDescriptor["Ascent"])); ok {
 		out.Ascent = f
 	}
-	if f, ok := isNumber(fontDescriptor["Descent"]); ok {
+	if f, ok := isNumber(r.resolve(fontDescriptor["Descent"])); ok {
 		out.Descent = f
 	}
-	if f, ok := isNumber(fontDescriptor["Leading"]); ok {
+	if f, ok := isNumber(r.resolve(fontDescriptor["Leading"])); ok {
 		out.Leading = f
 	}
-	if f, ok := isNumber(fontDescriptor["CapHeight"]); ok {
+	if f, ok := isNumber(r.resolve(fontDescriptor["CapHeight"])); ok {
 		out.CapHeight = f
 	}
-	if f, ok := isNumber(fontDescriptor["XHeight"]); ok {
+	if f, ok := isNumber(r.resolve(fontDescriptor["XHeight"])); ok {
 		out.XHeight = f
 	}
-	if f, ok := isNumber(fontDescriptor["StemV"]); ok {
+	if f, ok := isNumber(r.resolve(fontDescriptor["StemV"])); ok {
 		out.StemV = f
 	}
-	if f, ok := isNumber(fontDescriptor["StemH"]); ok {
+	if f, ok := isNumber(r.resolve(fontDescriptor["StemH"])); ok {
 		out.StemH = f
 	}
-	if f, ok := isNumber(fontDescriptor["AvgWidth"]); ok {
+	if f, ok := isNumber(r.resolve(fontDescriptor["AvgWidth"])); ok {
 		out.AvgWidth = f
 	}
-	if f, ok := isNumber(fontDescriptor["MaxWidth"]); ok {
+	if f, ok := isNumber(r.resolve(fontDescriptor["MaxWidth"])); ok {
 		out.MaxWidth = f
 	}
-	if f, ok := isNumber(fontDescriptor["MissingWidth"]); ok {
+	if f, ok := isNumber(r.resolve(fontDescriptor["MissingWidth"])); ok {
 		out.MissingWidth = f
 	}
-	if it, ok := isNumber(fontDescriptor["ItalicAngle"]); ok {
+	if it, ok := isNumber(r.resolve(fontDescriptor["ItalicAngle"])); ok {
 		out.ItalicAngle = it
 	}
-	if fl := fontDescriptor.IntEntry("Flags"); fl != nil && *fl >= 0 {
-		out.Flags = model.FontFlag(*fl)
+	if fl, ok := r.resolveInt(fontDescriptor["Flags"]); ok && fl >= 0 {
+		out.Flags = model.FontFlag(fl)
 	}
-	if name := fontDescriptor.NameEntry("FontName"); name != nil {
-		out.FontName = model.Name(*name)
+	if name, ok := r.resolveName(fontDescriptor["FontName"]); ok {
+		out.FontName = name
 	}
-	if bbox := rectangleFromArray(fontDescriptor.ArrayEntry("FontBBox")); bbox != nil {
+	if bbox := r.rectangleFromArray(fontDescriptor["FontBBox"]); bbox != nil {
 		out.FontBBox = *bbox
 	}
 
@@ -274,7 +273,7 @@ func (r resolver) resolveFontDescriptor(entry pdfcpu.Object) (model.FontDescript
 		return out, err
 	}
 
-	if charSet, ok := isString(fontDescriptor["CharSet"]); ok {
+	if charSet, ok := isString(r.resolve(fontDescriptor["CharSet"])); ok {
 		out.CharSet = charSet
 	}
 
@@ -283,26 +282,23 @@ func (r resolver) resolveFontDescriptor(entry pdfcpu.Object) (model.FontDescript
 
 func (r resolver) processFontFile(object pdfcpu.Object) (*model.FontFile, error) {
 	cs, err := r.processContentStream(object)
-	if err != nil {
+	if err != nil || cs == nil {
 		return nil, err
 	}
-	if cs == nil {
-		return nil, nil
-	}
-	stream, _ := r.resolve(object).(pdfcpu.StreamDict)
+
+	stream, _ := r.resolve(object).(pdfcpu.StreamDict) // here, we know object is a StreamDict
 	out := model.FontFile{ContentStream: *cs}
 
-	subtype, _ := stream.Dict["Subtype"].(pdfcpu.Name)
-	out.Subtype = model.Name(subtype)
+	out.Subtype, _ = r.resolveName(stream.Dict["Subtype"])
 
-	if l := stream.IntEntry("Length1"); l != nil {
-		out.Length1 = *l
+	if l, ok := r.resolveInt(stream.Dict["Length1"]); ok {
+		out.Length1 = l
 	}
-	if l := stream.IntEntry("Length2"); l != nil {
-		out.Length2 = *l
+	if l, ok := r.resolveInt(stream.Dict["Length2"]); ok {
+		out.Length2 = l
 	}
-	if l := stream.IntEntry("Length3"); l != nil {
-		out.Length3 = *l
+	if l, ok := r.resolveInt(stream.Dict["Length3"]); ok {
+		out.Length3 = l
 	}
 	return &out, nil
 }
@@ -311,10 +307,9 @@ func (r resolver) resolveFontT0(font pdfcpu.Dict) (model.Type0, error) {
 	var err error
 	out := model.Type0{}
 
-	baseFont, _ := font["BaseFont"].(pdfcpu.Name)
-	out.BaseFont = model.Name(baseFont)
+	out.BaseFont, _ = r.resolveName(font["BaseFont"])
 
-	if enc, ok := font["Encoding"].(pdfcpu.Name); ok {
+	if enc, ok := r.resolveName(font["Encoding"]); ok {
 		out.Encoding = model.PredefinedCMapEncoding(enc)
 	} else {
 		// should'nt be common, dont bother tracking ref
@@ -354,67 +349,55 @@ func (r resolver) resolveCIDFontDict(cid pdfcpu.Dict) (model.CIDFontDictionary, 
 		out model.CIDFontDictionary
 		err error
 	)
-	if subtype := cid.NameEntry("Subtype"); subtype != nil {
-		out.Subtype = model.Name(*subtype)
-	}
-	if baseFont := cid.NameEntry("BaseFont"); baseFont != nil {
-		out.BaseFont = model.Name(*baseFont)
-	}
+	out.Subtype, _ = r.resolveName(cid["Subtype"])
+	out.BaseFont, _ = r.resolveName(cid["BaseFont"])
 
 	cidSystem := r.resolve(cid["CIDSystemInfo"])
 	cidSystemDict, isDict := cidSystem.(pdfcpu.Dict)
 	if !isDict {
 		return model.CIDFontDictionary{}, errType("CIDSystemInfo", cidSystem)
 	}
-	if reg, ok := isString(cidSystemDict["Registry"]); ok {
-		out.CIDSystemInfo.Registry = reg
-	}
-	if ord, ok := isString(cidSystemDict["Ordering"]); ok {
-		out.CIDSystemInfo.Ordering = ord
-	}
-	if sup := cidSystemDict.IntEntry("Supplement"); sup != nil {
-		out.CIDSystemInfo.Supplement = *sup
-	}
+	out.CIDSystemInfo.Registry, _ = isString(r.resolve(cidSystemDict["Registry"]))
+	out.CIDSystemInfo.Ordering, _ = isString(r.resolve(cidSystemDict["Ordering"]))
+	out.CIDSystemInfo.Supplement, _ = r.resolveInt(cidSystemDict["Supplement"])
 
 	out.FontDescriptor, err = r.resolveFontDescriptor(cid["FontDescriptor"])
 	if err != nil {
 		return out, err
 	}
 
-	if w := cid.IntEntry("DW"); w != nil {
-		out.DW = *w
-	}
-	dw2 := cid.ArrayEntry("DW2")
+	out.DW, _ = r.resolveInt(cid["DW"])
+
+	dw2 := r.resolve(cid["DW2"]).(pdfcpu.Array)
 	if len(dw2) == 2 {
-		dw21, _ := dw2[0].(pdfcpu.Integer)
-		dw22, _ := dw2[1].(pdfcpu.Integer)
-		out.DW2[0], out.DW2[1] = dw21.Value(), dw22.Value()
+		out.DW2[0], _ = r.resolveInt(dw2[0])
+		out.DW2[1], _ = r.resolveInt(dw2[1])
 	}
-	out.W = processCIDWidths(r.resolve(cid["W"]))
-	out.W2 = processCIDWidths(r.resolve(cid["W2"]))
+	out.W = r.processCIDWidths(cid["W"])
+	out.W2 = r.processCIDWidths(cid["W2"])
 	return out, nil
 }
 
-func processCIDWidths(wds pdfcpu.Object) []model.CIDWidth {
-	ar, _ := wds.(pdfcpu.Array)
+func (r resolver) processCIDWidths(wds pdfcpu.Object) []model.CIDWidth {
+	ar, _ := r.resolve(wds).(pdfcpu.Array)
 	var out []model.CIDWidth
 	for i := 0; i < len(ar); {
-		first, _ := ar[i].(pdfcpu.Integer)
+		first, _ := r.resolveInt(ar[i])
 		if i+1 >= len(ar) {
 			// invalid, ignore last element
 			return out
 		}
-		switch next := ar[i+1].(type) {
+		switch next := r.resolve(ar[i+1]).(type) {
 		case pdfcpu.Integer:
 			last := next
 			if i+2 >= len(ar) {
 				// invalid, ignore last element
 				return out
 			}
-			w, _ := ar[i+2].(pdfcpu.Integer)
+			w, _ := r.resolveInt(ar[i+2])
 			out = append(out, model.CIDWidthRange{
 				First: rune(first), Last: rune(last),
-				Width: w.Value(),
+				Width: w,
 			})
 			i += 3
 		case pdfcpu.Array:
@@ -423,8 +406,7 @@ func processCIDWidths(wds pdfcpu.Object) []model.CIDWidth {
 				W:     make([]int, len(next)),
 			}
 			for j, w := range next {
-				wi, _ := w.(pdfcpu.Integer)
-				cid.W[j] = wi.Value()
+				cid.W[j], _ = r.resolveInt(w)
 			}
 			out = append(out, cid)
 			i += 2
@@ -437,15 +419,16 @@ func processCIDWidths(wds pdfcpu.Object) []model.CIDWidth {
 }
 
 func (r resolver) parseFontDict(font pdfcpu.Dict) (model.FontType, error) {
-	switch font["Subtype"] {
-	case pdfcpu.Name("Type0"):
+	subtype, _ := r.resolveName(font["Subtype"])
+	switch subtype {
+	case "Type0":
 		return r.resolveFontT0(font)
-	case pdfcpu.Name("Type1"):
+	case "Type1":
 		return r.resolveFontTT1orTT(font)
-	case pdfcpu.Name("TrueType"):
+	case "TrueType":
 		t1, err := r.resolveFontTT1orTT(font)
 		return model.TrueType(t1), err
-	case pdfcpu.Name("Type3"):
+	case "Type3":
 		// TODO:
 		fmt.Println("TODO font type 3", font)
 		return model.Type3{}, nil
@@ -510,46 +493,38 @@ func (r resolver) parseStateDict(state pdfcpu.Dict) (*model.GraphicState, error)
 	out.CA = model.Undef
 	out.Ca = model.Undef
 	out.SM = model.Undef
-	if lw, ok := isNumber(state["LW"]); ok {
-		out.LW = lw
+
+	out.LW, _ = isNumber(r.resolve(state["LW"]))
+	out.ML, _ = isNumber(r.resolve(state["ML"]))
+	out.RI, _ = r.resolveName(state["RI"])
+
+	if lc, ok := r.resolveInt(state["LC"]); ok { // 0 is not a default value
+		out.LC = lc
 	}
-	if lc := state.IntEntry("LC"); lc != nil {
-		out.LC = *lc
+	if lj, ok := r.resolveInt(state["LJ"]); ok { // 0 is not a default value
+		out.LJ = lj
 	}
-	if lj := state.IntEntry("LJ"); lj != nil {
-		out.LJ = *lj
-	}
-	if ml, ok := isNumber(state["ML"]); ok {
-		out.ML = ml
-	}
-	if ri := state.NameEntry("RI"); ri != nil {
-		out.RI = model.Name(*ri)
-	}
-	if ca, ok := isNumber(state["CA"]); ok {
+	if ca, ok := isNumber(r.resolve(state["CA"])); ok { // 0 is not a default value
 		out.CA = ca
 	}
-	if ca, ok := isNumber(state["Ca"]); ok {
+	if ca, ok := isNumber(r.resolve(state["Ca"])); ok { // 0 is not a default value
 		out.Ca = ca
 	}
-	if ais := state.BooleanEntry("AIS"); ais != nil {
-		out.AIS = *ais
-	}
-	if sa := state.BooleanEntry("SA"); sa != nil {
-		out.SA = *sa
-	}
-	if sm, ok := isNumber(state["SM"]); ok {
+	if sm, ok := isNumber(r.resolve(state["SM"])); ok { // 0 is not a default value
 		out.SM = sm
 	}
-	d := state.ArrayEntry("D")
-	if len(d) == 2 {
-		dash, _ := d[0].(pdfcpu.Array)
-		phase, _ := isNumber(d[1])
-		out.D.Array = processFloatArray(dash)
+	out.AIS, _ = r.resolveBool(state["AIS"])
+	out.SA, _ = r.resolveBool(state["SA"])
+
+	if d, _ := r.resolve(state["D"]).(pdfcpu.Array); len(d) == 2 {
+		dash, _ := r.resolve(d[0]).(pdfcpu.Array)
+		phase, _ := isNumber(r.resolve(d[1]))
+		out.D.Array = r.processFloatArray(dash)
 		out.D.Phase = phase
 	}
-	font := state.ArrayEntry("Font")
-	if len(font) == 2 {
-		out.Font.Size, _ = isNumber(font[1])
+
+	if font, _ := r.resolve(state["Font"]).(pdfcpu.Array); len(font) == 2 {
+		out.Font.Size, _ = isNumber(r.resolve(font[1]))
 		fontModel, err := r.resolveOneFont(font[0])
 		if err != nil {
 			return nil, err

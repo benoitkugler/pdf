@@ -20,8 +20,7 @@ func (r resolver) resolveStructureTree(obj pdfcpu.Object) (*model.StructureTree,
 		out model.StructureTree
 		err error
 	)
-	K := r.resolve(structDict["K"])
-	switch K := K.(type) {
+	switch K := r.resolve(structDict["K"]).(type) {
 	case pdfcpu.Dict: // one child
 		elemn, err := r.resolveStructureElement(K)
 		if err != nil {
@@ -45,13 +44,12 @@ func (r resolver) resolveStructureTree(obj pdfcpu.Object) (*model.StructureTree,
 	if err != nil {
 		return nil, err
 	}
-	roles := structDict.DictEntry("RoleMap")
+	roles, _ := r.resolve(structDict["RoleMap"]).(pdfcpu.Dict)
 	out.RoleMap = make(map[model.Name]model.Name, len(roles))
 	for k, v := range roles {
-		v, _ := v.(pdfcpu.Name)
-		out.RoleMap[model.Name(k)] = model.Name(v)
+		out.RoleMap[model.Name(k)], _ = r.resolveName(v)
 	}
-	class := structDict.DictEntry("ClassMap")
+	class := r.resolve(structDict["ClassMap"]).(pdfcpu.Dict)
 	out.ClassMap = make(map[model.Name][]model.AttributeObject, len(class))
 	for k, v := range class {
 		//TODO: class map

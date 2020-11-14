@@ -40,7 +40,7 @@ func (r resolver) processContentStream(content pdfcpu.Object) (*model.ContentStr
 	}
 	ar, _ := filters.(pdfcpu.Array)
 	for _, name := range ar {
-		if filterName, isName := name.(pdfcpu.Name); isName {
+		if filterName, isName := r.resolveName(name); isName {
 			if f := model.NewFilter(string(filterName)); f != "" {
 				out.Filter = []model.Filter{f}
 			}
@@ -66,7 +66,6 @@ func (r resolver) processContentStream(content pdfcpu.Object) (*model.ContentStr
 	return &out, nil
 }
 
-// TODO:
 func (r *resolver) resolvePageObject(node pdfcpu.Dict, parent *model.PageTree) (*model.PageObject, error) {
 	resources, err := r.resolveOneResourceDict(node["Resources"])
 	if err != nil {
@@ -75,27 +74,17 @@ func (r *resolver) resolvePageObject(node pdfcpu.Dict, parent *model.PageTree) (
 	var page model.PageObject
 	page.Parent = parent
 	page.Resources = resources
-	if ar, isArray := node["MediaBox"].(pdfcpu.Array); isArray {
-		page.MediaBox = rectangleFromArray(ar)
-	}
-	if ar, isArray := node["CropBox"].(pdfcpu.Array); isArray {
-		page.CropBox = rectangleFromArray(ar)
-	}
-	if ar, isArray := node["BleedBox"].(pdfcpu.Array); isArray {
-		page.BleedBox = rectangleFromArray(ar)
-	}
-	if ar, isArray := node["TrimBox"].(pdfcpu.Array); isArray {
-		page.TrimBox = rectangleFromArray(ar)
-	}
-	if ar, isArray := node["ArtBox"].(pdfcpu.Array); isArray {
-		page.ArtBox = rectangleFromArray(ar)
-	}
-	if rot := node.IntEntry("Rotate"); rot != nil {
-		page.Rotate = model.NewRotation(*rot)
+	page.MediaBox = r.rectangleFromArray(node["MediaBox"])
+	page.CropBox = r.rectangleFromArray(node["CropBox"])
+	page.BleedBox = r.rectangleFromArray(node["BleedBox"])
+	page.TrimBox = r.rectangleFromArray(node["TrimBox"])
+	page.ArtBox = r.rectangleFromArray(node["ArtBox"])
+	if rot, ok := r.resolveInt(node["Rotate"]); ok {
+		page.Rotate = model.NewRotation(rot)
 	}
 
 	// one content stream won't probably be referenced twice:
-	// dont both tracking the refs
+	// dont bother tracking the refs
 	contents := r.resolve(node["Contents"])
 	switch contents := contents.(type) {
 	case pdfcpu.Array: // array of streams
@@ -119,7 +108,7 @@ func (r *resolver) resolvePageObject(node pdfcpu.Dict, parent *model.PageTree) (
 		}
 	}
 
-	annots := node.ArrayEntry("Annots")
+	annots, _ := r.resolve(node["Annots"]).(pdfcpu.Array)
 	for _, annot := range annots {
 		an, err := r.resolveAnnotation(annot)
 		if err != nil {
@@ -155,28 +144,28 @@ func (r *resolver) resolveAnnotationFields(annotDict pdfcpu.Dict) (model.Annotat
 		annotModel model.Annotation
 		err        error
 	)
-	if rect := rectangleFromArray(annotDict.ArrayEntry("Rect")); rect != nil {
+	if rect := r.rectangleFromArray(annotDict["Rect"]); rect != nil {
 		annotModel.Rect = *rect
 	}
 
-	contents, _ := isString(annotDict["Contents"])
+	contents, _ := isString(r.resolve(annotDict["Contents"]))
 	annotModel.Contents = decodeTextString(contents)
 
-	if f := annotDict.IntEntry("F"); f != nil {
-		annotModel.F = *f
+	if f, ok := r.resolveInt(annotDict["F"]); ok {
+		annotModel.F = f
 	}
-	if name := annotDict.NameEntry("Name"); name != nil {
-		annotModel.AS = model.Name(*name)
+	if name, ok := r.resolveName(annotDict["Name"]); ok {
+		annotModel.AS = name
 	}
-	border := annotDict.ArrayEntry("Border")
+	border, _ := r.resolve(annotDict["Border"]).(pdfcpu.Array)
 	var bo model.Border
 	if len(border) >= 3 {
-		bo.HCornerRadius, _ = isNumber(border[0])
-		bo.VCornerRadius, _ = isNumber(border[1])
-		bo.BorderWidth, _ = isNumber(border[2])
+		bo.HCornerRadius, _ = isNumber(r.resolve(border[0]))
+		bo.VCornerRadius, _ = isNumber(r.resolve(border[1]))
+		bo.BorderWidth, _ = isNumber(r.resolve(border[2]))
 		if len(border) == 4 {
-			dash, _ := border[4].(pdfcpu.Array)
-			bo.DashArray = processFloatArray(dash)
+			dash, _ := r.resolve(border[4]).(pdfcpu.Array)
+			bo.DashArray = r.processFloatArray(dash)
 		}
 		annotModel.Border = &bo
 	}
@@ -224,16 +213,18 @@ func (r *resolver) resolvePageTree(node pdfcpu.Dict, parent *model.PageTree) (*m
 }
 
 func (r *resolver) processPageNode(node pdfcpu.Dict, parent *model.PageTree) (model.PageNode, error) {
-	switch node["Type"] {
-	case pdfcpu.Name("Pages"):
+	name, _ := r.resolveName(node["Type"])
+	switch name {
+	case "Pages":
 		return r.resolvePageTree(node, parent)
-	case pdfcpu.Name("Page"):
+	case "Page":
 		return r.resolvePageObject(node, parent)
 	default:
 		return nil, fmt.Errorf("unexpected value for Type field of page node: %s", node["Type"])
 	}
 }
 
+// TODO: support more destination
 func (r *resolver) resolveExplicitDestination(dest pdfcpu.Array) (*model.ExplicitDestination, error) {
 	if len(dest) != 5 {
 		return nil, nil
@@ -243,16 +234,16 @@ func (r *resolver) resolveExplicitDestination(dest pdfcpu.Array) (*model.Explici
 	if !isRef {
 		return nil, errType("Dest.Page", dest[0])
 	}
-	if dest[1] != pdfcpu.Name("XYZ") {
-		return nil, fmt.Errorf("expected /XYZ in Destination, got %s", dest[1])
+	if name, _ := r.resolveName(dest[1]); name != "XYZ" {
+		return nil, fmt.Errorf("expected /XYZ in Destination, got unsupported %s", dest[1])
 	}
-	if left, ok := isNumber(dest[2]); ok {
+	if left, ok := isNumber(r.resolve(dest[2])); ok {
 		out.Left = &left
 	}
-	if top, ok := isNumber(dest[3]); ok {
+	if top, ok := isNumber(r.resolve(dest[3])); ok {
 		out.Top = &top
 	}
-	out.Zoom, _ = isNumber(dest[4])
+	out.Zoom, _ = isNumber(r.resolve(dest[4]))
 	// store the incomplete destination to process later on
 	r.destinationsToComplete = append(r.destinationsToComplete,
 		incompleteDest{ref: pageRef, destination: out})
@@ -261,6 +252,7 @@ func (r *resolver) resolveExplicitDestination(dest pdfcpu.Array) (*model.Explici
 
 // TODO: support more destination format
 func (r *resolver) processDestination(dest pdfcpu.Object) (model.Destination, error) {
+	dest = r.resolve(dest)
 	switch dest := dest.(type) {
 	case pdfcpu.Name:
 		return model.DestinationName(dest), nil
@@ -276,11 +268,12 @@ func (r *resolver) processDestination(dest pdfcpu.Object) (model.Destination, er
 
 // TODO: support more
 func (r *resolver) processAction(action pdfcpu.Dict) (model.Action, error) {
-	switch action["S"] {
-	case pdfcpu.Name("URI"):
-		uri, _ := isString(action["URI"])
+	name, _ := r.resolveName(action["S"])
+	switch name {
+	case "URI":
+		uri, _ := isString(r.resolve(action["URI"]))
 		return model.URIAction(uri), nil
-	case pdfcpu.Name("GoTo"):
+	case "GoTo":
 		dest, err := r.processDestination(action["D"])
 		if err != nil {
 			return nil, err
@@ -294,8 +287,9 @@ func (r *resolver) processAction(action pdfcpu.Dict) (model.Action, error) {
 // TODO: more annotation subtypes
 func (r *resolver) resolveAnnotationSubType(annot pdfcpu.Dict) (model.AnnotationType, error) {
 	var err error
-	switch annot["Subtype"] {
-	case pdfcpu.Name("Link"):
+	name, _ := r.resolveName(annot["Subtype"])
+	switch name {
+	case "Link":
 		var an model.LinkAnnotation
 		aDict, isDict := r.resolve(annot["A"]).(pdfcpu.Dict)
 		if isDict {
@@ -307,13 +301,13 @@ func (r *resolver) resolveAnnotationSubType(annot pdfcpu.Dict) (model.Annotation
 			return an, err
 		}
 		return an, nil
-	case pdfcpu.Name("FileAttachment"):
+	case "FileAttachment":
 		var an model.FileAttachmentAnnotation
-		title, _ := isString(annot["T"])
+		title, _ := isString(r.resolve(annot["T"]))
 		an.T = decodeTextString(title)
 		an.FS, err = r.resolveFileSpec(annot["FS"])
 		return an, err
-	case pdfcpu.Name("Widget"):
+	case "Widget":
 		// TODO:
 		return model.WidgetAnnotation{}, nil
 	default:
@@ -335,8 +329,8 @@ func (r resolver) resolveFileSpec(fs pdfcpu.Object) (*model.FileSpec, error) {
 		if !isDict {
 			return nil, errType("FileSpec", fs)
 		}
-		uf, _ := isString(fsDict["UF"])
-		desc, _ := isString(fsDict["Desc"])
+		uf, _ := isString(r.resolve(fsDict["UF"]))
+		desc, _ := isString(r.resolve(fsDict["Desc"]))
 		file.UF = decodeTextString(uf)
 		file.Desc = decodeTextString(desc)
 
@@ -381,17 +375,17 @@ func (r resolver) resolveFileContent(fileEntry pdfcpu.Object) (*model.EmbeddedFi
 		return nil, errType("FileStream.Params", params)
 	}
 	var paramsModel model.EmbeddedFileParams
-	if size := paramsDict.IntEntry("Size"); size != nil {
-		paramsModel.Size = *size
+	if size, ok := r.resolveInt(paramsDict["Size"]); ok {
+		paramsModel.Size = size
 	}
 
-	checkSum, _ := isString(paramsDict["CheckSum"])
+	checkSum, _ := isString(r.resolve(paramsDict["CheckSum"]))
 	paramsModel.CheckSum = checkSum
 
-	if cd, ok := isString(paramsDict["CreationDate"]); ok {
+	if cd, ok := isString(r.resolve(paramsDict["CreationDate"])); ok {
 		paramsModel.CreationDate, _ = pdfcpu.DateTime(cd)
 	}
-	if md, ok := isString(paramsDict["ModDate"]); ok {
+	if md, ok := isString(r.resolve(paramsDict["ModDate"])); ok {
 		paramsModel.ModDate, _ = pdfcpu.DateTime(md)
 	}
 
@@ -415,11 +409,11 @@ func (r resolver) resolveFileContent(fileEntry pdfcpu.Object) (*model.EmbeddedFi
 }
 
 func (r resolver) processDecodeParms(parms pdfcpu.Object) map[model.Name]int {
-	parmsModel := make(map[model.Name]int)
 	parmsDict, _ := r.resolve(parms).(pdfcpu.Dict)
+	parmsModel := make(map[model.Name]int)
 	for paramName, paramVal := range parmsDict {
 		var intVal int
-		switch val := paramVal.(type) {
+		switch val := r.resolve(paramVal).(type) {
 		case pdfcpu.Boolean:
 			if val {
 				intVal = 1

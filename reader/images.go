@@ -74,10 +74,10 @@ func (r resolver) resolveOneXObjectImage(img pdfcpu.Object) (*model.XObjectImage
 	out := model.XObjectImage{ContentStream: *cs}
 
 	if w, ok := r.resolveInt(stream.Dict["Width"]); ok {
-		out.Width = int(w)
+		out.Width = w
 	}
 	if h, ok := r.resolveInt(stream.Dict["Height"]); ok {
-		out.Height = int(h)
+		out.Height = h
 	}
 	out.ColorSpace, err = r.resolveOneColorSpace(stream.Dict["ColorSpace"])
 	if err != nil {
@@ -90,7 +90,7 @@ func (r resolver) resolveOneXObjectImage(img pdfcpu.Object) (*model.XObjectImage
 		out.Intent = model.Name(intent)
 	}
 	if m, ok := r.resolveBool(stream.Dict["ImageMask"]); ok {
-		out.ImageMask = bool(m)
+		out.ImageMask = m
 	}
 	// TODO:
 	if mask := r.resolve(stream.Dict["Mask"]); mask != nil {
@@ -98,16 +98,16 @@ func (r resolver) resolveOneXObjectImage(img pdfcpu.Object) (*model.XObjectImage
 	}
 	decode, _ := r.resolve(stream.Dict["Decode"]).(pdfcpu.Array)
 	if !out.ImageMask {
-		out.Decode, err = processRange(decode)
+		out.Decode, err = r.processRange(decode)
 		if err != nil {
 			return nil, err
 		}
 	} else { // special case: [0 1] or [1 0]
 		if len(decode) == 2 {
-			var r model.Range
-			r[0], _ = isNumber(decode[0])
-			r[1], _ = isNumber(decode[1])
-			out.Decode = []model.Range{r}
+			var ra model.Range
+			ra[0], _ = isNumber(r.resolve(decode[0]))
+			ra[1], _ = isNumber(r.resolve(decode[1]))
+			out.Decode = []model.Range{ra}
 		}
 		// else: ignore nil or invalid
 	}

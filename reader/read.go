@@ -101,57 +101,49 @@ func isString(o pdfcpu.Object) (string, bool) {
 	}
 }
 
-func processFloatArray(ar pdfcpu.Array) []float64 {
+func (r resolver) processFloatArray(ar pdfcpu.Array) []float64 {
 	out := make([]float64, len(ar))
 	for i, v := range ar {
-		out[i], _ = isNumber(v)
+		out[i], _ = isNumber(r.resolve(v))
 	}
 	return out
 }
 
-func info(xref *pdfcpu.XRefTable) (model.Info, error) {
-	var info model.Info
-	if xref.Info != nil {
-		d, err := xref.DereferenceDict(*xref.Info)
-		if err != nil {
-			return info, fmt.Errorf("can't resolve Info Dictionary: %w", err)
-		}
-		producer, _ := isString(d["Producer"])
-		title, _ := isString(d["Title"])
-		subject, _ := isString(d["Subject"])
-		author, _ := isString(d["Author"])
-		keywords, _ := isString(d["Keywords"])
-		creator, _ := isString(d["Creator"])
-		creationDate, _ := isString(d["CreationDate"])
-		modDate, _ := isString(d["ModDate"])
-		info.Producer = decodeTextString(producer)
-		info.Title = decodeTextString(title)
-		info.Subject = decodeTextString(subject)
-		info.Author = decodeTextString(author)
-		info.Keywords = decodeTextString(keywords)
-		info.Creator = decodeTextString(creator)
-		info.CreationDate, _ = pdfcpu.DateTime(creationDate)
-		info.ModDate, _ = pdfcpu.DateTime(modDate)
+func (r resolver) info() model.Info {
+	var out model.Info
+	if info := r.xref.Info; info != nil {
+		d, _ := r.resolve(info).(pdfcpu.Dict)
+		producer, _ := isString(r.resolve(d["Producer"]))
+		title, _ := isString(r.resolve(d["Title"]))
+		subject, _ := isString(r.resolve(d["Subject"]))
+		author, _ := isString(r.resolve(d["Author"]))
+		keywords, _ := isString(r.resolve(d["Keywords"]))
+		creator, _ := isString(r.resolve(d["Creator"]))
+		creationDate, _ := isString(r.resolve(d["CreationDate"]))
+		modDate, _ := isString(r.resolve(d["ModDate"]))
+		out.Producer = decodeTextString(producer)
+		out.Title = decodeTextString(title)
+		out.Subject = decodeTextString(subject)
+		out.Author = decodeTextString(author)
+		out.Keywords = decodeTextString(keywords)
+		out.Creator = decodeTextString(creator)
+		out.CreationDate, _ = pdfcpu.DateTime(creationDate)
+		out.ModDate, _ = pdfcpu.DateTime(modDate)
 	}
-	return info, nil
+	return out
 }
 
-func encrypt(xref *pdfcpu.XRefTable) (model.Encrypt, error) {
+func (r resolver) encrypt() model.Encrypt {
 	var out model.Encrypt
-	if xref.Encrypt != nil {
-		d, err := xref.DereferenceDict(*xref.Encrypt)
-		if err != nil {
-			return out, fmt.Errorf("can't resolve Encrypt Dictionary: %w", err)
-		}
-		filter, _ := d["Filter"].(pdfcpu.Name)
-		out.Filter = model.Name(filter)
-		subFilter, _ := d["SubFilter"].(pdfcpu.Name)
-		out.SubFilter = model.Name(subFilter)
-		out.V = model.EncryptionAlgorithm(xref.E.V)
-		length, _ := d["Length"].(pdfcpu.Integer)
-		out.Length = int(length)
+	if enc := r.xref.Encrypt; enc != nil {
+		d, _ := r.resolve(enc).(pdfcpu.Dict)
+		out.Filter, _ = r.resolveName(d["Filter"])
+		out.SubFilter, _ = r.resolveName(d["SubFilter"])
+		v, _ := r.resolveInt(d["V"])
+		out.V = model.EncryptionAlgorithm(v)
+		out.Length, _ = r.resolveInt(d["Length"])
 	}
-	return out, nil
+	return out
 }
 
 func ParsePDF(source io.ReadSeeker, userPassword string) (model.Document, error) {
@@ -165,36 +157,9 @@ func ParsePDF(source io.ReadSeeker, userPassword string) (model.Document, error)
 		return out, fmt.Errorf("can't read PDF: %w", err)
 	}
 	fmt.Printf("pdfcpu processing: %s\n", time.Since(ti))
-	ti = time.Now()
-	xref := ctx.XRefTable
 
-	out.Trailer.Info, err = info(xref)
-	if err != nil {
-		return out, err
-	}
-	out.Trailer.Encrypt, err = encrypt(xref)
-	if err != nil {
-		return out, err
-	}
-
-	out.Catalog, err = catalog(xref)
-	if err != nil {
-		return out, err
-	}
-
-	fmt.Printf("model processing: %s\n", time.Since(ti))
-
-	return out, nil
-}
-
-func catalog(xref *pdfcpu.XRefTable) (model.Catalog, error) {
-	var out model.Catalog
-	d, err := xref.Catalog()
-	if err != nil {
-		return out, fmt.Errorf("can't resolve Catalog: %w", err)
-	}
 	r := resolver{
-		xref:            xref,
+		xref:            ctx.XRefTable,
 		formFields:      make(map[pdfcpu.IndirectRef]*model.FormField),
 		appearanceDicts: make(map[pdfcpu.IndirectRef]*model.AppearanceDict),
 		// appearanceEntries: make(map[pdfcpu.IndirectRef]*model.AppearanceEntry),
@@ -215,10 +180,34 @@ func catalog(xref *pdfcpu.XRefTable) (model.Catalog, error) {
 		colorTableStreams: make(map[pdfcpu.IndirectRef]*model.ColorTableStream),
 	}
 
+	ti = time.Now()
+
+	out.Trailer.Info = r.info()
+
+	out.Trailer.Encrypt = r.encrypt()
+
+	out.Catalog, err = r.catalog()
+	if err != nil {
+		return out, err
+	}
+
+	fmt.Printf("model processing: %s\n", time.Since(ti))
+
+	return out, nil
+}
+
+func (r resolver) catalog() (model.Catalog, error) {
+	var out model.Catalog
+	d, err := r.xref.Catalog()
+	if err != nil {
+		return out, fmt.Errorf("can't resolve Catalog: %w", err)
+	}
+
 	out.AcroForm, err = r.processAcroForm(d["AcroForm"])
 	if err != nil {
 		return out, err
 	}
+
 	out.Pages, err = r.processPages(d["Pages"])
 	if err != nil {
 		return out, err
@@ -234,10 +223,8 @@ func catalog(xref *pdfcpu.XRefTable) (model.Catalog, error) {
 		return out, err
 	}
 
-	p, _ := d["PageLayout"].(pdfcpu.Name)
-	out.PageLayout = model.Name(p)
-	p, _ = d["PageMode"].(pdfcpu.Name)
-	out.PageMode = model.Name(p)
+	out.PageLayout, _ = r.resolveName(d["PageLayout"])
+	out.PageMode, _ = r.resolveName(d["PageMode"])
 
 	if pl := d["PageLabels"]; pl != nil {
 		out.PageLabels = new(model.PageLabelsTree)

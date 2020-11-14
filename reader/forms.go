@@ -282,13 +282,12 @@ func (r resolver) processFormFieldType(form pdfcpu.Dict) model.FormFieldType {
 			}
 		}
 		if ti, ok := r.resolveInt(form["TI"]); ok {
-			out.TI = int(ti)
+			out.TI = ti
 		}
 		is, _ := r.resolve(form["I"]).(pdfcpu.Array)
 		out.I = make([]int, len(is))
 		for i, ii := range is {
-			ir, _ := r.resolveInt(ii)
-			out.I[i] = int(ir)
+			out.I[i], _ = r.resolveInt(ii)
 		}
 		return out
 	case fieldSig:
@@ -297,7 +296,7 @@ func (r resolver) processFormFieldType(form pdfcpu.Dict) model.FormFieldType {
 		var out model.FormFieldText
 		out.V = r.textOrStream(form["V"])
 		if ml, ok := r.resolveInt(form["MaxLen"]); ok {
-			out.MaxLen = int(ml)
+			out.MaxLen = ml
 		} else {
 			out.MaxLen = model.Undef
 		}

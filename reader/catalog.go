@@ -7,26 +7,26 @@ import (
 	"github.com/pdfcpu/pdfcpu/pkg/pdfcpu"
 )
 
-func rectangleFromArray(array pdfcpu.Object) *model.Rectangle {
-	ar, _ := array.(pdfcpu.Array)
+func (r resolver) rectangleFromArray(array pdfcpu.Object) *model.Rectangle {
+	ar, _ := r.resolve(array).(pdfcpu.Array)
 	if len(ar) < 4 {
 		return nil
 	}
-	llx, _ := isNumber(ar[0])
-	lly, _ := isNumber(ar[1])
-	urx, _ := isNumber(ar[2])
-	ury, _ := isNumber(ar[3])
+	llx, _ := isNumber(r.resolve(ar[0]))
+	lly, _ := isNumber(r.resolve(ar[1]))
+	urx, _ := isNumber(r.resolve(ar[2]))
+	ury, _ := isNumber(r.resolve(ar[3]))
 	return &model.Rectangle{Llx: llx, Lly: lly, Urx: urx, Ury: ury}
 }
 
-func matrixFromArray(array pdfcpu.Object) *model.Matrix {
-	ar, _ := array.(pdfcpu.Array)
+func (r resolver) matrixFromArray(array pdfcpu.Object) *model.Matrix {
+	ar, _ := r.resolve(array).(pdfcpu.Array)
 	if len(ar) != 6 {
 		return nil
 	}
 	var out model.Matrix
 	for i := range out {
-		out[i], _ = isNumber(ar[i])
+		out[i], _ = isNumber(r.resolve(ar[i]))
 	}
 	return &out
 }
@@ -113,10 +113,10 @@ func (r resolver) resolveOneXObjectForm(obj pdfcpu.Object) (*model.XObjectForm, 
 	}
 	stream, _ := obj.(pdfcpu.StreamDict) // here, we are sure obj is a stream
 	ap := model.XObjectForm{ContentStream: *cs}
-	if rect := rectangleFromArray(r.resolve(stream.Dict["BBox"])); rect != nil {
+	if rect := r.rectangleFromArray(r.resolve(stream.Dict["BBox"])); rect != nil {
 		ap.BBox = *rect
 	}
-	ap.Matrix = matrixFromArray(r.resolve(stream.Dict["Matrix"]))
+	ap.Matrix = r.matrixFromArray(r.resolve(stream.Dict["Matrix"]))
 	if res := stream.Dict["Resources"]; res != nil {
 		var err error
 		ap.Resources, err = r.resolveOneResourceDict(res)
@@ -144,7 +144,7 @@ func (r *resolver) resolveOneNamedDest(dest pdfcpu.Object) (*model.ExplicitDesti
 	case pdfcpu.Array:
 		expDest, err = r.resolveExplicitDestination(dest)
 	case pdfcpu.Dict:
-		D, isArray := dest["D"].(pdfcpu.Array)
+		D, isArray := r.resolve(dest["D"]).(pdfcpu.Array)
 		if !isArray {
 			return nil, errType("(Dests value).D", dest["D"])
 		}
@@ -266,7 +266,7 @@ func (r resolver) resolveOutlineItem(object pdfcpu.Object, parent model.OutlineN
 		out model.OutlineItem
 		err error
 	)
-	title, _ := isString(dict["Title"])
+	title, _ := isString(r.resolve(dict["Title"]))
 	out.Title = decodeTextString(title)
 	out.Parent = parent
 	if first := dict["First"]; first != nil {
@@ -281,10 +281,10 @@ func (r resolver) resolveOutlineItem(object pdfcpu.Object, parent model.OutlineN
 			return nil, err
 		}
 	}
-	if c, _ := dict["Count"].(pdfcpu.Integer); c >= 0 {
+	if c, _ := r.resolveInt(dict["Count"]); c >= 0 {
 		out.Open = true
 	}
-	if dest := dict["Dest"]; dest != nil {
+	if dest := r.resolve(dict["Dest"]); dest != nil {
 		out.Dest, err = r.processDestination(dest)
 		if err != nil {
 			return nil, err
@@ -297,9 +297,9 @@ func (r resolver) resolveOutlineItem(object pdfcpu.Object, parent model.OutlineN
 	}
 	// TODO: SE entry (structure hierarchy)
 	if c, _ := r.resolve(dict["C"]).(pdfcpu.Array); len(c) == 3 {
-		out.C[0], _ = isNumber(c[0])
-		out.C[1], _ = isNumber(c[1])
-		out.C[2], _ = isNumber(c[2])
+		out.C[0], _ = isNumber(r.resolve(c[0]))
+		out.C[1], _ = isNumber(r.resolve(c[1]))
+		out.C[2], _ = isNumber(r.resolve(c[2]))
 	}
 	if f, ok := r.resolveInt(dict["F"]); ok {
 		out.F = model.OutlineFlag(f)
