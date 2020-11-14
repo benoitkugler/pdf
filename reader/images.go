@@ -96,7 +96,7 @@ func (r resolver) resolveOneXObjectImage(img pdfcpu.Object) (*model.XObjectImage
 	if mask := r.resolve(stream.Dict["Mask"]); mask != nil {
 		fmt.Println("TODO: Mask", mask)
 	}
-	decode, _ := r.resolve(stream.Dict["Decode"]).(pdfcpu.Array)
+	decode, _ := r.resolveArray(stream.Dict["Decode"])
 	if !out.ImageMask {
 		out.Decode, err = r.processRange(decode)
 		if err != nil {
@@ -114,7 +114,7 @@ func (r resolver) resolveOneXObjectImage(img pdfcpu.Object) (*model.XObjectImage
 	if i, ok := r.resolveBool(stream.Dict["Interpolate"]); ok {
 		out.Interpolate = bool(i)
 	}
-	alts, _ := r.resolve(stream.Dict["Alternates"]).(pdfcpu.Array)
+	alts, _ := r.resolveArray(stream.Dict["Alternates"])
 	out.Alternates = make([]model.AlternateImage, len(alts))
 	for i, alt := range alts {
 		alt = r.resolve(alt) // the AlternateImage is itself cheap, don't bother tracking its ref

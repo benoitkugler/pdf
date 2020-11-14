@@ -8,7 +8,7 @@ import (
 )
 
 func (r resolver) rectangleFromArray(array pdfcpu.Object) *model.Rectangle {
-	ar, _ := r.resolve(array).(pdfcpu.Array)
+	ar, _ := r.resolveArray(array)
 	if len(ar) < 4 {
 		return nil
 	}
@@ -20,7 +20,7 @@ func (r resolver) rectangleFromArray(array pdfcpu.Object) *model.Rectangle {
 }
 
 func (r resolver) matrixFromArray(array pdfcpu.Object) *model.Matrix {
-	ar, _ := r.resolve(array).(pdfcpu.Array)
+	ar, _ := r.resolveArray(array)
 	if len(ar) != 6 {
 		return nil
 	}
@@ -144,7 +144,7 @@ func (r *resolver) resolveOneNamedDest(dest pdfcpu.Object) (*model.ExplicitDesti
 	case pdfcpu.Array:
 		expDest, err = r.resolveExplicitDestination(dest)
 	case pdfcpu.Dict:
-		D, isArray := r.resolve(dest["D"]).(pdfcpu.Array)
+		D, isArray := r.resolveArray(dest["D"])
 		if !isArray {
 			return nil, errType("(Dests value).D", dest["D"])
 		}
@@ -296,7 +296,7 @@ func (r resolver) resolveOutlineItem(object pdfcpu.Object, parent model.OutlineN
 		}
 	}
 	// TODO: SE entry (structure hierarchy)
-	if c, _ := r.resolve(dict["C"]).(pdfcpu.Array); len(c) == 3 {
+	if c, _ := r.resolveArray(dict["C"]); len(c) == 3 {
 		out.C[0], _ = r.resolveNumber(c[0])
 		out.C[1], _ = r.resolveNumber(c[1])
 		out.C[2], _ = r.resolveNumber(c[2])

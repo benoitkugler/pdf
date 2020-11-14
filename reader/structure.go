@@ -49,7 +49,7 @@ func (r resolver) resolveStructureTree(obj pdfcpu.Object) (*model.StructureTree,
 	for k, v := range roles {
 		out.RoleMap[model.Name(k)], _ = r.resolveName(v)
 	}
-	class := r.resolve(structDict["ClassMap"]).(pdfcpu.Dict)
+	class, _ := r.resolve(structDict["ClassMap"]).(pdfcpu.Dict)
 	out.ClassMap = make(map[model.Name][]model.AttributeObject, len(class))
 	for k, v := range class {
 		//TODO: class map

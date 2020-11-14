@@ -154,7 +154,7 @@ func (r resolver) resolveEncoding(encoding pdfcpu.Object) (model.SimpleEncoding,
 	if name, ok := r.resolveName(encDict["BaseEncoding"]); ok {
 		encModel.BaseEncoding = name
 	}
-	if diff, ok := r.resolve(encDict["Differences"]).(pdfcpu.Array); ok {
+	if diff, ok := r.resolveArray(encDict["Differences"]); ok {
 		encModel.Differences = r.parseDiffArray(diff)
 	}
 	if isRef { // write back encoding to the cache
@@ -196,7 +196,7 @@ func (r resolver) resolveFontTT1orTT(font pdfcpu.Dict) (model.Type1, error) {
 		lastChar = byte(lc)
 	}
 
-	widths, _ := r.resolve(font["Widths"]).(pdfcpu.Array)
+	widths, _ := r.resolveArray(font["Widths"])
 	out.Widths = make([]int, len(widths))
 	for i, w := range widths {
 		wf, _ := r.resolveNumber(w) // also accept float
@@ -322,7 +322,7 @@ func (r resolver) resolveFontT0(font pdfcpu.Dict) (model.Type0, error) {
 		}
 	}
 
-	desc, _ := r.resolve(font["DescendantFonts"]).(pdfcpu.Array)
+	desc, _ := r.resolveArray(font["DescendantFonts"])
 	if len(desc) != 1 {
 		return model.Type0{}, fmt.Errorf("expected array of one indirect object, got %s", desc)
 	}
@@ -368,8 +368,7 @@ func (r resolver) resolveCIDFontDict(cid pdfcpu.Dict) (model.CIDFontDictionary, 
 
 	out.DW, _ = r.resolveInt(cid["DW"])
 
-	dw2 := r.resolve(cid["DW2"]).(pdfcpu.Array)
-	if len(dw2) == 2 {
+	if dw2, _ := r.resolveArray(cid["DW2"]); len(dw2) == 2 {
 		out.DW2[0], _ = r.resolveInt(dw2[0])
 		out.DW2[1], _ = r.resolveInt(dw2[1])
 	}
@@ -379,7 +378,7 @@ func (r resolver) resolveCIDFontDict(cid pdfcpu.Dict) (model.CIDFontDictionary, 
 }
 
 func (r resolver) processCIDWidths(wds pdfcpu.Object) []model.CIDWidth {
-	ar, _ := r.resolve(wds).(pdfcpu.Array)
+	ar, _ := r.resolveArray(wds)
 	var out []model.CIDWidth
 	for i := 0; i < len(ar); {
 		first, _ := r.resolveInt(ar[i])
@@ -516,14 +515,14 @@ func (r resolver) parseStateDict(state pdfcpu.Dict) (*model.GraphicState, error)
 	out.AIS, _ = r.resolveBool(state["AIS"])
 	out.SA, _ = r.resolveBool(state["SA"])
 
-	if d, _ := r.resolve(state["D"]).(pdfcpu.Array); len(d) == 2 {
-		dash, _ := r.resolve(d[0]).(pdfcpu.Array)
+	if d, _ := r.resolveArray(state["D"]); len(d) == 2 {
+		dash, _ := r.resolveArray(d[0])
 		phase, _ := r.resolveNumber(d[1])
 		out.D.Array = r.processFloatArray(dash)
 		out.D.Phase = phase
 	}
 
-	if font, _ := r.resolve(state["Font"]).(pdfcpu.Array); len(font) == 2 {
+	if font, _ := r.resolveArray(state["Font"]); len(font) == 2 {
 		out.Font.Size, _ = r.resolveNumber(font[1])
 		fontModel, err := r.resolveOneFont(font[0])
 		if err != nil {

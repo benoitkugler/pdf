@@ -108,7 +108,7 @@ func (r *resolver) resolvePageObject(node pdfcpu.Dict, parent *model.PageTree) (
 		}
 	}
 
-	annots, _ := r.resolve(node["Annots"]).(pdfcpu.Array)
+	annots, _ := r.resolveArray(node["Annots"])
 	for _, annot := range annots {
 		an, err := r.resolveAnnotation(annot)
 		if err != nil {
@@ -157,14 +157,14 @@ func (r *resolver) resolveAnnotationFields(annotDict pdfcpu.Dict) (model.Annotat
 	if name, ok := r.resolveName(annotDict["Name"]); ok {
 		annotModel.AS = name
 	}
-	border, _ := r.resolve(annotDict["Border"]).(pdfcpu.Array)
+	border, _ := r.resolveArray(annotDict["Border"])
 	var bo model.Border
 	if len(border) >= 3 {
 		bo.HCornerRadius, _ = r.resolveNumber(border[0])
 		bo.VCornerRadius, _ = r.resolveNumber(border[1])
 		bo.BorderWidth, _ = r.resolveNumber(border[2])
 		if len(border) == 4 {
-			dash, _ := r.resolve(border[4]).(pdfcpu.Array)
+			dash, _ := r.resolveArray(border[4])
 			bo.DashArray = r.processFloatArray(dash)
 		}
 		annotModel.Border = &bo
@@ -191,7 +191,7 @@ func (r *resolver) resolvePageTree(node pdfcpu.Dict, parent *model.PageTree) (*m
 	}
 	page.Parent = parent
 	page.Resources = resources
-	kids, _ := r.resolve(node["Kids"]).(pdfcpu.Array)
+	kids, _ := r.resolveArray(node["Kids"])
 	for _, node := range kids {
 		// track the refs to page object, needed by destinations
 		ref, isRef := node.(pdfcpu.IndirectRef)

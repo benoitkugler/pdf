@@ -53,7 +53,7 @@ func (r resolver) resolveOneShading(shadings pdfcpu.Object) (*model.ShadingDict,
 		err error
 	)
 	// common fields
-	bg, _ := r.resolve(shDict["Background"]).(pdfcpu.Array)
+	bg, _ := r.resolveArray(shDict["Background"])
 	out.Background = r.processFloatArray(bg)
 	out.BBox = r.rectangleFromArray(shDict["BBox"])
 	out.AntiAlias, _ = r.resolveBool(shDict["AntiAlias"])
@@ -178,7 +178,7 @@ func (r resolver) resolveICCBased(ar pdfcpu.Array) (*model.ICCBasedColorSpace, e
 	if err != nil {
 		return nil, err
 	}
-	ra, _ := r.resolve(stream.Dict["Range"]).(pdfcpu.Array)
+	ra, _ := r.resolveArray(stream.Dict["Range"])
 	out.Range, err = r.processRange(ra)
 	if err != nil {
 		return nil, err
@@ -227,7 +227,7 @@ func (r resolver) resolveIndexed(ar pdfcpu.Array) (model.IndexedColorSpace, erro
 // check that the alternate is not a special color space
 // avoiding potential circle
 func (r resolver) resolveAlternateColorSpace(alternate pdfcpu.Object) (model.ColorSpace, error) {
-	if ar, ok := r.resolve(alternate).(pdfcpu.Array); ok && len(ar) >= 1 {
+	if ar, ok := r.resolveArray(alternate); ok && len(ar) >= 1 {
 		name, _ := r.resolveName(ar[0])
 		switch name {
 		case "Pattern", "Indexed", "Separation", "DeviceN": // forbiden special colour spaces
@@ -241,7 +241,7 @@ func (r resolver) resolveAlternateColorSpace(alternate pdfcpu.Object) (model.Col
 // returns the result as an array of funcs
 // if `expectedN` is > 0, check that the dimension of the domain is `expectedN`
 func (r resolver) resolveFuncOrArray(sh pdfcpu.Object, expectedN int) ([]model.Function, error) {
-	if ar, isAr := r.resolve(sh).(pdfcpu.Array); isAr {
+	if ar, isAr := r.resolveArray(sh); isAr {
 		out := make([]model.Function, len(ar))
 		for i, f := range ar {
 			fn, err := r.resolveFunction(f)
@@ -271,7 +271,7 @@ func (r resolver) resolveFunctionSh(sh pdfcpu.Dict) (model.FunctionBased, error)
 		err error
 	)
 
-	if domain, _ := r.resolve(sh["Domain"]).(pdfcpu.Array); len(domain) == 4 {
+	if domain, _ := r.resolveArray(sh["Domain"]); len(domain) == 4 {
 		for i, v := range domain {
 			out.Domain[i], _ = r.resolveNumber(v)
 		}
@@ -285,12 +285,12 @@ func (r resolver) resolveFunctionSh(sh pdfcpu.Dict) (model.FunctionBased, error)
 }
 
 func (r resolver) resolveBaseGradient(sh pdfcpu.Dict) (g model.BaseGradient, err error) {
-	domain, _ := r.resolve(sh["Domain"]).(pdfcpu.Array)
+	domain, _ := r.resolveArray(sh["Domain"])
 	if len(domain) == 2 {
 		g.Domain[0], _ = r.resolveNumber(domain[0])
 		g.Domain[1], _ = r.resolveNumber(domain[1])
 	}
-	extend, _ := r.resolve(sh["Extend"]).(pdfcpu.Array)
+	extend, _ := r.resolveArray(sh["Extend"])
 	if len(extend) == 2 {
 		g.Extend[0], _ = r.resolveBool(extend[0])
 		g.Extend[1], _ = r.resolveBool(extend[1])
@@ -305,7 +305,7 @@ func (r resolver) resolveAxialSh(sh pdfcpu.Dict) (model.Axial, error) {
 		return model.Axial{}, err
 	}
 	out := model.Axial{BaseGradient: g}
-	coords, _ := r.resolve(sh["Coords"]).(pdfcpu.Array)
+	coords, _ := r.resolveArray(sh["Coords"])
 	if len(coords) != 4 {
 		return out, fmt.Errorf("unexpected Coords for Axial shading %v", coords)
 	}
@@ -321,7 +321,7 @@ func (r resolver) resolveRadialSh(sh pdfcpu.Dict) (model.Radial, error) {
 		return model.Radial{}, err
 	}
 	out := model.Radial{BaseGradient: g}
-	coords, _ := r.resolve(sh["Coords"]).(pdfcpu.Array)
+	coords, _ := r.resolveArray(sh["Coords"])
 	if len(coords) != 6 {
 		return out, fmt.Errorf("unexpected Coords for Axial shading %v", coords)
 	}
@@ -349,7 +349,7 @@ func (r resolver) resolveCoonsSh(sh pdfcpu.StreamDict) (model.Coons, error) {
 	if bi, ok := r.resolveInt(sh.Dict["BitsPerFlag"]); ok {
 		out.BitsPerFlag = uint8(bi)
 	}
-	decode, _ := r.resolve(sh.Dict["Decode"]).(pdfcpu.Array)
+	decode, _ := r.resolveArray(sh.Dict["Decode"])
 	out.Decode, err = r.processRange(decode)
 	if err != nil {
 		return out, err

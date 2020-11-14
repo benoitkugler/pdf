@@ -27,7 +27,7 @@ func (r resolver) processAcroForm(acroForm pdfcpu.Object) (*model.AcroForm, erro
 		out model.AcroForm
 		err error
 	)
-	fields, _ := r.resolve(form["Fields"]).(pdfcpu.Array)
+	fields, _ := r.resolveArray(form["Fields"])
 	out.Fields = make([]*model.FormField, len(fields))
 	for i, f := range fields {
 		ff, err := r.resolveFormField(f, nil)
@@ -42,7 +42,7 @@ func (r resolver) processAcroForm(acroForm pdfcpu.Object) (*model.AcroForm, erro
 	if sig, ok := r.resolveInt(form["SigFlags"]); ok {
 		out.SigFlags = model.SignatureFlag(sig)
 	}
-	if co, _ := r.resolve(form["CO"]).(pdfcpu.Array); len(co) != 0 {
+	if co, _ := r.resolveArray(form["CO"]); len(co) != 0 {
 		out.CO = make([]*model.FormField, 0, len(co))
 		for _, c := range co {
 			ref, ok := c.(pdfcpu.IndirectRef)
@@ -184,7 +184,7 @@ func (r resolver) resolveFormField(o pdfcpu.Object, parent *model.FormField) (*m
 
 	fi.Parent = parent
 
-	kids, _ := r.resolve(f["Kids"]).(pdfcpu.Array)
+	kids, _ := r.resolveArray(f["Kids"])
 	for _, kid := range kids {
 		// a kid may be either another FormField or a Widget Annotation
 		// we need a first exploration of the kid dict
@@ -249,7 +249,7 @@ func (r resolver) processFormFieldType(form pdfcpu.Dict) model.FormFieldType {
 		var out model.FormFieldButton
 		v, _ := r.resolveName(form["V"])
 		out.V = model.Name(v)
-		opt, _ := r.resolve(form["Opt"]).(pdfcpu.Array)
+		opt, _ := r.resolveArray(form["Opt"])
 		out.Opt = make([]string, len(opt))
 		for i, o := range opt {
 			os, _ := isString(r.resolve(o))
@@ -268,7 +268,7 @@ func (r resolver) processFormFieldType(form pdfcpu.Dict) model.FormFieldType {
 				out.V[i] = decodeTextString(s)
 			}
 		}
-		opts, _ := r.resolve(form["Opt"]).(pdfcpu.Array)
+		opts, _ := r.resolveArray(form["Opt"])
 		out.Opt = make([]model.Option, len(opts))
 		for i, o := range opts {
 			o = r.resolve(o)
@@ -284,7 +284,7 @@ func (r resolver) processFormFieldType(form pdfcpu.Dict) model.FormFieldType {
 		if ti, ok := r.resolveInt(form["TI"]); ok {
 			out.TI = ti
 		}
-		is, _ := r.resolve(form["I"]).(pdfcpu.Array)
+		is, _ := r.resolveArray(form["I"])
 		out.I = make([]int, len(is))
 		for i, ii := range is {
 			out.I[i], _ = r.resolveInt(ii)

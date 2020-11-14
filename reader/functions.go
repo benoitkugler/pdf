@@ -53,12 +53,12 @@ func (r resolver) resolveFunction(fn pdfcpu.Object) (*model.Function, error) {
 	}
 
 	// common fields
-	domain, _ := r.resolve(dict["Domain"]).(pdfcpu.Array)
+	domain, _ := r.resolveArray(dict["Domain"])
 	out.Domain, err = r.processRange(domain)
 	if err != nil {
 		return nil, err
 	}
-	range_, _ := r.resolve(dict["Range"]).(pdfcpu.Array)
+	range_, _ := r.resolveArray(dict["Range"])
 	out.Range, err = r.processRange(range_)
 	if err != nil {
 		return nil, err
@@ -87,8 +87,8 @@ func (r resolver) processRange(range_ pdfcpu.Array) ([]model.Range, error) {
 }
 
 func (r resolver) processExpInterpolationFn(fn pdfcpu.Dict) (model.ExpInterpolationFunction, error) {
-	C0, _ := r.resolve(fn["C0"]).(pdfcpu.Array)
-	C1, _ := r.resolve(fn["C1"]).(pdfcpu.Array)
+	C0, _ := r.resolveArray(fn["C0"])
+	C1, _ := r.resolveArray(fn["C1"])
 	if len(C0) != len(C1) {
 		return model.ExpInterpolationFunction{}, errors.New("array length must be equal for C0 and C1")
 	}
@@ -102,7 +102,7 @@ func (r resolver) processExpInterpolationFn(fn pdfcpu.Dict) (model.ExpInterpolat
 }
 
 func (r resolver) resolveStitchingFn(fn pdfcpu.Dict) (model.StitchingFunction, error) {
-	fns, _ := r.resolve(fn["Functions"]).(pdfcpu.Array)
+	fns, _ := r.resolveArray(fn["Functions"])
 	K := len(fns)
 	var out model.StitchingFunction
 	out.Functions = make([]model.Function, K)
@@ -113,13 +113,13 @@ func (r resolver) resolveStitchingFn(fn pdfcpu.Dict) (model.StitchingFunction, e
 		}
 		out.Functions[i] = *fn
 	}
-	bounds, _ := r.resolve(fn["Bounds"]).(pdfcpu.Array)
+	bounds, _ := r.resolveArray(fn["Bounds"])
 	if len(bounds) != K-1 {
 		return out, fmt.Errorf("expected k-1 elements array for Bounds, got %v", bounds)
 	}
 	out.Bounds = r.processFloatArray(bounds)
 
-	encode, _ := r.resolve(fn["Encode"]).(pdfcpu.Array)
+	encode, _ := r.resolveArray(fn["Encode"])
 	if len(encode) != 2*K {
 		return out, fmt.Errorf("expected 2 x k elements array for Bounds, got %v", encode)
 	}
@@ -140,7 +140,7 @@ func (r resolver) processSampledFn(stream pdfcpu.StreamDict) (model.SampledFunct
 		return model.SampledFunction{}, errors.New("missing stream for Sampled function")
 	}
 	out := model.SampledFunction{ContentStream: *cs}
-	size, _ := r.resolve(stream.Dict["Size"]).(pdfcpu.Array)
+	size, _ := r.resolveArray(stream.Dict["Size"])
 	m := len(size)
 	out.Size = make([]int, m)
 	for i, s := range size {
@@ -152,7 +152,7 @@ func (r resolver) processSampledFn(stream pdfcpu.StreamDict) (model.SampledFunct
 	if o, ok := r.resolveInt(stream.Dict["Order"]); ok {
 		out.Order = uint8(o)
 	}
-	encode, _ := r.resolve(stream.Dict["Encode"]).(pdfcpu.Array)
+	encode, _ := r.resolveArray(stream.Dict["Encode"])
 	if len(encode) != 2*m {
 		return out, fmt.Errorf("expected 2 x m elements array for Bounds, got %v", encode)
 	}
@@ -162,7 +162,7 @@ func (r resolver) processSampledFn(stream pdfcpu.StreamDict) (model.SampledFunct
 		out.Encode[i][1], _ = r.resolveNumber(encode[2*i+1])
 	}
 
-	decode, _ := r.resolve(stream.Dict["Decode"]).(pdfcpu.Array)
+	decode, _ := r.resolveArray(stream.Dict["Decode"])
 	out.Decode, err = r.processRange(decode)
 
 	return out, err

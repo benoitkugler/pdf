@@ -24,7 +24,7 @@ func (r *resolver) resolveNameTree(entry pdfcpu.Object, output nameTree) error {
 		return errType("Name Tree value", entry)
 	}
 
-	if kids, _ := r.resolve(dict["Kids"]).(pdfcpu.Array); kids != nil {
+	if kids, _ := r.resolveArray(dict["Kids"]); kids != nil {
 		// intermediate node
 		// one node shouldn't be refered twice,
 		// dont bother tracking ref
@@ -40,7 +40,7 @@ func (r *resolver) resolveNameTree(entry pdfcpu.Object, output nameTree) error {
 	}
 
 	// leaf node
-	names, _ := r.resolve(dict["Names"]).(pdfcpu.Array)
+	names, _ := r.resolveArray(dict["Names"])
 	L := len(names)
 	if L%2 != 0 {
 		return fmt.Errorf("expected even length array in name tree, got %s", names)
@@ -101,7 +101,7 @@ func (r *resolver) resolvePageLabelsTree(entry pdfcpu.Object, output *model.Page
 
 	// limits is inferred from the content
 
-	if kids, _ := r.resolve(dict["Kids"]).(pdfcpu.Array); kids != nil {
+	if kids, _ := r.resolveArray(dict["Kids"]); kids != nil {
 		// intermediate node
 		// one node shouldn't be refered twice,
 		// dont bother tracking ref
@@ -117,7 +117,7 @@ func (r *resolver) resolvePageLabelsTree(entry pdfcpu.Object, output *model.Page
 	}
 
 	// leaf node
-	nums, _ := r.resolve(dict["Nums"]).(pdfcpu.Array)
+	nums, _ := r.resolveArray(dict["Nums"])
 	L := len(nums)
 	if L%2 != 0 {
 		return fmt.Errorf("expected even length array in number tree, got %s", nums)

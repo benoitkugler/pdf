@@ -55,22 +55,20 @@ type incompleteDest struct {
 func decodeTextString(s string) string {
 	b, err := pdfcpu.Unescape(s)
 	if err != nil {
-		log.Printf("error decoding string literal %s : %s", s, err)
+		log.Printf("error %s unescaping string literal %s\n", err, s)
 		return ""
 	}
 
-	s1 := string(b)
-
 	// Check for Big Endian UTF-16.
-	if pdfcpu.IsStringUTF16BE(s1) {
-		out, err := pdfcpu.DecodeUTF16String(s1)
+	if pdfcpu.IsUTF16BE(b) {
+		out, err := pdfcpu.DecodeUTF16String(string(b))
 		if err != nil {
-			log.Printf("error decoding string literal %s : %s", s, err)
+			log.Printf("error decoding UTF16 string literal %s \n", err)
 		}
 		return out
 	}
 
-	return encodings.PDFDocEncodingToString([]byte(s))
+	return encodings.PDFDocEncodingToString(b)
 }
 
 var replacer = strings.NewReplacer("\\\\", "\\", "\\(", ")", "\\)", "(", "\\r", "\r")
@@ -284,6 +282,11 @@ func (r resolver) resolveNumber(o pdfcpu.Object) (float64, bool) {
 func (r resolver) resolveName(o pdfcpu.Object) (model.Name, bool) {
 	b, ok := r.resolve(o).(pdfcpu.Name)
 	return model.Name(b), ok
+}
+
+func (r resolver) resolveArray(o pdfcpu.Object) (pdfcpu.Array, bool) {
+	b, ok := r.resolve(o).(pdfcpu.Array)
+	return b, ok
 }
 
 func errType(label string, o pdfcpu.Object) error {

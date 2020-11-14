@@ -72,9 +72,9 @@ func decodeStream(stream model.ContentStream) ([]byte, error) {
 func TestOpen(t *testing.T) {
 	// f, err := os.Open("datatest/descriptif.pdf")
 	// f, err := os.Open("datatest/Links.pdf")
-	f, err := os.Open("datatest/f1118s1.pdf")
+	// f, err := os.Open("datatest/f1118s1.pdf")
 	// f, err := os.Open("datatest/transparents.pdf")
-	// f, err := os.Open("datatest/ModeleRecuFiscalEditable.pdf")
+	f, err := os.Open("datatest/ModeleRecuFiscalEditable.pdf")
 	// f, err := os.Open("datatest/Protected.pdf")
 	// f, err := os.Open("datatest/PDF_SPEC.pdf")
 	if err != nil {
@@ -94,19 +94,59 @@ func TestOpen(t *testing.T) {
 	// fmt.Println(string(doc.Catalog.Pages.Flatten()[0].Contents[0].Content[0:20]))
 	// fmt.Println(doc.Catalog.Pages.Flatten()[0].Contents[0].Content[0:20])
 
-	for _, field := range doc.Catalog.AcroForm.Flatten() {
-		fmt.Println(field.FT, field.T)
-		fmt.Printf("%T", field.FT)
-	}
+	// for _, field := range doc.Catalog.AcroForm.Flatten() {
+	// 	fmt.Println(field.FT, field.FullFieldName())
+	// 	fmt.Printf("%T", field.FT)
+	// }
 
 }
 
+func TestDataset(t *testing.T) {
+	files := [...]string{
+		"datatest/descriptif.pdf",
+		"datatest/Links.pdf",
+		"datatest/f1118s1.pdf",
+		"datatest/transparents.pdf",
+		"datatest/ModeleRecuFiscalEditable.pdf",
+		"datatest/PDF_SPEC.pdf",
+	}
+
+	for _, file := range files {
+		f, err := os.Open(file)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		doc, err := ParsePDF(f, "")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		f.Close()
+
+		fmt.Println("pages:", len(doc.Catalog.Pages.Flatten()))
+	}
+}
+
+func TestProtected(t *testing.T) {
+	f, err := os.Open("datatest/Protected.pdf")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+
+	doc, err := ParsePDF(f, "aaa")
+	if err != nil {
+		t.Fatal(err)
+	}
+	fmt.Println(doc.Trailer.Encrypt)
+}
 func TestStream(t *testing.T) {
 	ctx, err := pdfcpu.ReadFile("datatest/PDF_SPEC.pdf", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	stream, err := ctx.XRefTable.DereferenceStreamDict(*pdfcpu.NewIndirectRef(2, 0))
+	stream, _, err := ctx.XRefTable.DereferenceStreamDict(*pdfcpu.NewIndirectRef(2, 0))
 	if err != nil {
 		t.Fatal(err)
 	}

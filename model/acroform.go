@@ -70,6 +70,16 @@ func (f *FormField) descendants() []*FormField {
 	return out
 }
 
+// FullFieldName returns the fully qualified field name, which is not explicitly defined
+// but is constructed from the partial field names of the field
+// and all of its ancestors
+func (f *FormField) FullFieldName() string {
+	if f.Parent == nil {
+		return f.T
+	}
+	return f.Parent.FullFieldName() + "." + f.T
+}
+
 // require it's own reference to pass it to its kids
 // `parent` will be invalid for the root fields
 func (f *FormField) pdfString(pdf pdfWriter, ownRef, parent, catalog Reference) string {
