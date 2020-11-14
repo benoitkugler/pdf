@@ -121,12 +121,46 @@ func (r resolver) info() model.Info {
 func (r resolver) encrypt() model.Encrypt {
 	var out model.Encrypt
 	if enc := r.xref.Encrypt; enc != nil {
-		d, _ := r.resolve(enc).(pdfcpu.Dict)
+		d, _ := r.resolve(*enc).(pdfcpu.Dict)
+
 		out.Filter, _ = r.resolveName(d["Filter"])
 		out.SubFilter, _ = r.resolveName(d["SubFilter"])
+
 		v, _ := r.resolveInt(d["V"])
 		out.V = model.EncryptionAlgorithm(v)
+
 		out.Length, _ = r.resolveInt(d["Length"])
+
+		cf, _ := r.resolve(d["CF"]).(pdfcpu.Dict)
+		out.CF = make(map[model.Name]model.CrypFilter, len(cf))
+		for name, c := range cf {
+			out.CF[model.Name(name)] = r.processCryptFilter(c)
+		}
+		out.StmF, _ = r.resolveName(d["StmF"])
+		out.StrF, _ = r.resolveName(d["StrF"])
+		out.EFF, _ = r.resolveName(d["EFF"])
+	}
+	return out
+}
+
+func (r resolver) processCryptFilter(crypt pdfcpu.Object) model.CrypFilter {
+	cryptDict, _ := r.resolve(crypt).(pdfcpu.Dict)
+	var out model.CrypFilter
+	out.CFM, _ = r.resolveName(cryptDict["CFM"])
+	out.AuthEvent, _ = r.resolveName(cryptDict["AuthEvent"])
+	out.Length, _ = r.resolveInt(cryptDict["AuthEvent"])
+	recipients := r.resolve(cryptDict["Recipients"])
+	if rec, ok := isString(recipients); ok {
+		out.Recipients = []string{rec}
+	} else if ar, ok := recipients.(pdfcpu.Array); ok {
+		out.Recipients = make([]string, len(ar))
+		for i, re := range ar {
+			out.Recipients[i], _ = isString(r.resolve(re))
+		}
+	}
+	out.EncryptMetadata = true
+	if enc, ok := r.resolveBool(cryptDict["EncryptMetadata"]); ok {
+		out.EncryptMetadata = enc
 	}
 	return out
 }

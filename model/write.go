@@ -122,15 +122,18 @@ type pdfWriter struct {
 	pages    map[*PageObject]reference
 	outlines map[*OutlineItem]reference
 	fields   map[*FormField]reference
+
+	encrypt Encrypt
 }
 
-func newWriter(dest io.Writer) pdfWriter {
+func newWriter(dest io.Writer, encrypt Encrypt) pdfWriter {
 	return pdfWriter{
 		output:   &output{dst: dest, objOffsets: []int{0}},
 		cache:    make(map[cachable]reference),
 		pages:    make(map[*PageObject]reference),
 		outlines: make(map[*OutlineItem]reference),
 		fields:   make(map[*FormField]reference),
+		encrypt:  encrypt,
 	}
 }
 

@@ -6,36 +6,9 @@ import (
 	"testing"
 )
 
-type inMemoryOutput struct {
-	*bytes.Buffer
-	n reference
-}
-
-func newOut() *inMemoryOutput {
-	return &inMemoryOutput{Buffer: &bytes.Buffer{}}
-}
-
-func (*inMemoryOutput) encodeString(s string, mode stringEncoding) string {
-	return s
-}
-func (p *inMemoryOutput) CreateObject() reference {
-	p.n++
-	return p.n
-}
-func (p *inMemoryOutput) WriteObject(content string, stream []byte, ref reference) {
-	p.WriteString(fmt.Sprintf("%d 0 obj\n", ref))
-	p.WriteString(content)
-	if stream != nil {
-		p.WriteString("\nstream")
-		p.Write(stream)
-		p.WriteString("\nendstream")
-	}
-	p.WriteString("\nendobj")
-}
-
 func TestFunction(t *testing.T) {
-	out := newOut()
-	w := newWriter(out)
+	var out bytes.Buffer
+	w := newWriter(&out, Encrypt{})
 	fn := Function{Domain: make([]Range, 4), Range: make([]Range, 3)}
 
 	f1 := SampledFunction{

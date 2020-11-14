@@ -26,7 +26,7 @@ type Document struct {
 // Write walks the entire document and writes its content
 // into `output`, producing a valid PDF file.
 func (doc Document) Write(output io.Writer) error {
-	wr := newWriter(output)
+	wr := newWriter(output, doc.Trailer.Encrypt)
 
 	wr.writeHeader()
 
@@ -138,10 +138,11 @@ func (p ViewerPreferences) pdfString(pdf pdfWriter) string {
 	return fmt.Sprintf("<</FitWindow %v /CenterWindow%v>>", p.FitWindow, p.CenterWindow)
 }
 
-//TODO:Trailer complete fields
 type Trailer struct {
+	//TODO: check Prev field
 	Encrypt Encrypt
 	Info    Info
+	ID      [2]string // optional (must be not crypted, direct objects)
 }
 
 // Info contains metadata about the document
@@ -206,4 +207,20 @@ type Encrypt struct {
 	SubFilter Name
 	V         EncryptionAlgorithm
 	Length    int
+	CF        map[Name]CrypFilter // optional
+	StmF      Name                // optional
+	StrF      Name                // optional
+	EFF       Name                // optional
+}
+
+type CrypFilter struct {
+	CFM       Name // optional
+	AuthEvent Name // optional
+	Length    int  // optional
+
+	// byte strings, required for public-key security handlers
+	// for Crypt filter decode parameter dictionary,
+	// it's a one element array, written in PDF directly as a string
+	Recipients      []string
+	EncryptMetadata bool // optional, default to false
 }

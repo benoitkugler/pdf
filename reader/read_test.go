@@ -20,7 +20,7 @@ import (
 
 func TestGeneratePDF(t *testing.T) {
 	f := gofpdf.New("", "", "", "")
-	f.SetProtection(0, "aaa", "aaaa")
+	f.SetProtection(0, "aaaa", "aaaa")
 	if err := f.OutputFileAndClose("datatest/Protected.pdf"); err != nil {
 		t.Fatal(err)
 	}
@@ -178,7 +178,7 @@ func TestProtected(t *testing.T) {
 	}
 	defer f.Close()
 
-	doc, err := ParsePDF(f, "aaa")
+	doc, err := ParsePDF(f, "aaaa")
 	if err != nil {
 		t.Fatal(err)
 	}
