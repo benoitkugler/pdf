@@ -97,7 +97,7 @@ func (f SampledFunction) pdfContent(baseArgs string) (string, []byte) {
 	var b bytes.Buffer
 	b.WriteString("<</FunctionType 0 ")
 	b.WriteString(baseArgs)
-	b.WriteString(f.ContentStream.PDFCommonFields())
+	b.WriteString(f.Stream.PDFCommonFields())
 	b.WriteString(fmt.Sprintf("/Size %s/BitsPerSample %d", writeIntArray(f.Size), f.BitsPerSample))
 	if f.Order != 0 {
 		b.WriteString(fmt.Sprintf("/Order %d", f.Order))
@@ -148,12 +148,12 @@ func (f StitchingFunction) pdfString(baseArgs string, pdf pdfWriter) string {
 
 // adds to the common arguments the specificities of a `PostScriptCalculatorFunction`.
 func (f PostScriptCalculatorFunction) pdfContent(baseArgs string) (string, []byte) {
-	s := ContentStream(f).PDFCommonFields()
+	s := Stream(f).PDFCommonFields()
 	return fmt.Sprintf("<</FunctionType 4 %s %s>>\n", baseArgs, s), f.Content
 }
 
 type SampledFunction struct {
-	ContentStream
+	Stream
 
 	Size          []int        // length m
 	BitsPerSample uint8        // 1, 2, 4, 8, 12, 16, 24 or 32
@@ -180,7 +180,7 @@ type StitchingFunction struct {
 
 // PostScriptCalculatorFunction is stream
 // containing code written in a small subset of the PostScript language
-type PostScriptCalculatorFunction ContentStream
+type PostScriptCalculatorFunction Stream
 
 // Matrix maps an input (x,y) to an output (x',y') defined by
 // x′ = a × x + c × y + e

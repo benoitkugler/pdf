@@ -88,7 +88,7 @@ type Type3 struct {
 	Widths         []int           // length (LastChar − FirstChar + 1); index i is char code FirstChar + i
 	FontDescriptor *FontDescriptor // required in TaggedPDF
 	Resources      *ResourcesDict  // optional
-	ToUnicode      *ContentStream  // optional
+	ToUnicode      *Stream         // optional
 }
 
 // LastChar return the last caracter encoded by the font (see Widths)
@@ -291,7 +291,7 @@ type Type0 struct {
 	BaseFont        Name
 	Encoding        CMapEncoding
 	DescendantFonts CIDFontDictionary // in PDF, array of one indirect object
-	ToUnicode       *ContentStream    // optionnal, as indirect object
+	ToUnicode       *Stream           // optionnal, as indirect object
 }
 
 func (f Type0) fontPDFString(pdf pdfWriter) string {
@@ -317,7 +317,7 @@ func (EmbeddedCMapEncoding) isCMapEncoding()   {}
 
 type PredefinedCMapEncoding Name
 
-type EmbeddedCMapEncoding ContentStream
+type EmbeddedCMapEncoding Stream
 
 // return either a ref or a name
 func writeCMapEncoding(enc CMapEncoding, pdf pdfWriter) string {
@@ -325,7 +325,7 @@ func writeCMapEncoding(enc CMapEncoding, pdf pdfWriter) string {
 	case PredefinedCMapEncoding:
 		return Name(enc).String()
 	case EmbeddedCMapEncoding:
-		ref := pdf.addObject(ContentStream(enc).PDFContent())
+		ref := pdf.addObject(Stream(enc).PDFContent())
 		return ref.String()
 	default:
 		panic("exhaustive switch")
@@ -431,7 +431,7 @@ func (c CIDWidthArray) String() string {
 }
 
 type FontFile struct {
-	ContentStream
+	Stream
 
 	Length1 int
 	Length2 int
@@ -440,7 +440,7 @@ type FontFile struct {
 }
 
 func (f *FontFile) pdfContent() (string, []byte) {
-	args := f.ContentStream.PDFCommonFields()
+	args := f.Stream.PDFCommonFields()
 	out := fmt.Sprintf("<<%s/Length1 %d/Length2 %d/Length3 %d",
 		args, f.Length1, f.Length2, f.Length3)
 	if f.Subtype != "" {

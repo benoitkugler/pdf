@@ -104,7 +104,7 @@ func (r resolver) resolveOneXObjectForm(obj pdfcpu.Object) (*model.XObjectForm, 
 		return out, nil
 	}
 	obj = r.resolve(obj)
-	cs, err := r.processContentStream(obj)
+	cs, err := r.resolveStream(obj)
 	if err != nil {
 		return nil, err
 	}
@@ -112,7 +112,7 @@ func (r resolver) resolveOneXObjectForm(obj pdfcpu.Object) (*model.XObjectForm, 
 		return nil, errors.New("missing Form XObject")
 	}
 	stream, _ := obj.(pdfcpu.StreamDict) // here, we are sure obj is a stream
-	ap := model.XObjectForm{ContentStream: *cs}
+	ap := model.XObjectForm{ContentStream: model.ContentStream{Stream: *cs}}
 	if rect := r.rectangleFromArray(r.resolve(stream.Dict["BBox"])); rect != nil {
 		ap.BBox = *rect
 	}

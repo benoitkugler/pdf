@@ -6,7 +6,7 @@ import (
 )
 
 func TestStream(t *testing.T) {
-	s := ContentStream{
+	s := Stream{
 		Filter:  []Filter{JPX, ASCII85, ASCIIHex, JBIG2, Flate},
 		Content: make([]byte, 245),
 	}

@@ -60,7 +60,7 @@ func (params EmbeddedFileParams) pdfString(pdf pdfWriter) string {
 }
 
 type EmbeddedFileStream struct {
-	ContentStream
+	Stream
 	Params EmbeddedFileParams
 }
 

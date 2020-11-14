@@ -39,7 +39,7 @@ func TestFunction(t *testing.T) {
 	fn := Function{Domain: make([]Range, 4), Range: make([]Range, 3)}
 
 	f1 := SampledFunction{
-		ContentStream: ContentStream{Content: []byte("654646464456")},
+		Stream:        Stream{Content: []byte("654646464456")},
 		BitsPerSample: 12,
 		Order:         3,
 		Size:          []int{1, 2, 35},

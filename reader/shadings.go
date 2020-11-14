@@ -162,14 +162,14 @@ func (r resolver) resolveICCBased(ar pdfcpu.Array) (*model.ICCBasedColorSpace, e
 		return icc, nil
 	}
 	obj := r.resolve(ar[1]) // ar[1] should be indirect, but we accept direct object
-	common, err := r.processContentStream(ar[1])
+	common, err := r.resolveStream(ar[1])
 	if err != nil {
 		return nil, err
 	}
 	if common == nil {
 		return nil, errors.New("missing ICCBased stream")
 	}
-	out := model.ICCBasedColorSpace{ContentStream: *common}
+	out := model.ICCBasedColorSpace{Stream: *common}
 	stream, _ := obj.(pdfcpu.StreamDict) // no error, ar[1] has type Stream
 
 	out.N, _ = r.resolveInt(stream.Dict["N"])
@@ -209,7 +209,7 @@ func (r resolver) resolveIndexed(ar pdfcpu.Array) (model.IndexedColorSpace, erro
 		out.Lookup = model.ColorTableBytes(lookupString)
 	} else { // stream
 		lookupRef, isRef := ar[3].(pdfcpu.IndirectRef)
-		cs, err := r.processContentStream(ar[3])
+		cs, err := r.resolveStream(ar[3])
 		if err != nil {
 			return out, err
 		}
@@ -332,14 +332,14 @@ func (r resolver) resolveRadialSh(sh pdfcpu.Dict) (model.Radial, error) {
 }
 
 func (r resolver) resolveCoonsSh(sh pdfcpu.StreamDict) (model.Coons, error) {
-	cs, err := r.processContentStream(sh)
+	cs, err := r.resolveStream(sh)
 	if err != nil {
 		return model.Coons{}, err
 	}
 	if cs == nil {
 		return model.Coons{}, errors.New("missing Coons stream")
 	}
-	out := model.Coons{ContentStream: *cs}
+	out := model.Coons{Stream: *cs}
 	if bi, ok := r.resolveInt(sh.Dict["BitsPerCoordinate"]); ok {
 		out.BitsPerCoordinate = uint8(bi)
 	}
@@ -428,12 +428,12 @@ func (r resolver) resolveOnePattern(pat pdfcpu.Object) (model.Pattern, error) {
 }
 
 func (r resolver) resolveTilingPattern(pat pdfcpu.StreamDict) (*model.TilingPatern, error) {
-	cs, err := r.processContentStream(pat)
+	cs, err := r.resolveStream(pat)
 	if err != nil {
 		return nil, err
 	}
 	// since pat is not a ref, cs can't be nil
-	out := model.TilingPatern{ContentStream: *cs}
+	out := model.TilingPatern{ContentStream: model.ContentStream{Stream: *cs}}
 
 	if pt, ok := r.resolveInt(pat.Dict["PaintType"]); ok {
 		out.PaintType = uint8(pt)

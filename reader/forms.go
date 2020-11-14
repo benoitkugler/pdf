@@ -149,7 +149,7 @@ func (r resolver) textOrStream(object pdfcpu.Object) string {
 	// TODO: decode stream to be in part with strings
 	// this requires to check pdfcpu filters
 	if stream, ok := content.(pdfcpu.StreamDict); ok {
-		s, _ := r.processContentStream(stream)
+		s, _ := r.resolveStream(stream)
 		if s != nil {
 			return string(s.Content)
 		}

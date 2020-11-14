@@ -53,7 +53,7 @@ func TestGenerateEmpty(t *testing.T) {
 	}
 }
 
-func decodeStream(stream model.ContentStream) ([]byte, error) {
+func decodeStream(stream model.Stream) ([]byte, error) {
 	var current io.Reader = bytes.NewReader(stream.Content)
 	for i, f := range stream.Filter {
 		params := map[string]int{}
@@ -264,7 +264,7 @@ func TestWrite(t *testing.T) {
 	doc.Catalog.Pages.Kids = []model.PageNode{
 		&model.PageObject{
 			Contents: []model.ContentStream{
-				{Content: []byte("mldskldm")},
+				{Stream: model.Stream{Content: []byte("mldskldm")}},
 			},
 		},
 		&model.PageTree{
@@ -292,9 +292,10 @@ func TestWrite(t *testing.T) {
 	}
 }
 
-func TestWritePDFSpec(t *testing.T) {
-	// f, err := os.Open("datatest/PDF_SPEC.pdf")
-	f, err := os.Open("datatest/type3.pdf")
+func TestReWrite(t *testing.T) {
+	name := "datatest/PDF_SPEC"
+	// name := "datatest/type3"
+	f, err := os.Open(name + ".pdf")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -307,7 +308,7 @@ func TestWritePDFSpec(t *testing.T) {
 	fmt.Println(string(doc.Catalog.Pages.Flatten()[0].Contents[0].Content[0:20]))
 	fmt.Println(doc.Catalog.Pages.Flatten()[0].Contents[0].Content[0:20])
 
-	out, err := os.Create("datatest/type3_2.pdf")
+	out, err := os.Create(name + "_2.pdf")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -318,10 +319,37 @@ func TestWritePDFSpec(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	fmt.Printf("PDF wrote in %s", time.Since(ti))
+	fmt.Println("PDF wrote in", time.Since(ti))
 
-	_, err = pdfcpu.ReadFile("datatest/type3_2.pdf", nil)
+	_, err = pdfcpu.ReadFile(name+"_2.pdf", nil)
 	if err != nil {
 		t.Fatal(err)
+	}
+}
+
+func BenchmarkWrite(b *testing.B) {
+	name := "datatest/PDF_SPEC"
+	// name := "datatest/type3"
+	f, err := os.Open(name + ".pdf")
+	if err != nil {
+		b.Fatal(err)
+	}
+	doc, err := ParsePDF(f, "")
+	if err != nil {
+		b.Fatal(err)
+	}
+	f.Close()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		out, err := os.Create(name + "_2.pdf")
+		if err != nil {
+			b.Fatal(err)
+		}
+
+		err = doc.Write(out)
+		if err != nil {
+			b.Fatal(err)
+		}
+		out.Close()
 	}
 }

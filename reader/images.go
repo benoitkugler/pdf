@@ -64,14 +64,14 @@ func (r resolver) resolveOneXObjectImage(img pdfcpu.Object) (*model.XObjectImage
 		log.Println(img)
 		return nil, errType("Image", img)
 	}
-	cs, err := r.processContentStream(stream)
+	cs, err := r.resolveStream(stream)
 	if err != nil {
 		return nil, err
 	}
 	if cs == nil {
 		return nil, errors.New("missing stream for image")
 	}
-	out := model.XObjectImage{ContentStream: *cs}
+	out := model.XObjectImage{Stream: *cs}
 
 	if w, ok := r.resolveInt(stream.Dict["Width"]); ok {
 		out.Width = w

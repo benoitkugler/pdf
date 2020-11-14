@@ -120,7 +120,7 @@ func writeColorSpace(c ColorSpace, pdf pdfWriter) string {
 }
 
 type ICCBasedColorSpace struct {
-	ContentStream
+	Stream
 
 	N         int        // 1, 3 or 4
 	Alternate ColorSpace // optional
@@ -272,12 +272,12 @@ type ColorTable interface {
 func (*ColorTableStream) isColorTable() {}
 func (ColorTableBytes) isColorTable()   {}
 
-type ColorTableStream ContentStream
+type ColorTableStream Stream
 
 // PDFBytes return the content of the stream.
 // PDFWriter is not used
 func (table *ColorTableStream) pdfContent(pdfWriter) (string, []byte) {
-	return (*ContentStream)(table).PDFContent()
+	return (*Stream)(table).PDFContent()
 }
 
 type ColorTableBytes []byte
@@ -404,7 +404,7 @@ func (s Radial) pdfContent(commonFields string, pdf pdfWriter) (string, []byte) 
 type FreeForm struct{} // TODO:
 type Lattice struct{}  // TODO:
 type Coons struct {
-	ContentStream
+	Stream
 
 	BitsPerCoordinate uint8 // 1, 2, 4, 8, 12, 16, 24, or 32
 	BitsPerComponent  uint8 // 1, 2, 4, 8, 12, or 16

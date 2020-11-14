@@ -21,7 +21,7 @@ func (r resolver) processPages(entry pdfcpu.Object) (model.PageTree, error) {
 	return *root, err
 }
 
-func (r resolver) processContentStream(content pdfcpu.Object) (*model.ContentStream, error) {
+func (r resolver) resolveStream(content pdfcpu.Object) (*model.Stream, error) {
 	content = r.resolve(content)
 	if content == nil {
 		return nil, nil
@@ -30,10 +30,9 @@ func (r resolver) processContentStream(content pdfcpu.Object) (*model.ContentStr
 	if !ok {
 		return nil, errType("Content stream", content)
 	}
-	var out model.ContentStream
+	var out model.Stream
 	// length will be deduced from the content
 	out.Content = stream.Raw
-	fmt.Printf("%d ", out.Content[len(out.Content)-1])
 	filters := r.resolve(stream.Dict["Filter"])
 	if filterName, isName := filters.(pdfcpu.Name); isName {
 		filters = pdfcpu.Array{filterName}
@@ -90,21 +89,21 @@ func (r *resolver) resolvePageObject(node pdfcpu.Dict, parent *model.PageTree) (
 	case pdfcpu.Array: // array of streams
 		page.Contents = make([]model.ContentStream, len(contents))
 		for _, v := range contents {
-			cts, err := r.processContentStream(v)
+			ct, err := r.resolveStream(v)
 			if err != nil {
 				return nil, err
 			}
-			if cts != nil {
-				page.Contents = append(page.Contents, *cts)
+			if ct != nil {
+				page.Contents = append(page.Contents, model.ContentStream{Stream: *ct})
 			}
 		}
 	case pdfcpu.StreamDict:
-		ct, err := r.processContentStream(contents)
+		ct, err := r.resolveStream(contents)
 		if err != nil {
 			return nil, err
 		}
 		if ct != nil {
-			page.Contents = append(page.Contents, *ct)
+			page.Contents = append(page.Contents, model.ContentStream{Stream: *ct})
 		}
 	}
 
@@ -394,14 +393,14 @@ func (r resolver) resolveFileContent(fileEntry pdfcpu.Object) (*model.EmbeddedFi
 		err error
 	)
 	out.Params = paramsModel
-	cs, err := r.processContentStream(stream)
+	cs, err := r.resolveStream(stream)
 	if err != nil {
 		return nil, err
 	}
 	if cs == nil {
 		return nil, errors.New("missing file content stream")
 	}
-	out.ContentStream = *cs
+	out.Stream = *cs
 	if isFileRef { // write back to the cache
 		r.fileContents[fileEntryRef] = &out
 	}

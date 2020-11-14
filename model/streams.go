@@ -39,12 +39,12 @@ var booleanNames = map[Name]bool{
 	"BlackIs1":         true,
 }
 
-// ContentStream is a PDF stream.
-// New ContentStream must be created
+// Stream is a PDF stream.
+// New Stream must be created
 // by applying the filters described
 // in `StreamDict.Filters` to the non-filtered data
 // to obtain `Content`
-type ContentStream struct {
+type Stream struct {
 	// Length      int
 	Filter []Filter
 	// nil, or same length than Filters.
@@ -54,13 +54,13 @@ type ContentStream struct {
 	Content []byte // such as read/writen, not decoded
 }
 
-func (c ContentStream) Length() int {
+func (c Stream) Length() int {
 	return len(c.Content)
 }
 
 // ParamsForFilter is a convenience which returns
 // the additionnal arguments of the i-th filter
-func (s ContentStream) ParamsForFilter(index int) map[Name]int {
+func (s Stream) ParamsForFilter(index int) map[Name]int {
 	if len(s.DecodeParms) == 0 {
 		return nil
 	}
@@ -70,7 +70,7 @@ func (s ContentStream) ParamsForFilter(index int) map[Name]int {
 // PDFCommonArgs returns the content of the Dictionary of `s`
 // without the enclosing << >>.
 // It will usually be used in combination with other fields.
-func (s ContentStream) PDFCommonFields() string {
+func (s Stream) PDFCommonFields() string {
 	b := newBuffer()
 	b.fmt("/Length %d", s.Length())
 	if len(s.Filter) != 0 {
@@ -105,9 +105,16 @@ func (s ContentStream) PDFCommonFields() string {
 // PDFContent return the stream object content
 // Often, additional arguments will be needed, so `PDFCommonFields`
 // should be used instead.
-func (s ContentStream) PDFContent() (string, []byte) {
+func (s Stream) PDFContent() (string, []byte) {
 	arg := s.PDFCommonFields()
 	return fmt.Sprintf("<<%s>>", arg), s.Content
+}
+
+// Content stream is a PDF stream object whose data consists
+// of a sequence of instructions describing the
+// graphical elements to be painted on a page.
+type ContentStream struct {
+	Stream
 }
 
 // XObject is either an image or PDF form
@@ -152,7 +159,7 @@ type Mask interface {
 
 // XObjectImage represents a sampled visual image such as a photograph
 type XObjectImage struct {
-	ContentStream
+	Stream
 
 	Width, Height    int
 	ColorSpace       ColorSpace // any type of colour space except Pattern

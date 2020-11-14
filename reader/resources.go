@@ -212,7 +212,7 @@ func (r resolver) resolveFontT3(font pdfcpu.Dict) (out model.Type3, err error) {
 	for name, proc := range charProcsDict {
 		// char proc propably wont be shared accros fonts,
 		// so we dont track the refs
-		cs, err := r.processContentStream(proc)
+		cs, err := r.resolveStream(proc)
 		if err != nil {
 			return out, err
 		}
@@ -220,7 +220,7 @@ func (r resolver) resolveFontT3(font pdfcpu.Dict) (out model.Type3, err error) {
 			log.Printf("missing content stream for CharProc %s\n", name)
 			continue
 		}
-		out.CharProcs[model.Name(name)] = *cs
+		out.CharProcs[model.Name(name)] = model.ContentStream{Stream: *cs}
 	}
 
 	out.Encoding, err = r.resolveEncoding(font["Encoding"])
@@ -246,7 +246,7 @@ func (r resolver) resolveFontT3(font pdfcpu.Dict) (out model.Type3, err error) {
 		return out, err
 	}
 
-	out.ToUnicode, err = r.processContentStream(font["ToUnicode"])
+	out.ToUnicode, err = r.resolveStream(font["ToUnicode"])
 	if err != nil {
 		return out, err
 	}
@@ -356,13 +356,13 @@ func (r resolver) resolveFontDescriptor(entry pdfcpu.Object) (model.FontDescript
 }
 
 func (r resolver) processFontFile(object pdfcpu.Object) (*model.FontFile, error) {
-	cs, err := r.processContentStream(object)
+	cs, err := r.resolveStream(object)
 	if err != nil || cs == nil {
 		return nil, err
 	}
 
 	stream, _ := r.resolve(object).(pdfcpu.StreamDict) // here, we know object is a StreamDict
-	out := model.FontFile{ContentStream: *cs}
+	out := model.FontFile{Stream: *cs}
 
 	out.Subtype, _ = r.resolveName(stream.Dict["Subtype"])
 
@@ -388,7 +388,7 @@ func (r resolver) resolveFontT0(font pdfcpu.Dict) (model.Type0, error) {
 		out.Encoding = model.PredefinedCMapEncoding(enc)
 	} else {
 		// should'nt be common, dont bother tracking ref
-		enc, err := r.processContentStream(font["Encoding"])
+		enc, err := r.resolveStream(font["Encoding"])
 		if err != nil {
 			return model.Type0{}, err
 		}
@@ -412,7 +412,7 @@ func (r resolver) resolveFontT0(font pdfcpu.Dict) (model.Type0, error) {
 	if err != nil {
 		return out, err
 	}
-	out.ToUnicode, err = r.processContentStream(font["ToUnicode"])
+	out.ToUnicode, err = r.resolveStream(font["ToUnicode"])
 	if err != nil {
 		return out, err
 	}

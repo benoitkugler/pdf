@@ -42,7 +42,7 @@ func (r resolver) resolveFunction(fn pdfcpu.Object) (*model.Function, error) {
 	case 3:
 		out.FunctionType, err = r.resolveStitchingFn(dict)
 	case 4:
-		stream, err := r.processContentStream(stream)
+		stream, err := r.resolveStream(stream)
 		if err != nil {
 			return nil, err
 		}
@@ -132,14 +132,14 @@ func (r resolver) resolveStitchingFn(fn pdfcpu.Dict) (model.StitchingFunction, e
 }
 
 func (r resolver) processSampledFn(stream pdfcpu.StreamDict) (model.SampledFunction, error) {
-	cs, err := r.processContentStream(stream)
+	cs, err := r.resolveStream(stream)
 	if err != nil {
 		return model.SampledFunction{}, err
 	}
 	if cs == nil {
 		return model.SampledFunction{}, errors.New("missing stream for Sampled function")
 	}
-	out := model.SampledFunction{ContentStream: *cs}
+	out := model.SampledFunction{Stream: *cs}
 	size, _ := r.resolveArray(stream.Dict["Size"])
 	m := len(size)
 	out.Size = make([]int, m)
