@@ -8,7 +8,7 @@ import (
 
 type inMemoryOutput struct {
 	*bytes.Buffer
-	n Reference
+	n reference
 }
 
 func newOut() *inMemoryOutput {
@@ -18,11 +18,11 @@ func newOut() *inMemoryOutput {
 func (*inMemoryOutput) encodeString(s string, mode stringEncoding) string {
 	return s
 }
-func (p *inMemoryOutput) CreateObject() Reference {
+func (p *inMemoryOutput) CreateObject() reference {
 	p.n++
 	return p.n
 }
-func (p *inMemoryOutput) WriteObject(content string, stream []byte, ref Reference) {
+func (p *inMemoryOutput) WriteObject(content string, stream []byte, ref reference) {
 	p.WriteString(fmt.Sprintf("%d 0 obj\n", ref))
 	p.WriteString(content)
 	if stream != nil {

@@ -24,7 +24,7 @@ func writeFloatArray(as []float64) string {
 	return fmt.Sprintf("[%s]", strings.Join(b, " "))
 }
 
-func writeRefArray(as []Reference) string {
+func writeRefArray(as []reference) string {
 	b := make([]string, len(as))
 	for i, ref := range as {
 		b[i] = ref.String()

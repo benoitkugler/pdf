@@ -1,5 +1,4 @@
-// Implements the in-memory structure of the PDFs object
-// Whenever possible, use static types.
+// Implements the in-memory structure of the PDFs object, using static types.
 // The structure is not directly the one found or written
 // in a PDF, but it serves as an intermediate representation
 // to facilitate PDF modifications.
@@ -7,12 +6,18 @@
 package model
 
 import (
+	"fmt"
 	"io"
 	"time"
 )
 
 // Document is the top-level object,
 // representing a whole PDF file.
+// Where a PDF file use indirect object to
+// link data together, `Document` uses Go pointers,
+// making easier to analyse and mutate a document.
+// See the package `reader` to create a new `Document`
+// from an existing PDF file.
 type Document struct {
 	Trailer Trailer
 	Catalog Catalog
@@ -25,8 +30,8 @@ func (doc Document) Write(output io.Writer) error {
 
 	wr.writeHeader()
 
-	root := wr.CreateObject()
-	wr.WriteObject(doc.Catalog.pdfString(wr, root), nil, root)
+	root := wr.createObject()
+	wr.writeObject(doc.Catalog.pdfString(wr, root), nil, root)
 	info := wr.addObject(doc.Trailer.Info.pdfString(wr), nil)
 
 	wr.writeFooter(doc.Trailer.Encrypt, root, info)
@@ -34,6 +39,9 @@ func (doc Document) Write(output io.Writer) error {
 	return wr.err
 }
 
+// Catalog contains the main contents of the document.
+// See especially the `Pages` tree, the `AcroForm` form
+// and the `Outlines` tree.
 type Catalog struct {
 	Extensions        Extensions
 	Pages             PageTree
@@ -50,7 +58,7 @@ type Catalog struct {
 
 // returns the Dictionary of `cat`
 // `catalog` is needed by the potential signature fields
-func (cat Catalog) pdfString(pdf pdfWriter, catalog Reference) string {
+func (cat Catalog) pdfString(pdf pdfWriter, catalog reference) string {
 	b := newBuffer()
 	b.line("<<\n/Type/Catalog")
 
@@ -62,9 +70,9 @@ func (cat Catalog) pdfString(pdf pdfWriter, catalog Reference) string {
 	// (at this point, the cache `pages` is filled)
 	cat.Pages.allocateReferences(pdf)
 
-	pageRef := pdf.CreateObject()
+	pageRef := pdf.createObject()
 	content := cat.Pages.pdfString(pdf, pageRef, -1)
-	pdf.WriteObject(content, nil, pageRef)
+	pdf.writeObject(content, nil, pageRef)
 	b.line("/Pages %s", pageRef)
 
 	if pLabel := cat.PageLabels; pLabel != nil {
@@ -102,8 +110,8 @@ func (cat Catalog) pdfString(pdf pdfWriter, catalog Reference) string {
 		b.line("/AcroForm %s", ref)
 	}
 	if outline := cat.Outlines; outline != nil {
-		outlineRef := pdf.CreateObject()
-		pdf.WriteObject(outline.pdfString(pdf, outlineRef), nil, outlineRef)
+		outlineRef := pdf.createObject()
+		pdf.writeObject(outline.pdfString(pdf, outlineRef), nil, outlineRef)
 		b.line("/Outlines %s", outlineRef)
 	}
 	b.fmt(">>")
@@ -111,27 +119,32 @@ func (cat Catalog) pdfString(pdf pdfWriter, catalog Reference) string {
 	return b.String()
 }
 
+// NameDictionary establish the correspondence between names and objects
 type NameDictionary struct {
 	EmbeddedFiles EmbeddedFileTree
 	Dests         *DestTree // optional
 	// AP
 }
 
+// ViewerPreferences specifies the way the document shall be
+// displayed on the screen.
+// TODO: ViewerPreferences extend the fields
 type ViewerPreferences struct {
 	FitWindow    bool
 	CenterWindow bool
 }
 
-// TODO: ViewerPreferences
 func (p ViewerPreferences) pdfString(pdf pdfWriter) string {
-	return "<<>>"
+	return fmt.Sprintf("<</FitWindow %v /CenterWindow%v>>", p.FitWindow, p.CenterWindow)
 }
 
+//TODO:Trailer complete fields
 type Trailer struct {
 	Encrypt Encrypt
 	Info    Info
 }
 
+// Info contains metadata about the document
 type Info struct {
 	Producer     string
 	Title        string
@@ -175,6 +188,8 @@ func (info Info) pdfString(pdf pdfWriter) string {
 	return b.String()
 }
 
+// EncryptionAlgorithm is a code specifying the algorithm to be used in encrypting and
+// decrypting the document
 type EncryptionAlgorithm uint8
 
 const (
@@ -185,6 +200,7 @@ const (
 	InDocument
 )
 
+// Encrypt stores the encryption-related information
 type Encrypt struct {
 	Filter    Name
 	SubFilter Name

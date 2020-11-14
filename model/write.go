@@ -10,12 +10,12 @@ import (
 	"golang.org/x/text/encoding/unicode"
 )
 
-// Reference is the object number of a PDF object.
+// reference is the object number of a PDF object.
 // It is only needed to write a document.
-type Reference int
+type reference int
 
 // String return a string to be used when writing a PDF
-func (r Reference) String() string {
+func (r reference) String() string {
 	return fmt.Sprintf("%d 0 R", r)
 }
 
@@ -43,12 +43,12 @@ func (w *output) bytes(b []byte) {
 	w.written += n
 }
 
-// WriteObject write the content of the object `ref`, and update the offsets.
+// writeObject write the content of the object `ref`, and update the offsets.
 // This method will be called at most once for each reference.
 // For stream object, `content` will contain the dictionary,
 // and `stream` the inner stream bytes. For other objects, `stream` will be nil.
 // Stream content will be encrypted if needed.
-func (w *output) WriteObject(content string, stream []byte, ref Reference) {
+func (w *output) writeObject(content string, stream []byte, ref reference) {
 	w.objOffsets[ref] = w.written
 	w.bytes([]byte(fmt.Sprintf("%d 0 obj\n", ref)))
 	w.bytes([]byte(content))
@@ -64,11 +64,11 @@ func (w *output) WriteObject(content string, stream []byte, ref Reference) {
 	w.bytes([]byte("\nendobj\n"))
 }
 
-// CreateObject return a new reference
+// createObject return a new reference
 // and grow the `objOffsets` accordingly.
 // This is needed to write objects that must reference their "parent".
-func (w *output) CreateObject() Reference {
-	ref := Reference(len(w.objOffsets)) // last object is at len(objOffsets) - 1
+func (w *output) createObject() reference {
+	ref := reference(len(w.objOffsets)) // last object is at len(objOffsets) - 1
 	w.objOffsets = append(w.objOffsets, 0)
 	return ref
 }
@@ -83,7 +83,7 @@ func (w *output) writeHeader() {
 	w.bytes([]byte("\n"))
 }
 
-func (w *output) writeFooter(encrypt Encrypt, root, info Reference) {
+func (w *output) writeFooter(encrypt Encrypt, root, info reference) {
 	var b bytes.Buffer
 	// Cross-ref
 	o, n := w.written, len(w.objOffsets)-1
@@ -118,19 +118,19 @@ func (w *output) writeFooter(encrypt Encrypt, root, info Reference) {
 type pdfWriter struct {
 	*output
 
-	cache    map[cachable]Reference
-	pages    map[*PageObject]Reference
-	outlines map[*OutlineItem]Reference
-	fields   map[*FormField]Reference
+	cache    map[cachable]reference
+	pages    map[*PageObject]reference
+	outlines map[*OutlineItem]reference
+	fields   map[*FormField]reference
 }
 
 func newWriter(dest io.Writer) pdfWriter {
 	return pdfWriter{
 		output:   &output{dst: dest, objOffsets: []int{0}},
-		cache:    make(map[cachable]Reference),
-		pages:    make(map[*PageObject]Reference),
-		outlines: make(map[*OutlineItem]Reference),
-		fields:   make(map[*FormField]Reference),
+		cache:    make(map[cachable]reference),
+		pages:    make(map[*PageObject]reference),
+		outlines: make(map[*OutlineItem]reference),
+		fields:   make(map[*FormField]reference),
 	}
 }
 
@@ -184,9 +184,9 @@ func (p pdfWriter) encodeString(s string, mode stringEncoding) string {
 
 // addObject is a convenience shortcut to write `content` into a new object
 // and return the created reference
-func (p pdfWriter) addObject(content string, stream []byte) Reference {
-	ref := p.CreateObject()
-	p.WriteObject(content, stream, ref)
+func (p pdfWriter) addObject(content string, stream []byte) reference {
+	ref := p.createObject()
+	p.writeObject(content, stream, ref)
 	return ref
 }
 
@@ -215,7 +215,7 @@ func (*XObjectForm) isCachable()        {}
 func (*XObjectImage) isCachable()       {}
 
 // check the cache and write a new item if not found
-func (pdf pdfWriter) addItem(item cachable) Reference {
+func (pdf pdfWriter) addItem(item cachable) reference {
 	if ref, has := pdf.cache[item]; has {
 		return ref
 	}
