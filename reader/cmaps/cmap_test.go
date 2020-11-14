@@ -8,15 +8,15 @@ import (
 
 // cmap1Data represents a basic CMap.
 const cmap1Data = `
-	/CIDInit /ProcSet findresource begin
+	/CIDInit/ProcSet findresource begin
 	12 dict begin
 	begincmap
 	/CIDSystemInfo
-	<<  /Registry (Adobe)
+	<< /Registry (Adobe)
 	/Ordering (UCS)
 	/Supplement 0
 	>> def
-	/CMapName /Adobe-Identity-UCS def
+	/CMapName/Adobe-Identity-UCS def
 	/CMapType 2 def
 	1 begincodespacerange
 	<0000> <FFFF>
@@ -41,7 +41,7 @@ const cmap1Data = `
 	<0055> <0057> <0072>
 	endbfrange
 	endcmap
-	CMapName currentdict /CMap defineresource pop
+	CMapName currentdict/CMap defineresource pop
 	end
 	end
 `
@@ -115,15 +115,15 @@ func TestCMapParser1(t *testing.T) {
 }
 
 const cmap2Data = `
-	/CIDInit /ProcSet findresource begin
+	/CIDInit/ProcSet findresource begin
 	12 dict begin
 	begincmap
 	/CIDSystemInfo
-	<<  /Registry (Adobe)
+	<< /Registry (Adobe)
 	/Ordering (UCS)
 	/Supplement 0
 	>> def
-	/CMapName /Adobe-Identity-UCS def
+	/CMapName/Adobe-Identity-UCS def
 	/CMapType 2 def
 	1 begincodespacerange
 	<0000> <FFFF>
@@ -133,7 +133,7 @@ const cmap2Data = `
 	<802F> <902F> <0038>
 	endbfrange
 	endcmap
-	CMapName currentdict /CMap defineresource pop
+	CMapName currentdict/CMap defineresource pop
 	end
 	end
 `
@@ -204,7 +204,7 @@ func TestCMapParser2(t *testing.T) {
 
 // cmapData3 is a CMap with a mixture of 1 and 2 byte codespaces.
 const cmapData3 = `
-	/CIDInit /ProcSet findresource begin
+	/CIDInit/ProcSet findresource begin
 	12 dict begin begincmap
 	/CIDSystemInfo
 	3 dict dup begin
@@ -212,7 +212,7 @@ const cmapData3 = `
 	/Supplement 2 def
 	end def
 
-	/CMapName /test-1 def
+	/CMapName/test-1 def
 	/CMapType 1 def
 
 	4 begincodespacerange
@@ -320,16 +320,16 @@ func TestCMapParser3(t *testing.T) {
 
 // cmapData4 is a CMap with some utf16 encoded unicode strings that contain surrogates.
 const cmap4Data = `
-    /CIDInit /ProcSet findresource begin
+   /CIDInit/ProcSet findresource begin
     11 dict begin
     begincmap
-    /CIDSystemInfo
-    << /Registry (Adobe)
-    /Ordering (UCS)
-    /Supplement 0
+   /CIDSystemInfo
+    <</Registry (Adobe)
+   /Ordering (UCS)
+   /Supplement 0
     >> def
-    /CMapName /Adobe-Identity-UCS def
-    /CMapType 2 def
+   /CMapName/Adobe-Identity-UCS def
+   /CMapType 2 def
     1 begincodespacerange
     <0000> <FFFF>
     endcodespacerange
@@ -630,7 +630,7 @@ endbfchar
 endbfrange
 `
 
-// // TestBfData checks that cmap.toBfData produces the expected output.
+//// TestBfData checks that cmap.toBfData produces the expected output.
 // func TestBfData(t *testing.T) {
 // 	cmap := NewToUnicodeCMap(codeToUnicode1)
 

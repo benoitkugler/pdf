@@ -90,7 +90,7 @@ func (cmap *CMap) parse() error {
 }
 
 // parseName parses a cmap name and adds it to `cmap`.
-// cmap names are defined like this: /CMapName /83pv-RKSJ-H def
+// cmap names are defined like this:/CMapName/83pv-RKSJ-H def
 func (cmap *CMap) parseName() error {
 	var name model.Name
 	done := false
@@ -107,7 +107,7 @@ func (cmap *CMap) parseName() error {
 			default:
 				// This is not an error because some PDF files don't have valid PostScript names.
 				// e.g. ~/testdata/Papercut vs Equitrac.pdf
-				// /CMapName /Adobe-SI-*Courier New-6164-0 def
+				///CMapName/Adobe-SI-*Courier New-6164-0 def
 				// We just append the non-existant operator "New-6164-0" to the name
 				if name != "" {
 					name = model.Name(fmt.Sprintf("%s %s", name, t))
@@ -125,7 +125,7 @@ func (cmap *CMap) parseName() error {
 }
 
 // parseType parses a cmap type and adds it to `cmap`.
-// cmap names are defined like this: /CMapType 1 def
+// cmap names are defined like this:/CMapType 1 def
 func (cmap *CMap) parseType() error {
 
 	ctype := 0
@@ -152,7 +152,7 @@ func (cmap *CMap) parseType() error {
 }
 
 // parseVersion parses a cmap version and adds it to `cmap`.
-// cmap names are defined like this: /CMapType 1 def
+// cmap names are defined like this:/CMapType 1 def
 // We don't need the version. We do this to eat up the version code in the cmap definition
 // to reduce unhandled parse object warnings.
 func (cmap *CMap) parseVersion() error {
@@ -186,10 +186,10 @@ func (cmap *CMap) parseVersion() error {
 
 // parseSystemInfo parses a cmap CIDSystemInfo and adds it to `cmap`.
 // cmap CIDSystemInfo is define like this:
-// /CIDSystemInfo 3 dict dup begin
-//   /Registry (Adobe) def
-//   /Ordering (Japan1) def
-//   /Supplement 1 def
+///CIDSystemInfo 3 dict dup begin
+//  /Registry (Adobe) def
+//  /Ordering (Japan1) def
+//  /Supplement 1 def
 // end def
 func (cmap *CMap) parseSystemInfo() error {
 	inDict := false

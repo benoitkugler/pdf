@@ -38,7 +38,7 @@ type Action interface {
 type URIAction string
 
 func (uri URIAction) ActionDictionary(pdf pdfWriter) string {
-	return fmt.Sprintf("<</S /URI /URI (%s)>>", pdf.EncodeString(string(uri), ASCIIString))
+	return fmt.Sprintf("<</S/URI/URI (%s)>>", pdf.EncodeString(string(uri), ASCIIString))
 }
 
 type GoToAction struct {
@@ -46,7 +46,7 @@ type GoToAction struct {
 }
 
 func (ac GoToAction) ActionDictionary(pdf pdfWriter) string {
-	return fmt.Sprintf("<</S /GoTo /D %s>>", ac.D.pdfDestination(pdf))
+	return fmt.Sprintf("<</S/GoTo/D %s>>", ac.D.pdfDestination(pdf))
 }
 
 type Destination interface {
@@ -70,7 +70,7 @@ func (d ExplicitDestination) pdfDestination(pdf pdfWriter) string {
 	if d.Top != nil {
 		top = fmt.Sprintf("%.3f", *d.Top)
 	}
-	return fmt.Sprintf("[%s /XYZ %s %s %.3f]", pageRef, left, top, d.Zoom)
+	return fmt.Sprintf("[%s/XYZ %s %s %.3f]", pageRef, left, top, d.Zoom)
 }
 
 type DestinationName Name
@@ -88,5 +88,5 @@ type JavaScriptAction struct {
 }
 
 func (j JavaScriptAction) ActionDictionary(pdf pdfWriter) string {
-	return fmt.Sprintf("<</S /JavaScript /JS %s>>", pdf.EncodeString(j.JS, TextString))
+	return fmt.Sprintf("<</S/JavaScript/JS %s>>", pdf.EncodeString(j.JS, TextString))
 }

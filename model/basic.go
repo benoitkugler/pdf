@@ -11,7 +11,7 @@ type Rectangle struct {
 	Llx, Lly, Urx, Ury float64 // lower-left x, lower-left y, upper-right x, and upper-right y coordinates of the rectangle
 }
 
-func (r Rectangle) PDFstring() string {
+func (r Rectangle) String() string {
 	return writeFloatArray([]float64{r.Llx, r.Lly, r.Urx, r.Ury})
 }
 
@@ -40,7 +40,7 @@ func (r Rotation) Degrees() int {
 }
 
 // Name is a symbol to be referenced,
-// and it is included in PDF without encoding, by prepending /
+// and it is included in PDF without encoding, by prepending/
 type Name string
 
 // String returns the PDF representation of a name
@@ -72,7 +72,7 @@ type Function struct {
 func (f Function) pdfContent(pdf pdfWriter) (string, []byte) {
 	baseArgs := fmt.Sprintf("/Domain %s", writeRangeArray(f.Domain))
 	if len(f.Range) != 0 {
-		baseArgs += fmt.Sprintf(" /Range %s", writeRangeArray(f.Range))
+		baseArgs += fmt.Sprintf("/Range %s", writeRangeArray(f.Range))
 	}
 	var (
 		content string
@@ -95,22 +95,22 @@ func (f Function) pdfContent(pdf pdfWriter) (string, []byte) {
 // adds to the common arguments the specificities of a `SampledFunction`
 func (f SampledFunction) pdfContent(baseArgs string) (string, []byte) {
 	var b bytes.Buffer
-	b.WriteString("<< /FunctionType 0 ")
+	b.WriteString("<</FunctionType 0 ")
 	b.WriteString(baseArgs)
 	b.WriteString(f.ContentStream.PDFCommonFields())
-	b.WriteString(fmt.Sprintf(" /Size %s /BitsPerSample %d", writeIntArray(f.Size), f.BitsPerSample))
+	b.WriteString(fmt.Sprintf("/Size %s/BitsPerSample %d", writeIntArray(f.Size), f.BitsPerSample))
 	if f.Order != 0 {
-		b.WriteString(fmt.Sprintf(" /Order %d", f.Order))
+		b.WriteString(fmt.Sprintf("/Order %d", f.Order))
 	}
 	if len(f.Encode) != 0 {
-		b.WriteString(" /Encode [ ")
+		b.WriteString("/Encode [ ")
 		for _, v := range f.Encode {
 			b.WriteString(fmt.Sprintf("%.3f %.3f ", v[0], v[1]))
 		}
 		b.WriteByte(']')
 	}
 	if len(f.Decode) != 0 {
-		b.WriteString(" /Decode ")
+		b.WriteString("/Decode ")
 		b.WriteString(writeRangeArray(f.Decode))
 	}
 	b.WriteString(" >>")
@@ -121,12 +121,12 @@ func (f SampledFunction) pdfContent(baseArgs string) (string, []byte) {
 func (f ExpInterpolationFunction) pdfString(baseArgs string) string {
 	c0, c1 := "", ""
 	if len(f.C0) != 0 {
-		c0 = " /C0 " + writeFloatArray(f.C0)
+		c0 = "/C0 " + writeFloatArray(f.C0)
 	}
 	if len(f.C1) != 0 {
-		c1 = " /C1 " + writeFloatArray(f.C1)
+		c1 = "/C1 " + writeFloatArray(f.C1)
 	}
-	return fmt.Sprintf("<</FunctionType 2 %s%s%s /N %d>>", baseArgs, c0, c1, f.N)
+	return fmt.Sprintf("<</FunctionType 2 %s%s%s/N %d>>", baseArgs, c0, c1, f.N)
 }
 
 // convenience: write the functions and returns the corresponding reference
@@ -142,7 +142,7 @@ func (pdf pdfWriter) writeFunctions(fns []Function) []Reference {
 func (f StitchingFunction) pdfString(baseArgs string, pdf pdfWriter) string {
 	// start by writing the "child" functions
 	refs := pdf.writeFunctions(f.Functions)
-	return fmt.Sprintf("<</FunctionType 3 %s /Functions %s /Bounds %s /Encode %s>>",
+	return fmt.Sprintf("<</FunctionType 3 %s/Functions %s/Bounds %s/Encode %s>>",
 		baseArgs, writeRefArray(refs), writeFloatArray(f.Bounds), writePointArray(f.Encode))
 }
 

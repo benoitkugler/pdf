@@ -85,7 +85,7 @@ type BaseAnnotation struct {
 
 func (ba BaseAnnotation) fields(pdf pdfWriter) string {
 	b := newBuffer()
-	b.fmt("/Rectangle %s", ba.Rect.PDFstring())
+	b.fmt("/Rectangle %s", ba.Rect)
 	if ba.Contents != "" {
 		b.fmt("/Contents %s", pdf.EncodeString(ba.Contents, TextString))
 	}
@@ -168,7 +168,7 @@ type FileAttachmentAnnotation struct {
 
 func (f FileAttachmentAnnotation) annotationFields(pdf pdfWriter) string {
 	ref := pdf.addItem(f.FS)
-	return fmt.Sprintf("/Subtype /FileAttachment /T %s /FS %s", pdf.EncodeString(f.T, TextString), ref)
+	return fmt.Sprintf("/Subtype/FileAttachment/T %s/FS %s", pdf.EncodeString(f.T, TextString), ref)
 }
 
 // ---------------------------------------------------
@@ -181,11 +181,11 @@ type LinkAnnotation struct {
 }
 
 func (l LinkAnnotation) annotationFields(pdf pdfWriter) string {
-	out := "/Subtype /Link"
+	out := "/Subtype/Link"
 	if l.A != nil {
-		out += " /A " + l.A.ActionDictionary(pdf)
+		out += "/A " + l.A.ActionDictionary(pdf)
 	} else if l.Dest != nil {
-		out += " /Dest " + l.Dest.pdfDestination(pdf)
+		out += "/Dest " + l.Dest.pdfDestination(pdf)
 	}
 	return out
 }
@@ -199,15 +199,15 @@ type WidgetAnnotation struct {
 }
 
 func (w WidgetAnnotation) annotationFields(pdf pdfWriter) string {
-	out := fmt.Sprintf("/Subtype /Widget")
+	out := fmt.Sprintf("/Subtype/Widget")
 	if w.H != "" {
-		out += fmt.Sprintf(" /H %s", w.H)
+		out += fmt.Sprintf("/H %s", w.H)
 	}
 	if w.A != nil {
-		out += fmt.Sprintf(" /A %s", w.A.ActionDictionary(pdf))
+		out += fmt.Sprintf("/A %s", w.A.ActionDictionary(pdf))
 	}
 	if w.BS != nil {
-		out += fmt.Sprintf(" /BS %s", w.BS.pdfString())
+		out += fmt.Sprintf("/BS %s", w.BS.pdfString())
 	}
 	return out
 }

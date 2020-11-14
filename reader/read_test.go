@@ -109,6 +109,7 @@ func TestDataset(t *testing.T) {
 		"datatest/transparents.pdf",
 		"datatest/ModeleRecuFiscalEditable.pdf",
 		"datatest/PDF_SPEC.pdf",
+		"datatest/type3.pdf",
 	}
 
 	for _, file := range files {
@@ -126,6 +127,45 @@ func TestDataset(t *testing.T) {
 
 		fmt.Println("pages:", len(doc.Catalog.Pages.Flatten()))
 	}
+}
+
+// func parseContentSteam(content []byte) ([]pdfcpu.Object, error) {
+// 	var out []pdfcpu.Object
+// 	s := string(bytes.TrimSpace(content))
+// 	for len(s) > 0 {
+// 		obj, err := pdfcpu.ParseNextObject(&s)
+// 		if err != nil {
+// 			return nil, err
+// 		}
+// 		out = append(out, obj)
+// 	}
+// 	return out, nil
+// }
+
+func TestType3(t *testing.T) {
+	f, err := os.Open("datatest/type3.pdf")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+
+	doc, err := ParsePDF(f, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	type3Fonts := map[*model.Font]bool{}
+	type3Refs := 0
+	for _, page := range doc.Catalog.Pages.Flatten() {
+		if res := page.Resources; res != nil {
+			for _, font := range res.Font {
+				if _, ok := font.Subtype.(model.Type3); ok {
+					type3Fonts[font] = true
+					type3Refs++
+				}
+			}
+		}
+	}
+	fmt.Println("type3 fonts found:", len(type3Fonts), "referenced", type3Refs, "times")
 }
 
 func TestProtected(t *testing.T) {

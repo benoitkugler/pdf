@@ -53,7 +53,8 @@ func TestWrite(t *testing.T) {
 }
 
 func TestWritePDFSpec(t *testing.T) {
-	f, err := os.Open("../../reader/datatest/PDF_SPEC.pdf")
+	// f, err := os.Open("../../reader/datatest/PDF_SPEC.pdf")
+	f, err := os.Open("../../reader/datatest/type3.pdf")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -77,7 +78,7 @@ func TestWritePDFSpec(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	fmt.Printf("PDF  wrote in %s", time.Since(ti))
+	fmt.Printf("PDF wrote in %s", time.Since(ti))
 
 	_, err = pdfcpu.ReadFile("datatest/test.pdf", nil)
 	if err != nil {

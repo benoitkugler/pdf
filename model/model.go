@@ -49,7 +49,7 @@ type Catalog struct {
 // `catalog` is needed by the potential signature fields
 func (cat Catalog) pdfString(pdf pdfWriter, catalog Reference) string {
 	b := newBuffer()
-	b.line("<<\n/Type /Catalog")
+	b.line("<<\n/Type/Catalog")
 
 	// Some pages may need to know in advance the
 	// object number of an arbitrary page, such as annotation link

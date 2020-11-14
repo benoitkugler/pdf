@@ -132,12 +132,12 @@ type XObjectForm struct {
 func (f *XObjectForm) pdfContent(pdf pdfWriter) (string, []byte) {
 	args := f.ContentStream.PDFCommonFields()
 	b := newBuffer()
-	b.fmt("<</Subtype /Form %s /BBox %s", args, f.BBox.PDFstring())
+	b.fmt("<</Subtype/Form %s/BBox %s", args, f.BBox.String())
 	if f.Matrix != nil {
 		b.fmt("/Matrix %s", *f.Matrix)
 	}
 	if f.Resources != nil {
-		b.line(" /Resources %s", pdf.addItem(f.Resources))
+		b.line("/Resources %s", pdf.addItem(f.Resources))
 	}
 	b.fmt(">>")
 	return b.String(), f.Content
@@ -173,7 +173,7 @@ type XObjectImage struct {
 func (f *XObjectImage) pdfContent(pdf pdfWriter) (string, []byte) {
 	b := newBuffer()
 	base := f.PDFCommonFields()
-	b.line("<</Subtype /Image %s /Width %d /Height %d /BitsPerComponent %d",
+	b.line("<</Subtype/Image %s/Width %d/Height %d/BitsPerComponent %d",
 		base, f.Width, f.Height, f.BitsPerComponent)
 	b.fmt("/ImageMask %v", f.ImageMask)
 	if f.ColorSpace != nil {
@@ -187,7 +187,7 @@ func (f *XObjectImage) pdfContent(pdf pdfWriter) (string, []byte) {
 	if len(f.Decode) != 0 {
 		b.fmt("/Decode %s", writeRangeArray(f.Decode))
 	}
-	b.line(" /Interpolate %v", f.Interpolate)
+	b.line("/Interpolate %v", f.Interpolate)
 	if len(f.Alternates) != 0 {
 		chunks := make([]string, len(f.Alternates))
 		for i, alt := range f.Alternates {
@@ -211,5 +211,5 @@ type AlternateImage struct {
 
 func (alt AlternateImage) pdfString(pdf pdfWriter) string {
 	imgRef := pdf.addItem(alt.Image)
-	return fmt.Sprintf("<</DefaultForPrinting %v /Image %s", alt.DefaultForPrinting, imgRef)
+	return fmt.Sprintf("<</DefaultForPrinting %v/Image %s", alt.DefaultForPrinting, imgRef)
 }

@@ -43,22 +43,26 @@ func (t Type1) LastChar() byte {
 // font must be Type1 or TrueType,
 // and is needed for the FontDescriptor
 func t1orttPDFString(font FontType, pdf pdfWriter) string {
-	var t Type1
+	var (
+		t       Type1
+		subtype Name
+	)
 	switch font := font.(type) {
 	case Type1:
 		t = font
+		subtype = "Type1"
 	case TrueType:
 		t = Type1(font)
+		subtype = "TrueType"
 	}
 	fd := pdf.addObject(t.FontDescriptor.pdfString(pdf, font), nil) // FontDescriptor need the type of font
 	b := newBuffer()
-	b.line("<</Type /Font /Subtype /Type1 /BaseFont %s /FirstChar %d /LastChar %d",
-		t.BaseFont, t.FirstChar, t.LastChar())
+	b.line("<</Type/Font/Subtype %s/BaseFont %s/FirstChar %d/LastChar %d",
+		subtype, t.BaseFont, t.FirstChar, t.LastChar())
 	b.line("/FontDescriptor %s", fd)
 	b.line("/Widths %s", writeIntArray(t.Widths))
 	if t.Encoding != nil {
-		enc := writeSimpleEncoding(t.Encoding, pdf)
-		b.line("/Encoding %s", enc)
+		b.line("/Encoding %s", t.Encoding.simpleEncodingPDFString(pdf))
 	}
 	b.WriteString(">>")
 	return b.String()
@@ -79,11 +83,12 @@ type Type3 struct {
 	FontBBox       Rectangle
 	FontMatrix     Matrix
 	CharProcs      map[Name]ContentStream
-	Encoding       SimpleEncoding
+	Encoding       SimpleEncoding // required
 	FirstChar      byte
-	Widths         []int // length (LastChar − FirstChar + 1) index i is char FirstChar + i
-	FontDescriptor FontDescriptor
-	Resources      ResourcesDict
+	Widths         []int           // length (LastChar − FirstChar + 1); index i is char code FirstChar + i
+	FontDescriptor *FontDescriptor // required in TaggedPDF
+	Resources      *ResourcesDict  // optional
+	ToUnicode      *ContentStream  // optional
 }
 
 // LastChar return the last caracter encoded by the font (see Widths)
@@ -91,9 +96,33 @@ func (t Type3) LastChar() byte {
 	return byte(len(t.Widths)) + t.FirstChar - 1
 }
 
-// TODO: type3 font
 func (f Type3) fontPDFString(pdf pdfWriter) string {
-	return "<<>>"
+	b := newBuffer()
+	b.line("<</Type/Font/Subtype/Type3/FontBBox %s/FontMatrix %s",
+		f.FontBBox.String(), f.FontMatrix.String())
+	chunks := make([]string, 0, len(f.CharProcs))
+	for name, stream := range f.CharProcs {
+		ref := pdf.addObject(stream.PDFContent())
+		chunks = append(chunks, fmt.Sprintf("%s %s", name, ref))
+	}
+	b.line("/CharProcs <<%s>>", strings.Join(chunks, ""))
+	widthsRef := pdf.addObject(writeIntArray(f.Widths), nil)
+	b.line("/Encoding %s/FirstChar %d/LastChar %d/Widths %s",
+		f.Encoding.simpleEncodingPDFString(pdf), f.FirstChar, f.LastChar(), widthsRef)
+	if f.FontDescriptor != nil {
+		fdRef := pdf.addObject(f.FontDescriptor.pdfString(pdf, f), nil)
+		b.fmt("/FontDescriptor %s", fdRef)
+	}
+	if f.Resources != nil {
+		ref := pdf.addItem(f.Resources)
+		b.fmt("/Resources %s", ref)
+	}
+	if f.ToUnicode != nil {
+		ref := pdf.addObject(f.ToUnicode.PDFContent())
+		b.fmt("/ToUnicode %s", ref)
+	}
+	b.WriteString(">>")
+	return b.String()
 }
 
 // FontFlag specify various characteristics of a font.
@@ -139,8 +168,8 @@ type FontDescriptor struct {
 // font is used to choose the key for the potential FontFile
 func (f FontDescriptor) pdfString(pdf pdfWriter, font FontType) string {
 	b := newBuffer()
-	b.line("<</Type /FontDescriptor /FontName %s /Flags %d /FontBBox %s /ItalicAngle %.3f /Ascent %.3f /Descent %.3f",
-		f.FontName, f.Flags, f.FontBBox.PDFstring(), f.ItalicAngle, f.Ascent, f.Descent)
+	b.line("<</Type/FontDescriptor/FontName %s/Flags %d/FontBBox %s/ItalicAngle %.3f/Ascent %.3f/Descent %.3f",
+		f.FontName, f.Flags, f.FontBBox.String(), f.ItalicAngle, f.Ascent, f.Descent)
 	if f.Leading != 0 {
 		b.fmt("/Leading %.3f ", f.Leading)
 	}
@@ -180,23 +209,8 @@ func (f FontDescriptor) pdfString(pdf pdfWriter, font FontType) string {
 
 // SimpleEncoding is a font encoding for simple fonts
 type SimpleEncoding interface {
-	isSimpleEncoding()
-}
-
-func (PredefinedEncoding) isSimpleEncoding() {}
-func (*EncodingDict) isSimpleEncoding()      {}
-
-// return either a name or an indirect ref
-func writeSimpleEncoding(enc SimpleEncoding, pdf pdfWriter) string {
-	switch enc := enc.(type) {
-	case PredefinedEncoding:
-		return Name(enc).String()
-	case *EncodingDict:
-		ref := pdf.addItem(enc)
-		return ref.String()
-	default:
-		panic("exhaustive switch")
-	}
+	// return either a name or an indirect ref
+	simpleEncodingPDFString(pdf pdfWriter) string
 }
 
 type PredefinedEncoding Name
@@ -219,14 +233,19 @@ func NewPrededinedEncoding(s string) SimpleEncoding {
 	}
 }
 
+func (enc PredefinedEncoding) simpleEncodingPDFString(pdf pdfWriter) string {
+	return Name(enc).String()
+}
+
 // Differences describes the differences from the encoding specified by BaseEncoding
 // It is written in a PDF file as a more condensed form: it is an array:
 // 	[ code1, name1_1, name1_2, code2, name2_1, name2_2, name2_3 ... ]
 // where code1 -> name1_1 ; code1 + 1 -> name1_2 ; ...
 type Differences map[byte]Name
 
-// pack the differences again
-func (d Differences) pdfString() string {
+// PDFString pack the differences again, to obtain a compact
+// representation of the mappgin, as specified in the SPEC.
+func (d Differences) PDFString() string {
 	keys := make([]byte, 0, len(d))
 	for k := range d {
 		keys = append(keys, k)
@@ -238,10 +257,10 @@ func (d Differences) pdfString() string {
 		if i >= 1 && keys[i-1] == k-1 { // consecutive -> add name to the same serie
 			chunks = append(chunks, name)
 		} else { // start a new serie
-			chunks = append(chunks, fmt.Sprintf("%d", k), name)
+			chunks = append(chunks, fmt.Sprintf("%d ", k), name)
 		}
 	}
-	return fmt.Sprintf("[%s]", strings.Join(chunks, " "))
+	return fmt.Sprintf("[%s]", strings.Join(chunks, ""))
 }
 
 type EncodingDict struct {
@@ -255,10 +274,15 @@ func (e *EncodingDict) pdfContent(pdfWriter) (string, []byte) {
 		out += "/BaseEncoding " + e.BaseEncoding.String()
 	}
 	if len(e.Differences) != 0 {
-		out += "/Differences " + e.Differences.pdfString()
+		out += "/Differences " + e.Differences.PDFString()
 	}
 	out += ">>"
 	return out, nil
+}
+
+func (enc *EncodingDict) simpleEncodingPDFString(pdf pdfWriter) string {
+	ref := pdf.addItem(enc)
+	return ref.String()
 }
 
 // -------------------------- Type 0 --------------------------
@@ -273,11 +297,11 @@ type Type0 struct {
 func (f Type0) fontPDFString(pdf pdfWriter) string {
 	enc := writeCMapEncoding(f.Encoding, pdf)
 	desc := pdf.addObject(f.DescendantFonts.pdfString(pdf), nil)
-	out := fmt.Sprintf("<</Type /Font /Subtype /Type0 /BaseFont %s /Encoding %s /DescendantFonts [%s]",
+	out := fmt.Sprintf("<</Type/Font/Subtype/Type0/BaseFont %s/Encoding %s/DescendantFonts [%s]",
 		f.BaseFont, enc, desc)
 	if f.ToUnicode != nil {
 		toU := pdf.addObject(f.ToUnicode.PDFContent())
-		out += " /ToUnicode " + toU.String()
+		out += "/ToUnicode " + toU.String()
 	}
 	out += ">>"
 	return out
@@ -322,7 +346,7 @@ type CIDFontDictionary struct {
 func (c CIDFontDictionary) pdfString(pdf pdfWriter) string {
 	b := newBuffer()
 	fD := pdf.addObject(c.FontDescriptor.pdfString(pdf, Type0{}), nil)
-	b.line("<</Type /Font /Subtype %s /BaseFont %s /CIDSystemInfo %s /FontDescriptor %s",
+	b.line("<</Type/Font/Subtype %s/BaseFont %s/CIDSystemInfo %s/FontDescriptor %s",
 		c.Subtype, c.BaseFont, c.CIDSystemInfo.pdfString(pdf), fD)
 	if c.DW != 0 {
 		b.line("/DW %d", c.DW)
@@ -356,7 +380,7 @@ type CIDSystemInfo struct {
 
 // String returns a dictionary representation
 func (c CIDSystemInfo) pdfString(pdf pdfWriter) string {
-	return fmt.Sprintf("<</Registry %s /Ordering %s /Supplement %d>>",
+	return fmt.Sprintf("<</Registry %s/Ordering %s/Supplement %d>>",
 		pdf.EncodeString(c.Registry, ASCIIString), pdf.EncodeString(c.Ordering, ASCIIString), c.Supplement)
 }
 
@@ -417,10 +441,10 @@ type FontFile struct {
 
 func (f *FontFile) pdfContent() (string, []byte) {
 	args := f.ContentStream.PDFCommonFields()
-	out := fmt.Sprintf("<<%s /Length1 %d /Length2 %d /Length3 %d",
+	out := fmt.Sprintf("<<%s/Length1 %d/Length2 %d/Length3 %d",
 		args, f.Length1, f.Length2, f.Length3)
 	if f.Subtype != "" {
-		out += fmt.Sprintf(" /Subtype %s", f.Subtype)
+		out += fmt.Sprintf("/Subtype %s", f.Subtype)
 	}
 	out += ">>"
 	return out, f.Content

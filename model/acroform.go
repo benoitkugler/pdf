@@ -42,7 +42,7 @@ type FormField struct {
 	Parent *FormField   // nil for the top level fields
 	Kids   []*FormField // nil for a leaf node
 	// not nil only for a leaf node
-	// represented in PDF under the /Kids entry,
+	// represented in PDF under the/Kids entry,
 	// or merged if their is only one widget
 	// The annotation subtype must be WidgetAnnotation
 	Widgets []Widget
@@ -158,14 +158,14 @@ type Widget struct {
 }
 
 func (w Widget) pdfString(pdf pdfWriter, parent Reference) string {
-	return fmt.Sprintf("<<%s %s /Parent %s",
+	return fmt.Sprintf("<<%s %s/Parent %s",
 		w.BaseAnnotation.fields(pdf), w.WidgetAnnotation.annotationFields(pdf), parent)
 }
 
 // FormFieldType provides additional form attributes,
 // depending on the field type.
 type FormFieldType interface {
-	// must include the type entry /FT
+	// must include the type entry/FT
 	// catalog is needed by FieldSignature
 	formFieldAttrs(pdf pdfWriter, catalog Reference) string
 }
@@ -177,9 +177,9 @@ type FormFieldText struct {
 }
 
 func (f FormFieldText) formFieldAttrs(pdf pdfWriter, _ Reference) string {
-	out := fmt.Sprintf("/FT /Tx /V %s", pdf.EncodeString(f.V, TextString))
+	out := fmt.Sprintf("/FT/Tx/V %s", pdf.EncodeString(f.V, TextString))
 	if f.MaxLen != Undef {
-		out += fmt.Sprintf(" /MaxLen %d", f.MaxLen)
+		out += fmt.Sprintf("/MaxLen %d", f.MaxLen)
 	}
 	return out
 }
@@ -193,9 +193,9 @@ type FormFieldButton struct {
 }
 
 func (f FormFieldButton) formFieldAttrs(pdf pdfWriter, _ Reference) string {
-	out := fmt.Sprintf("/FT /Btn /V %s", f.V)
+	out := fmt.Sprintf("/FT/Btn/V %s", f.V)
 	if len(f.Opt) != 0 {
-		out += fmt.Sprintf(" /Opt [%s]", pdf.stringsArray(f.Opt, TextString))
+		out += fmt.Sprintf("/Opt [%s]", pdf.stringsArray(f.Opt, TextString))
 	}
 	return out
 }
@@ -229,7 +229,7 @@ type FormFieldChoice struct {
 
 func (f FormFieldChoice) formFieldAttrs(pdf pdfWriter, _ Reference) string {
 	b := newBuffer()
-	b.fmt("/FT /Ch")
+	b.fmt("/FT/Ch")
 	if len(f.V) == 0 {
 		b.fmt("/V null")
 	} else if len(f.V) == 1 {
@@ -263,17 +263,17 @@ type FormFieldSignature struct {
 }
 
 func (f FormFieldSignature) formFieldAttrs(pdf pdfWriter, catalog Reference) string {
-	out := "/FT /Sig"
+	out := "/FT/Sig"
 	if f.V != nil {
 		out += fmt.Sprintf("/V %s", f.V.pdfString(pdf, catalog))
 	}
 	if lock := f.Lock; lock != nil {
 		ref := pdf.addObject(f.Lock.pdfString(pdf), nil)
-		out += fmt.Sprintf(" /Lock %s", ref)
+		out += fmt.Sprintf("/Lock %s", ref)
 	}
 	if sv := f.SV; sv != nil {
 		ref := pdf.addObject(f.SV.pdfString(pdf), nil)
-		out += fmt.Sprintf(" /SV %s", ref)
+		out += fmt.Sprintf("/SV %s", ref)
 	}
 	return out
 }
@@ -382,7 +382,7 @@ type SignatureRefDict struct {
 }
 
 func (s SignatureRefDict) pdfString(pdf pdfWriter, catalog Reference) string {
-	return fmt.Sprintf("<</TransformMethod %s /TransformParams %s /DigestMethod %s ∕Data %s>>",
+	return fmt.Sprintf("<</TransformMethod %s/TransformParams %s/DigestMethod %s ∕Data %s>>",
 		s.TransformMethod, s.TransformParams.transformParamsDict(pdf), s.DigestMethod, catalog)
 }
 
@@ -403,7 +403,7 @@ func (t TransformDocMDP) transformParamsDict(pdfWriter) string {
 		out += fmt.Sprintf("/P %d", t.P)
 	}
 	if t.V != "" {
-		out += fmt.Sprintf(" /V %s", t.V)
+		out += fmt.Sprintf("/V %s", t.V)
 	}
 	out += ">>"
 	return out
@@ -458,9 +458,9 @@ type TransformFieldMDP struct {
 func (t TransformFieldMDP) transformParamsDict(pdf pdfWriter) string {
 	out := fmt.Sprintf("<</Action %s", t.Action)
 	if len(t.Fields) != 0 {
-		out += fmt.Sprintf(" /Fields %s", pdf.stringsArray(t.Fields, TextString))
+		out += fmt.Sprintf("/Fields %s", pdf.stringsArray(t.Fields, TextString))
 	}
-	out += fmt.Sprintf(" /V %s>>", t.V)
+	out += fmt.Sprintf("/V %s>>", t.V)
 	return out
 }
 
@@ -472,7 +472,7 @@ type LockDict struct {
 func (l LockDict) pdfString(pdf pdfWriter) string {
 	out := fmt.Sprintf("<</Action %s", l.Action)
 	if len(l.Fields) != 0 {
-		out += fmt.Sprintf(" /Fields %s", pdf.stringsArray(l.Fields, TextString))
+		out += fmt.Sprintf("/Fields %s", pdf.stringsArray(l.Fields, TextString))
 	}
 	out += ">>"
 	return out
@@ -537,7 +537,7 @@ type TimeStampDict struct {
 }
 
 func (s TimeStampDict) pdfString(pdf pdfWriter) string {
-	return fmt.Sprintf("<</URL %s /Ff %d>>", pdf.EncodeString(s.URL, ASCIIString), s.Ff)
+	return fmt.Sprintf("<</URL %s/Ff %d>>", pdf.EncodeString(s.URL, ASCIIString), s.Ff)
 }
 
 // CertDict contains characteristics of the certificate that shall be used when signing

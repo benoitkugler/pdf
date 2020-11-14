@@ -50,7 +50,7 @@ var pdfDocEncoding = map[byte]rune{
 	0x2c: '\u002c', //  ,  "comma"
 	0x2d: '\u002d', //  -  "hyphen"
 	0x2e: '\u002e', //  .  "period"
-	0x2f: '\u002f', //  /  "slash"
+	0x2f: '\u002f', // /  "slash"
 	0x30: '\u0030', //  0  "zero"
 	0x31: '\u0031', //  1  "one"
 	0x32: '\u0032', //  2  "two"

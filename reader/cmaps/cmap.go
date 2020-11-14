@@ -40,25 +40,25 @@ type CMap struct {
 	model.CMap
 
 	// Name       model.Name
-	// Nbits      int // 8 bits for simple fonts, 16 bits for CID fonts.
+	// Nbits      int// 8 bits for simple fonts, 16 bits for CID fonts.
 	// Type       int
 	version string
 	usecmap model.Name // Base this cmap on `usecmap` if `usecmap` is not empty.
 	// systemInfo model.CIDSystemInfo
 
-	// // For regular cmaps.
+	//// For regular cmaps.
 	// codespaces []Codespace
 
 	// Used by ctype 1 CMaps.
-	// codeToCID map[CharCode]CharCode // charcode -> CID
-	// cidToCode map[CharCode]CharCode // CID -> charcode
+	// codeToCID map[CharCode]CharCode// charcode -> CID
+	// cidToCode map[CharCode]CharCode// CID -> charcode
 
-	// // Used by ctype 2 CMaps.
+	//// Used by ctype 2 CMaps.
 	codeToUnicode map[CharCode]rune // CID -> Unicode
-	// unicodeToCode map[rune]CharCode // Unicode -> CID
+	// unicodeToCode map[rune]CharCode// Unicode -> CID
 }
 
-// // NewToUnicodeCMap returns an identity CMap with codeToUnicode matching the `codeToUnicode` arg.
+//// NewToUnicodeCMap returns an identity CMap with codeToUnicode matching the `codeToUnicode` arg.
 // func NewToUnicodeCMap(codeToUnicode map[CharCode]rune) *CMap {
 // 	cmap := &CMap{
 // 		Name:  "Adobe-Identity-UCS",
@@ -398,18 +398,18 @@ func (cmap *CMap) toBfData() string {
 const (
 	maxBfEntries = 100 // Maximum number of entries in a bfchar or bfrange section.
 	cmapHeader   = `
-/CIDInit /ProcSet findresource begin
+/CIDInit/ProcSet findresource begin
 12 dict begin
 begincmap
-/CIDSystemInfo << /Registry (Adobe) /Ordering (UCS) /Supplement 0 >> def
-/CMapName /Adobe-Identity-UCS def
+/CIDSystemInfo <</Registry (Adobe)/Ordering (UCS)/Supplement 0 >> def
+/CMapName/Adobe-Identity-UCS def
 /CMapType 2 def
 1 begincodespacerange
 <0000> <FFFF>
 endcodespacerange
 `
 	cmapTrailer = `endcmap
-CMapName currentdict /CMap defineresource pop
+CMapName currentdict/CMap defineresource pop
 end
 end
 `

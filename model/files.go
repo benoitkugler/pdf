@@ -18,7 +18,7 @@ type FileSpec struct {
 // to create the EmbeddedFileStream object.
 func (f *FileSpec) pdfContent(pdf pdfWriter) (string, []byte) {
 	b := newBuffer()
-	b.fmt("<</Type /Filespec")
+	b.fmt("<</Type/Filespec")
 	if f.UF != "" {
 		b.fmt("/UF %s", pdf.EncodeString(f.UF, TextString))
 	}
@@ -66,6 +66,6 @@ type EmbeddedFileStream struct {
 
 func (emb EmbeddedFileStream) pdfContent(pdf pdfWriter) (string, []byte) {
 	args := emb.PDFCommonFields()
-	out := fmt.Sprintf("<</Type /EmbeddedFile %s /Params %s>>", args, emb.Params.pdfString(pdf))
+	out := fmt.Sprintf("<</Type/EmbeddedFile %s/Params %s>>", args, emb.Params.pdfString(pdf))
 	return out, emb.Content
 }

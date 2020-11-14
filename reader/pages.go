@@ -33,7 +33,7 @@ func (r resolver) processContentStream(content pdfcpu.Object) (*model.ContentStr
 	var out model.ContentStream
 	// length will be deduced from the content
 	out.Content = stream.Raw
-
+	fmt.Printf("%d ", out.Content[len(out.Content)-1])
 	filters := r.resolve(stream.Dict["Filter"])
 	if filterName, isName := filters.(pdfcpu.Name); isName {
 		filters = pdfcpu.Array{filterName}
@@ -235,7 +235,7 @@ func (r *resolver) resolveExplicitDestination(dest pdfcpu.Array) (*model.Explici
 		return nil, errType("Dest.Page", dest[0])
 	}
 	if name, _ := r.resolveName(dest[1]); name != "XYZ" {
-		return nil, fmt.Errorf("expected /XYZ in Destination, got unsupported %s", dest[1])
+		return nil, fmt.Errorf("expected/XYZ in Destination, got unsupported %s", dest[1])
 	}
 	if left, ok := r.resolveNumber(dest[2]); ok {
 		out.Left = &left

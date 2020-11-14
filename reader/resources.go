@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"log"
 
+	"errors"
+
 	"github.com/benoitkugler/pdf/model"
 	"github.com/benoitkugler/pdf/standardfonts"
 	"github.com/pdfcpu/pdfcpu/pkg/pdfcpu"
@@ -163,10 +165,7 @@ func (r resolver) resolveEncoding(encoding pdfcpu.Object) (model.SimpleEncoding,
 	return &encModel, nil
 }
 
-func (r resolver) resolveFontTT1orTT(font pdfcpu.Dict) (model.Type1, error) {
-	var err error
-	out := model.Type1{}
-
+func (r resolver) resolveFontTT1orTT(font pdfcpu.Dict) (out model.Type1, err error) {
 	out.BaseFont, _ = r.resolveName(font["BaseFont"])
 
 	out.Encoding, err = r.resolveEncoding(font["Encoding"])
@@ -182,33 +181,109 @@ func (r resolver) resolveFontTT1orTT(font pdfcpu.Dict) (model.Type1, error) {
 		return out, nil
 	}
 
-	if fc, ok := r.resolveInt(font["FirstChar"]); ok {
-		if fc > 255 {
-			return out, fmt.Errorf("overflow for FirstChar %d", fc)
-		}
-		out.FirstChar = byte(fc)
-	}
-	var lastChar byte // store it to check the length of Widths
-	if lc, ok := r.resolveInt(font["LastChar"]); ok {
-		if lc > 255 {
-			return out, fmt.Errorf("overflow for FirstChar %d", lc)
-		}
-		lastChar = byte(lc)
-	}
-
-	widths, _ := r.resolveArray(font["Widths"])
-	out.Widths = make([]int, len(widths))
-	for i, w := range widths {
-		wf, _ := r.resolveNumber(w) // also accept float
-		out.Widths[i] = int(wf)
-	}
-	// be careful to byte overflow when LastChar = 255 and FirstChar = 0
-	if exp := int(lastChar) - int(out.FirstChar) + 1; widths != nil && exp != len(out.Widths) {
-		log.Printf("invalid length for font Widths array: expected %d, got %d", exp, len(out.Widths))
+	out.FirstChar, out.Widths, err = r.resolveFontMetrics(font)
+	if err != nil {
+		return out, err
 	}
 
 	out.FontDescriptor, err = r.resolveFontDescriptor(font["FontDescriptor"])
 	return out, err
+}
+
+func (r resolver) resolveFontT3(font pdfcpu.Dict) (out model.Type3, err error) {
+	bbox := r.rectangleFromArray(font["FontBBox"])
+	if bbox == nil {
+		return out, errors.New("missing FontBBox entry")
+	}
+	out.FontBBox = *bbox
+
+	matrix := r.matrixFromArray(font["FontMatrix"])
+	if matrix == nil {
+		return out, errors.New("missing FontMatrix entry")
+	}
+	out.FontMatrix = *matrix
+
+	charProcs := r.resolve(font["CharProcs"])
+	charProcsDict, ok := charProcs.(pdfcpu.Dict)
+	if !ok {
+		return out, errType("Font.CharProcs", charProcs)
+	}
+	out.CharProcs = make(map[model.Name]model.ContentStream, len(charProcsDict))
+	for name, proc := range charProcsDict {
+		// char proc propably wont be shared accros fonts,
+		// so we dont track the refs
+		cs, err := r.processContentStream(proc)
+		if err != nil {
+			return out, err
+		}
+		if cs == nil {
+			log.Printf("missing content stream for CharProc %s\n", name)
+			continue
+		}
+		out.CharProcs[model.Name(name)] = *cs
+	}
+
+	out.Encoding, err = r.resolveEncoding(font["Encoding"])
+	if err != nil {
+		return out, err
+	}
+
+	out.FirstChar, out.Widths, err = r.resolveFontMetrics(font)
+	if err != nil {
+		return out, err
+	}
+
+	if fd := r.resolve(font["FontDescriptor"]); fd != nil {
+		fontD, err := r.resolveFontDescriptor(fd)
+		if err != nil {
+			return out, err
+		}
+		out.FontDescriptor = &fontD
+	}
+
+	out.Resources, err = r.resolveOneResourceDict(font["Resources"])
+	if err != nil {
+		return out, err
+	}
+
+	out.ToUnicode, err = r.processContentStream(font["ToUnicode"])
+	if err != nil {
+		return out, err
+	}
+
+	return out, nil
+}
+
+// properies common to TrueType, Type1 and Type3
+func (r resolver) resolveFontMetrics(font pdfcpu.Dict) (firstChar byte, widths []int, err error) {
+	if fc, ok := r.resolveInt(font["FirstChar"]); ok {
+		if fc > 255 {
+			err = fmt.Errorf("overflow for FirstChar %d", fc)
+			return
+		}
+		firstChar = byte(fc)
+	}
+	var lastChar byte // store it to check the length of Widths
+	if lc, ok := r.resolveInt(font["LastChar"]); ok {
+		if lc > 255 {
+			err = fmt.Errorf("overflow for FirstChar %d", lc)
+			return
+		}
+		lastChar = byte(lc)
+	}
+
+	wds, _ := r.resolveArray(font["Widths"])
+	widths = make([]int, len(wds))
+	for i, w := range wds {
+		wf, _ := r.resolveNumber(w) // also accept float
+		widths[i] = int(wf)
+	}
+	// be careful to byte overflow when LastChar = 255 and FirstChar = 0
+	if exp := int(lastChar) - int(firstChar) + 1; widths != nil && exp != len(widths) {
+		log.Printf("invalid length for font Widths array: expected %d, got %d", exp, len(widths))
+	}
+
+	return
 }
 
 func (r resolver) resolveFontDescriptor(entry pdfcpu.Object) (model.FontDescriptor, error) {
@@ -428,9 +503,7 @@ func (r resolver) parseFontDict(font pdfcpu.Dict) (model.FontType, error) {
 		t1, err := r.resolveFontTT1orTT(font)
 		return model.TrueType(t1), err
 	case "Type3":
-		// TODO:
-		fmt.Println("TODO font type 3", font)
-		return model.Type3{}, nil
+		return r.resolveFontT3(font)
 	default:
 		return nil, nil
 	}

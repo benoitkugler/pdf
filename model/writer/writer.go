@@ -84,7 +84,11 @@ func (w *output) WriteObject(content string, stream []byte, ref model.Reference)
 	if stream != nil { // TODO: encryption
 		w.bytes([]byte("\nstream\n"))
 		w.bytes(stream)
-		w.bytes([]byte("\nendstream"))
+		if len(stream) > 0 && stream[len(stream)-1] != '\n' {
+			// There should be an end-of-line marker after the data and before endstream
+			w.bytes([]byte{'\n'})
+		}
+		w.bytes([]byte("endstream"))
 	}
 	w.bytes([]byte("\nendobj\n"))
 }

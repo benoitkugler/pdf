@@ -145,7 +145,7 @@ func (c *ICCBasedColorSpace) pdfContent(pdf pdfWriter) (string, []byte) {
 }
 
 // SeparationColorSpace is defined in PDF as an array
-// [ /Separation name alternateSpace tintTransform ]
+// [/Separation name alternateSpace tintTransform ]
 type SeparationColorSpace struct {
 	Name           Name
 	AlternateSpace ColorSpace // may not be another special colour space
@@ -194,10 +194,10 @@ type CalGrayColorSpace struct {
 func (c CalGrayColorSpace) pdfString(pdfWriter) string {
 	out := fmt.Sprintf("<</WhitePoint %s", writeFloatArray(c.WhitePoint[:]))
 	if c.BlackPoint != [3]float64{} {
-		out += fmt.Sprintf(" /BlackPoint %s", writeFloatArray(c.BlackPoint[:]))
+		out += fmt.Sprintf("/BlackPoint %s", writeFloatArray(c.BlackPoint[:]))
 	}
 	if c.Gamma != 0 {
-		out += fmt.Sprintf(" /Gamma %.3f", c.Gamma)
+		out += fmt.Sprintf("/Gamma %.3f", c.Gamma)
 	}
 	out += ">>"
 	return out
@@ -213,13 +213,13 @@ type CalRGBColorSpace struct {
 func (c CalRGBColorSpace) pdfString(pdfWriter) string {
 	out := fmt.Sprintf("<</WhitePoint %s", writeFloatArray(c.WhitePoint[:]))
 	if c.BlackPoint != [3]float64{} {
-		out += fmt.Sprintf(" /BlackPoint %s", writeFloatArray(c.BlackPoint[:]))
+		out += fmt.Sprintf("/BlackPoint %s", writeFloatArray(c.BlackPoint[:]))
 	}
 	if c.Gamma != [3]float64{} {
-		out += fmt.Sprintf(" /Gamma %s", writeFloatArray(c.Gamma[:]))
+		out += fmt.Sprintf("/Gamma %s", writeFloatArray(c.Gamma[:]))
 	}
 	if c.Matrix != [9]float64{} {
-		out += fmt.Sprintf(" /Matrix %s", writeFloatArray(c.Matrix[:]))
+		out += fmt.Sprintf("/Matrix %s", writeFloatArray(c.Matrix[:]))
 	}
 	out += ">>"
 	return out
@@ -234,17 +234,17 @@ type LabColorSpace struct {
 func (c LabColorSpace) pdfString(pdfWriter) string {
 	out := fmt.Sprintf("<</WhitePoint %s", writeFloatArray(c.WhitePoint[:]))
 	if c.BlackPoint != [3]float64{} {
-		out += fmt.Sprintf(" /BlackPoint %s", writeFloatArray(c.BlackPoint[:]))
+		out += fmt.Sprintf("/BlackPoint %s", writeFloatArray(c.BlackPoint[:]))
 	}
 	if c.Range != [4]float64{} {
-		out += fmt.Sprintf(" /Range %s", writeFloatArray(c.Range[:]))
+		out += fmt.Sprintf("/Range %s", writeFloatArray(c.Range[:]))
 	}
 	out += ">>"
 	return out
 }
 
 // IndexedColorSpace is written in PDF as
-// [ /Indexed base hival lookup ]
+// [/Indexed base hival lookup ]
 type IndexedColorSpace struct {
 	Base   ColorSpace
 	Hival  uint8
@@ -283,7 +283,7 @@ func (table *ColorTableStream) pdfContent(pdfWriter) (string, []byte) {
 type ColorTableBytes []byte
 
 // UncoloredTilingPattern is written in PDF
-// [ /Pattern underlyingColorSpace ]
+// [/Pattern underlyingColorSpace ]
 type UncoloredTilingPattern struct {
 	UnderlyingColorSpace ColorSpace
 }
@@ -346,7 +346,7 @@ type FunctionBased struct {
 func (s FunctionBased) pdfContent(commonFields string, pdf pdfWriter) (string, []byte) {
 	b := newBuffer()
 	fns := pdf.writeFunctions(s.Function)
-	b.fmt("<</ShadingType 1 %s /Function %s", commonFields, writeRefArray(fns))
+	b.fmt("<</ShadingType 1 %s/Function %s", commonFields, writeRefArray(fns))
 	if s.Domain != [4]float64{} {
 		b.fmt("/Domain %s", writeFloatArray(s.Domain[:]))
 	}
@@ -369,10 +369,10 @@ func (g BaseGradient) pdfString(pdf pdfWriter) string {
 	fns := pdf.writeFunctions(g.Function)
 	out := fmt.Sprintf("/Function %s", writeRefArray(fns))
 	if g.Domain != [2]float64{} {
-		out += fmt.Sprintf(" /Domain %s", writeFloatArray(g.Domain[:]))
+		out += fmt.Sprintf("/Domain %s", writeFloatArray(g.Domain[:]))
 	}
 	if g.Extend != [2]bool{} {
-		out += fmt.Sprintf(" /Extend [%v %v]", g.Extend[0], g.Extend[1])
+		out += fmt.Sprintf("/Extend [%v %v]", g.Extend[0], g.Extend[1])
 	}
 	return out
 }
@@ -384,7 +384,7 @@ type Axial struct {
 
 func (s Axial) pdfContent(commonFields string, pdf pdfWriter) (string, []byte) {
 	gradArgs := s.BaseGradient.pdfString(pdf)
-	out := fmt.Sprintf("<</ShadingType 2 %s %s /Coords %s>>",
+	out := fmt.Sprintf("<</ShadingType 2 %s %s/Coords %s>>",
 		commonFields, gradArgs, writeFloatArray(s.Coords[:]))
 	return out, nil
 }
@@ -396,7 +396,7 @@ type Radial struct {
 
 func (s Radial) pdfContent(commonFields string, pdf pdfWriter) (string, []byte) {
 	gradArgs := s.BaseGradient.pdfString(pdf)
-	out := fmt.Sprintf("<</ShadingType 3 %s %s /Coords %s>>",
+	out := fmt.Sprintf("<</ShadingType 3 %s %s/Coords %s>>",
 		commonFields, gradArgs, writeFloatArray(s.Coords[:]))
 	return out, nil
 }
@@ -416,7 +416,7 @@ type Coons struct {
 func (c Coons) pdfContent(commonFields string, pdf pdfWriter) (string, []byte) {
 	args := c.PDFCommonFields()
 	b := newBuffer()
-	b.fmt("<</ShadingType 6 %s %s /BitsPerCoordinate %d /BitsPerComponent %d /BitsPerFlag %d /Decode %s",
+	b.fmt("<</ShadingType 6 %s %s/BitsPerCoordinate %d/BitsPerComponent %d/BitsPerFlag %d/Decode %s",
 		commonFields, args, c.BitsPerCoordinate, c.BitsPerComponent, c.BitsPerFlag, writeRangeArray(c.Decode))
 	if len(c.Function) != 0 {
 		fns := pdf.writeFunctions(c.Function)
@@ -447,7 +447,7 @@ func (s *ShadingDict) pdfContent(pdf pdfWriter) (string, []byte) {
 		b.fmt("/Background %s", writeFloatArray(s.Background))
 	}
 	if s.BBox != nil {
-		b.fmt("/BBox %s", s.BBox.PDFstring())
+		b.fmt("/BBox %s", s.BBox.String())
 	}
 	b.fmt("/AntiAlias %v", s.AntiAlias)
 	return s.ShadingType.pdfContent(b.String(), pdf)
@@ -463,7 +463,7 @@ type ShadingPatern struct {
 func (s *ShadingPatern) pdfContent(pdf pdfWriter) (string, []byte) {
 	b := newBuffer()
 	shadingRef := pdf.addItem(s.Shading)
-	b.fmt("<</PatternType 2 /Shading %s", shadingRef)
+	b.fmt("<</PatternType 2/Shading %s", shadingRef)
 	if s.Matrix != (Matrix{}) {
 		b.fmt("/Matrix %s", s.Matrix)
 	}

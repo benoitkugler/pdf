@@ -20,7 +20,7 @@ type PageTree struct {
 	Kids      []PageNode
 	Resources *ResourcesDict // if nil, will be inherited from the parent
 
-	// countValue *int // cached for performance
+	// countValue *int// cached for performance
 }
 
 // Count returns the number of Page objects (leaf node)
@@ -73,13 +73,13 @@ func (pages *PageTree) pdfString(pdf pdfWriter, ownReference, parentRef Referenc
 	}
 	parent := ""
 	if parentRef > 0 {
-		parent = fmt.Sprintf(" /Parent %s", parentRef)
+		parent = fmt.Sprintf("/Parent %s", parentRef)
 	}
 	res := ""
 	if pages.Resources != nil {
-		res = fmt.Sprintf(" /Resources %s", pdf.addItem(pages.Resources))
+		res = fmt.Sprintf("/Resources %s", pdf.addItem(pages.Resources))
 	}
-	content := fmt.Sprintf("<</Type /Pages /Count %d /Kids %s%s%s>>",
+	content := fmt.Sprintf("<</Type/Pages/Count %d/Kids %s%s%s>>",
 		pages.Count(), writeRefArray(kidRefs), parent, res)
 	return content
 }
@@ -116,25 +116,25 @@ type PageObject struct {
 func (p PageObject) pdfString(pdf pdfWriter, parentReference Reference) string {
 	b := newBuffer()
 	b.line("<<")
-	b.line("/Type /Page")
+	b.line("/Type/Page")
 	b.line("/Parent %s", parentReference)
 	if p.Resources != nil {
 		b.line("/Resources %s", pdf.addItem(p.Resources))
 	}
 	if p.MediaBox != nil {
-		b.line("/MediaBox %s", p.MediaBox.PDFstring())
+		b.line("/MediaBox %s", p.MediaBox.String())
 	}
 	if p.CropBox != nil {
-		b.line("/CropBox %s", p.CropBox.PDFstring())
+		b.line("/CropBox %s", p.CropBox.String())
 	}
 	if p.BleedBox != nil {
-		b.line("/BleedBox %s", p.BleedBox.PDFstring())
+		b.line("/BleedBox %s", p.BleedBox.String())
 	}
 	if p.TrimBox != nil {
-		b.line("/TrimBox %s", p.TrimBox.PDFstring())
+		b.line("/TrimBox %s", p.TrimBox.String())
 	}
 	if p.ArtBox != nil {
-		b.line("/ArtBox %s", p.ArtBox.PDFstring())
+		b.line("/ArtBox %s", p.ArtBox.String())
 	}
 	if p.Rotate != nil {
 		b.line("/Rotate %d", p.Rotate.Degrees())
@@ -173,50 +173,50 @@ func (r ResourcesDict) pdfContent(pdf pdfWriter) (string, []byte) {
 	b := newBuffer()
 	b.line("<<")
 	if r.ExtGState != nil {
-		b.line("/ExtGState <<")
+		b.fmt("/ExtGState <<")
 		for n, item := range r.ExtGState {
 			ref := pdf.addItem(item)
-			b.line("%s %s", n, ref)
+			b.fmt("%s %s", n, ref)
 		}
 		b.line(">>")
 	}
 	if r.ColorSpace != nil {
-		b.line("/ColorSpace <<")
+		b.fmt("/ColorSpace <<")
 		for n, item := range r.ColorSpace {
 			cs := writeColorSpace(item, pdf)
-			b.line("%s %s", n, cs)
+			b.fmt("%s %s", n, cs)
 		}
 		b.line(">>")
 	}
 	if r.Shading != nil {
-		b.line("/Shading <<")
+		b.fmt("/Shading <<")
 		for n, item := range r.Shading {
 			ref := pdf.addItem(item)
-			b.line("%s %s", n, ref)
+			b.fmt("%s %s", n, ref)
 		}
 		b.line(">>")
 	}
 	if r.Pattern != nil {
-		b.line("/Pattern <<")
+		b.fmt("/Pattern <<")
 		for n, item := range r.Pattern {
 			ref := pdf.addItem(item)
-			b.line("%s %s", n, ref)
+			b.fmt("%s %s", n, ref)
 		}
 		b.line(">>")
 	}
 	if r.Font != nil {
-		b.line("/Font <<")
+		b.fmt("/Font <<")
 		for n, item := range r.Font {
 			ref := pdf.addItem(item)
-			b.line("%s %s", n, ref)
+			b.fmt("%s %s", n, ref)
 		}
 		b.line(">>")
 	}
 	if r.XObject != nil {
-		b.line("/XObject <<")
+		b.fmt("/XObject <<")
 		for n, item := range r.XObject {
 			ref := pdf.addItem(item)
-			b.line("%s %s", n, ref)
+			b.fmt("%s %s", n, ref)
 		}
 		b.line(">>")
 	}
@@ -301,7 +301,7 @@ func (o *Outline) pdfString(pdf pdfWriter, ref Reference) string {
 	last := o.Last()
 	pdf.outlines[last] = lastRef
 	pdf.WriteObject(last.pdfString(pdf, lastRef, ref), nil, lastRef)
-	return fmt.Sprintf("<</First %s /Last %s /Count %d>>", firstRef, lastRef, o.Count())
+	return fmt.Sprintf("<</First %s/Last %s/Count %d>>", firstRef, lastRef, o.Count())
 }
 
 type OutlineNode interface {
@@ -397,7 +397,7 @@ func (pdf pdfWriter) addOutlineItem(item *OutlineItem, parent Reference) Referen
 // we use a cache to keep track of the already written items
 func (o *OutlineItem) pdfString(pdf pdfWriter, ref, parent Reference) string {
 	b := newBuffer()
-	b.fmt("<</Title %s /Parent %s", pdf.EncodeString(o.Title, TextString), parent)
+	b.fmt("<</Title %s/Parent %s", pdf.EncodeString(o.Title, TextString), parent)
 	if o.Next != nil {
 		nextRef := pdf.addOutlineItem(o.Next, parent)
 		b.fmt("/Next %s", nextRef)
