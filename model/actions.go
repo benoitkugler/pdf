@@ -38,7 +38,7 @@ type Action interface {
 type URIAction string
 
 func (uri URIAction) ActionDictionary(pdf pdfWriter) string {
-	return fmt.Sprintf("<</S/URI/URI (%s)>>", pdf.EncodeString(string(uri), ASCIIString))
+	return fmt.Sprintf("<</S/URI/URI (%s)>>", pdf.encodeString(string(uri), aSCIIString))
 }
 
 type GoToAction struct {
@@ -88,5 +88,5 @@ type JavaScriptAction struct {
 }
 
 func (j JavaScriptAction) ActionDictionary(pdf pdfWriter) string {
-	return fmt.Sprintf("<</S/JavaScript/JS %s>>", pdf.EncodeString(j.JS, TextString))
+	return fmt.Sprintf("<</S/JavaScript/JS %s>>", pdf.encodeString(j.JS, textString))
 }

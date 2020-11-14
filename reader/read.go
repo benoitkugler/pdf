@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"log"
-	"strings"
 	"time"
 
 	"github.com/benoitkugler/pdf/model"
@@ -71,14 +70,14 @@ func decodeTextString(s string) string {
 	return encodings.PDFDocEncodingToString(b)
 }
 
-var replacer = strings.NewReplacer("\\\\", "\\", "\\(", ")", "\\)", "(", "\\r", "\r")
+// var replacer = strings.NewReplacer("\\\\", "\\", "\\(", ")", "\\)", "(", "\\r", "\r")
 
 // return the string and true if o is a StringLitteral (...) or a HexadecimalLitteral <...>
 // the string is unespaced (for StringLitteral) and decoded (for Hexadecimal)
 func isString(o pdfcpu.Object) (string, bool) {
 	switch o := o.(type) {
 	case pdfcpu.StringLiteral:
-		return replacer.Replace(o.Value()), true
+		return o.Value(), true
 	case pdfcpu.HexLiteral:
 		out, err := hex.DecodeString(o.Value())
 		return string(out), err == nil
@@ -98,7 +97,7 @@ func (r resolver) processFloatArray(ar pdfcpu.Array) []float64 {
 func (r resolver) info() model.Info {
 	var out model.Info
 	if info := r.xref.Info; info != nil {
-		d, _ := r.resolve(info).(pdfcpu.Dict)
+		d, _ := r.resolve(*info).(pdfcpu.Dict)
 		producer, _ := isString(r.resolve(d["Producer"]))
 		title, _ := isString(r.resolve(d["Title"]))
 		subject, _ := isString(r.resolve(d["Subject"]))

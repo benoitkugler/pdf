@@ -381,7 +381,7 @@ type CIDSystemInfo struct {
 // String returns a dictionary representation
 func (c CIDSystemInfo) pdfString(pdf pdfWriter) string {
 	return fmt.Sprintf("<</Registry %s/Ordering %s/Supplement %d>>",
-		pdf.EncodeString(c.Registry, ASCIIString), pdf.EncodeString(c.Ordering, ASCIIString), c.Supplement)
+		pdf.encodeString(c.Registry, aSCIIString), pdf.encodeString(c.Ordering, aSCIIString), c.Supplement)
 }
 
 // CIDWidth groups the two ways of defining widths for CID

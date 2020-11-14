@@ -20,14 +20,14 @@ func (f *FileSpec) pdfContent(pdf pdfWriter) (string, []byte) {
 	b := newBuffer()
 	b.fmt("<</Type/Filespec")
 	if f.UF != "" {
-		b.fmt("/UF %s", pdf.EncodeString(f.UF, TextString))
+		b.fmt("/UF %s", pdf.encodeString(f.UF, textString))
 	}
 	if f.EF != nil {
 		ref := pdf.addObject(f.EF.pdfContent(pdf))
 		b.fmt("/EF %s", ref)
 	}
 	if f.Desc != "" {
-		b.fmt("/Desc %s", pdf.EncodeString(f.Desc, TextString))
+		b.fmt("/Desc %s", pdf.encodeString(f.Desc, textString))
 	}
 	b.fmt(">>")
 	return b.String(), nil

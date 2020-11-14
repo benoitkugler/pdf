@@ -87,7 +87,7 @@ func (ba BaseAnnotation) fields(pdf pdfWriter) string {
 	b := newBuffer()
 	b.fmt("/Rectangle %s", ba.Rect)
 	if ba.Contents != "" {
-		b.fmt("/Contents %s", pdf.EncodeString(ba.Contents, TextString))
+		b.fmt("/Contents %s", pdf.encodeString(ba.Contents, textString))
 	}
 	if ap := ba.AP; ap != nil {
 		b.fmt("/AP %s", ap.pdfString(pdf))
@@ -168,7 +168,7 @@ type FileAttachmentAnnotation struct {
 
 func (f FileAttachmentAnnotation) annotationFields(pdf pdfWriter) string {
 	ref := pdf.addItem(f.FS)
-	return fmt.Sprintf("/Subtype/FileAttachment/T %s/FS %s", pdf.EncodeString(f.T, TextString), ref)
+	return fmt.Sprintf("/Subtype/FileAttachment/T %s/FS %s", pdf.encodeString(f.T, textString), ref)
 }
 
 // ---------------------------------------------------

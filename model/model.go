@@ -7,6 +7,7 @@
 package model
 
 import (
+	"io"
 	"time"
 )
 
@@ -18,17 +19,19 @@ type Document struct {
 }
 
 // Write walks the entire document and writes its content
-// using `pdf` as an output.
-// It returns two references, needed by a PDF writer to finalize
-// the file (that is, to write the trailer)
-func (doc Document) Write(pdf PDFOutput) (root, info Reference) {
-	wr := newWriter(pdf)
+// into `output`, producing a valid PDF file.
+func (doc Document) Write(output io.Writer) error {
+	wr := newWriter(output)
 
-	root = wr.CreateObject()
+	wr.writeHeader()
+
+	root := wr.CreateObject()
 	wr.WriteObject(doc.Catalog.pdfString(wr, root), nil, root)
-	info = wr.addObject(doc.Trailer.Info.pdfString(wr), nil)
+	info := wr.addObject(doc.Trailer.Info.pdfString(wr), nil)
 
-	return root, info
+	wr.writeFooter(doc.Trailer.Encrypt, root, info)
+
+	return wr.err
 }
 
 type Catalog struct {
@@ -145,22 +148,22 @@ func (info Info) pdfString(pdf pdfWriter) string {
 	b := newBuffer()
 	b.fmt("<<\n")
 	if t := info.Producer; t != "" {
-		b.fmt("/Producer %s\n", pdf.EncodeString(t, TextString))
+		b.fmt("/Producer %s\n", pdf.encodeString(t, textString))
 	}
 	if t := info.Title; t != "" {
-		b.fmt("/Title %s\n", pdf.EncodeString(t, TextString))
+		b.fmt("/Title %s\n", pdf.encodeString(t, textString))
 	}
 	if t := info.Subject; t != "" {
-		b.fmt("/Subject %s\n", pdf.EncodeString(t, TextString))
+		b.fmt("/Subject %s\n", pdf.encodeString(t, textString))
 	}
 	if t := info.Author; t != "" {
-		b.fmt("/Author %s\n", pdf.EncodeString(t, TextString))
+		b.fmt("/Author %s\n", pdf.encodeString(t, textString))
 	}
 	if t := info.Keywords; t != "" {
-		b.fmt("/Keywords %s\n", pdf.EncodeString(t, TextString))
+		b.fmt("/Keywords %s\n", pdf.encodeString(t, textString))
 	}
 	if t := info.Creator; t != "" {
-		b.fmt("/Creator %s\n", pdf.EncodeString(t, TextString))
+		b.fmt("/Creator %s\n", pdf.encodeString(t, textString))
 	}
 	if t := info.CreationDate; !t.IsZero() {
 		b.fmt("/CreationDate %s\n", pdf.dateString(t))

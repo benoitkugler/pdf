@@ -109,13 +109,13 @@ func (f *FormField) pdfString(pdf pdfWriter, ownRef, parent, catalog Reference) 
 		b.fmt("/Kids %s", writeRefArray(refs))
 	}
 	if f.T != "" {
-		b.fmt("/T %s", pdf.EncodeString(f.T, TextString))
+		b.fmt("/T %s", pdf.encodeString(f.T, textString))
 	}
 	if f.TU != "" {
-		b.fmt("/TU %s", pdf.EncodeString(f.TU, TextString))
+		b.fmt("/TU %s", pdf.encodeString(f.TU, textString))
 	}
 	if f.TM != "" {
-		b.fmt("/TM %s", pdf.EncodeString(f.TM, TextString))
+		b.fmt("/TM %s", pdf.encodeString(f.TM, textString))
 	}
 	b.fmt("/Ff %d", f.Ff)
 	if f.AA != nil {
@@ -125,13 +125,13 @@ func (f *FormField) pdfString(pdf pdfWriter, ownRef, parent, catalog Reference) 
 		b.fmt("/Q %d", f.Q)
 	}
 	if f.DA != "" {
-		b.line("/DA %s", pdf.EncodeString(f.DA, ByteString))
+		b.line("/DA %s", pdf.encodeString(f.DA, byteString))
 	}
 	if f.DS != "" {
-		b.line("/DS %s", pdf.EncodeString(f.DS, TextString))
+		b.line("/DS %s", pdf.encodeString(f.DS, textString))
 	}
 	if f.RV != "" {
-		b.line("/RV %s", pdf.EncodeString(f.RV, TextString))
+		b.line("/RV %s", pdf.encodeString(f.RV, textString))
 	}
 	b.fmt(">>")
 	return b.String()
@@ -177,7 +177,7 @@ type FormFieldText struct {
 }
 
 func (f FormFieldText) formFieldAttrs(pdf pdfWriter, _ Reference) string {
-	out := fmt.Sprintf("/FT/Tx/V %s", pdf.EncodeString(f.V, TextString))
+	out := fmt.Sprintf("/FT/Tx/V %s", pdf.encodeString(f.V, textString))
 	if f.MaxLen != Undef {
 		out += fmt.Sprintf("/MaxLen %d", f.MaxLen)
 	}
@@ -195,7 +195,7 @@ type FormFieldButton struct {
 func (f FormFieldButton) formFieldAttrs(pdf pdfWriter, _ Reference) string {
 	out := fmt.Sprintf("/FT/Btn/V %s", f.V)
 	if len(f.Opt) != 0 {
-		out += fmt.Sprintf("/Opt [%s]", pdf.stringsArray(f.Opt, TextString))
+		out += fmt.Sprintf("/Opt [%s]", pdf.stringsArray(f.Opt, textString))
 	}
 	return out
 }
@@ -210,9 +210,9 @@ type Option struct {
 
 func (o Option) pdfString(pdf pdfWriter) string {
 	if o.Export == "" {
-		return pdf.EncodeString(o.Name, TextString)
+		return pdf.encodeString(o.Name, textString)
 	}
-	return fmt.Sprintf("[%s %s]", pdf.EncodeString(o.Export, TextString), pdf.EncodeString(o.Name, TextString))
+	return fmt.Sprintf("[%s %s]", pdf.encodeString(o.Export, textString), pdf.encodeString(o.Name, textString))
 }
 
 // FormFieldChoice contain several text items,
@@ -233,9 +233,9 @@ func (f FormFieldChoice) formFieldAttrs(pdf pdfWriter, _ Reference) string {
 	if len(f.V) == 0 {
 		b.fmt("/V null")
 	} else if len(f.V) == 1 {
-		b.fmt("/V %s", pdf.EncodeString(f.V[0], TextString))
+		b.fmt("/V %s", pdf.encodeString(f.V[0], textString))
 	} else {
-		b.fmt("/V %s", pdf.stringsArray(f.V, TextString))
+		b.fmt("/V %s", pdf.stringsArray(f.V, textString))
 	}
 	if len(f.Opt) != 0 {
 		b.fmt("/Opt [")
@@ -306,9 +306,9 @@ func (s SignatureDict) pdfString(pdf pdfWriter, catalog Reference) string {
 	if s.SubFilter != "" {
 		b.fmt("/SubFiler %s", s.SubFilter)
 	}
-	b.fmt("/Contents %s", pdf.EncodeString(s.Contents, HexString))
+	b.fmt("/Contents %s", pdf.encodeString(s.Contents, hexString))
 	if len(s.Cert) != 0 {
-		b.fmt("/Cert %s", pdf.stringsArray(s.Cert, TextString))
+		b.fmt("/Cert %s", pdf.stringsArray(s.Cert, textString))
 	}
 	if len(s.ByteRange) != 0 {
 		b.fmt("/ByteRange [")
@@ -328,16 +328,16 @@ func (s SignatureDict) pdfString(pdf pdfWriter, catalog Reference) string {
 		b.fmt("/Changes %s", writeIntArray(s.Changes[:]))
 	}
 	if s.Name != "" {
-		b.fmt("/Name %s", pdf.EncodeString(s.Name, TextString))
+		b.fmt("/Name %s", pdf.encodeString(s.Name, textString))
 	}
 	if s.Location != "" {
-		b.fmt("/Location %s", pdf.EncodeString(s.Location, TextString))
+		b.fmt("/Location %s", pdf.encodeString(s.Location, textString))
 	}
 	if s.Reason != "" {
-		b.fmt("/Reason %s", pdf.EncodeString(s.Reason, TextString))
+		b.fmt("/Reason %s", pdf.encodeString(s.Reason, textString))
 	}
 	if s.ContactInfo != "" {
-		b.fmt("/ContactInfo %s", pdf.EncodeString(s.ContactInfo, TextString))
+		b.fmt("/ContactInfo %s", pdf.encodeString(s.ContactInfo, textString))
 	}
 	if !s.M.IsZero() {
 		b.fmt("/M %s", pdf.dateString(s.M))
@@ -427,7 +427,7 @@ func (t TransformUR) transformParamsDict(pdf pdfWriter) string {
 		b.fmt("/Document %s", writeNameArray(t.Document))
 	}
 	if t.Msg != "" {
-		b.fmt("/Msg %s", pdf.EncodeString(t.Msg, TextString))
+		b.fmt("/Msg %s", pdf.encodeString(t.Msg, textString))
 	}
 	if t.V != "" {
 		b.fmt("/V %s", t.V)
@@ -458,7 +458,7 @@ type TransformFieldMDP struct {
 func (t TransformFieldMDP) transformParamsDict(pdf pdfWriter) string {
 	out := fmt.Sprintf("<</Action %s", t.Action)
 	if len(t.Fields) != 0 {
-		out += fmt.Sprintf("/Fields %s", pdf.stringsArray(t.Fields, TextString))
+		out += fmt.Sprintf("/Fields %s", pdf.stringsArray(t.Fields, textString))
 	}
 	out += fmt.Sprintf("/V %s>>", t.V)
 	return out
@@ -472,7 +472,7 @@ type LockDict struct {
 func (l LockDict) pdfString(pdf pdfWriter) string {
 	out := fmt.Sprintf("<</Action %s", l.Action)
 	if len(l.Fields) != 0 {
-		out += fmt.Sprintf("/Fields %s", pdf.stringsArray(l.Fields, TextString))
+		out += fmt.Sprintf("/Fields %s", pdf.stringsArray(l.Fields, textString))
 	}
 	out += ">>"
 	return out
@@ -516,7 +516,7 @@ func (s SeedDict) pdfString(pdf pdfWriter) string {
 		b.fmt("/Cert %s", s.Cert.pdfString(pdf))
 	}
 	if len(s.Reasons) != 0 {
-		b.fmt("/Reasons %s", pdf.stringsArray(s.Reasons, TextString))
+		b.fmt("/Reasons %s", pdf.stringsArray(s.Reasons, textString))
 	}
 	if s.MDP != Undef {
 		b.fmt("/MDP <</P %d>>", s.MDP)
@@ -525,7 +525,7 @@ func (s SeedDict) pdfString(pdf pdfWriter) string {
 		b.fmt("/TimeStamp %s", s.TimeStamp.pdfString(pdf))
 	}
 	if len(s.LegalAttestation) != 0 {
-		b.fmt("/LegalAttestation %s", pdf.stringsArray(s.LegalAttestation, TextString))
+		b.fmt("/LegalAttestation %s", pdf.stringsArray(s.LegalAttestation, textString))
 	}
 	b.fmt("/AddRevInfo %v>>", s.AddRevInfo)
 	return b.String()
@@ -537,7 +537,7 @@ type TimeStampDict struct {
 }
 
 func (s TimeStampDict) pdfString(pdf pdfWriter) string {
-	return fmt.Sprintf("<</URL %s/Ff %d>>", pdf.EncodeString(s.URL, ASCIIString), s.Ff)
+	return fmt.Sprintf("<</URL %s/Ff %d>>", pdf.encodeString(s.URL, aSCIIString), s.Ff)
 }
 
 // CertDict contains characteristics of the certificate that shall be used when signing
@@ -559,30 +559,30 @@ func (c CertDict) pdfString(pdf pdfWriter) string {
 		b.fmt("/Ff %d", c.Ff)
 	}
 	if len(c.Subject) != 0 {
-		b.fmt("/Subject %s", pdf.stringsArray(c.Subject, ByteString))
+		b.fmt("/Subject %s", pdf.stringsArray(c.Subject, byteString))
 	}
 	if len(c.SubjectDN) != 0 {
 		b.fmt("/SubjectDN [")
 		for _, dn := range c.SubjectDN {
 			b.WriteString("<<")
 			for name, value := range dn {
-				b.fmt("%s %s ", name, pdf.EncodeString(value, TextString))
+				b.fmt("%s %s ", name, pdf.encodeString(value, textString))
 			}
 			b.fmt(">> ")
 		}
 		b.fmt("]")
 	}
 	if len(c.KeyUsage) != 0 {
-		b.fmt("/KeyUsage %s", pdf.stringsArray(c.KeyUsage, ASCIIString))
+		b.fmt("/KeyUsage %s", pdf.stringsArray(c.KeyUsage, aSCIIString))
 	}
 	if len(c.Issuer) != 0 {
-		b.fmt("/Issuer %s", pdf.stringsArray(c.Issuer, ByteString))
+		b.fmt("/Issuer %s", pdf.stringsArray(c.Issuer, byteString))
 	}
 	if len(c.OID) != 0 {
-		b.fmt("/OID %s", pdf.stringsArray(c.OID, ByteString))
+		b.fmt("/OID %s", pdf.stringsArray(c.OID, byteString))
 	}
 	if c.URL != "" {
-		b.fmt("/URL %s", pdf.EncodeString(c.URL, ASCIIString))
+		b.fmt("/URL %s", pdf.encodeString(c.URL, aSCIIString))
 	}
 	if c.URLType != "" {
 		b.fmt("/URLType %s", c.URLType)
@@ -674,7 +674,7 @@ func (a AcroForm) pdfString(pdf pdfWriter, catalog Reference) string {
 		b.fmt("/DR %s", ref)
 	}
 	if a.DA != "" {
-		b.fmt("/DA %s", pdf.EncodeString(a.DA, ByteString))
+		b.fmt("/DA %s", pdf.encodeString(a.DA, byteString))
 	}
 	if a.Q != 0 {
 		b.fmt("/Q %d", a.Q)
