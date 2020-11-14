@@ -12,10 +12,10 @@ func (r resolver) rectangleFromArray(array pdfcpu.Object) *model.Rectangle {
 	if len(ar) < 4 {
 		return nil
 	}
-	llx, _ := isNumber(r.resolve(ar[0]))
-	lly, _ := isNumber(r.resolve(ar[1]))
-	urx, _ := isNumber(r.resolve(ar[2]))
-	ury, _ := isNumber(r.resolve(ar[3]))
+	llx, _ := r.resolveNumber(ar[0])
+	lly, _ := r.resolveNumber(ar[1])
+	urx, _ := r.resolveNumber(ar[2])
+	ury, _ := r.resolveNumber(ar[3])
 	return &model.Rectangle{Llx: llx, Lly: lly, Urx: urx, Ury: ury}
 }
 
@@ -26,7 +26,7 @@ func (r resolver) matrixFromArray(array pdfcpu.Object) *model.Matrix {
 	}
 	var out model.Matrix
 	for i := range out {
-		out[i], _ = isNumber(r.resolve(ar[i]))
+		out[i], _ = r.resolveNumber(ar[i])
 	}
 	return &out
 }
@@ -297,9 +297,9 @@ func (r resolver) resolveOutlineItem(object pdfcpu.Object, parent model.OutlineN
 	}
 	// TODO: SE entry (structure hierarchy)
 	if c, _ := r.resolve(dict["C"]).(pdfcpu.Array); len(c) == 3 {
-		out.C[0], _ = isNumber(r.resolve(c[0]))
-		out.C[1], _ = isNumber(r.resolve(c[1]))
-		out.C[2], _ = isNumber(r.resolve(c[2]))
+		out.C[0], _ = r.resolveNumber(c[0])
+		out.C[1], _ = r.resolveNumber(c[1])
+		out.C[2], _ = r.resolveNumber(c[2])
 	}
 	if f, ok := r.resolveInt(dict["F"]); ok {
 		out.F = model.OutlineFlag(f)

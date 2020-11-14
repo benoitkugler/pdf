@@ -73,18 +73,6 @@ func decodeTextString(s string) string {
 	return encodings.PDFDocEncodingToString([]byte(s))
 }
 
-// return the number and true is o is an int or a number
-func isNumber(o pdfcpu.Object) (float64, bool) {
-	switch o := o.(type) {
-	case pdfcpu.Float:
-		return o.Value(), true
-	case pdfcpu.Integer:
-		return float64(o.Value()), true
-	default:
-		return 0, false
-	}
-}
-
 var replacer = strings.NewReplacer("\\\\", "\\", "\\(", ")", "\\)", "(", "\\r", "\r")
 
 // return the string and true if o is a StringLitteral (...) or a HexadecimalLitteral <...>
@@ -104,7 +92,7 @@ func isString(o pdfcpu.Object) (string, bool) {
 func (r resolver) processFloatArray(ar pdfcpu.Array) []float64 {
 	out := make([]float64, len(ar))
 	for i, v := range ar {
-		out[i], _ = isNumber(r.resolve(v))
+		out[i], _ = r.resolveNumber(v)
 	}
 	return out
 }
@@ -279,6 +267,18 @@ func (r resolver) resolveBool(o pdfcpu.Object) (bool, bool) {
 func (r resolver) resolveInt(o pdfcpu.Object) (int, bool) {
 	b, ok := r.resolve(o).(pdfcpu.Integer)
 	return int(b), ok
+}
+
+// accepts both integer and float
+func (r resolver) resolveNumber(o pdfcpu.Object) (float64, bool) {
+	switch o := r.resolve(o).(type) {
+	case pdfcpu.Float:
+		return o.Value(), true
+	case pdfcpu.Integer:
+		return float64(o.Value()), true
+	default:
+		return 0, false
+	}
 }
 
 func (r resolver) resolveName(o pdfcpu.Object) (model.Name, bool) {

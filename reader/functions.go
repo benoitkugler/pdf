@@ -76,8 +76,8 @@ func (r resolver) processRange(range_ pdfcpu.Array) ([]model.Range, error) {
 	}
 	out := make([]model.Range, len(range_)/2)
 	for i := range out {
-		a, _ := isNumber(r.resolve(range_[2*i]))
-		b, _ := isNumber(r.resolve(range_[2*i+1]))
+		a, _ := r.resolveNumber(range_[2*i])
+		b, _ := r.resolveNumber(range_[2*i+1])
 		if a > b {
 			return nil, fmt.Errorf("invalid ranges range %v > %v", a, b)
 		}
@@ -125,8 +125,8 @@ func (r resolver) resolveStitchingFn(fn pdfcpu.Dict) (model.StitchingFunction, e
 	}
 	out.Encode = make([][2]float64, K)
 	for i := range out.Encode {
-		out.Encode[i][0], _ = isNumber(r.resolve(encode[2*i]))
-		out.Encode[i][1], _ = isNumber(r.resolve(encode[2*i+1]))
+		out.Encode[i][0], _ = r.resolveNumber(encode[2*i])
+		out.Encode[i][1], _ = r.resolveNumber(encode[2*i+1])
 	}
 	return out, nil
 }
@@ -158,8 +158,8 @@ func (r resolver) processSampledFn(stream pdfcpu.StreamDict) (model.SampledFunct
 	}
 	out.Encode = make([][2]float64, m)
 	for i := range out.Encode {
-		out.Encode[i][0], _ = isNumber(r.resolve(encode[2*i]))
-		out.Encode[i][1], _ = isNumber(r.resolve(encode[2*i+1]))
+		out.Encode[i][0], _ = r.resolveNumber(encode[2*i])
+		out.Encode[i][1], _ = r.resolveNumber(encode[2*i+1])
 	}
 
 	decode, _ := r.resolve(stream.Dict["Decode"]).(pdfcpu.Array)

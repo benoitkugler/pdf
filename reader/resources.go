@@ -199,7 +199,7 @@ func (r resolver) resolveFontTT1orTT(font pdfcpu.Dict) (model.Type1, error) {
 	widths, _ := r.resolve(font["Widths"]).(pdfcpu.Array)
 	out.Widths = make([]int, len(widths))
 	for i, w := range widths {
-		wf, _ := isNumber(r.resolve(w)) // also accept float
+		wf, _ := r.resolveNumber(w) // also accept float
 		out.Widths[i] = int(wf)
 	}
 	// be careful to byte overflow when LastChar = 255 and FirstChar = 0
@@ -218,37 +218,37 @@ func (r resolver) resolveFontDescriptor(entry pdfcpu.Object) (model.FontDescript
 		return model.FontDescriptor{}, errType("FontDescriptor", fd)
 	}
 	var out model.FontDescriptor
-	if f, ok := isNumber(r.resolve(fontDescriptor["Ascent"])); ok {
+	if f, ok := r.resolveNumber(fontDescriptor["Ascent"]); ok {
 		out.Ascent = f
 	}
-	if f, ok := isNumber(r.resolve(fontDescriptor["Descent"])); ok {
+	if f, ok := r.resolveNumber(fontDescriptor["Descent"]); ok {
 		out.Descent = f
 	}
-	if f, ok := isNumber(r.resolve(fontDescriptor["Leading"])); ok {
+	if f, ok := r.resolveNumber(fontDescriptor["Leading"]); ok {
 		out.Leading = f
 	}
-	if f, ok := isNumber(r.resolve(fontDescriptor["CapHeight"])); ok {
+	if f, ok := r.resolveNumber(fontDescriptor["CapHeight"]); ok {
 		out.CapHeight = f
 	}
-	if f, ok := isNumber(r.resolve(fontDescriptor["XHeight"])); ok {
+	if f, ok := r.resolveNumber(fontDescriptor["XHeight"]); ok {
 		out.XHeight = f
 	}
-	if f, ok := isNumber(r.resolve(fontDescriptor["StemV"])); ok {
+	if f, ok := r.resolveNumber(fontDescriptor["StemV"]); ok {
 		out.StemV = f
 	}
-	if f, ok := isNumber(r.resolve(fontDescriptor["StemH"])); ok {
+	if f, ok := r.resolveNumber(fontDescriptor["StemH"]); ok {
 		out.StemH = f
 	}
-	if f, ok := isNumber(r.resolve(fontDescriptor["AvgWidth"])); ok {
+	if f, ok := r.resolveNumber(fontDescriptor["AvgWidth"]); ok {
 		out.AvgWidth = f
 	}
-	if f, ok := isNumber(r.resolve(fontDescriptor["MaxWidth"])); ok {
+	if f, ok := r.resolveNumber(fontDescriptor["MaxWidth"]); ok {
 		out.MaxWidth = f
 	}
-	if f, ok := isNumber(r.resolve(fontDescriptor["MissingWidth"])); ok {
+	if f, ok := r.resolveNumber(fontDescriptor["MissingWidth"]); ok {
 		out.MissingWidth = f
 	}
-	if it, ok := isNumber(r.resolve(fontDescriptor["ItalicAngle"])); ok {
+	if it, ok := r.resolveNumber(fontDescriptor["ItalicAngle"]); ok {
 		out.ItalicAngle = it
 	}
 	if fl, ok := r.resolveInt(fontDescriptor["Flags"]); ok && fl >= 0 {
@@ -494,8 +494,8 @@ func (r resolver) parseStateDict(state pdfcpu.Dict) (*model.GraphicState, error)
 	out.Ca = model.Undef
 	out.SM = model.Undef
 
-	out.LW, _ = isNumber(r.resolve(state["LW"]))
-	out.ML, _ = isNumber(r.resolve(state["ML"]))
+	out.LW, _ = r.resolveNumber(state["LW"])
+	out.ML, _ = r.resolveNumber(state["ML"])
 	out.RI, _ = r.resolveName(state["RI"])
 
 	if lc, ok := r.resolveInt(state["LC"]); ok { // 0 is not a default value
@@ -504,13 +504,13 @@ func (r resolver) parseStateDict(state pdfcpu.Dict) (*model.GraphicState, error)
 	if lj, ok := r.resolveInt(state["LJ"]); ok { // 0 is not a default value
 		out.LJ = lj
 	}
-	if ca, ok := isNumber(r.resolve(state["CA"])); ok { // 0 is not a default value
+	if ca, ok := r.resolveNumber(state["CA"]); ok { // 0 is not a default value
 		out.CA = ca
 	}
-	if ca, ok := isNumber(r.resolve(state["Ca"])); ok { // 0 is not a default value
+	if ca, ok := r.resolveNumber(state["Ca"]); ok { // 0 is not a default value
 		out.Ca = ca
 	}
-	if sm, ok := isNumber(r.resolve(state["SM"])); ok { // 0 is not a default value
+	if sm, ok := r.resolveNumber(state["SM"]); ok { // 0 is not a default value
 		out.SM = sm
 	}
 	out.AIS, _ = r.resolveBool(state["AIS"])
@@ -518,13 +518,13 @@ func (r resolver) parseStateDict(state pdfcpu.Dict) (*model.GraphicState, error)
 
 	if d, _ := r.resolve(state["D"]).(pdfcpu.Array); len(d) == 2 {
 		dash, _ := r.resolve(d[0]).(pdfcpu.Array)
-		phase, _ := isNumber(r.resolve(d[1]))
+		phase, _ := r.resolveNumber(d[1])
 		out.D.Array = r.processFloatArray(dash)
 		out.D.Phase = phase
 	}
 
 	if font, _ := r.resolve(state["Font"]).(pdfcpu.Array); len(font) == 2 {
-		out.Font.Size, _ = isNumber(r.resolve(font[1]))
+		out.Font.Size, _ = r.resolveNumber(font[1])
 		fontModel, err := r.resolveOneFont(font[0])
 		if err != nil {
 			return nil, err

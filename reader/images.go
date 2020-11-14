@@ -105,8 +105,8 @@ func (r resolver) resolveOneXObjectImage(img pdfcpu.Object) (*model.XObjectImage
 	} else { // special case: [0 1] or [1 0]
 		if len(decode) == 2 {
 			var ra model.Range
-			ra[0], _ = isNumber(r.resolve(decode[0]))
-			ra[1], _ = isNumber(r.resolve(decode[1]))
+			ra[0], _ = r.resolveNumber(decode[0])
+			ra[1], _ = r.resolveNumber(decode[1])
 			out.Decode = []model.Range{ra}
 		}
 		// else: ignore nil or invalid

@@ -160,9 +160,9 @@ func (r *resolver) resolveAnnotationFields(annotDict pdfcpu.Dict) (model.Annotat
 	border, _ := r.resolve(annotDict["Border"]).(pdfcpu.Array)
 	var bo model.Border
 	if len(border) >= 3 {
-		bo.HCornerRadius, _ = isNumber(r.resolve(border[0]))
-		bo.VCornerRadius, _ = isNumber(r.resolve(border[1]))
-		bo.BorderWidth, _ = isNumber(r.resolve(border[2]))
+		bo.HCornerRadius, _ = r.resolveNumber(border[0])
+		bo.VCornerRadius, _ = r.resolveNumber(border[1])
+		bo.BorderWidth, _ = r.resolveNumber(border[2])
 		if len(border) == 4 {
 			dash, _ := r.resolve(border[4]).(pdfcpu.Array)
 			bo.DashArray = r.processFloatArray(dash)
@@ -237,13 +237,13 @@ func (r *resolver) resolveExplicitDestination(dest pdfcpu.Array) (*model.Explici
 	if name, _ := r.resolveName(dest[1]); name != "XYZ" {
 		return nil, fmt.Errorf("expected /XYZ in Destination, got unsupported %s", dest[1])
 	}
-	if left, ok := isNumber(r.resolve(dest[2])); ok {
+	if left, ok := r.resolveNumber(dest[2]); ok {
 		out.Left = &left
 	}
-	if top, ok := isNumber(r.resolve(dest[3])); ok {
+	if top, ok := r.resolveNumber(dest[3]); ok {
 		out.Top = &top
 	}
-	out.Zoom, _ = isNumber(r.resolve(dest[4]))
+	out.Zoom, _ = r.resolveNumber(dest[4])
 	// store the incomplete destination to process later on
 	r.destinationsToComplete = append(r.destinationsToComplete,
 		incompleteDest{ref: pageRef, destination: out})

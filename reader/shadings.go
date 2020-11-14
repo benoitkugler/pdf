@@ -273,7 +273,7 @@ func (r resolver) resolveFunctionSh(sh pdfcpu.Dict) (model.FunctionBased, error)
 
 	if domain, _ := r.resolve(sh["Domain"]).(pdfcpu.Array); len(domain) == 4 {
 		for i, v := range domain {
-			out.Domain[i], _ = isNumber(r.resolve(v))
+			out.Domain[i], _ = r.resolveNumber(v)
 		}
 	}
 	if mat := r.matrixFromArray(sh["Matrix"]); mat != nil {
@@ -287,8 +287,8 @@ func (r resolver) resolveFunctionSh(sh pdfcpu.Dict) (model.FunctionBased, error)
 func (r resolver) resolveBaseGradient(sh pdfcpu.Dict) (g model.BaseGradient, err error) {
 	domain, _ := r.resolve(sh["Domain"]).(pdfcpu.Array)
 	if len(domain) == 2 {
-		g.Domain[0], _ = isNumber(r.resolve(domain[0]))
-		g.Domain[1], _ = isNumber(r.resolve(domain[1]))
+		g.Domain[0], _ = r.resolveNumber(domain[0])
+		g.Domain[1], _ = r.resolveNumber(domain[1])
 	}
 	extend, _ := r.resolve(sh["Extend"]).(pdfcpu.Array)
 	if len(extend) == 2 {
@@ -310,7 +310,7 @@ func (r resolver) resolveAxialSh(sh pdfcpu.Dict) (model.Axial, error) {
 		return out, fmt.Errorf("unexpected Coords for Axial shading %v", coords)
 	}
 	for i, v := range coords {
-		out.Coords[i], _ = isNumber(r.resolve(v))
+		out.Coords[i], _ = r.resolveNumber(v)
 	}
 	return out, nil
 }
@@ -326,7 +326,7 @@ func (r resolver) resolveRadialSh(sh pdfcpu.Dict) (model.Radial, error) {
 		return out, fmt.Errorf("unexpected Coords for Axial shading %v", coords)
 	}
 	for i, v := range coords {
-		out.Coords[i], _ = isNumber(r.resolve(v))
+		out.Coords[i], _ = r.resolveNumber(v)
 	}
 	return out, nil
 }
@@ -444,8 +444,8 @@ func (r resolver) resolveTilingPattern(pat pdfcpu.StreamDict) (*model.TilingPate
 	if rect := r.rectangleFromArray(pat.Dict["BBox"]); rect != nil {
 		out.BBox = *rect
 	}
-	out.XStep, _ = isNumber(r.resolve(pat.Dict["XStep"]))
-	out.YStep, _ = isNumber(r.resolve(pat.Dict["YStep"]))
+	out.XStep, _ = r.resolveNumber(pat.Dict["XStep"])
+	out.YStep, _ = r.resolveNumber(pat.Dict["YStep"])
 	rs, err := r.resolveOneResourceDict(pat.Dict["Resources"])
 	if err != nil {
 		return nil, err
