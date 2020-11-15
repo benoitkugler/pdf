@@ -24,7 +24,7 @@ func writeFloatArray(as []float64) string {
 	return fmt.Sprintf("[%s]", strings.Join(b, " "))
 }
 
-func writeRefArray(as []reference) string {
+func writeRefArray(as []Reference) string {
 	b := make([]string, len(as))
 	for i, ref := range as {
 		b[i] = ref.String()
@@ -56,7 +56,7 @@ func writeNameArray(rs []Name) string {
 	return fmt.Sprintf("[%s]", strings.Join(b, " "))
 }
 
-func (pdf pdfWriter) dateString(t time.Time, context reference) string {
+func (pdf pdfWriter) dateString(t time.Time, context Reference) string {
 	_, tz := t.Zone()
 	str := fmt.Sprintf("D:%d%02d%02d%02d%02d%02d+%02d'%02d'",
 		t.Year(), t.Month(), t.Day(),
@@ -65,7 +65,7 @@ func (pdf pdfWriter) dateString(t time.Time, context reference) string {
 	return pdf.EncodeString(str, TextString, context)
 }
 
-func (pdf pdfWriter) stringsArray(ar []string, mode StringEncoding, context reference) string {
+func (pdf pdfWriter) stringsArray(ar []string, mode StringEncoding, context Reference) string {
 	chunks := make([]string, len(ar))
 	for i, val := range ar {
 		chunks[i] = pdf.EncodeString(val, mode, context)

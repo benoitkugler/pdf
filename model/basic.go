@@ -130,8 +130,8 @@ func (f ExpInterpolationFunction) pdfString(baseArgs string) string {
 }
 
 // convenience: write the functions and returns the corresponding reference
-func (pdf pdfWriter) writeFunctions(fns []Function) []reference {
-	refs := make([]reference, len(fns))
+func (pdf pdfWriter) writeFunctions(fns []Function) []Reference {
+	refs := make([]Reference, len(fns))
 	for i, f := range fns {
 		refs[i] = pdf.addObject(f.pdfContent(pdf))
 	}

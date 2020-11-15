@@ -38,7 +38,7 @@ type GraphicState struct {
 	SA   bool
 }
 
-func (g *GraphicState) pdfContent(pdf pdfWriter, _ reference) (string, []byte) {
+func (g *GraphicState) pdfContent(pdf pdfWriter, _ Reference) (string, []byte) {
 	b := newBuffer()
 	b.WriteString("<<")
 	if g.LW != 0 {
@@ -129,7 +129,7 @@ type ICCBasedColorSpace struct {
 
 // returns the stream object. `pdf` is used
 // to write potential alternate space.
-func (c *ICCBasedColorSpace) pdfContent(pdf pdfWriter, _ reference) (string, []byte) {
+func (c *ICCBasedColorSpace) pdfContent(pdf pdfWriter, _ Reference) (string, []byte) {
 	baseArgs := c.PDFCommonFields()
 	b := newBuffer()
 	b.fmt("<</N %d %s", c.N, baseArgs)
@@ -276,7 +276,7 @@ type ColorTableStream Stream
 
 // PDFBytes return the content of the stream.
 // PDFWriter is not used
-func (table *ColorTableStream) pdfContent(pdfWriter, reference) (string, []byte) {
+func (table *ColorTableStream) pdfContent(pdfWriter, Reference) (string, []byte) {
 	return (*Stream)(table).PDFContent()
 }
 
@@ -318,7 +318,7 @@ type TilingPatern struct {
 }
 
 // TODO: tiling patern
-func (t *TilingPatern) pdfContent(pdf pdfWriter, _ reference) (string, []byte) {
+func (t *TilingPatern) pdfContent(pdf pdfWriter, _ Reference) (string, []byte) {
 	return "<<>>", nil
 }
 
@@ -439,7 +439,7 @@ type ShadingDict struct {
 	AntiAlias  bool       // optional, default to false
 }
 
-func (s *ShadingDict) pdfContent(pdf pdfWriter, _ reference) (string, []byte) {
+func (s *ShadingDict) pdfContent(pdf pdfWriter, _ Reference) (string, []byte) {
 	b := newBuffer()
 	cs := writeColorSpace(s.ColorSpace, pdf)
 	b.fmt("/ColorSpace %s", cs)
@@ -460,7 +460,7 @@ type ShadingPatern struct {
 	ExtGState *GraphicState // optionnal
 }
 
-func (s *ShadingPatern) pdfContent(pdf pdfWriter, _ reference) (string, []byte) {
+func (s *ShadingPatern) pdfContent(pdf pdfWriter, _ Reference) (string, []byte) {
 	b := newBuffer()
 	shadingRef := pdf.addItem(s.Shading)
 	b.fmt("<</PatternType 2/Shading %s", shadingRef)

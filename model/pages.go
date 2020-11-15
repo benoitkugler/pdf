@@ -66,8 +66,8 @@ func (p PageTree) allocateReferences(pdf pdfWriter) {
 // returns the Dictionary for `pages`.
 // It requires a reference passed to its children, and its parent reference.
 // `parentReference` will be negative (or zero) only for the root node.
-func (pages *PageTree) pdfString(pdf pdfWriter, ownReference, parentRef reference) string {
-	kidRefs := make([]reference, len(pages.Kids))
+func (pages *PageTree) pdfString(pdf pdfWriter, ownReference, parentRef Reference) string {
+	kidRefs := make([]Reference, len(pages.Kids))
 	for i, page := range pages.Kids {
 		kidRefs[i] = writePageNode(pdf, page, ownReference)
 	}
@@ -84,7 +84,7 @@ func (pages *PageTree) pdfString(pdf pdfWriter, ownReference, parentRef referenc
 	return content
 }
 
-func writePageNode(pdf pdfWriter, page PageNode, parentRef reference) reference {
+func writePageNode(pdf pdfWriter, page PageNode, parentRef Reference) Reference {
 	switch page := page.(type) {
 	case *PageTree:
 		ownRef := pdf.createObject()
@@ -113,7 +113,7 @@ type PageObject struct {
 	Contents                  []ContentStream // array of stream (often of length 1)
 }
 
-func (p PageObject) pdfString(pdf pdfWriter, parentReference reference) string {
+func (p PageObject) pdfString(pdf pdfWriter, parentReference Reference) string {
 	b := newBuffer()
 	b.line("<<")
 	b.line("/Type/Page")
@@ -139,14 +139,14 @@ func (p PageObject) pdfString(pdf pdfWriter, parentReference reference) string {
 	if p.Rotate != nil {
 		b.line("/Rotate %d", p.Rotate.Degrees())
 	}
-	annots := make([]reference, len(p.Annots))
+	annots := make([]Reference, len(p.Annots))
 	for i, a := range p.Annots {
 		annots[i] = pdf.addItem(a)
 	}
 	if len(p.Annots) != 0 {
 		b.line("/Annots %s", writeRefArray(annots))
 	}
-	contents := make([]reference, len(p.Contents))
+	contents := make([]Reference, len(p.Contents))
 	for i, c := range p.Contents {
 		contents[i] = pdf.addObject(c.PDFContent())
 	}
@@ -169,7 +169,7 @@ type ResourcesDict struct {
 	XObject    map[Name]XObject       // optionnal
 }
 
-func (r *ResourcesDict) pdfContent(pdf pdfWriter, _ reference) (string, []byte) {
+func (r *ResourcesDict) pdfContent(pdf pdfWriter, _ Reference) (string, []byte) {
 	b := newBuffer()
 	b.line("<<")
 	if r.ExtGState != nil {
@@ -293,7 +293,7 @@ func (o *Outline) Count() int {
 
 // ref should be the object number of the outline, need for the child
 // to reference their parent
-func (o *Outline) pdfString(pdf pdfWriter, ref reference) string {
+func (o *Outline) pdfString(pdf pdfWriter, ref Reference) string {
 	firstRef := pdf.createObject()
 	pdf.outlines[o.First] = firstRef
 	pdf.writeObject(o.First.pdfString(pdf, firstRef, ref), nil, firstRef)
@@ -381,7 +381,7 @@ func (o *OutlineItem) Count() int {
 
 // convenience function to write an item only once, and return
 // its reference afterwards
-func (pdf pdfWriter) addOutlineItem(item *OutlineItem, parent reference) reference {
+func (pdf pdfWriter) addOutlineItem(item *OutlineItem, parent Reference) Reference {
 	nextRef, has := pdf.outlines[item]
 	if !has {
 		nextRef = pdf.createObject()
@@ -395,7 +395,7 @@ func (pdf pdfWriter) addOutlineItem(item *OutlineItem, parent reference) referen
 // to reference it. parent is the parent of the outline item
 // since an item will be processed several times (from its siblings)
 // we use a cache to keep track of the already written items
-func (o *OutlineItem) pdfString(pdf pdfWriter, ref, parent reference) string {
+func (o *OutlineItem) pdfString(pdf pdfWriter, ref, parent Reference) string {
 	b := newBuffer()
 	b.fmt("<</Title %s/Parent %s", pdf.EncodeString(o.Title, TextString, ref), parent)
 	if o.Next != nil {

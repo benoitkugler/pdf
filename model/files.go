@@ -16,7 +16,7 @@ type FileSpec struct {
 
 // returns the dictionnay. `pdf` is used
 // to create the EmbeddedFileStream object.
-func (f *FileSpec) pdfContent(pdf pdfWriter, ref reference) (string, []byte) {
+func (f *FileSpec) pdfContent(pdf pdfWriter, ref Reference) (string, []byte) {
 	b := newBuffer()
 	b.fmt("<</Type/Filespec")
 	if f.UF != "" {
@@ -40,7 +40,7 @@ type EmbeddedFileParams struct {
 	CheckSum     string    // optional, must be hex16 encoded
 }
 
-func (params EmbeddedFileParams) pdfString(pdf pdfWriter, ref reference) string {
+func (params EmbeddedFileParams) pdfString(pdf pdfWriter, ref Reference) string {
 	b := newBuffer()
 	b.WriteString("<<")
 	if params.Size != 0 {
@@ -64,7 +64,7 @@ type EmbeddedFileStream struct {
 	Params EmbeddedFileParams
 }
 
-func (emb *EmbeddedFileStream) pdfContent(pdf pdfWriter, ref reference) (string, []byte) {
+func (emb *EmbeddedFileStream) pdfContent(pdf pdfWriter, ref Reference) (string, []byte) {
 	args := emb.PDFCommonFields()
 	out := fmt.Sprintf("<</Type/EmbeddedFile %s/Params %s>>", args, emb.Params.pdfString(pdf, ref))
 	return out, emb.Content

@@ -82,7 +82,7 @@ func (f *FormField) FullFieldName() string {
 
 // require it's own reference to pass it to its kids
 // `parent` will be invalid for the root fields
-func (f *FormField) pdfString(pdf pdfWriter, ownRef, parent, catalog reference) string {
+func (f *FormField) pdfString(pdf pdfWriter, ownRef, parent, catalog Reference) string {
 	b := newBuffer()
 	b.WriteString("<<")
 	if f.FT != nil { // might be nil if inherited
@@ -92,7 +92,7 @@ func (f *FormField) pdfString(pdf pdfWriter, ownRef, parent, catalog reference) 
 		b.fmt("/Parent %s", parent)
 	}
 	if len(f.Kids) != 0 {
-		refs := make([]reference, len(f.Kids))
+		refs := make([]Reference, len(f.Kids))
 		for i, kid := range f.Kids {
 			kidRef := pdf.createObject()
 			pdf.fields[kid] = kidRef // register to the cache
@@ -102,7 +102,7 @@ func (f *FormField) pdfString(pdf pdfWriter, ownRef, parent, catalog reference) 
 		b.fmt("/Kids %s", writeRefArray(refs))
 	} else if len(f.Widgets) != 0 {
 		// we write annotation as indirect objects
-		refs := make([]reference, len(f.Widgets))
+		refs := make([]Reference, len(f.Widgets))
 		for i, w := range f.Widgets {
 			widgetRef := pdf.createObject()
 			pdf.writeObject(w.pdfString(pdf, widgetRef, ownRef), nil, widgetRef)
@@ -159,7 +159,7 @@ type Widget struct {
 	WidgetAnnotation
 }
 
-func (w Widget) pdfString(pdf pdfWriter, ownRef, parent reference) string {
+func (w Widget) pdfString(pdf pdfWriter, ownRef, parent Reference) string {
 	return fmt.Sprintf("<<%s %s/Parent %s>>",
 		w.BaseAnnotation.fields(pdf, ownRef), w.WidgetAnnotation.annotationFields(pdf, ownRef), parent)
 }
@@ -170,7 +170,7 @@ type FormFieldType interface {
 	// must include the type entry/FT
 	// `catalog` is needed by FieldSignature
 	// `fieldRef` is the reference of the field dict object
-	formFieldAttrs(pdf pdfWriter, catalog, fieldRef reference) string
+	formFieldAttrs(pdf pdfWriter, catalog, fieldRef Reference) string
 }
 
 // FormFieldText are boxes or spaces in which the user can enter text from the keyboard.
@@ -179,7 +179,7 @@ type FormFieldText struct {
 	MaxLen int    // optional, Undef when not set
 }
 
-func (f FormFieldText) formFieldAttrs(pdf pdfWriter, _, fieldRef reference) string {
+func (f FormFieldText) formFieldAttrs(pdf pdfWriter, _, fieldRef Reference) string {
 	out := fmt.Sprintf("/FT/Tx/V %s", pdf.EncodeString(f.V, TextString, fieldRef))
 	if f.MaxLen != Undef {
 		out += fmt.Sprintf("/MaxLen %d", f.MaxLen)
@@ -195,7 +195,7 @@ type FormFieldButton struct {
 	Opt []string // optional, text strings, same length as Widgets
 }
 
-func (f FormFieldButton) formFieldAttrs(pdf pdfWriter, _, fieldRef reference) string {
+func (f FormFieldButton) formFieldAttrs(pdf pdfWriter, _, fieldRef Reference) string {
 	out := fmt.Sprintf("/FT/Btn/V %s", f.V)
 	if len(f.Opt) != 0 {
 		out += fmt.Sprintf("/Opt [%s]", pdf.stringsArray(f.Opt, TextString, fieldRef))
@@ -211,7 +211,7 @@ type Option struct {
 	Name   string
 }
 
-func (o Option) pdfString(pdf pdfWriter, context reference) string {
+func (o Option) pdfString(pdf pdfWriter, context Reference) string {
 	if o.Export == "" {
 		return pdf.EncodeString(o.Name, TextString, context)
 	}
@@ -231,7 +231,7 @@ type FormFieldChoice struct {
 	I   []int    // optional
 }
 
-func (f FormFieldChoice) formFieldAttrs(pdf pdfWriter, _, fieldRef reference) string {
+func (f FormFieldChoice) formFieldAttrs(pdf pdfWriter, _, fieldRef Reference) string {
 	b := newBuffer()
 	b.fmt("/FT/Ch")
 	if len(f.V) == 0 {
@@ -266,7 +266,7 @@ type FormFieldSignature struct {
 	SV   *SeedDict      // optional
 }
 
-func (f FormFieldSignature) formFieldAttrs(pdf pdfWriter, catalog, fieldRef reference) string {
+func (f FormFieldSignature) formFieldAttrs(pdf pdfWriter, catalog, fieldRef Reference) string {
 	out := "/FT/Sig"
 	if f.V != nil {
 		out += fmt.Sprintf("/V %s", f.V.pdfString(pdf, catalog, fieldRef))
@@ -301,7 +301,7 @@ type SignatureDict struct {
 	Prop_AuthType Name                     // optional
 }
 
-func (s SignatureDict) pdfString(pdf pdfWriter, catalog, fieldRef reference) string {
+func (s SignatureDict) pdfString(pdf pdfWriter, catalog, fieldRef Reference) string {
 	b := newBuffer()
 	b.WriteString("<<")
 	if s.Filter != "" {
@@ -373,7 +373,7 @@ type SignatureBuildDictionary interface {
 	// and crypt them if needed.
 	// `ref` is the object number of the object containing the dictionary,
 	// and should be use forwarded to the `EncodeString` method.
-	SignatureBuildPDFString(encoder PDFStringEncoder, ref reference) string
+	SignatureBuildPDFString(encoder PDFStringEncoder, ref Reference) string
 
 	// Clone must return a deep copy of itself
 	Clone() SignatureBuildDictionary
@@ -389,7 +389,7 @@ type SignatureRefDict struct {
 	DigestMethod Name
 }
 
-func (s SignatureRefDict) pdfString(pdf pdfWriter, catalog, ref reference) string {
+func (s SignatureRefDict) pdfString(pdf pdfWriter, catalog, ref Reference) string {
 	return fmt.Sprintf("<</TransformMethod %s/TransformParams %s/DigestMethod %s ∕Data %s>>",
 		s.TransformMethod, s.TransformParams.transformParamsDict(pdf, ref), s.DigestMethod, catalog)
 }
@@ -397,7 +397,7 @@ func (s SignatureRefDict) pdfString(pdf pdfWriter, catalog, ref reference) strin
 // TransformParams determines which objects are included and excluded
 // in revision comparison
 type TransformParams interface {
-	transformParamsDict(pdf pdfWriter, ref reference) string
+	transformParamsDict(pdf pdfWriter, ref Reference) string
 }
 
 type TransformDocMDP struct {
@@ -405,7 +405,7 @@ type TransformDocMDP struct {
 	V Name // optional
 }
 
-func (t TransformDocMDP) transformParamsDict(pdfWriter, reference) string {
+func (t TransformDocMDP) transformParamsDict(pdfWriter, Reference) string {
 	out := "<<"
 	if t.P != 0 {
 		out += fmt.Sprintf("/P %d", t.P)
@@ -428,7 +428,7 @@ type TransformUR struct {
 	P         bool   // optional
 }
 
-func (t TransformUR) transformParamsDict(pdf pdfWriter, ref reference) string {
+func (t TransformUR) transformParamsDict(pdf pdfWriter, ref Reference) string {
 	b := newBuffer()
 	b.WriteString("<<")
 	if len(t.Document) != 0 {
@@ -463,7 +463,7 @@ type TransformFieldMDP struct {
 	V      Name
 }
 
-func (t TransformFieldMDP) transformParamsDict(pdf pdfWriter, ref reference) string {
+func (t TransformFieldMDP) transformParamsDict(pdf pdfWriter, ref Reference) string {
 	out := fmt.Sprintf("<</Action %s", t.Action)
 	if len(t.Fields) != 0 {
 		out += fmt.Sprintf("/Fields %s", pdf.stringsArray(t.Fields, TextString, ref))
@@ -477,7 +477,7 @@ type LockDict struct {
 	Fields []string // field names, text strings, optional when Action == All
 }
 
-func (l LockDict) pdfString(pdf pdfWriter, ref reference) string {
+func (l LockDict) pdfString(pdf pdfWriter, ref Reference) string {
 	out := fmt.Sprintf("<</Action %s", l.Action)
 	if len(l.Fields) != 0 {
 		out += fmt.Sprintf("/Fields %s", pdf.stringsArray(l.Fields, TextString, ref))
@@ -502,7 +502,7 @@ type SeedDict struct {
 	AddRevInfo       bool           // optional, default to false
 }
 
-func (s SeedDict) pdfString(pdf pdfWriter, ref reference) string {
+func (s SeedDict) pdfString(pdf pdfWriter, ref Reference) string {
 	b := newBuffer()
 	b.WriteString("<<")
 	if s.Ff != 0 {
@@ -544,7 +544,7 @@ type TimeStampDict struct {
 	Ff  uint8  // 0 or 1, default to 0
 }
 
-func (s TimeStampDict) pdfString(pdf pdfWriter, ref reference) string {
+func (s TimeStampDict) pdfString(pdf pdfWriter, ref Reference) string {
 	return fmt.Sprintf("<</URL %s/Ff %d>>", pdf.EncodeString(s.URL, ASCIIString, ref), s.Ff)
 }
 
@@ -560,7 +560,7 @@ type CertDict struct {
 	URLType   Name              // optional
 }
 
-func (c CertDict) pdfString(pdf pdfWriter, ref reference) string {
+func (c CertDict) pdfString(pdf pdfWriter, ref Reference) string {
 	b := newBuffer()
 	b.WriteString("<<")
 	if c.Ff != 0 {
@@ -656,9 +656,9 @@ func (a AcroForm) Flatten() []*FormField {
 	return out
 }
 
-func (a AcroForm) pdfString(pdf pdfWriter, catalog, acroRef reference) string {
+func (a AcroForm) pdfString(pdf pdfWriter, catalog, acroRef Reference) string {
 	b := newBuffer()
-	refs := make([]reference, len(a.Fields))
+	refs := make([]Reference, len(a.Fields))
 	for i, f := range a.Fields {
 		fieldRef := pdf.createObject()
 		pdf.fields[f] = fieldRef // add to the cache
@@ -671,7 +671,7 @@ func (a AcroForm) pdfString(pdf pdfWriter, catalog, acroRef reference) string {
 		b.fmt("/SigFlags %d", a.SigFlags)
 	}
 	if len(a.CO) != 0 { // wil use the ref from the cache
-		refs := make([]reference, len(a.CO))
+		refs := make([]Reference, len(a.CO))
 		for i, co := range a.CO {
 			refs[i] = pdf.fields[co]
 		}

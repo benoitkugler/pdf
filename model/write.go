@@ -10,12 +10,12 @@ import (
 	"golang.org/x/text/encoding/unicode"
 )
 
-// reference is the object number of a PDF object.
+// Reference is the object number of a PDF object.
 // It is only needed to write a document.
-type reference int
+type Reference int
 
 // String return a string to be used when writing a PDF
-func (r reference) String() string {
+func (r Reference) String() string {
 	return fmt.Sprintf("%d 0 R", r)
 }
 
@@ -46,8 +46,8 @@ func (w *output) bytes(b []byte) {
 // createObject return a new reference
 // and grow the `objOffsets` accordingly.
 // This is needed to write objects that must reference their "parent".
-func (w *output) createObject() reference {
-	ref := reference(len(w.objOffsets)) // last object is at len(objOffsets) - 1
+func (w *output) createObject() Reference {
+	ref := Reference(len(w.objOffsets)) // last object is at len(objOffsets) - 1
 	w.objOffsets = append(w.objOffsets, 0)
 	return ref
 }
@@ -62,7 +62,7 @@ func (w *output) writeHeader() {
 	w.bytes([]byte("\n"))
 }
 
-func (w *output) writeFooter(encrypt Encrypt, root, info reference) {
+func (w *output) writeFooter(encrypt Encrypt, root, info Reference) {
 	var b bytes.Buffer
 	// Cross-ref
 	o, n := w.written, len(w.objOffsets)-1
@@ -97,10 +97,10 @@ func (w *output) writeFooter(encrypt Encrypt, root, info reference) {
 type pdfWriter struct {
 	*output
 
-	cache    map[cachable]reference
-	pages    map[*PageObject]reference
-	outlines map[*OutlineItem]reference
-	fields   map[*FormField]reference
+	cache    map[cachable]Reference
+	pages    map[*PageObject]Reference
+	outlines map[*OutlineItem]Reference
+	fields   map[*FormField]Reference
 
 	encrypt Encrypt
 }
@@ -108,10 +108,10 @@ type pdfWriter struct {
 func newWriter(dest io.Writer, encrypt Encrypt) pdfWriter {
 	return pdfWriter{
 		output:   &output{dst: dest, objOffsets: []int{0}},
-		cache:    make(map[cachable]reference),
-		pages:    make(map[*PageObject]reference),
-		outlines: make(map[*OutlineItem]reference),
-		fields:   make(map[*FormField]reference),
+		cache:    make(map[cachable]Reference),
+		pages:    make(map[*PageObject]Reference),
+		outlines: make(map[*OutlineItem]Reference),
+		fields:   make(map[*FormField]Reference),
 		encrypt:  encrypt,
 	}
 }
@@ -135,10 +135,10 @@ var (
 // It will also encrypt `s`, if needed, using
 // `context`, which is the object number of the containing object.
 type PDFStringEncoder interface {
-	EncodeString(s string, mode StringEncoding, context reference) string
+	EncodeString(s string, mode StringEncoding, context Reference) string
 }
 
-func (p pdfWriter) EncodeString(s string, mode StringEncoding, context reference) string {
+func (p pdfWriter) EncodeString(s string, mode StringEncoding, context Reference) string {
 	if p.err != nil {
 		return ""
 	}
@@ -174,7 +174,7 @@ func (p pdfWriter) EncodeString(s string, mode StringEncoding, context reference
 // For stream object, `content` will contain the dictionary,
 // and `stream` the inner stream bytes. For other objects, `stream` will be nil.
 // Stream content will be encrypted if needed.
-func (w pdfWriter) writeObject(content string, stream []byte, ref reference) {
+func (w pdfWriter) writeObject(content string, stream []byte, ref Reference) {
 	w.objOffsets[ref] = w.written
 	w.bytes([]byte(fmt.Sprintf("%d 0 obj\n", ref)))
 	w.bytes([]byte(content))
@@ -192,7 +192,7 @@ func (w pdfWriter) writeObject(content string, stream []byte, ref reference) {
 
 // addObject is a convenience shortcut to write `content` into a new object
 // and return the created reference
-func (p pdfWriter) addObject(content string, stream []byte) reference {
+func (p pdfWriter) addObject(content string, stream []byte) Reference {
 	ref := p.createObject()
 	p.writeObject(content, stream, ref)
 	return ref
@@ -202,7 +202,7 @@ func (p pdfWriter) addObject(content string, stream []byte) reference {
 
 type cachable interface {
 	isCachable()
-	pdfContent(pdf pdfWriter, objectRef reference) (content string, stream []byte)
+	pdfContent(pdf pdfWriter, objectRef Reference) (content string, stream []byte)
 }
 
 func (*FormField) isCachable()          {}
@@ -223,7 +223,7 @@ func (*XObjectForm) isCachable()        {}
 func (*XObjectImage) isCachable()       {}
 
 // check the cache and write a new item if not found
-func (pdf pdfWriter) addItem(item cachable) reference {
+func (pdf pdfWriter) addItem(item cachable) Reference {
 	if ref, has := pdf.cache[item]; has {
 		return ref
 	}

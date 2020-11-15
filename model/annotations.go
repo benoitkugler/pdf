@@ -83,7 +83,7 @@ type BaseAnnotation struct {
 	Border *Border // optional
 }
 
-func (ba BaseAnnotation) fields(pdf pdfWriter, ref reference) string {
+func (ba BaseAnnotation) fields(pdf pdfWriter, ref Reference) string {
 	b := newBuffer()
 	b.fmt("/Rectangle %s", ba.Rect)
 	if ba.Contents != "" {
@@ -110,7 +110,7 @@ type Annotation struct {
 }
 
 // pdfContent impements is cachable
-func (a *Annotation) pdfContent(pdf pdfWriter, ref reference) (string, []byte) {
+func (a *Annotation) pdfContent(pdf pdfWriter, ref Reference) (string, []byte) {
 	base := a.BaseAnnotation.fields(pdf, ref)
 	subtype := a.Subtype.annotationFields(pdf, ref)
 	return fmt.Sprintf("<<%s %s >>", base, subtype), nil
@@ -156,7 +156,7 @@ func (ap AppearanceEntry) pdfString(pdf pdfWriter) string {
 
 type AnnotationType interface {
 	// return the specialized fields (including Subtype)
-	annotationFields(pdf pdfWriter, ref reference) string
+	annotationFields(pdf pdfWriter, ref Reference) string
 }
 
 // ------------------------ specializations ------------------------
@@ -166,7 +166,7 @@ type FileAttachmentAnnotation struct {
 	FS *FileSpec
 }
 
-func (f FileAttachmentAnnotation) annotationFields(pdf pdfWriter, ref reference) string {
+func (f FileAttachmentAnnotation) annotationFields(pdf pdfWriter, ref Reference) string {
 	fsRef := pdf.addItem(f.FS)
 	return fmt.Sprintf("/Subtype/FileAttachment/T %s/FS %s", pdf.EncodeString(f.T, TextString, ref), fsRef)
 }
@@ -180,7 +180,7 @@ type LinkAnnotation struct {
 	Dest Destination // may only be present is A is nil
 }
 
-func (l LinkAnnotation) annotationFields(pdf pdfWriter, ref reference) string {
+func (l LinkAnnotation) annotationFields(pdf pdfWriter, ref Reference) string {
 	out := "/Subtype/Link"
 	if l.A != nil {
 		out += "/A " + l.A.ActionDictionary(pdf, ref)
@@ -198,7 +198,7 @@ type WidgetAnnotation struct {
 	BS *BorderStyle
 }
 
-func (w WidgetAnnotation) annotationFields(pdf pdfWriter, ref reference) string {
+func (w WidgetAnnotation) annotationFields(pdf pdfWriter, ref Reference) string {
 	out := fmt.Sprintf("/Subtype/Widget")
 	if w.H != "" {
 		out += fmt.Sprintf("/H %s", w.H)

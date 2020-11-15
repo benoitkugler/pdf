@@ -59,7 +59,7 @@ type Catalog struct {
 
 // returns the Dictionary of `cat`
 // `catalog` is needed by the potential signature fields
-func (cat Catalog) pdfString(pdf pdfWriter, catalog reference) string {
+func (cat Catalog) pdfString(pdf pdfWriter, catalog Reference) string {
 	b := newBuffer()
 	b.line("<<\n/Type/Catalog")
 
@@ -160,7 +160,7 @@ type Info struct {
 }
 
 // pdfString return the Dictionary for `info`
-func (info Info) pdfString(pdf pdfWriter, ref reference) string {
+func (info Info) pdfString(pdf pdfWriter, ref Reference) string {
 	b := newBuffer()
 	b.fmt("<<\n")
 	if t := info.Producer; t != "" {

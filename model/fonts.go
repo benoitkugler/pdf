@@ -11,7 +11,7 @@ type Font struct {
 	Subtype FontType
 }
 
-func (f *Font) pdfContent(pdf pdfWriter, _ reference) (string, []byte) {
+func (f *Font) pdfContent(pdf pdfWriter, _ Reference) (string, []byte) {
 	return f.Subtype.fontPDFString(pdf), nil
 }
 
@@ -268,7 +268,7 @@ type EncodingDict struct {
 	Differences  Differences // optionnal
 }
 
-func (e *EncodingDict) pdfContent(pdfWriter pdfWriter, _ reference) (string, []byte) {
+func (e *EncodingDict) pdfContent(pdfWriter pdfWriter, _ Reference) (string, []byte) {
 	out := "<<"
 	if e.BaseEncoding != "" {
 		out += "/BaseEncoding " + e.BaseEncoding.String()
@@ -344,7 +344,7 @@ type CIDFontDictionary struct {
 	W2             []CIDWidth     // optionnal
 }
 
-func (c CIDFontDictionary) pdfString(pdf pdfWriter, ref reference) string {
+func (c CIDFontDictionary) pdfString(pdf pdfWriter, ref Reference) string {
 	b := newBuffer()
 	fD := pdf.addObject(c.FontDescriptor.pdfString(pdf, Type0{}), nil)
 	b.line("<</Type/Font/Subtype %s/BaseFont %s/CIDSystemInfo %s/FontDescriptor %s",
@@ -380,7 +380,7 @@ type CIDSystemInfo struct {
 }
 
 // returns a dictionary representation
-func (c CIDSystemInfo) pdfString(pdf pdfWriter, ref reference) string {
+func (c CIDSystemInfo) pdfString(pdf pdfWriter, ref Reference) string {
 	return fmt.Sprintf("<</Registry %s/Ordering %s/Supplement %d>>",
 		pdf.EncodeString(c.Registry, ASCIIString, ref),
 		pdf.EncodeString(c.Ordering, ASCIIString, ref), c.Supplement)

@@ -9,7 +9,7 @@ type FormFielAdditionalActions struct {
 	C JavaScriptAction // optional, to recalculate
 }
 
-func (f FormFielAdditionalActions) pdfString(pdf pdfWriter, ref reference) string {
+func (f FormFielAdditionalActions) pdfString(pdf pdfWriter, ref Reference) string {
 	b := newBuffer()
 	b.WriteString("<<")
 	if f.K != (JavaScriptAction{}) {
@@ -31,13 +31,13 @@ func (f FormFielAdditionalActions) pdfString(pdf pdfWriter, ref reference) strin
 type Action interface {
 	// ActionDictionary returns the dictionary defining the action
 	// as written in PDF
-	ActionDictionary(pdfWriter, reference) string
+	ActionDictionary(pdfWriter, Reference) string
 }
 
 // URIAction is a URI which should be ASCII encoded
 type URIAction string
 
-func (uri URIAction) ActionDictionary(pdf pdfWriter, ref reference) string {
+func (uri URIAction) ActionDictionary(pdf pdfWriter, ref Reference) string {
 	return fmt.Sprintf("<</S/URI/URI (%s)>>", pdf.EncodeString(string(uri), ASCIIString, ref))
 }
 
@@ -45,7 +45,7 @@ type GoToAction struct {
 	D Destination
 }
 
-func (ac GoToAction) ActionDictionary(pdf pdfWriter, _ reference) string {
+func (ac GoToAction) ActionDictionary(pdf pdfWriter, _ Reference) string {
 	return fmt.Sprintf("<</S/GoTo/D %s>>", ac.D.pdfDestination(pdf))
 }
 
@@ -87,6 +87,6 @@ type JavaScriptAction struct {
 	JS string // text string, may be found in PDF as stream object
 }
 
-func (j JavaScriptAction) ActionDictionary(pdf pdfWriter, ref reference) string {
+func (j JavaScriptAction) ActionDictionary(pdf pdfWriter, ref Reference) string {
 	return fmt.Sprintf("<</S/JavaScript/JS %s>>", pdf.EncodeString(j.JS, TextString, ref))
 }
