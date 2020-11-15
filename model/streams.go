@@ -136,7 +136,7 @@ type XObjectForm struct {
 	Resources *ResourcesDict
 }
 
-func (f *XObjectForm) pdfContent(pdf pdfWriter) (string, []byte) {
+func (f *XObjectForm) pdfContent(pdf pdfWriter, _ reference) (string, []byte) {
 	args := f.ContentStream.PDFCommonFields()
 	b := newBuffer()
 	b.fmt("<</Subtype/Form %s/BBox %s", args, f.BBox.String())
@@ -177,7 +177,7 @@ type XObjectImage struct {
 	SMaskInData uint8            // optional, 0, 1 or 2
 }
 
-func (f *XObjectImage) pdfContent(pdf pdfWriter) (string, []byte) {
+func (f *XObjectImage) pdfContent(pdf pdfWriter, _ reference) (string, []byte) {
 	b := newBuffer()
 	base := f.PDFCommonFields()
 	b.line("<</Subtype/Image %s/Width %d/Height %d/BitsPerComponent %d",

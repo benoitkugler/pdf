@@ -9,20 +9,20 @@ type FormFielAdditionalActions struct {
 	C JavaScriptAction // optional, to recalculate
 }
 
-func (f FormFielAdditionalActions) pdfString(pdf pdfWriter) string {
+func (f FormFielAdditionalActions) pdfString(pdf pdfWriter, ref reference) string {
 	b := newBuffer()
 	b.WriteString("<<")
 	if f.K != (JavaScriptAction{}) {
-		b.line("/K %s", f.K.ActionDictionary(pdf))
+		b.line("/K %s", f.K.ActionDictionary(pdf, ref))
 	}
 	if f.F != (JavaScriptAction{}) {
-		b.line("/F %s", f.F.ActionDictionary(pdf))
+		b.line("/F %s", f.F.ActionDictionary(pdf, ref))
 	}
 	if f.V != (JavaScriptAction{}) {
-		b.line("/V %s", f.V.ActionDictionary(pdf))
+		b.line("/V %s", f.V.ActionDictionary(pdf, ref))
 	}
 	if f.C != (JavaScriptAction{}) {
-		b.line("/C %s", f.C.ActionDictionary(pdf))
+		b.line("/C %s", f.C.ActionDictionary(pdf, ref))
 	}
 	b.fmt(">>")
 	return b.String()
@@ -31,21 +31,21 @@ func (f FormFielAdditionalActions) pdfString(pdf pdfWriter) string {
 type Action interface {
 	// ActionDictionary returns the dictionary defining the action
 	// as written in PDF
-	ActionDictionary(pdfWriter) string
+	ActionDictionary(pdfWriter, reference) string
 }
 
 // URIAction is a URI which should be ASCII encoded
 type URIAction string
 
-func (uri URIAction) ActionDictionary(pdf pdfWriter) string {
-	return fmt.Sprintf("<</S/URI/URI (%s)>>", pdf.encodeString(string(uri), aSCIIString))
+func (uri URIAction) ActionDictionary(pdf pdfWriter, ref reference) string {
+	return fmt.Sprintf("<</S/URI/URI (%s)>>", pdf.EncodeString(string(uri), ASCIIString, ref))
 }
 
 type GoToAction struct {
 	D Destination
 }
 
-func (ac GoToAction) ActionDictionary(pdf pdfWriter) string {
+func (ac GoToAction) ActionDictionary(pdf pdfWriter, _ reference) string {
 	return fmt.Sprintf("<</S/GoTo/D %s>>", ac.D.pdfDestination(pdf))
 }
 
@@ -87,6 +87,6 @@ type JavaScriptAction struct {
 	JS string // text string, may be found in PDF as stream object
 }
 
-func (j JavaScriptAction) ActionDictionary(pdf pdfWriter) string {
-	return fmt.Sprintf("<</S/JavaScript/JS %s>>", pdf.encodeString(j.JS, textString))
+func (j JavaScriptAction) ActionDictionary(pdf pdfWriter, ref reference) string {
+	return fmt.Sprintf("<</S/JavaScript/JS %s>>", pdf.EncodeString(j.JS, TextString, ref))
 }

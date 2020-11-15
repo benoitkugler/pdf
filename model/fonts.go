@@ -11,7 +11,7 @@ type Font struct {
 	Subtype FontType
 }
 
-func (f *Font) pdfContent(pdf pdfWriter) (string, []byte) {
+func (f *Font) pdfContent(pdf pdfWriter, _ reference) (string, []byte) {
 	return f.Subtype.fontPDFString(pdf), nil
 }
 
@@ -268,7 +268,7 @@ type EncodingDict struct {
 	Differences  Differences // optionnal
 }
 
-func (e *EncodingDict) pdfContent(pdfWriter) (string, []byte) {
+func (e *EncodingDict) pdfContent(pdfWriter pdfWriter, _ reference) (string, []byte) {
 	out := "<<"
 	if e.BaseEncoding != "" {
 		out += "/BaseEncoding " + e.BaseEncoding.String()
@@ -296,7 +296,8 @@ type Type0 struct {
 
 func (f Type0) fontPDFString(pdf pdfWriter) string {
 	enc := writeCMapEncoding(f.Encoding, pdf)
-	desc := pdf.addObject(f.DescendantFonts.pdfString(pdf), nil)
+	desc := pdf.createObject()
+	pdf.writeObject(f.DescendantFonts.pdfString(pdf, desc), nil, desc)
 	out := fmt.Sprintf("<</Type/Font/Subtype/Type0/BaseFont %s/Encoding %s/DescendantFonts [%s]",
 		f.BaseFont, enc, desc)
 	if f.ToUnicode != nil {
@@ -343,11 +344,11 @@ type CIDFontDictionary struct {
 	W2             []CIDWidth     // optionnal
 }
 
-func (c CIDFontDictionary) pdfString(pdf pdfWriter) string {
+func (c CIDFontDictionary) pdfString(pdf pdfWriter, ref reference) string {
 	b := newBuffer()
 	fD := pdf.addObject(c.FontDescriptor.pdfString(pdf, Type0{}), nil)
 	b.line("<</Type/Font/Subtype %s/BaseFont %s/CIDSystemInfo %s/FontDescriptor %s",
-		c.Subtype, c.BaseFont, c.CIDSystemInfo.pdfString(pdf), fD)
+		c.Subtype, c.BaseFont, c.CIDSystemInfo.pdfString(pdf, ref), fD)
 	if c.DW != 0 {
 		b.line("/DW %d", c.DW)
 	}
@@ -378,10 +379,11 @@ type CIDSystemInfo struct {
 	Supplement int
 }
 
-// String returns a dictionary representation
-func (c CIDSystemInfo) pdfString(pdf pdfWriter) string {
+// returns a dictionary representation
+func (c CIDSystemInfo) pdfString(pdf pdfWriter, ref reference) string {
 	return fmt.Sprintf("<</Registry %s/Ordering %s/Supplement %d>>",
-		pdf.encodeString(c.Registry, aSCIIString), pdf.encodeString(c.Ordering, aSCIIString), c.Supplement)
+		pdf.EncodeString(c.Registry, ASCIIString, ref),
+		pdf.EncodeString(c.Ordering, ASCIIString, ref), c.Supplement)
 }
 
 // CIDWidth groups the two ways of defining widths for CID

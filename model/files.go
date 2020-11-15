@@ -16,18 +16,18 @@ type FileSpec struct {
 
 // returns the dictionnay. `pdf` is used
 // to create the EmbeddedFileStream object.
-func (f *FileSpec) pdfContent(pdf pdfWriter) (string, []byte) {
+func (f *FileSpec) pdfContent(pdf pdfWriter, ref reference) (string, []byte) {
 	b := newBuffer()
 	b.fmt("<</Type/Filespec")
 	if f.UF != "" {
-		b.fmt("/UF %s", pdf.encodeString(f.UF, textString))
+		b.fmt("/UF %s", pdf.EncodeString(f.UF, TextString, ref))
 	}
 	if f.EF != nil {
-		ref := pdf.addObject(f.EF.pdfContent(pdf))
+		ref := pdf.addObject(f.EF.pdfContent(pdf, ref))
 		b.fmt("/EF %s", ref)
 	}
 	if f.Desc != "" {
-		b.fmt("/Desc %s", pdf.encodeString(f.Desc, textString))
+		b.fmt("/Desc %s", pdf.EncodeString(f.Desc, TextString, ref))
 	}
 	b.fmt(">>")
 	return b.String(), nil
@@ -40,17 +40,17 @@ type EmbeddedFileParams struct {
 	CheckSum     string    // optional, must be hex16 encoded
 }
 
-func (params EmbeddedFileParams) pdfString(pdf pdfWriter) string {
+func (params EmbeddedFileParams) pdfString(pdf pdfWriter, ref reference) string {
 	b := newBuffer()
 	b.WriteString("<<")
 	if params.Size != 0 {
 		b.fmt("/Size %d", params.Size)
 	}
 	if !params.CreationDate.IsZero() {
-		b.fmt("/CreationDate %s", pdf.dateString(params.CreationDate))
+		b.fmt("/CreationDate %s", pdf.dateString(params.CreationDate, ref))
 	}
 	if !params.ModDate.IsZero() {
-		b.fmt("/ModDate %s", pdf.dateString(params.ModDate))
+		b.fmt("/ModDate %s", pdf.dateString(params.ModDate, ref))
 	}
 	if params.CheckSum != "" {
 		b.fmt("/CheckSum <%s>", params.CheckSum)
@@ -64,8 +64,8 @@ type EmbeddedFileStream struct {
 	Params EmbeddedFileParams
 }
 
-func (emb EmbeddedFileStream) pdfContent(pdf pdfWriter) (string, []byte) {
+func (emb *EmbeddedFileStream) pdfContent(pdf pdfWriter, ref reference) (string, []byte) {
 	args := emb.PDFCommonFields()
-	out := fmt.Sprintf("<</Type/EmbeddedFile %s/Params %s>>", args, emb.Params.pdfString(pdf))
+	out := fmt.Sprintf("<</Type/EmbeddedFile %s/Params %s>>", args, emb.Params.pdfString(pdf, ref))
 	return out, emb.Content
 }

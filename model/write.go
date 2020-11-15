@@ -43,27 +43,6 @@ func (w *output) bytes(b []byte) {
 	w.written += n
 }
 
-// writeObject write the content of the object `ref`, and update the offsets.
-// This method will be called at most once for each reference.
-// For stream object, `content` will contain the dictionary,
-// and `stream` the inner stream bytes. For other objects, `stream` will be nil.
-// Stream content will be encrypted if needed.
-func (w *output) writeObject(content string, stream []byte, ref reference) {
-	w.objOffsets[ref] = w.written
-	w.bytes([]byte(fmt.Sprintf("%d 0 obj\n", ref)))
-	w.bytes([]byte(content))
-	if stream != nil { // TODO: encryption
-		w.bytes([]byte("\nstream\n"))
-		w.bytes(stream)
-		if len(stream) > 0 && stream[len(stream)-1] != '\n' {
-			// There should be an end-of-line marker after the data and before endstream
-			w.bytes([]byte{'\n'})
-		}
-		w.bytes([]byte("endstream"))
-	}
-	w.bytes([]byte("\nendobj\n"))
-}
-
 // createObject return a new reference
 // and grow the `objOffsets` accordingly.
 // This is needed to write objects that must reference their "parent".
@@ -137,13 +116,13 @@ func newWriter(dest io.Writer, encrypt Encrypt) pdfWriter {
 	}
 }
 
-type stringEncoding uint8
+type StringEncoding uint8
 
 const (
-	aSCIIString stringEncoding = iota // ASCII encoding and escaping
-	byteString                        // no special treatment, except escaping
-	hexString                         // hex form
-	textString                        // one of the PDF encoding: PDFDocEncoding or UTF16-BE
+	ASCIIString StringEncoding = iota // ASCII encoding and escaping
+	ByteString                        // no special treatment, except escaping
+	HexString                         // hex form
+	TextString                        // one of the PDF encoding: PDFDocEncoding or UTF16-BE
 )
 
 var (
@@ -151,10 +130,15 @@ var (
 	utf16Enc = unicode.UTF16(unicode.BigEndian, unicode.UseBOM)
 )
 
-// encodeString should transform an UTF-8 string `s` to satisfy the PDF
-// format required by `mode`
-// It should also encrypt `s`, if needed
-func (p pdfWriter) encodeString(s string, mode stringEncoding) string {
+// EncodeString transforms an UTF-8 string `s` to satisfy the PDF
+// format required by `mode`.
+// It will also encrypt `s`, if needed, using
+// `context`, which is the object number of the containing object.
+type PDFStringEncoder interface {
+	EncodeString(s string, mode StringEncoding, context reference) string
+}
+
+func (p pdfWriter) EncodeString(s string, mode StringEncoding, context reference) string {
 	if p.err != nil {
 		return ""
 	}
@@ -167,12 +151,12 @@ func (p pdfWriter) encodeString(s string, mode stringEncoding) string {
 	// }
 
 	switch mode {
-	case aSCIIString, byteString: // TODO: check is we must ensure ASCII
+	case ASCIIString, ByteString: // TODO: check is we must ensure ASCII
 		s = replacer.Replace(s)
 		return "(" + s + ")"
-	case hexString:
+	case HexString:
 		return "<" + hex.EncodeToString([]byte(s)) + ">"
-	case textString:
+	case TextString:
 		s, err := utf16Enc.NewEncoder().String(s)
 		if err != nil {
 			p.err = fmt.Errorf("invalid text string %s: %w", s, err)
@@ -183,6 +167,27 @@ func (p pdfWriter) encodeString(s string, mode stringEncoding) string {
 	default:
 		panic("should be an exhaustive switch")
 	}
+}
+
+// writeObject write the content of the object `ref`, and update the offsets.
+// This method will be called at most once for each reference.
+// For stream object, `content` will contain the dictionary,
+// and `stream` the inner stream bytes. For other objects, `stream` will be nil.
+// Stream content will be encrypted if needed.
+func (w pdfWriter) writeObject(content string, stream []byte, ref reference) {
+	w.objOffsets[ref] = w.written
+	w.bytes([]byte(fmt.Sprintf("%d 0 obj\n", ref)))
+	w.bytes([]byte(content))
+	if stream != nil { // TODO: encryption
+		w.bytes([]byte("\nstream\n"))
+		w.bytes(stream)
+		if len(stream) > 0 && stream[len(stream)-1] != '\n' {
+			// There should be an end-of-line marker after the data and before endstream
+			w.bytes([]byte{'\n'})
+		}
+		w.bytes([]byte("endstream"))
+	}
+	w.bytes([]byte("\nendobj\n"))
 }
 
 // addObject is a convenience shortcut to write `content` into a new object
@@ -197,7 +202,7 @@ func (p pdfWriter) addObject(content string, stream []byte) reference {
 
 type cachable interface {
 	isCachable()
-	pdfContent(pdf pdfWriter) (content string, stream []byte)
+	pdfContent(pdf pdfWriter, objectRef reference) (content string, stream []byte)
 }
 
 func (*FormField) isCachable()          {}
@@ -222,7 +227,9 @@ func (pdf pdfWriter) addItem(item cachable) reference {
 	if ref, has := pdf.cache[item]; has {
 		return ref
 	}
-	ref := pdf.addObject(item.pdfContent(pdf))
+	ref := pdf.createObject()
 	pdf.cache[item] = ref
+	s, b := item.pdfContent(pdf, ref)
+	pdf.writeObject(s, b, ref)
 	return ref
 }

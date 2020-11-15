@@ -83,11 +83,11 @@ type BaseAnnotation struct {
 	Border *Border // optional
 }
 
-func (ba BaseAnnotation) fields(pdf pdfWriter) string {
+func (ba BaseAnnotation) fields(pdf pdfWriter, ref reference) string {
 	b := newBuffer()
 	b.fmt("/Rectangle %s", ba.Rect)
 	if ba.Contents != "" {
-		b.fmt("/Contents %s", pdf.encodeString(ba.Contents, textString))
+		b.fmt("/Contents %s", pdf.EncodeString(ba.Contents, TextString, ref))
 	}
 	if ap := ba.AP; ap != nil {
 		b.fmt("/AP %s", ap.pdfString(pdf))
@@ -110,9 +110,9 @@ type Annotation struct {
 }
 
 // pdfContent impements is cachable
-func (a *Annotation) pdfContent(pdf pdfWriter) (string, []byte) {
-	base := a.BaseAnnotation.fields(pdf)
-	subtype := a.Subtype.annotationFields(pdf)
+func (a *Annotation) pdfContent(pdf pdfWriter, ref reference) (string, []byte) {
+	base := a.BaseAnnotation.fields(pdf, ref)
+	subtype := a.Subtype.annotationFields(pdf, ref)
 	return fmt.Sprintf("<<%s %s >>", base, subtype), nil
 }
 
@@ -156,7 +156,7 @@ func (ap AppearanceEntry) pdfString(pdf pdfWriter) string {
 
 type AnnotationType interface {
 	// return the specialized fields (including Subtype)
-	annotationFields(pdf pdfWriter) string
+	annotationFields(pdf pdfWriter, ref reference) string
 }
 
 // ------------------------ specializations ------------------------
@@ -166,9 +166,9 @@ type FileAttachmentAnnotation struct {
 	FS *FileSpec
 }
 
-func (f FileAttachmentAnnotation) annotationFields(pdf pdfWriter) string {
-	ref := pdf.addItem(f.FS)
-	return fmt.Sprintf("/Subtype/FileAttachment/T %s/FS %s", pdf.encodeString(f.T, textString), ref)
+func (f FileAttachmentAnnotation) annotationFields(pdf pdfWriter, ref reference) string {
+	fsRef := pdf.addItem(f.FS)
+	return fmt.Sprintf("/Subtype/FileAttachment/T %s/FS %s", pdf.EncodeString(f.T, TextString, ref), fsRef)
 }
 
 // ---------------------------------------------------
@@ -180,10 +180,10 @@ type LinkAnnotation struct {
 	Dest Destination // may only be present is A is nil
 }
 
-func (l LinkAnnotation) annotationFields(pdf pdfWriter) string {
+func (l LinkAnnotation) annotationFields(pdf pdfWriter, ref reference) string {
 	out := "/Subtype/Link"
 	if l.A != nil {
-		out += "/A " + l.A.ActionDictionary(pdf)
+		out += "/A " + l.A.ActionDictionary(pdf, ref)
 	} else if l.Dest != nil {
 		out += "/Dest " + l.Dest.pdfDestination(pdf)
 	}
@@ -198,13 +198,13 @@ type WidgetAnnotation struct {
 	BS *BorderStyle
 }
 
-func (w WidgetAnnotation) annotationFields(pdf pdfWriter) string {
+func (w WidgetAnnotation) annotationFields(pdf pdfWriter, ref reference) string {
 	out := fmt.Sprintf("/Subtype/Widget")
 	if w.H != "" {
 		out += fmt.Sprintf("/H %s", w.H)
 	}
 	if w.A != nil {
-		out += fmt.Sprintf("/A %s", w.A.ActionDictionary(pdf))
+		out += fmt.Sprintf("/A %s", w.A.ActionDictionary(pdf, ref))
 	}
 	if w.BS != nil {
 		out += fmt.Sprintf("/BS %s", w.BS.pdfString())

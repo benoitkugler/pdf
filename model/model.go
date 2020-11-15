@@ -32,7 +32,8 @@ func (doc Document) Write(output io.Writer) error {
 
 	root := wr.createObject()
 	wr.writeObject(doc.Catalog.pdfString(wr, root), nil, root)
-	info := wr.addObject(doc.Trailer.Info.pdfString(wr), nil)
+	info := wr.createObject()
+	wr.writeObject(doc.Trailer.Info.pdfString(wr, info), nil, info)
 
 	wr.writeFooter(doc.Trailer.Encrypt, root, info)
 
@@ -106,7 +107,8 @@ func (cat Catalog) pdfString(pdf pdfWriter, catalog reference) string {
 		b.line("/PageMode %s", p)
 	}
 	if ac := cat.AcroForm; ac != nil {
-		ref := pdf.addObject(ac.pdfString(pdf, catalog), nil)
+		ref := pdf.createObject()
+		pdf.writeObject(ac.pdfString(pdf, catalog, ref), nil, ref)
 		b.line("/AcroForm %s", ref)
 	}
 	if outline := cat.Outlines; outline != nil {
@@ -158,32 +160,32 @@ type Info struct {
 }
 
 // pdfString return the Dictionary for `info`
-func (info Info) pdfString(pdf pdfWriter) string {
+func (info Info) pdfString(pdf pdfWriter, ref reference) string {
 	b := newBuffer()
 	b.fmt("<<\n")
 	if t := info.Producer; t != "" {
-		b.fmt("/Producer %s\n", pdf.encodeString(t, textString))
+		b.fmt("/Producer %s\n", pdf.EncodeString(t, TextString, ref))
 	}
 	if t := info.Title; t != "" {
-		b.fmt("/Title %s\n", pdf.encodeString(t, textString))
+		b.fmt("/Title %s\n", pdf.EncodeString(t, TextString, ref))
 	}
 	if t := info.Subject; t != "" {
-		b.fmt("/Subject %s\n", pdf.encodeString(t, textString))
+		b.fmt("/Subject %s\n", pdf.EncodeString(t, TextString, ref))
 	}
 	if t := info.Author; t != "" {
-		b.fmt("/Author %s\n", pdf.encodeString(t, textString))
+		b.fmt("/Author %s\n", pdf.EncodeString(t, TextString, ref))
 	}
 	if t := info.Keywords; t != "" {
-		b.fmt("/Keywords %s\n", pdf.encodeString(t, textString))
+		b.fmt("/Keywords %s\n", pdf.EncodeString(t, TextString, ref))
 	}
 	if t := info.Creator; t != "" {
-		b.fmt("/Creator %s\n", pdf.encodeString(t, textString))
+		b.fmt("/Creator %s\n", pdf.EncodeString(t, TextString, ref))
 	}
 	if t := info.CreationDate; !t.IsZero() {
-		b.fmt("/CreationDate %s\n", pdf.dateString(t))
+		b.fmt("/CreationDate %s\n", pdf.dateString(t, ref))
 	}
 	if t := info.ModDate; !t.IsZero() {
-		b.fmt("/ModDate %s\n", pdf.dateString(t))
+		b.fmt("/ModDate %s\n", pdf.dateString(t, ref))
 	}
 	b.fmt(">>")
 	return b.String()

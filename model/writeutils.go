@@ -56,19 +56,19 @@ func writeNameArray(rs []Name) string {
 	return fmt.Sprintf("[%s]", strings.Join(b, " "))
 }
 
-func (pdf pdfWriter) dateString(t time.Time) string {
+func (pdf pdfWriter) dateString(t time.Time, context reference) string {
 	_, tz := t.Zone()
 	str := fmt.Sprintf("D:%d%02d%02d%02d%02d%02d+%02d'%02d'",
 		t.Year(), t.Month(), t.Day(),
 		t.Hour(), t.Minute(), t.Second(),
 		tz/60/60, tz/60%60)
-	return pdf.encodeString(str, textString)
+	return pdf.EncodeString(str, TextString, context)
 }
 
-func (pdf pdfWriter) stringsArray(ar []string, mode stringEncoding) string {
+func (pdf pdfWriter) stringsArray(ar []string, mode StringEncoding, context reference) string {
 	chunks := make([]string, len(ar))
 	for i, val := range ar {
-		chunks[i] = pdf.encodeString(val, mode)
+		chunks[i] = pdf.EncodeString(val, mode, context)
 	}
 	return fmt.Sprintf("[%s]", strings.Join(chunks, " "))
 }

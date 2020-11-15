@@ -169,7 +169,7 @@ type ResourcesDict struct {
 	XObject    map[Name]XObject       // optionnal
 }
 
-func (r ResourcesDict) pdfContent(pdf pdfWriter) (string, []byte) {
+func (r *ResourcesDict) pdfContent(pdf pdfWriter, _ reference) (string, []byte) {
 	b := newBuffer()
 	b.line("<<")
 	if r.ExtGState != nil {
@@ -391,13 +391,13 @@ func (pdf pdfWriter) addOutlineItem(item *OutlineItem, parent reference) referen
 	return nextRef
 }
 
-// ref should be the object number of the outline item, need for the child
+// ref should be the object number of the outline item, needed for the child
 // to reference it. parent is the parent of the outline item
 // since an item will be processed several times (from its siblings)
 // we use a cache to keep track of the already written items
 func (o *OutlineItem) pdfString(pdf pdfWriter, ref, parent reference) string {
 	b := newBuffer()
-	b.fmt("<</Title %s/Parent %s", pdf.encodeString(o.Title, textString), parent)
+	b.fmt("<</Title %s/Parent %s", pdf.EncodeString(o.Title, TextString, ref), parent)
 	if o.Next != nil {
 		nextRef := pdf.addOutlineItem(o.Next, parent)
 		b.fmt("/Next %s", nextRef)
@@ -423,7 +423,7 @@ func (o *OutlineItem) pdfString(pdf pdfWriter, ref, parent reference) string {
 		b.fmt("/Dest %s", o.Dest.pdfDestination(pdf))
 	}
 	if o.A != nil {
-		b.fmt("/A %s", o.A.ActionDictionary(pdf))
+		b.fmt("/A %s", o.A.ActionDictionary(pdf, ref))
 	}
 	// TODO: structure element
 	if o.C != [3]float64{} {
