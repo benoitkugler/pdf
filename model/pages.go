@@ -8,6 +8,8 @@ import (
 type PageNode interface {
 	isPageNode()
 	Count() int
+	pdfString(pdf pdfWriter) string
+	clone(cache cloneCache) PageNode
 }
 
 func (*PageTree) isPageNode()   {}
@@ -50,59 +52,78 @@ func (p PageTree) Flatten() []*PageObject {
 	return out
 }
 
-// walk to associate an object number to each pages object (leaf)
+// walk to associate an object number to each page nodes
 // in the `pages` attribute of `pdf`
-func (p PageTree) allocateReferences(pdf pdfWriter) {
+// see catalog.pdfString for more details
+func (pdf pdfWriter) allocateReferences(p *PageTree) {
+	pdf.pages[p] = pdf.createObject()
 	for _, kid := range p.Kids {
 		switch kid := kid.(type) {
 		case *PageTree:
-			kid.allocateReferences(pdf)
+			pdf.allocateReferences(kid)
 		case *PageObject:
 			pdf.pages[kid] = pdf.createObject()
 		}
 	}
 }
 
-// returns the Dictionary for `pages`.
-// It requires a reference passed to its children, and its parent reference.
-// `parentReference` will be negative (or zero) only for the root node.
-func (pages *PageTree) pdfString(pdf pdfWriter, ownReference, parentRef Reference) string {
+// walk to associate a clone (new memory, unfiled) to each pages object (leaf)
+// in the `pages` attribute of `cache`
+// see catalog.clone for more details
+func (cache cloneCache) allocateClones(p *PageTree) {
+	cache.pages[p] = new(PageTree)
+	for _, kid := range p.Kids {
+		switch kid := kid.(type) {
+		case *PageTree:
+			cache.allocateClones(kid)
+		case *PageObject:
+			cache.pages[kid] = new(PageObject)
+		}
+	}
+}
+
+// returns the Dictionary for `pages`
+// the `pdf.pages` map must have been previously filled
+func (pages *PageTree) pdfString(pdf pdfWriter) string {
 	kidRefs := make([]Reference, len(pages.Kids))
 	for i, page := range pages.Kids {
-		kidRefs[i] = writePageNode(pdf, page, ownReference)
+		kidRef := pdf.pages[page]
+		pdf.writeObject(page.pdfString(pdf), nil, kidRef)
+		kidRefs[i] = kidRef
 	}
 	parent := ""
-	if parentRef > 0 {
-		parent = fmt.Sprintf("/Parent %s", parentRef)
+	if pages.Parent != nil {
+		parent = fmt.Sprintf("/Parent %s", pdf.pages[pages.Parent])
 	}
 	res := ""
 	if pages.Resources != nil {
-		res = fmt.Sprintf("/Resources %s", pdf.addItem(pages.Resources))
+		res = fmt.Sprintf("/Resources %s", pdf.addObject(pages.Resources.pdfString(pdf), nil))
 	}
 	content := fmt.Sprintf("<</Type/Pages/Count %d/Kids %s%s%s>>",
 		pages.Count(), writeRefArray(kidRefs), parent, res)
 	return content
 }
 
-func writePageNode(pdf pdfWriter, page PageNode, parentRef Reference) Reference {
-	switch page := page.(type) {
-	case *PageTree:
-		ownRef := pdf.createObject()
-		content := page.pdfString(pdf, ownRef, parentRef)
-		pdf.writeObject(content, nil, ownRef)
-		return ownRef
-	case *PageObject:
-		ref := pdf.pages[page] // previously allocated
-		content := page.pdfString(pdf, parentRef)
-		pdf.writeObject(content, nil, ref)
-		return ref
-	default:
-		panic("exhaustive switch")
+func (p *PageTree) clone(cache cloneCache) PageNode {
+	out := cache.pages[p].(*PageTree)
+	if p.Parent != nil {
+		out.Parent = cache.pages[p.Parent].(*PageTree)
 	}
-
+	if p.Resources != nil {
+		res := p.Resources.clone(cache)
+		out.Resources = &res
+	}
+	if p.Kids != nil { // preserve reflect.DeepEqual
+		out.Kids = make([]PageNode, len(p.Kids))
+	}
+	for i, k := range p.Kids {
+		out.Kids[i] = k.clone(cache)
+	}
+	return out
 }
 
 type PageObject struct {
+	// TODO: complete fields
 	Parent                    *PageTree
 	Resources                 *ResourcesDict  // if nil, will be inherited from the parent
 	MediaBox                  *Rectangle      // if nil, will be inherited from the parent
@@ -113,13 +134,15 @@ type PageObject struct {
 	Contents                  []ContentStream // array of stream (often of length 1)
 }
 
-func (p PageObject) pdfString(pdf pdfWriter, parentReference Reference) string {
+// the pdf page map is used to fetch the object number
+func (p *PageObject) pdfString(pdf pdfWriter) string {
+	parentReference := pdf.pages[p]
 	b := newBuffer()
 	b.line("<<")
 	b.line("/Type/Page")
 	b.line("/Parent %s", parentReference)
 	if p.Resources != nil {
-		b.line("/Resources %s", pdf.addItem(p.Resources))
+		b.line("/Resources %s", pdf.addObject(p.Resources.pdfString(pdf), nil))
 	}
 	if p.MediaBox != nil {
 		b.line("/MediaBox %s", p.MediaBox.String())
@@ -158,8 +181,58 @@ func (p PageObject) pdfString(pdf pdfWriter, parentReference Reference) string {
 }
 
 // Count return the number of PageObject-that is 1
-func (PageObject) Count() int { return 1 }
+func (*PageObject) Count() int { return 1 }
 
+// return a deep copy, with concrete type *PageObject
+// cache.pages must have been previsouly filled
+func (po *PageObject) clone(cache cloneCache) PageNode {
+	parentCloned := cache.pages[po.Parent].(*PageTree)
+	out := cache.pages[po].(*PageObject)
+	out.Parent = parentCloned
+	if po.Resources != nil {
+		res := po.Resources.clone(cache)
+		out.Resources = &res
+	}
+	if po.MediaBox != nil {
+		r := *po.MediaBox
+		out.MediaBox = &r
+	}
+	if po.CropBox != nil {
+		r := *po.CropBox
+		out.CropBox = &r
+	}
+	if po.BleedBox != nil {
+		r := *po.BleedBox
+		out.BleedBox = &r
+	}
+	if po.TrimBox != nil {
+		r := *po.TrimBox
+		out.TrimBox = &r
+	}
+	if po.ArtBox != nil {
+		r := *po.ArtBox
+		out.ArtBox = &r
+	}
+	if po.Rotate != nil {
+		r := *po.Rotate
+		out.Rotate = &r
+	}
+	if po.Annots != nil { // preserve reflect.DeepEqual
+		out.Annots = make([]*Annotation, len(po.Annots))
+	}
+	for i, a := range po.Annots {
+		out.Annots[i] = cache.checkOrClone(a).(*Annotation)
+	}
+	if po.Contents != nil {
+		out.Contents = make([]ContentStream, len(po.Contents))
+	}
+	for i, c := range po.Contents {
+		out.Contents[i] = c.Clone()
+	}
+	return out
+}
+
+// ResourcesDict maps name to (indirect) ressources
 type ResourcesDict struct {
 	ExtGState  map[Name]*GraphicState // optionnal
 	ColorSpace map[Name]ColorSpace    // optionnal
@@ -169,7 +242,7 @@ type ResourcesDict struct {
 	XObject    map[Name]XObject       // optionnal
 }
 
-func (r *ResourcesDict) pdfContent(pdf pdfWriter, _ Reference) (string, []byte) {
+func (r *ResourcesDict) pdfString(pdf pdfWriter) string {
 	b := newBuffer()
 	b.line("<<")
 	if r.ExtGState != nil {
@@ -221,7 +294,50 @@ func (r *ResourcesDict) pdfContent(pdf pdfWriter, _ Reference) (string, []byte) 
 		b.line(">>")
 	}
 	b.fmt(">>")
-	return b.String(), nil
+	return b.String()
+}
+
+// clone returns a deep copy
+func (r ResourcesDict) clone(cache cloneCache) ResourcesDict {
+	var out ResourcesDict
+	// to preserve reflect.DeepEqual, we check for nil maps before allocating
+	if r.ExtGState != nil {
+		out.ExtGState = make(map[Name]*GraphicState, len(r.ExtGState))
+	}
+	for n, v := range r.ExtGState {
+		out.ExtGState[n] = cache.checkOrClone(v).(*GraphicState)
+	}
+	if r.ColorSpace != nil {
+		out.ColorSpace = make(map[Name]ColorSpace, len(r.ColorSpace))
+	}
+	for n, v := range r.ColorSpace {
+		out.ColorSpace[n] = cloneColorSpace(v, cache)
+	}
+	if r.Shading != nil {
+		out.Shading = make(map[Name]*ShadingDict, len(r.Shading))
+	}
+	for n, v := range r.Shading {
+		out.Shading[n] = cache.checkOrClone(v).(*ShadingDict)
+	}
+	if r.Pattern != nil {
+		out.Pattern = make(map[Name]Pattern, len(r.Pattern))
+	}
+	for n, v := range r.Pattern {
+		out.Pattern[n] = cache.checkOrClone(v).(Pattern)
+	}
+	if r.Font != nil {
+		out.Font = make(map[Name]*Font, len(r.Font))
+	}
+	for n, v := range r.Font {
+		out.Font[n] = cache.checkOrClone(v).(*Font)
+	}
+	if r.XObject != nil {
+		out.XObject = make(map[Name]XObject, len(r.XObject))
+	}
+	for n, v := range r.XObject {
+		out.XObject[n] = cache.checkOrClone(v).(XObject)
+	}
+	return out
 }
 
 // ----------------------- structure -----------------------
@@ -423,7 +539,7 @@ func (o *OutlineItem) pdfString(pdf pdfWriter, ref, parent Reference) string {
 		b.fmt("/Dest %s", o.Dest.pdfDestination(pdf))
 	}
 	if o.A != nil {
-		b.fmt("/A %s", o.A.ActionDictionary(pdf, ref))
+		b.fmt("/A %s", o.A.actionDictionary(pdf, ref))
 	}
 	// TODO: structure element
 	if o.C != [3]float64{} {

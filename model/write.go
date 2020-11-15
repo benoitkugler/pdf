@@ -97,8 +97,8 @@ func (w *output) writeFooter(encrypt Encrypt, root, info Reference) {
 type pdfWriter struct {
 	*output
 
-	cache    map[cachable]Reference
-	pages    map[*PageObject]Reference
+	cache    map[Referencable]Reference
+	pages    map[PageNode]Reference
 	outlines map[*OutlineItem]Reference
 	fields   map[*FormField]Reference
 
@@ -108,8 +108,8 @@ type pdfWriter struct {
 func newWriter(dest io.Writer, encrypt Encrypt) pdfWriter {
 	return pdfWriter{
 		output:   &output{dst: dest, objOffsets: []int{0}},
-		cache:    make(map[cachable]Reference),
-		pages:    make(map[*PageObject]Reference),
+		cache:    make(map[Referencable]Reference),
+		pages:    make(map[PageNode]Reference),
 		outlines: make(map[*OutlineItem]Reference),
 		fields:   make(map[*FormField]Reference),
 		encrypt:  encrypt,
@@ -200,30 +200,39 @@ func (p pdfWriter) addObject(content string, stream []byte) Reference {
 
 // writerCache
 
-type cachable interface {
-	isCachable()
+// Referencable is a private interface implemented
+// by the structures idenfied by pointers.
+// For such a structure, two usage of the same pointer
+// in a `Document` will be written in the PDF file using the same
+// object number, avoiding unnecessary duplications.
+type Referencable interface {
+	IsReferencable()
+	// clone returns a deep copy, preserving the concrete type
+	// it will use the `cache` for child items which are themselves
+	// `Referencable`
+	// see cloneCache.checkOrClone to avoid unwanted allocations
+	clone(cache cloneCache) Referencable
 	pdfContent(pdf pdfWriter, objectRef Reference) (content string, stream []byte)
 }
 
-func (*FormField) isCachable()          {}
-func (*ResourcesDict) isCachable()      {}
-func (*Font) isCachable()               {}
-func (*GraphicState) isCachable()       {}
-func (*EncodingDict) isCachable()       {}
-func (*Annotation) isCachable()         {}
-func (*FileSpec) isCachable()           {}
-func (*EmbeddedFileStream) isCachable() {}
-func (*ShadingDict) isCachable()        {}
-func (*Function) isCachable()           {}
-func (*TilingPatern) isCachable()       {}
-func (*ShadingPatern) isCachable()      {}
-func (*ICCBasedColorSpace) isCachable() {}
-func (*ColorTableStream) isCachable()   {}
-func (*XObjectForm) isCachable()        {}
-func (*XObjectImage) isCachable()       {}
+func (*FormField) IsReferencable()          {}
+func (*Font) IsReferencable()               {}
+func (*GraphicState) IsReferencable()       {}
+func (*EncodingDict) IsReferencable()       {}
+func (*Annotation) IsReferencable()         {}
+func (*FileSpec) IsReferencable()           {}
+func (*EmbeddedFileStream) IsReferencable() {}
+func (*ShadingDict) IsReferencable()        {}
+func (*Function) IsReferencable()           {}
+func (*TilingPatern) IsReferencable()       {}
+func (*ShadingPatern) IsReferencable()      {}
+func (*ICCBasedColorSpace) IsReferencable() {}
+func (*ColorTableStream) IsReferencable()   {}
+func (*XObjectForm) IsReferencable()        {}
+func (*XObjectImage) IsReferencable()       {}
 
 // check the cache and write a new item if not found
-func (pdf pdfWriter) addItem(item cachable) Reference {
+func (pdf pdfWriter) addItem(item Referencable) Reference {
 	if ref, has := pdf.cache[item]; has {
 		return ref
 	}

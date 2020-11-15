@@ -23,6 +23,37 @@ type Document struct {
 	Catalog Catalog
 }
 
+// Clone returns a deep copy of the document.
+// It may be useful when we want to load
+// a 'template' document once at server startup, and then
+// modyfing it for each request.
+// For every type implementing `Referencable`, the equalities
+// between pointers are preserved.
+func (doc Document) Clone() Document {
+	out := doc
+	out.Trailer = doc.Trailer.Clone()
+	out.Catalog = doc.Catalog.Clone()
+	return doc
+}
+
+type cloneCache struct {
+	refs  map[Referencable]Referencable
+	pages map[PageNode]PageNode // concrete type are preserved
+}
+
+// convenience function to check if the object
+// is already cloned and return the clone object, or do the cloning.
+// the concrete type of `origin` is preserved, so that the return
+// value can be type-asserted back to its original concrete type
+func (cache cloneCache) checkOrClone(origin Referencable) Referencable {
+	if cloned := cache.refs[origin]; cloned != nil {
+		return cloned
+	}
+	out := origin.clone(cache)
+	cache.refs[origin] = out // update the cache
+	return out
+}
+
 // Write walks the entire document and writes its content
 // into `output`, producing a valid PDF file.
 func (doc Document) Write(output io.Writer) error {
@@ -44,36 +75,33 @@ func (doc Document) Write(output io.Writer) error {
 // See especially the `Pages` tree, the `AcroForm` form
 // and the `Outlines` tree.
 type Catalog struct {
-	Extensions        Extensions
 	Pages             PageTree
+	Extensions        Extensions
 	Names             NameDictionary     // optional
 	ViewerPreferences *ViewerPreferences // optional
-	PageLayout        Name               // optional
-	PageMode          Name               // optional
 	AcroForm          *AcroForm          // optional
 	Dests             *DestTree          // optional
 	PageLabels        *PageLabelsTree    // optional
 	Outlines          *Outline           // optional
 	StructTreeRoot    *StructureTree     // optional
+	PageLayout        Name               // optional
+	PageMode          Name               // optional
 }
 
 // returns the Dictionary of `cat`
 // `catalog` is needed by the potential signature fields
 func (cat Catalog) pdfString(pdf pdfWriter, catalog Reference) string {
-	b := newBuffer()
-	b.line("<<\n/Type/Catalog")
-
-	// Some pages may need to know in advance the
+	// some pages may need to know in advance the
 	// object number of an arbitrary page, such as annotation link
 	// with GoTo actions
-	// So, we first walk the tree to associate an object number
-	// to each pages, and we generate the content in a second pass
-	// (at this point, the cache `pages` is filled)
-	cat.Pages.allocateReferences(pdf)
+	// so, we first walk the tree to associate an object number
+	// to each pages, so that the second pass can use the map in `pdf`
+	pdf.allocateReferences(&cat.Pages)
 
-	pageRef := pdf.createObject()
-	content := cat.Pages.pdfString(pdf, pageRef, -1)
-	pdf.writeObject(content, nil, pageRef)
+	b := newBuffer()
+	b.line("<<\n/Type/Catalog")
+	pageRef := pdf.pages[&cat.Pages]
+	pdf.writeObject(cat.Pages.pdfString(pdf), nil, pageRef)
 	b.line("/Pages %s", pageRef)
 
 	if pLabel := cat.PageLabels; pLabel != nil {
@@ -81,19 +109,11 @@ func (cat Catalog) pdfString(pdf pdfWriter, catalog Reference) string {
 		b.line("/PageLabels %s", ref)
 	}
 
-	b.fmt("/Names <<")
-	if dests := cat.Names.Dests; dests != nil {
-		ref := pdf.addObject(dests.pdfString(pdf), nil)
-		b.fmt("/Dests %s", ref)
-	}
-	if emb := cat.Names.EmbeddedFiles; emb != nil {
-		ref := pdf.addObject(emb.pdfString(pdf), nil)
-		b.fmt("/EmbeddedFiles %s", ref)
-	}
-	b.line(">>")
+	b.line("/Names %s", cat.Names.pdfString(pdf))
 
 	if dests := cat.Dests; dests != nil {
-		ref := pdf.addObject(dests.pdfString(pdf), nil)
+		ref := pdf.createObject()
+		pdf.writeObject(dests.pdfString(pdf, ref), nil, ref)
 		b.line("/Dests %s", ref)
 	}
 	if viewerPref := cat.ViewerPreferences; viewerPref != nil {
@@ -121,11 +141,56 @@ func (cat Catalog) pdfString(pdf pdfWriter, catalog Reference) string {
 	return b.String()
 }
 
+// Clone returns a deep copy of the catalog.
+func (cat Catalog) Clone() Catalog {
+	cache := cloneCache{
+		refs:  make(map[Referencable]Referencable),
+		pages: make(map[PageNode]PageNode),
+	}
+	out := cat
+	// Some pages may need to know in advance the
+	// pointer to an arbitrary cloned page, such as annotation link
+	// with GoTo actions
+	// So, we first walk the tree to allocate new memory
+	// to each pages, and we do the actual cloning in a second pass
+	// (at this point, the cache `pages` is filled)
+	cache.allocateClones(&cat.Pages)
+
+	outPage := cat.Pages.clone(cache).(*PageTree)
+	out.Pages = *outPage
+
+	return Catalog{}
+}
+
 // NameDictionary establish the correspondence between names and objects
 type NameDictionary struct {
 	EmbeddedFiles EmbeddedFileTree
 	Dests         *DestTree // optional
 	// AP
+}
+
+func (n NameDictionary) pdfString(pdf pdfWriter) string {
+	b := newBuffer()
+	b.WriteString("<<")
+	if dests := n.Dests; dests != nil {
+		ref := pdf.createObject()
+		pdf.writeObject(dests.pdfString(pdf, ref), nil, ref)
+		b.fmt("/Dests %s", ref)
+	}
+	if emb := n.EmbeddedFiles; emb != nil {
+		ref := pdf.createObject()
+		pdf.writeObject(emb.pdfString(pdf, ref), nil, ref)
+		b.fmt("/EmbeddedFiles %s", ref)
+	}
+	b.WriteString(">>")
+	return b.String()
+}
+
+func (n NameDictionary) clone(cache cloneCache) NameDictionary {
+	out := n
+	out.EmbeddedFiles = n.EmbeddedFiles.clone(cache)
+	// TODO:
+	return out
 }
 
 // ViewerPreferences specifies the way the document shall be
@@ -145,6 +210,12 @@ type Trailer struct {
 	Encrypt Encrypt
 	Info    Info
 	ID      [2]string // optional (must be not crypted, direct objects)
+}
+
+func (t Trailer) Clone() Trailer {
+	out := t
+	out.Encrypt = t.Encrypt.Clone()
+	return out
 }
 
 // Info contains metadata about the document
@@ -215,6 +286,17 @@ type Encrypt struct {
 	EFF       Name                // optional
 }
 
+func (e Encrypt) Clone() Encrypt {
+	out := e
+	if e.CF != nil { // preserve reflet.DeepEqual
+		out.CF = make(map[Name]CrypFilter, len(e.CF))
+	}
+	for k, v := range e.CF {
+		out.CF[k] = v.Clone()
+	}
+	return out
+}
+
 type CrypFilter struct {
 	CFM       Name // optional
 	AuthEvent Name // optional
@@ -222,7 +304,13 @@ type CrypFilter struct {
 
 	// byte strings, required for public-key security handlers
 	// for Crypt filter decode parameter dictionary,
-	// it's a one element array, written in PDF directly as a string
+	// a one element array is written in PDF directly as a string
 	Recipients      []string
 	EncryptMetadata bool // optional, default to false
+}
+
+func (c CrypFilter) Clone() CrypFilter {
+	out := c
+	out.Recipients = append([]string(nil), c.Recipients...)
+	return out
 }

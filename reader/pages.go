@@ -229,6 +229,7 @@ func (r *resolver) resolveExplicitDestination(dest pdfcpu.Array) (*model.Explici
 		return nil, nil
 	}
 	out := new(model.ExplicitDestination)
+	out.Left, out.Top = model.Undef, model.Undef
 	pageRef, isRef := dest[0].(pdfcpu.IndirectRef)
 	if !isRef {
 		return nil, errType("Dest.Page", dest[0])
@@ -237,10 +238,10 @@ func (r *resolver) resolveExplicitDestination(dest pdfcpu.Array) (*model.Explici
 		return nil, fmt.Errorf("expected/XYZ in Destination, got unsupported %s", dest[1])
 	}
 	if left, ok := r.resolveNumber(dest[2]); ok {
-		out.Left = &left
+		out.Left = left
 	}
 	if top, ok := r.resolveNumber(dest[3]); ok {
-		out.Top = &top
+		out.Top = top
 	}
 	out.Zoom, _ = r.resolveNumber(dest[4])
 	// store the incomplete destination to process later on

@@ -44,6 +44,7 @@ var booleanNames = map[Name]bool{
 // by applying the filters described
 // in `StreamDict.Filters` to the non-filtered data
 // to obtain `Content`
+// TODO: support filters processing
 type Stream struct {
 	// Length      int
 	Filter []Filter
@@ -56,6 +57,24 @@ type Stream struct {
 
 func (c Stream) Length() int {
 	return len(c.Content)
+}
+
+// Clone returns a deep copy of the stream
+func (c Stream) Clone() Stream {
+	var s Stream
+	s.Filter = append([]Filter(nil), c.Filter...)
+	if c.DecodeParms != nil { // so that deep equal is true
+		s.DecodeParms = make([]map[Name]int, len(c.DecodeParms))
+	}
+	for i, d := range c.DecodeParms {
+		m := make(map[Name]int, len(d))
+		for n, v := range d {
+			m[n] = v
+		}
+		s.DecodeParms[i] = m
+	}
+	s.Content = append([]byte(nil), c.Content...)
+	return s
 }
 
 // ParamsForFilter is a convenience which returns
@@ -117,9 +136,13 @@ type ContentStream struct {
 	Stream
 }
 
+func (c ContentStream) Clone() ContentStream {
+	return ContentStream{Stream: c.Stream.Clone()}
+}
+
 // XObject is either an image or PDF form
 type XObject interface {
-	cachable
+	Referencable
 	isXObject()
 }
 
@@ -132,22 +155,37 @@ type XObjectForm struct {
 	ContentStream
 
 	BBox      Rectangle
-	Matrix    *Matrix // optional, default to identity
-	Resources *ResourcesDict
+	Matrix    Matrix         // optional, default to identity
+	Resources *ResourcesDict // optional
 }
 
 func (f *XObjectForm) pdfContent(pdf pdfWriter, _ Reference) (string, []byte) {
 	args := f.ContentStream.PDFCommonFields()
 	b := newBuffer()
 	b.fmt("<</Subtype/Form %s/BBox %s", args, f.BBox.String())
-	if f.Matrix != nil {
-		b.fmt("/Matrix %s", *f.Matrix)
+	if f.Matrix != (Matrix{}) {
+		b.fmt("/Matrix %s", f.Matrix)
 	}
 	if f.Resources != nil {
-		b.line("/Resources %s", pdf.addItem(f.Resources))
+		b.line("/Resources %s", f.Resources.pdfString(pdf))
 	}
 	b.fmt(">>")
 	return b.String(), f.Content
+}
+
+// clone returns a deep copy of the form
+// (with concrete type `XObjectForm`)
+func (f *XObjectForm) clone(cache cloneCache) Referencable {
+	if f == nil {
+		return f
+	}
+	out := *f
+	out.ContentStream = f.ContentStream.Clone()
+	if f.Resources != nil {
+		res := f.Resources.clone(cache)
+		out.Resources = &res
+	}
+	return &out
 }
 
 // ----------------------- images -----------------------
@@ -155,6 +193,7 @@ func (f *XObjectForm) pdfContent(pdf pdfWriter, _ Reference) (string, []byte) {
 // TODO:
 type Mask interface {
 	isMask()
+	Clone() Mask
 }
 
 // XObjectImage represents a sampled visual image such as a photograph
@@ -162,7 +201,7 @@ type XObjectImage struct {
 	Stream
 
 	Width, Height    int
-	ColorSpace       ColorSpace // any type of colour space except Pattern
+	ColorSpace       ColorSpace // optional, any type of colour space except Pattern
 	BitsPerComponent uint8      // 1, 2, 4, 8, or  16.
 	Intent           Name       // optional
 	ImageMask        bool       // optional
@@ -211,6 +250,27 @@ func (f *XObjectImage) pdfContent(pdf pdfWriter, _ Reference) (string, []byte) {
 	return b.String(), f.Content
 }
 
+func (img *XObjectImage) clone(cache cloneCache) Referencable {
+	if img == nil {
+		return img
+	}
+	out := *img
+	out.Stream = img.Stream.Clone()
+	out.ColorSpace = cloneColorSpace(img.ColorSpace, cache)
+	if img.Mask != nil {
+		out.Mask = img.Mask.Clone()
+	}
+	out.Decode = append([]Range(nil), img.Decode...)
+	if img.Alternates != nil {
+		out.Alternates = make([]AlternateImage, len(img.Alternates))
+	}
+	for i, alt := range img.Alternates {
+		out.Alternates[i] = alt.clone(cache)
+	}
+	out.SMask = cache.checkOrClone(img.SMask).(*XObjectImage)
+	return &out
+}
+
 type AlternateImage struct {
 	Image              *XObjectImage
 	DefaultForPrinting bool // optional
@@ -219,4 +279,10 @@ type AlternateImage struct {
 func (alt AlternateImage) pdfString(pdf pdfWriter) string {
 	imgRef := pdf.addItem(alt.Image)
 	return fmt.Sprintf("<</DefaultForPrinting %v/Image %s", alt.DefaultForPrinting, imgRef)
+}
+
+func (a AlternateImage) clone(cache cloneCache) AlternateImage {
+	out := a
+	a.Image = cache.checkOrClone(a.Image).(*XObjectImage)
+	return out
 }

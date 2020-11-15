@@ -24,13 +24,22 @@ func (f *FileSpec) pdfContent(pdf pdfWriter, ref Reference) (string, []byte) {
 	}
 	if f.EF != nil {
 		ref := pdf.addObject(f.EF.pdfContent(pdf, ref))
-		b.fmt("/EF %s", ref)
+		b.fmt("/EF <</F %s>>", ref)
 	}
 	if f.Desc != "" {
 		b.fmt("/Desc %s", pdf.EncodeString(f.Desc, TextString, ref))
 	}
 	b.fmt(">>")
 	return b.String(), nil
+}
+
+func (f *FileSpec) clone(cache cloneCache) Referencable {
+	if f == nil {
+		return f
+	}
+	out := *f
+	out.EF = cache.checkOrClone(f.EF).(*EmbeddedFileStream)
+	return &out
 }
 
 type EmbeddedFileParams struct {
@@ -68,4 +77,11 @@ func (emb *EmbeddedFileStream) pdfContent(pdf pdfWriter, ref Reference) (string,
 	args := emb.PDFCommonFields()
 	out := fmt.Sprintf("<</Type/EmbeddedFile %s/Params %s>>", args, emb.Params.pdfString(pdf, ref))
 	return out, emb.Content
+}
+
+// clone returns a deep copy, with concrete type `*EmbeddedFileStream`
+func (emb *EmbeddedFileStream) clone(cloneCache) Referencable {
+	out := *emb // shallow copy
+	out.Stream = emb.Stream.Clone()
+	return &out
 }

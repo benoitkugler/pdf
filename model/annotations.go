@@ -48,6 +48,16 @@ func (b Border) pdfString() string {
 	return out + "]"
 }
 
+// Clone returns a deep copy
+func (b *Border) Clone() *Border {
+	if b == nil {
+		return nil
+	}
+	out := *b
+	out.DashArray = append([]float64(nil), b.DashArray...)
+	return &out
+}
+
 // BorderStyle specifies the border characteristics for some types of annotations
 type BorderStyle struct {
 	W float64   // optional, default to 1, Undef not to specify it
@@ -69,6 +79,16 @@ func (bo BorderStyle) pdfString() string {
 	}
 	b.fmt(">>")
 	return b.String()
+}
+
+// Clone returns a deep copy
+func (b *BorderStyle) Clone() *BorderStyle {
+	if b == nil {
+		return nil
+	}
+	out := *b
+	out.D = append([]float64(nil), b.D...)
+	return &out
 }
 
 type BaseAnnotation struct {
@@ -104,6 +124,13 @@ func (ba BaseAnnotation) fields(pdf pdfWriter, ref Reference) string {
 	return b.String()
 }
 
+func (ba BaseAnnotation) clone(cache cloneCache) BaseAnnotation {
+	out := ba
+	out.AP = ba.AP.clone(cache)
+	out.Border = ba.Border.Clone()
+	return out
+}
+
 type Annotation struct {
 	BaseAnnotation
 	Subtype AnnotationType
@@ -114,6 +141,16 @@ func (a *Annotation) pdfContent(pdf pdfWriter, ref Reference) (string, []byte) {
 	base := a.BaseAnnotation.fields(pdf, ref)
 	subtype := a.Subtype.annotationFields(pdf, ref)
 	return fmt.Sprintf("<<%s %s >>", base, subtype), nil
+}
+
+func (a *Annotation) clone(cache cloneCache) Referencable {
+	if a == nil {
+		return a
+	}
+	out := *a
+	out.BaseAnnotation = a.BaseAnnotation.clone(cache)
+	out.Subtype = a.Subtype.clone(cache)
+	return &out
 }
 
 type AppearanceDict struct {
@@ -138,6 +175,17 @@ func (a AppearanceDict) pdfString(pdf pdfWriter) string {
 	return b.String()
 }
 
+func (ap *AppearanceDict) clone(cache cloneCache) *AppearanceDict {
+	if ap == nil {
+		return nil
+	}
+	out := *ap
+	out.N = ap.N.clone(cache)
+	out.R = ap.R.clone(cache)
+	out.D = ap.D.clone(cache)
+	return &out
+}
+
 // AppearanceEntry is either a Dictionary, or a subDictionary
 // containing multiple appearances
 // In the first case, the map is of length 1, with the empty string as key
@@ -154,9 +202,21 @@ func (ap AppearanceEntry) pdfString(pdf pdfWriter) string {
 	return fmt.Sprintf("<<%s>>", strings.Join(chunks, " "))
 }
 
+func (ap AppearanceEntry) clone(cache cloneCache) AppearanceEntry {
+	if ap == nil { // preserve reflect.DeepEqual
+		return nil
+	}
+	out := make(AppearanceEntry, len(ap))
+	for name, form := range ap {
+		out[name] = cache.checkOrClone(form).(*XObjectForm)
+	}
+	return out
+}
+
 type AnnotationType interface {
 	// return the specialized fields (including Subtype)
 	annotationFields(pdf pdfWriter, ref Reference) string
+	clone(cloneCache) AnnotationType
 }
 
 // ------------------------ specializations ------------------------
@@ -171,11 +231,18 @@ func (f FileAttachmentAnnotation) annotationFields(pdf pdfWriter, ref Reference)
 	return fmt.Sprintf("/Subtype/FileAttachment/T %s/FS %s", pdf.EncodeString(f.T, TextString, ref), fsRef)
 }
 
+func (f FileAttachmentAnnotation) clone(cache cloneCache) AnnotationType {
+	out := f
+	out.FS = cache.checkOrClone(f.FS).(*FileSpec)
+	return out
+}
+
 // ---------------------------------------------------
 
 // LinkAnnotation either opens an URI (field A)
 // or an internal page (field Dest)
 type LinkAnnotation struct {
+	// TODO: complete fields
 	A    Action      // optional, represented by a dictionary in PDF
 	Dest Destination // may only be present is A is nil
 }
@@ -183,9 +250,20 @@ type LinkAnnotation struct {
 func (l LinkAnnotation) annotationFields(pdf pdfWriter, ref Reference) string {
 	out := "/Subtype/Link"
 	if l.A != nil {
-		out += "/A " + l.A.ActionDictionary(pdf, ref)
+		out += "/A " + l.A.actionDictionary(pdf, ref)
 	} else if l.Dest != nil {
 		out += "/Dest " + l.Dest.pdfDestination(pdf)
+	}
+	return out
+}
+
+func (l LinkAnnotation) clone(cache cloneCache) AnnotationType {
+	out := l
+	if l.A != nil {
+		out.A = l.A.clone(cache)
+	}
+	if l.Dest != nil {
+		out.Dest = l.Dest.clone(cache)
 	}
 	return out
 }
@@ -193,8 +271,9 @@ func (l LinkAnnotation) annotationFields(pdf pdfWriter, ref Reference) string {
 // WidgetAnnotation is an annotation widget,
 // primarily for form fields
 type WidgetAnnotation struct {
+	// TODO: complete fields
 	H  Highlighting
-	A  Action
+	A  Action // optional
 	BS *BorderStyle
 }
 
@@ -204,10 +283,19 @@ func (w WidgetAnnotation) annotationFields(pdf pdfWriter, ref Reference) string 
 		out += fmt.Sprintf("/H %s", w.H)
 	}
 	if w.A != nil {
-		out += fmt.Sprintf("/A %s", w.A.ActionDictionary(pdf, ref))
+		out += fmt.Sprintf("/A %s", w.A.actionDictionary(pdf, ref))
 	}
 	if w.BS != nil {
 		out += fmt.Sprintf("/BS %s", w.BS.pdfString())
 	}
+	return out
+}
+
+func (w WidgetAnnotation) clone(cache cloneCache) AnnotationType {
+	out := w
+	if w.A != nil {
+		out.A = w.A.clone(cache)
+	}
+	out.BS = w.BS.Clone()
 	return out
 }

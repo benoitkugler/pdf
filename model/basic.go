@@ -50,6 +50,7 @@ func (n Name) String() string {
 
 type FunctionType interface {
 	isFunction()
+	Clone() FunctionType
 }
 
 func (SampledFunction) isFunction()              {}
@@ -92,6 +93,34 @@ func (f Function) pdfContent(pdf pdfWriter) (string, []byte) {
 	return content, stream
 }
 
+// Clone returns a deep copy of the function
+func (f Function) Clone() Function {
+	var out Function
+	out.FunctionType = f.FunctionType.Clone()
+	out.Domain = append([]Range(nil), f.Domain...)
+	out.Range = append([]Range(nil), f.Range...)
+	return out
+}
+
+// convenience: write the functions and returns the corresponding reference
+func (pdf pdfWriter) writeFunctions(fns []Function) []Reference {
+	refs := make([]Reference, len(fns))
+	for i, f := range fns {
+		refs[i] = pdf.addObject(f.pdfContent(pdf))
+	}
+	return refs
+}
+
+type SampledFunction struct {
+	Stream
+
+	Size          []int        // length m
+	BitsPerSample uint8        // 1, 2, 4, 8, 12, 16, 24 or 32
+	Order         uint8        // 1 (linear) or 3 (cubic), optional, default to 1
+	Encode        [][2]float64 // length m, optional, default to [ 0 (Size_0 − 1) 0 (Size_1 − 1) ... ]
+	Decode        []Range      // length n, optionnal, default to Range
+}
+
 // adds to the common arguments the specificities of a `SampledFunction`
 func (f SampledFunction) pdfContent(baseArgs string) (string, []byte) {
 	var b bytes.Buffer
@@ -117,6 +146,25 @@ func (f SampledFunction) pdfContent(baseArgs string) (string, []byte) {
 	return b.String(), f.Content
 }
 
+// Clone returns a deep copy of the function
+// (with concrete type `SampledFunction`)
+func (f SampledFunction) Clone() FunctionType {
+	out := f
+	out.Stream = f.Stream.Clone()
+	out.Size = append([]int(nil), f.Size...)
+	out.Encode = append([][2]float64(nil), f.Encode...)
+	out.Decode = append([]Range(nil), f.Decode...)
+	return out
+}
+
+// ExpInterpolationFunction defines an exponential interpolation of one input
+// value and n output values
+type ExpInterpolationFunction struct {
+	C0 []float64 // length n, optional, default to 0
+	C1 []float64 // length n, optional, default to 1
+	N  int       // interpolation exponent (N=1 for linear interpolation)
+}
+
 // adds to the common arguments the specificities of a `ExpInterpolationFunction`
 func (f ExpInterpolationFunction) pdfString(baseArgs string) string {
 	c0, c1 := "", ""
@@ -129,45 +177,13 @@ func (f ExpInterpolationFunction) pdfString(baseArgs string) string {
 	return fmt.Sprintf("<</FunctionType 2 %s%s%s/N %d>>", baseArgs, c0, c1, f.N)
 }
 
-// convenience: write the functions and returns the corresponding reference
-func (pdf pdfWriter) writeFunctions(fns []Function) []Reference {
-	refs := make([]Reference, len(fns))
-	for i, f := range fns {
-		refs[i] = pdf.addObject(f.pdfContent(pdf))
-	}
-	return refs
-}
-
-// adds to the common arguments the specificities of a `StitchingFunction`.
-func (f StitchingFunction) pdfString(baseArgs string, pdf pdfWriter) string {
-	// start by writing the "child" functions
-	refs := pdf.writeFunctions(f.Functions)
-	return fmt.Sprintf("<</FunctionType 3 %s/Functions %s/Bounds %s/Encode %s>>",
-		baseArgs, writeRefArray(refs), writeFloatArray(f.Bounds), writePointArray(f.Encode))
-}
-
-// adds to the common arguments the specificities of a `PostScriptCalculatorFunction`.
-func (f PostScriptCalculatorFunction) pdfContent(baseArgs string) (string, []byte) {
-	s := Stream(f).PDFCommonFields()
-	return fmt.Sprintf("<</FunctionType 4 %s %s>>\n", baseArgs, s), f.Content
-}
-
-type SampledFunction struct {
-	Stream
-
-	Size          []int        // length m
-	BitsPerSample uint8        // 1, 2, 4, 8, 12, 16, 24 or 32
-	Order         uint8        // 1 (linear) or 3 (cubic), optional, default to 1
-	Encode        [][2]float64 // length m, optional, default to [ 0 (Size_0 − 1) 0 (Size_1 − 1) ... ]
-	Decode        []Range      // length n, optionnal, default to Range
-}
-
-// ExpInterpolationFunction defines an exponential interpolation of one input
-// value and n output values
-type ExpInterpolationFunction struct {
-	C0 []float64 // length n, optional, default to 0
-	C1 []float64 // length n, optional, default to 1
-	N  int       // interpolation exponent (N=1 for linear interpolation)
+// Clone returns a deep copy of the function
+// (with concrete type `ExpInterpolationFunction`)
+func (f ExpInterpolationFunction) Clone() FunctionType {
+	out := f
+	out.C0 = append([]float64(nil), f.C0...)
+	out.C1 = append([]float64(nil), f.C1...)
+	return out
 }
 
 // StitchingFunction defines a stitching of the subdomains of several 1-input functions
@@ -178,16 +194,49 @@ type StitchingFunction struct {
 	Encode    [][2]float64 // length k
 }
 
+// adds to the common arguments the specificities of a `StitchingFunction`.
+func (f StitchingFunction) pdfString(baseArgs string, pdf pdfWriter) string {
+	// start by writing the "child" functions
+	refs := pdf.writeFunctions(f.Functions)
+	return fmt.Sprintf("<</FunctionType 3 %s/Functions %s/Bounds %s/Encode %s>>",
+		baseArgs, writeRefArray(refs), writeFloatArray(f.Bounds), writePointArray(f.Encode))
+}
+
+// Clone returns a deep copy of the function
+// (with concrete type `StitchingFunction`)
+func (f StitchingFunction) Clone() FunctionType {
+	var out StitchingFunction
+	out.Functions = make([]Function, len(f.Functions))
+	for i, fu := range f.Functions {
+		out.Functions[i] = fu.Clone()
+	}
+	out.Bounds = append([]float64(nil), f.Bounds...)
+	out.Encode = append([][2]float64(nil), f.Encode...)
+	return out
+}
+
 // PostScriptCalculatorFunction is stream
 // containing code written in a small subset of the PostScript language
 type PostScriptCalculatorFunction Stream
 
+// adds to the common arguments the specificities of a `PostScriptCalculatorFunction`.
+func (f PostScriptCalculatorFunction) pdfContent(baseArgs string) (string, []byte) {
+	s := Stream(f).PDFCommonFields()
+	return fmt.Sprintf("<</FunctionType 4 %s %s>>\n", baseArgs, s), f.Content
+}
+
+// Clone returns a deep copy of the function
+// (with concrete type `PostScriptCalculatorFunction`)
+func (f PostScriptCalculatorFunction) Clone() FunctionType {
+	return PostScriptCalculatorFunction(Stream(f).Clone())
+}
+
 // Matrix maps an input (x,y) to an output (x',y') defined by
 // x′ = a × x + c × y + e
 // y′ = b × x + d × y + f
-type Matrix [6]float64 // a,b,c,d,e,f
+type Matrix [6]float64 // [a,b,c,d,e,f]
 
-// String return the PDF representation
+// String return the PDF representation of the matrix
 func (m Matrix) String() string {
 	return writeFloatArray(m[:])
 }

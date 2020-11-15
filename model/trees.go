@@ -1,7 +1,9 @@
 package model
 
 import (
+	"fmt"
 	"sort"
+	"strings"
 )
 
 // generic code for limits
@@ -117,22 +119,24 @@ func (d DestTree) LookupTable() map[string]*ExplicitDestination {
 	return out
 }
 
-func (p DestTree) pdfString(pdf pdfWriter) string {
+func (p DestTree) pdfString(pdf pdfWriter, ref Reference) string {
 	b := newBuffer()
 	limits := p.Limits()
-	b.line("<</Limits [(%s) (%s)]", limits[0], limits[1])
+	b.line("<</Limits [%s %s]",
+		pdf.EncodeString(limits[0], ByteString, ref), pdf.EncodeString(limits[1], ByteString, ref))
 	if len(p.Kids) != 0 {
 		b.fmt("/Kids [")
 		for _, kid := range p.Kids {
-			ref := pdf.addObject(kid.pdfString(pdf), nil)
-			b.fmt("%s ", ref)
+			kidRef := pdf.createObject()
+			pdf.writeObject(kid.pdfString(pdf, kidRef), nil, kidRef)
+			b.fmt("%s ", kidRef)
 		}
 		b.line("]")
 	}
 	if len(p.Names) != 0 {
 		b.fmt("/Names [ ")
 		for _, name := range p.Names {
-			b.fmt("(%s) %s ", name.Name, name.Destination.pdfDestination(pdf))
+			b.fmt("%s %s ", pdf.EncodeString(name.Name, ByteString, ref), name.Destination.pdfDestination(pdf))
 		}
 		b.line("]")
 	}
@@ -145,6 +149,12 @@ func (p DestTree) pdfString(pdf pdfWriter) string {
 type NameToFile struct {
 	Name     string
 	FileSpec *FileSpec // indirect object
+}
+
+func (f NameToFile) clone(cache cloneCache) NameToFile {
+	out := f
+	out.FileSpec = cache.checkOrClone(f.FileSpec).(*FileSpec)
+	return out
 }
 
 // EmbeddedFileTree is written as a Name Tree in PDF,
@@ -168,9 +178,28 @@ func (efs EmbeddedFileTree) Limits() [2]string {
 	return limitsName(efs)
 }
 
-// TODO: EmbeddedFileTree
-func (p EmbeddedFileTree) pdfString(pdf pdfWriter) string {
-	return "<<>>"
+func (p EmbeddedFileTree) pdfString(pdf pdfWriter, ref Reference) string {
+	lims := p.Limits()
+	chunks := make([]string, len(p))
+	for i, f := range p {
+		fsRef := pdf.addItem(f.FileSpec)
+		chunks[i] = fmt.Sprintf("%s %s",
+			pdf.EncodeString(f.Name, ByteString, ref), fsRef)
+	}
+	return fmt.Sprintf("<</Limits [%s %s] /Names [%s]>>",
+		pdf.EncodeString(lims[0], ByteString, ref), pdf.EncodeString(lims[1], ByteString, ref),
+		strings.Join(chunks, " "))
+}
+
+func (p EmbeddedFileTree) clone(cache cloneCache) EmbeddedFileTree {
+	if p == nil { // preserve reflect.DeepEqual
+		return p
+	}
+	out := make(EmbeddedFileTree, len(p))
+	for i, f := range p {
+		out[i] = f.clone(cache)
+	}
+	return out
 }
 
 // -----------------------------------------------------------------------

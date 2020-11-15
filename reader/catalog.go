@@ -116,7 +116,9 @@ func (r resolver) resolveOneXObjectForm(obj pdfcpu.Object) (*model.XObjectForm, 
 	if rect := r.rectangleFromArray(r.resolve(stream.Dict["BBox"])); rect != nil {
 		ap.BBox = *rect
 	}
-	ap.Matrix = r.matrixFromArray(r.resolve(stream.Dict["Matrix"]))
+	if mat := r.matrixFromArray(r.resolve(stream.Dict["Matrix"])); mat != nil {
+		ap.Matrix = *mat
+	}
 	if res := stream.Dict["Resources"]; res != nil {
 		var err error
 		ap.Resources, err = r.resolveOneResourceDict(res)

@@ -15,15 +15,24 @@ func (f *Font) pdfContent(pdf pdfWriter, _ Reference) (string, []byte) {
 	return f.Subtype.fontPDFString(pdf), nil
 }
 
-type FontType interface {
-	isFontType()
-	fontPDFString(pdf pdfWriter) string
+// clone returns a deep copy, with concrete type `*Font`
+func (f *Font) clone(cache cloneCache) Referencable {
+	if f == nil {
+		return f
+	}
+	out := *f // shallow copy
+	if f.Subtype != nil {
+		out.Subtype = f.Subtype.clone(cache)
+	}
+	return &out
 }
 
-func (Type0) isFontType()    {}
-func (Type1) isFontType()    {}
-func (TrueType) isFontType() {}
-func (Type3) isFontType()    {}
+// FontType is one of Type0, Type1, TrueType or Type3
+type FontType interface {
+	fontPDFString(pdf pdfWriter) string
+	// returns a deep copy, preserving the concrete type
+	clone(cloneCache) FontType
+}
 
 type Type1 struct {
 	BaseFont  Name
@@ -72,11 +81,26 @@ func (t Type1) fontPDFString(pdf pdfWriter) string {
 	return t1orttPDFString(t, pdf)
 }
 
+// returns a deep copy with concrete type `Type1`
+func (t Type1) clone(cache cloneCache) FontType {
+	out := t                                     // shallow copy
+	out.Widths = append([]int(nil), t.Widths...) // preserve deep equal
+	out.FontDescriptor = t.FontDescriptor.Clone()
+	if t.Encoding != nil {
+		out.Encoding = t.Encoding.cloneSE(cache)
+	}
+	return out
+}
+
 type TrueType Type1
 
 func (t TrueType) fontPDFString(pdf pdfWriter) string {
 	return t1orttPDFString(t, pdf)
+}
 
+// returns a deep copy with concrete type `TrueType`
+func (t TrueType) clone(cache cloneCache) FontType {
+	return TrueType(Type1(t).clone(cache).(Type1))
 }
 
 type Type3 struct {
@@ -114,8 +138,7 @@ func (f Type3) fontPDFString(pdf pdfWriter) string {
 		b.fmt("/FontDescriptor %s", fdRef)
 	}
 	if f.Resources != nil {
-		ref := pdf.addItem(f.Resources)
-		b.fmt("/Resources %s", ref)
+		b.fmt("/Resources %s", f.Resources.pdfString(pdf))
 	}
 	if f.ToUnicode != nil {
 		ref := pdf.addObject(f.ToUnicode.PDFContent())
@@ -123,6 +146,34 @@ func (f Type3) fontPDFString(pdf pdfWriter) string {
 	}
 	b.WriteString(">>")
 	return b.String()
+}
+
+// clone returns a deep copy, with concrete type `Type3`
+func (t Type3) clone(cache cloneCache) FontType {
+	out := t
+	if t.CharProcs != nil { // preserve reflect.DeepEqual
+		out.CharProcs = make(map[Name]ContentStream, len(t.CharProcs))
+	}
+	for n, cs := range t.CharProcs {
+		out.CharProcs[n] = cs.Clone()
+	}
+	if t.Encoding != nil {
+		out.Encoding = t.Encoding.cloneSE(cache)
+	}
+	out.Widths = append([]int(nil), t.Widths...)
+	if t.FontDescriptor != nil {
+		tf := t.FontDescriptor.Clone()
+		out.FontDescriptor = &tf
+	}
+	if t.Resources != nil {
+		re := t.Resources.clone(cache)
+		out.Resources = &re
+	}
+	if t.ToUnicode != nil {
+		toU := t.ToUnicode.Clone()
+		out.ToUnicode = &toU
+	}
+	return out
 }
 
 // FontFlag specify various characteristics of a font.
@@ -207,19 +258,28 @@ func (f FontDescriptor) pdfString(pdf pdfWriter, font FontType) string {
 	return b.String()
 }
 
+// Clone returns a deep copy of the font descriptor.
+func (f FontDescriptor) Clone() FontDescriptor {
+	out := f
+	out.FontFile = out.FontFile.Clone()
+	return out
+}
+
 // SimpleEncoding is a font encoding for simple fonts
 type SimpleEncoding interface {
 	// return either a name or an indirect ref
 	simpleEncodingPDFString(pdf pdfWriter) string
+	// cloneSE returns a deep copy, preserving the concrete type
+	cloneSE(cache cloneCache) SimpleEncoding
 }
-
-type PredefinedEncoding Name
 
 const (
 	MacRomanEncoding  PredefinedEncoding = "MacRomanEncoding"
 	MacExpertEncoding PredefinedEncoding = "MacExpertEncoding"
 	WinAnsiEncoding   PredefinedEncoding = "WinAnsiEncoding"
 )
+
+type PredefinedEncoding Name
 
 // NewPrededinedEncoding validated the string `s`
 // and return either a valid `PredefinedEncoding` or nil
@@ -236,6 +296,9 @@ func NewPrededinedEncoding(s string) SimpleEncoding {
 func (enc PredefinedEncoding) simpleEncodingPDFString(pdf pdfWriter) string {
 	return Name(enc).String()
 }
+
+// Clone returns a deep copy with concrete type `PredefinedEncoding`
+func (enc PredefinedEncoding) cloneSE(cloneCache) SimpleEncoding { return enc }
 
 // Differences describes the differences from the encoding specified by BaseEncoding
 // It is written in a PDF file as a more condensed form: it is an array:
@@ -263,6 +326,18 @@ func (d Differences) PDFString() string {
 	return fmt.Sprintf("[%s]", strings.Join(chunks, ""))
 }
 
+// Clone returns a deep copy of `d`
+func (d Differences) Clone() Differences {
+	if d == nil { // preserve deep equal
+		return nil
+	}
+	out := make(Differences, len(d))
+	for k, v := range d {
+		out[k] = v
+	}
+	return out
+}
+
 type EncodingDict struct {
 	BaseEncoding Name        // optionnal
 	Differences  Differences // optionnal
@@ -283,6 +358,20 @@ func (e *EncodingDict) pdfContent(pdfWriter pdfWriter, _ Reference) (string, []b
 func (enc *EncodingDict) simpleEncodingPDFString(pdf pdfWriter) string {
 	ref := pdf.addItem(enc)
 	return ref.String()
+}
+
+// clone returns a deep copy with concrete type *EncodingDict
+func (enc *EncodingDict) clone(cloneCache) Referencable {
+	if enc == nil {
+		return enc
+	}
+	out := *enc // shallow copy
+	out.Differences = enc.Differences.Clone()
+	return &out
+}
+
+func (enc *EncodingDict) cloneSE(cache cloneCache) SimpleEncoding {
+	return cache.checkOrClone(enc).(*EncodingDict)
 }
 
 // -------------------------- Type 0 --------------------------
@@ -308,9 +397,23 @@ func (f Type0) fontPDFString(pdf pdfWriter) string {
 	return out
 }
 
+// returns a deep copy with concrete type `Type0`
+func (t Type0) clone(cloneCache) FontType {
+	out := t
+	out.Encoding = t.Encoding.Clone()
+	out.DescendantFonts = t.DescendantFonts.Clone()
+	if t.ToUnicode != nil {
+		toU := t.ToUnicode.Clone()
+		out.ToUnicode = &toU
+	}
+	return out
+}
+
 // CMapEncoding maps character codes to font numbers and CIDs
 type CMapEncoding interface {
 	isCMapEncoding()
+	// Clone returns a deep copy, preserving the concrete type
+	Clone() CMapEncoding
 }
 
 func (PredefinedCMapEncoding) isCMapEncoding() {}
@@ -318,7 +421,15 @@ func (EmbeddedCMapEncoding) isCMapEncoding()   {}
 
 type PredefinedCMapEncoding Name
 
+// Clone returns a deep copy with concrete type `PredefinedCMapEncoding`
+func (p PredefinedCMapEncoding) Clone() CMapEncoding { return p }
+
 type EmbeddedCMapEncoding Stream
+
+// Clone returns a deep copy with concrete type `EmbeddedCMapEncoding`
+func (p EmbeddedCMapEncoding) Clone() CMapEncoding {
+	return EmbeddedCMapEncoding(Stream(p).Clone())
+}
 
 // return either a ref or a name
 func writeCMapEncoding(enc CMapEncoding, pdf pdfWriter) string {
@@ -373,6 +484,25 @@ func (c CIDFontDictionary) pdfString(pdf pdfWriter, ref Reference) string {
 	return b.String()
 }
 
+// Clone returns a deep copy of the CIDFontDictionary
+func (c CIDFontDictionary) Clone() CIDFontDictionary {
+	out := c
+	out.FontDescriptor = c.FontDescriptor.Clone()
+	if c.W != nil { // preserve deep equal
+		out.W = make([]CIDWidth, len(c.W))
+	}
+	for i, w := range c.W {
+		out.W[i] = w.Clone()
+	}
+	if c.W2 != nil { // preserve deep equal
+		out.W2 = make([]CIDWidth, len(c.W2))
+	}
+	for i, w := range c.W2 {
+		out.W2[i] = w.Clone()
+	}
+	return out
+}
+
 type CIDSystemInfo struct {
 	Registry   string
 	Ordering   string
@@ -392,6 +522,8 @@ type CIDWidth interface {
 	Widths() map[rune]int
 	// String returns a PDF representation of the width
 	String() string
+	// Clone returns a deepcopy, preserving the concrete type
+	Clone() CIDWidth
 }
 
 // CIDWidthRange is written in PDF as
@@ -413,6 +545,9 @@ func (c CIDWidthRange) String() string {
 	return fmt.Sprintf("%d %d %d", c.First, c.Last, c.Width)
 }
 
+// Clone return a deep copy of `c`, with concrete type `CIDWidthRange`
+func (c CIDWidthRange) Clone() CIDWidth { return c }
+
 // CIDWidthArray is written in PDF as
 //	c [ w_1 w_2 ... w_n ]
 type CIDWidthArray struct {
@@ -430,6 +565,13 @@ func (c CIDWidthArray) Widths() map[rune]int {
 
 func (c CIDWidthArray) String() string {
 	return fmt.Sprintf("%d %s", c.Start, writeIntArray(c.W))
+}
+
+// Clone return a deep copy of `c`, with concrete type `CIDWidthArray`
+func (c CIDWidthArray) Clone() CIDWidth {
+	out := c
+	out.W = append([]int(nil), c.W...) // nil to preserve deep equal
+	return out
 }
 
 type FontFile struct {
@@ -450,4 +592,14 @@ func (f *FontFile) pdfContent() (string, []byte) {
 	}
 	out += ">>"
 	return out, f.Content
+}
+
+// Clone returns a deep copy of the font file.
+func (f *FontFile) Clone() *FontFile {
+	if f == nil {
+		return nil
+	}
+	out := *f // shallow copy
+	out.Stream = f.Stream.Clone()
+	return &out
 }
