@@ -1,12 +1,15 @@
 // Implements the in-memory structure of the PDFs object, using static types.
 // The structure is not directly the one found or written
 // in a PDF, but it serves as an intermediate representation
-// to facilitate PDF modifications. Still, this library aims at supporting
+// to facilitate PDF modifications. Still, this library supports
 // the majority of the PDF specification.
+//
 // This package aims at being used without having to think (to much)
 // to the PDF implementations details. In particular,
-// all the strings stored in should be UTF-8 encoded. The library
+// all the strings should be UTF-8 encoded. The library
 // will take care to encode them when needed.
+// TODO: remove encoding hints from comments of string fields
+//
 // The entry point of the package is the type `Document`.
 package model
 

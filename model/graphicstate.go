@@ -400,11 +400,11 @@ type Pattern interface {
 	Referencable
 }
 
-func (*PaternTiling) isPattern()  {}
-func (*PaternShading) isPattern() {}
+func (*PatternTiling) isPattern()  {}
+func (*PatternShading) isPattern() {}
 
-// PaternTiling is a type 1 pattern
-type PaternTiling struct {
+// PatternTiling is a type 1 pattern
+type PatternTiling struct {
 	ContentStream
 
 	PaintType  uint8 // 1 for coloured; 2 for uncoloured
@@ -417,11 +417,11 @@ type PaternTiling struct {
 }
 
 // TODO: tiling patern
-func (t *PaternTiling) pdfContent(pdf pdfWriter, _ Reference) (string, []byte) {
+func (t *PatternTiling) pdfContent(pdf pdfWriter, _ Reference) (string, []byte) {
 	return "<<>>", nil
 }
 
-func (t *PaternTiling) clone(cache cloneCache) Referencable {
+func (t *PatternTiling) clone(cache cloneCache) Referencable {
 	if t == nil {
 		return t
 	}
@@ -628,14 +628,14 @@ func (s *ShadingDict) clone(cache cloneCache) Referencable {
 	return &out
 }
 
-// PaternShading is a type2 pattern
-type PaternShading struct {
+// PatternShading is a type2 pattern
+type PatternShading struct {
 	Shading   *ShadingDict  // required
 	Matrix    Matrix        // optionnal, default to Identity
 	ExtGState *GraphicState // optionnal
 }
 
-func (s *PaternShading) pdfContent(pdf pdfWriter, _ Reference) (string, []byte) {
+func (s *PatternShading) pdfContent(pdf pdfWriter, _ Reference) (string, []byte) {
 	b := newBuffer()
 	shadingRef := pdf.addItem(s.Shading)
 	b.fmt("<</PatternType 2/Shading %s", shadingRef)
@@ -650,7 +650,7 @@ func (s *PaternShading) pdfContent(pdf pdfWriter, _ Reference) (string, []byte) 
 	return b.String(), nil
 }
 
-func (s *PaternShading) clone(cache cloneCache) Referencable {
+func (s *PatternShading) clone(cache cloneCache) Referencable {
 	if s == nil {
 		return s
 	}

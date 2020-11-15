@@ -427,13 +427,13 @@ func (r resolver) resolveOnePattern(pat pdfcpu.Object) (model.Pattern, error) {
 	return out, nil
 }
 
-func (r resolver) resolveTilingPattern(pat pdfcpu.StreamDict) (*model.PaternTiling, error) {
+func (r resolver) resolveTilingPattern(pat pdfcpu.StreamDict) (*model.PatternTiling, error) {
 	cs, err := r.resolveStream(pat)
 	if err != nil {
 		return nil, err
 	}
 	// since pat is not a ref, cs can't be nil
-	out := model.PaternTiling{ContentStream: model.ContentStream{Stream: *cs}}
+	out := model.PatternTiling{ContentStream: model.ContentStream{Stream: *cs}}
 
 	if pt, ok := r.resolveInt(pat.Dict["PaintType"]); ok {
 		out.PaintType = uint8(pt)
@@ -459,12 +459,12 @@ func (r resolver) resolveTilingPattern(pat pdfcpu.StreamDict) (*model.PaternTili
 	return &out, nil
 }
 
-func (r resolver) resolveShadingPattern(pat pdfcpu.Dict) (*model.PaternShading, error) {
+func (r resolver) resolveShadingPattern(pat pdfcpu.Dict) (*model.PatternShading, error) {
 	sh, err := r.resolveOneShading(pat["Shading"])
 	if err != nil {
 		return nil, err
 	}
-	var out model.PaternShading
+	var out model.PatternShading
 	out.Shading = sh
 	if m := r.matrixFromArray(pat["Matrix"]); m != nil {
 		out.Matrix = *m

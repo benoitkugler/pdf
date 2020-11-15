@@ -224,8 +224,8 @@ func (*FileSpec) IsReferencable()           {}
 func (*EmbeddedFileStream) IsReferencable() {}
 func (*ShadingDict) IsReferencable()        {}
 func (*FunctionDict) IsReferencable()       {}
-func (*PaternTiling) IsReferencable()       {}
-func (*PaternShading) IsReferencable()      {}
+func (*PatternTiling) IsReferencable()      {}
+func (*PatternShading) IsReferencable()     {}
 func (*ColorSpaceICCBased) IsReferencable() {}
 func (*ColorTableStream) IsReferencable()   {}
 func (*XObjectForm) IsReferencable()        {}
