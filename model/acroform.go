@@ -372,7 +372,7 @@ type SignatureBuildDictionary interface {
 	// `encoder` shall be use to properly encode text strings,
 	// and crypt them if needed.
 	// `ref` is the object number of the object containing the dictionary,
-	// and should be use forwarded to the `EncodeString` method.
+	// and should be forwarded to the `encoder.EncodeString` method.
 	SignatureBuildPDFString(encoder PDFStringEncoder, ref Reference) string
 
 	// Clone must return a deep copy of itself

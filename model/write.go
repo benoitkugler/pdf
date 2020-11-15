@@ -116,13 +116,13 @@ func newWriter(dest io.Writer, encrypt Encrypt) pdfWriter {
 	}
 }
 
-type StringEncoding uint8
+type PDFStringEncoding uint8
 
 const (
-	ASCIIString StringEncoding = iota // ASCII encoding and escaping
-	ByteString                        // no special treatment, except escaping
-	HexString                         // hex form
-	TextString                        // one of the PDF encoding: PDFDocEncoding or UTF16-BE
+	ASCIIString PDFStringEncoding = iota // ASCII encoding and escaping
+	ByteString                           // no special treatment, except escaping
+	HexString                            // hex form
+	TextString                           // one of the PDF encoding: PDFDocEncoding or UTF16-BE
 )
 
 var (
@@ -135,10 +135,10 @@ var (
 // It will also encrypt `s`, if needed, using
 // `context`, which is the object number of the containing object.
 type PDFStringEncoder interface {
-	EncodeString(s string, mode StringEncoding, context Reference) string
+	EncodeString(s string, mode PDFStringEncoding, context Reference) string
 }
 
-func (p pdfWriter) EncodeString(s string, mode StringEncoding, context Reference) string {
+func (p pdfWriter) EncodeString(s string, mode PDFStringEncoding, context Reference) string {
 	if p.err != nil {
 		return ""
 	}

@@ -121,7 +121,7 @@ func (s Stream) PDFCommonFields() string {
 	return b.String()
 }
 
-// PDFContent return the stream object content
+// PDFContent return the stream object content.
 // Often, additional arguments will be needed, so `PDFCommonFields`
 // should be used instead.
 func (s Stream) PDFContent() (string, []byte) {
