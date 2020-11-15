@@ -68,7 +68,7 @@ func (r resolver) resolveOneResourceDict(o pdfcpu.Object) (*model.ResourcesDict,
 	return &out, nil
 }
 
-func (r resolver) resolveOneFont(font pdfcpu.Object) (*model.Font, error) {
+func (r resolver) resolveOneFont(font pdfcpu.Object) (*model.FontDict, error) {
 	fontRef, isFontRef := font.(pdfcpu.IndirectRef)
 	if isFontRef {
 		if fontModel := r.fonts[fontRef]; isFontRef && fontModel != nil {
@@ -87,14 +87,14 @@ func (r resolver) resolveOneFont(font pdfcpu.Object) (*model.Font, error) {
 	if err != nil {
 		return nil, err
 	}
-	fontModel := &model.Font{Subtype: fontType}
+	fontModel := &model.FontDict{Subtype: fontType}
 	if isFontRef { //write back to the cache
 		r.fonts[fontRef] = fontModel
 	}
 	return fontModel, nil
 }
 
-func (r resolver) resolveFonts(ft pdfcpu.Object) (map[model.Name]*model.Font, error) {
+func (r resolver) resolveFonts(ft pdfcpu.Object) (map[model.Name]*model.FontDict, error) {
 	ft = r.resolve(ft)
 	if ft == nil {
 		return nil, nil
@@ -103,7 +103,7 @@ func (r resolver) resolveFonts(ft pdfcpu.Object) (map[model.Name]*model.Font, er
 	if !isDict {
 		return nil, errType("Fonts Dict", ft)
 	}
-	ftMap := make(map[model.Name]*model.Font)
+	ftMap := make(map[model.Name]*model.FontDict)
 	for name, font := range ftDict {
 		fontModel, err := r.resolveOneFont(font)
 		if err != nil {
@@ -138,7 +138,7 @@ func (r resolver) parseDiffArray(ar pdfcpu.Array) model.Differences {
 
 func (r resolver) resolveEncoding(encoding pdfcpu.Object) (model.SimpleEncoding, error) {
 	if encName, isName := r.resolveName(encoding); isName {
-		return model.NewPrededinedEncoding(string(encName)), nil
+		return model.NewSimpleEncodingPredefined(string(encName)), nil
 	}
 	// ref or dict, maybe nil
 	encRef, isRef := encoding.(pdfcpu.IndirectRef)
@@ -152,7 +152,7 @@ func (r resolver) resolveEncoding(encoding pdfcpu.Object) (model.SimpleEncoding,
 	if !isDict {
 		return nil, errType("Encoding", encoding)
 	}
-	var encModel model.EncodingDict
+	var encModel model.SimpleEncodingDict
 	if name, ok := r.resolveName(encDict["BaseEncoding"]); ok {
 		encModel.BaseEncoding = name
 	}
@@ -165,12 +165,12 @@ func (r resolver) resolveEncoding(encoding pdfcpu.Object) (model.SimpleEncoding,
 	return &encModel, nil
 }
 
-func (r resolver) resolveFontTT1orTT(font pdfcpu.Dict) (out model.Type1, err error) {
+func (r resolver) resolveFontTT1orTT(font pdfcpu.Dict) (out model.FontType1, err error) {
 	out.BaseFont, _ = r.resolveName(font["BaseFont"])
 
 	out.Encoding, err = r.resolveEncoding(font["Encoding"])
 	if err != nil {
-		return model.Type1{}, err
+		return model.FontType1{}, err
 	}
 
 	// for the standard fonts, the font descriptor, first char and widths might be omited
@@ -190,7 +190,7 @@ func (r resolver) resolveFontTT1orTT(font pdfcpu.Dict) (out model.Type1, err err
 	return out, err
 }
 
-func (r resolver) resolveFontT3(font pdfcpu.Dict) (out model.Type3, err error) {
+func (r resolver) resolveFontT3(font pdfcpu.Dict) (out model.FontType3, err error) {
 	bbox := r.rectangleFromArray(font["FontBBox"])
 	if bbox == nil {
 		return out, errors.New("missing FontBBox entry")
@@ -378,35 +378,35 @@ func (r resolver) processFontFile(object pdfcpu.Object) (*model.FontFile, error)
 	return &out, nil
 }
 
-func (r resolver) resolveFontT0(font pdfcpu.Dict) (model.Type0, error) {
+func (r resolver) resolveFontT0(font pdfcpu.Dict) (model.FontType0, error) {
 	var err error
-	out := model.Type0{}
+	out := model.FontType0{}
 
 	out.BaseFont, _ = r.resolveName(font["BaseFont"])
 
 	if enc, ok := r.resolveName(font["Encoding"]); ok {
-		out.Encoding = model.PredefinedCMapEncoding(enc)
+		out.Encoding = model.CMapEncodingPredefined(enc)
 	} else {
 		// should'nt be common, dont bother tracking ref
 		enc, err := r.resolveStream(font["Encoding"])
 		if err != nil {
-			return model.Type0{}, err
+			return model.FontType0{}, err
 		}
 		if enc != nil {
-			out.Encoding = model.EmbeddedCMapEncoding(*enc)
+			out.Encoding = model.CMapEncodingEmbedded(*enc)
 		}
 	}
 
 	desc, _ := r.resolveArray(font["DescendantFonts"])
 	if len(desc) != 1 {
-		return model.Type0{}, fmt.Errorf("expected array of one indirect object, got %s", desc)
+		return model.FontType0{}, fmt.Errorf("expected array of one indirect object, got %s", desc)
 	}
 	// we track the ref from the main font object
 	// no need to track the descendants
 	descFont := r.resolve(desc[0])
 	descFontDict, isDict := descFont.(pdfcpu.Dict)
 	if !isDict {
-		return model.Type0{}, errType("DescendantFonts", descFont)
+		return model.FontType0{}, errType("DescendantFonts", descFont)
 	}
 	out.DescendantFonts, err = r.resolveCIDFontDict(descFontDict)
 	if err != nil {
@@ -492,7 +492,7 @@ func (r resolver) processCIDWidths(wds pdfcpu.Object) []model.CIDWidth {
 	return out
 }
 
-func (r resolver) parseFontDict(font pdfcpu.Dict) (model.FontType, error) {
+func (r resolver) parseFontDict(font pdfcpu.Dict) (model.Font, error) {
 	subtype, _ := r.resolveName(font["Subtype"])
 	switch subtype {
 	case "Type0":
@@ -501,7 +501,7 @@ func (r resolver) parseFontDict(font pdfcpu.Dict) (model.FontType, error) {
 		return r.resolveFontTT1orTT(font)
 	case "TrueType":
 		t1, err := r.resolveFontTT1orTT(font)
-		return model.TrueType(t1), err
+		return model.FontTrueType(t1), err
 	case "Type3":
 		return r.resolveFontT3(font)
 	default:

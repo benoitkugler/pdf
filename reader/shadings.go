@@ -125,16 +125,16 @@ func (r resolver) resolveArrayCS(ar pdfcpu.Array) (model.ColorSpace, error) {
 		if err != nil {
 			return nil, err
 		}
-		return model.UncoloredTilingPattern{UnderlyingColorSpace: cs}, nil
+		return model.ColorSpaceUncoloredPattern{UnderlyingColorSpace: cs}, nil
 	default: // TODO
 		fmt.Println("TODO array CS", ar)
 		return nil, nil
 	}
 }
 
-func (r resolver) resolveSeparation(ar pdfcpu.Array) (model.SeparationColorSpace, error) {
+func (r resolver) resolveSeparation(ar pdfcpu.Array) (model.ColorSpaceSeparation, error) {
 	var (
-		out model.SeparationColorSpace
+		out model.ColorSpaceSeparation
 		err error
 	)
 	if len(ar) != 4 {
@@ -153,7 +153,7 @@ func (r resolver) resolveSeparation(ar pdfcpu.Array) (model.SeparationColorSpace
 	return out, nil
 }
 
-func (r resolver) resolveICCBased(ar pdfcpu.Array) (*model.ICCBasedColorSpace, error) {
+func (r resolver) resolveICCBased(ar pdfcpu.Array) (*model.ColorSpaceICCBased, error) {
 	if len(ar) != 2 {
 		return nil, fmt.Errorf("expected 2-elements array in ICCBase Color, got %v", ar)
 	}
@@ -169,7 +169,7 @@ func (r resolver) resolveICCBased(ar pdfcpu.Array) (*model.ICCBasedColorSpace, e
 	if common == nil {
 		return nil, errors.New("missing ICCBased stream")
 	}
-	out := model.ICCBasedColorSpace{Stream: *common}
+	out := model.ColorSpaceICCBased{Stream: *common}
 	stream, _ := obj.(pdfcpu.StreamDict) // no error, ar[1] has type Stream
 
 	out.N, _ = r.resolveInt(stream.Dict["N"])
@@ -189,9 +189,9 @@ func (r resolver) resolveICCBased(ar pdfcpu.Array) (*model.ICCBasedColorSpace, e
 	return &out, nil
 }
 
-func (r resolver) resolveIndexed(ar pdfcpu.Array) (model.IndexedColorSpace, error) {
+func (r resolver) resolveIndexed(ar pdfcpu.Array) (model.ColorSpaceIndexed, error) {
 	var (
-		out model.IndexedColorSpace
+		out model.ColorSpaceIndexed
 		err error
 	)
 	if len(ar) != 4 {
@@ -240,9 +240,9 @@ func (r resolver) resolveAlternateColorSpace(alternate pdfcpu.Object) (model.Col
 // resolve a func (possibly indirect) or an array of func
 // returns the result as an array of funcs
 // if `expectedN` is > 0, check that the dimension of the domain is `expectedN`
-func (r resolver) resolveFuncOrArray(sh pdfcpu.Object, expectedN int) ([]model.Function, error) {
+func (r resolver) resolveFuncOrArray(sh pdfcpu.Object, expectedN int) ([]model.FunctionDict, error) {
 	if ar, isAr := r.resolveArray(sh); isAr {
-		out := make([]model.Function, len(ar))
+		out := make([]model.FunctionDict, len(ar))
 		for i, f := range ar {
 			fn, err := r.resolveFunction(f)
 			if err != nil {
@@ -262,12 +262,12 @@ func (r resolver) resolveFuncOrArray(sh pdfcpu.Object, expectedN int) ([]model.F
 	if expectedN > 0 && len(fn.Domain) != expectedN {
 		return nil, fmt.Errorf("expected %d-arg function, got %v", expectedN, fn)
 	}
-	return []model.Function{*fn}, nil
+	return []model.FunctionDict{*fn}, nil
 }
 
-func (r resolver) resolveFunctionSh(sh pdfcpu.Dict) (model.FunctionBased, error) {
+func (r resolver) resolveFunctionSh(sh pdfcpu.Dict) (model.ShadingFunctionBased, error) {
 	var (
-		out model.FunctionBased
+		out model.ShadingFunctionBased
 		err error
 	)
 
@@ -299,12 +299,12 @@ func (r resolver) resolveBaseGradient(sh pdfcpu.Dict) (g model.BaseGradient, err
 	return g, err
 }
 
-func (r resolver) resolveAxialSh(sh pdfcpu.Dict) (model.Axial, error) {
+func (r resolver) resolveAxialSh(sh pdfcpu.Dict) (model.ShadingAxial, error) {
 	g, err := r.resolveBaseGradient(sh)
 	if err != nil {
-		return model.Axial{}, err
+		return model.ShadingAxial{}, err
 	}
-	out := model.Axial{BaseGradient: g}
+	out := model.ShadingAxial{BaseGradient: g}
 	coords, _ := r.resolveArray(sh["Coords"])
 	if len(coords) != 4 {
 		return out, fmt.Errorf("unexpected Coords for Axial shading %v", coords)
@@ -315,12 +315,12 @@ func (r resolver) resolveAxialSh(sh pdfcpu.Dict) (model.Axial, error) {
 	return out, nil
 }
 
-func (r resolver) resolveRadialSh(sh pdfcpu.Dict) (model.Radial, error) {
+func (r resolver) resolveRadialSh(sh pdfcpu.Dict) (model.ShadingRadial, error) {
 	g, err := r.resolveBaseGradient(sh)
 	if err != nil {
-		return model.Radial{}, err
+		return model.ShadingRadial{}, err
 	}
-	out := model.Radial{BaseGradient: g}
+	out := model.ShadingRadial{BaseGradient: g}
 	coords, _ := r.resolveArray(sh["Coords"])
 	if len(coords) != 6 {
 		return out, fmt.Errorf("unexpected Coords for Axial shading %v", coords)
@@ -331,15 +331,15 @@ func (r resolver) resolveRadialSh(sh pdfcpu.Dict) (model.Radial, error) {
 	return out, nil
 }
 
-func (r resolver) resolveCoonsSh(sh pdfcpu.StreamDict) (model.Coons, error) {
+func (r resolver) resolveCoonsSh(sh pdfcpu.StreamDict) (model.ShadingCoons, error) {
 	cs, err := r.resolveStream(sh)
 	if err != nil {
-		return model.Coons{}, err
+		return model.ShadingCoons{}, err
 	}
 	if cs == nil {
-		return model.Coons{}, errors.New("missing Coons stream")
+		return model.ShadingCoons{}, errors.New("missing Coons stream")
 	}
-	out := model.Coons{Stream: *cs}
+	out := model.ShadingCoons{Stream: *cs}
 	if bi, ok := r.resolveInt(sh.Dict["BitsPerCoordinate"]); ok {
 		out.BitsPerCoordinate = uint8(bi)
 	}
@@ -427,13 +427,13 @@ func (r resolver) resolveOnePattern(pat pdfcpu.Object) (model.Pattern, error) {
 	return out, nil
 }
 
-func (r resolver) resolveTilingPattern(pat pdfcpu.StreamDict) (*model.TilingPatern, error) {
+func (r resolver) resolveTilingPattern(pat pdfcpu.StreamDict) (*model.PaternTiling, error) {
 	cs, err := r.resolveStream(pat)
 	if err != nil {
 		return nil, err
 	}
 	// since pat is not a ref, cs can't be nil
-	out := model.TilingPatern{ContentStream: model.ContentStream{Stream: *cs}}
+	out := model.PaternTiling{ContentStream: model.ContentStream{Stream: *cs}}
 
 	if pt, ok := r.resolveInt(pat.Dict["PaintType"]); ok {
 		out.PaintType = uint8(pt)
@@ -459,12 +459,12 @@ func (r resolver) resolveTilingPattern(pat pdfcpu.StreamDict) (*model.TilingPate
 	return &out, nil
 }
 
-func (r resolver) resolveShadingPattern(pat pdfcpu.Dict) (*model.ShadingPatern, error) {
+func (r resolver) resolveShadingPattern(pat pdfcpu.Dict) (*model.PaternShading, error) {
 	sh, err := r.resolveOneShading(pat["Shading"])
 	if err != nil {
 		return nil, err
 	}
-	var out model.ShadingPatern
+	var out model.PaternShading
 	out.Shading = sh
 	if m := r.matrixFromArray(pat["Matrix"]); m != nil {
 		out.Matrix = *m

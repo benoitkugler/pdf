@@ -20,22 +20,22 @@ type resolver struct {
 	xref *pdfcpu.XRefTable
 
 	// appearanceEntries map[pdfcpu.IndirectRef]*model.AppearanceEntry
-	formFields        map[pdfcpu.IndirectRef]*model.FormField
+	formFields        map[pdfcpu.IndirectRef]*model.FormFieldDict
 	appearanceDicts   map[pdfcpu.IndirectRef]*model.AppearanceDict
 	resources         map[pdfcpu.IndirectRef]*model.ResourcesDict
-	fonts             map[pdfcpu.IndirectRef]*model.Font
+	fonts             map[pdfcpu.IndirectRef]*model.FontDict
 	graphicsStates    map[pdfcpu.IndirectRef]*model.GraphicState
-	encodings         map[pdfcpu.IndirectRef]*model.EncodingDict
-	annotations       map[pdfcpu.IndirectRef]*model.Annotation
+	encodings         map[pdfcpu.IndirectRef]*model.SimpleEncodingDict
+	annotations       map[pdfcpu.IndirectRef]*model.AnnotationDict
 	fileSpecs         map[pdfcpu.IndirectRef]*model.FileSpec
 	fileContents      map[pdfcpu.IndirectRef]*model.EmbeddedFileStream
 	pages             map[pdfcpu.IndirectRef]*model.PageObject
 	shadings          map[pdfcpu.IndirectRef]*model.ShadingDict
-	functions         map[pdfcpu.IndirectRef]*model.Function
+	functions         map[pdfcpu.IndirectRef]*model.FunctionDict
 	patterns          map[pdfcpu.IndirectRef]model.Pattern
 	xObjectForms      map[pdfcpu.IndirectRef]*model.XObjectForm
 	images            map[pdfcpu.IndirectRef]*model.XObjectImage
-	iccs              map[pdfcpu.IndirectRef]*model.ICCBasedColorSpace
+	iccs              map[pdfcpu.IndirectRef]*model.ColorSpaceICCBased
 	colorTableStreams map[pdfcpu.IndirectRef]*model.ColorTableStream
 
 	// annotations may reference pages which are not yet processed
@@ -45,7 +45,7 @@ type resolver struct {
 }
 
 type incompleteDest struct {
-	destination *model.ExplicitDestination
+	destination *model.DestinationExplicit
 	ref         pdfcpu.IndirectRef
 }
 
@@ -179,23 +179,23 @@ func ParsePDF(source io.ReadSeeker, userPassword string) (model.Document, error)
 
 	r := resolver{
 		xref:            ctx.XRefTable,
-		formFields:      make(map[pdfcpu.IndirectRef]*model.FormField),
+		formFields:      make(map[pdfcpu.IndirectRef]*model.FormFieldDict),
 		appearanceDicts: make(map[pdfcpu.IndirectRef]*model.AppearanceDict),
 		// appearanceEntries: make(map[pdfcpu.IndirectRef]*model.AppearanceEntry),
 		resources:         make(map[pdfcpu.IndirectRef]*model.ResourcesDict),
-		fonts:             make(map[pdfcpu.IndirectRef]*model.Font),
+		fonts:             make(map[pdfcpu.IndirectRef]*model.FontDict),
 		graphicsStates:    make(map[pdfcpu.IndirectRef]*model.GraphicState),
-		encodings:         make(map[pdfcpu.IndirectRef]*model.EncodingDict),
-		annotations:       make(map[pdfcpu.IndirectRef]*model.Annotation),
+		encodings:         make(map[pdfcpu.IndirectRef]*model.SimpleEncodingDict),
+		annotations:       make(map[pdfcpu.IndirectRef]*model.AnnotationDict),
 		fileSpecs:         make(map[pdfcpu.IndirectRef]*model.FileSpec),
 		fileContents:      make(map[pdfcpu.IndirectRef]*model.EmbeddedFileStream),
 		pages:             make(map[pdfcpu.IndirectRef]*model.PageObject),
-		functions:         make(map[pdfcpu.IndirectRef]*model.Function),
+		functions:         make(map[pdfcpu.IndirectRef]*model.FunctionDict),
 		shadings:          make(map[pdfcpu.IndirectRef]*model.ShadingDict),
 		patterns:          make(map[pdfcpu.IndirectRef]model.Pattern),
 		xObjectForms:      make(map[pdfcpu.IndirectRef]*model.XObjectForm),
 		images:            make(map[pdfcpu.IndirectRef]*model.XObjectImage),
-		iccs:              make(map[pdfcpu.IndirectRef]*model.ICCBasedColorSpace),
+		iccs:              make(map[pdfcpu.IndirectRef]*model.ColorSpaceICCBased),
 		colorTableStreams: make(map[pdfcpu.IndirectRef]*model.ColorTableStream),
 	}
 

@@ -118,7 +118,7 @@ func (r *resolver) resolvePageObject(node pdfcpu.Dict, parent *model.PageTree) (
 	return &page, nil
 }
 
-func (r *resolver) resolveAnnotation(annot pdfcpu.Object) (*model.Annotation, error) {
+func (r *resolver) resolveAnnotation(annot pdfcpu.Object) (*model.AnnotationDict, error) {
 	annotRef, isRef := annot.(pdfcpu.IndirectRef)
 	if annotModel := r.annotations[annotRef]; isRef && annotModel != nil {
 		return annotModel, nil
@@ -138,9 +138,9 @@ func (r *resolver) resolveAnnotation(annot pdfcpu.Object) (*model.Annotation, er
 	return &annotModel, nil
 }
 
-func (r *resolver) resolveAnnotationFields(annotDict pdfcpu.Dict) (model.Annotation, error) {
+func (r *resolver) resolveAnnotationFields(annotDict pdfcpu.Dict) (model.AnnotationDict, error) {
 	var (
-		annotModel model.Annotation
+		annotModel model.AnnotationDict
 		err        error
 	)
 	if rect := r.rectangleFromArray(annotDict["Rect"]); rect != nil {
@@ -224,11 +224,11 @@ func (r *resolver) processPageNode(node pdfcpu.Dict, parent *model.PageTree) (mo
 }
 
 // TODO: support more destination
-func (r *resolver) resolveExplicitDestination(dest pdfcpu.Array) (*model.ExplicitDestination, error) {
+func (r *resolver) resolveExplicitDestination(dest pdfcpu.Array) (*model.DestinationExplicit, error) {
 	if len(dest) != 5 {
 		return nil, nil
 	}
-	out := new(model.ExplicitDestination)
+	out := new(model.DestinationExplicit)
 	out.Left, out.Top = model.Undef, model.Undef
 	pageRef, isRef := dest[0].(pdfcpu.IndirectRef)
 	if !isRef {
@@ -272,25 +272,25 @@ func (r *resolver) processAction(action pdfcpu.Dict) (model.Action, error) {
 	switch name {
 	case "URI":
 		uri, _ := isString(r.resolve(action["URI"]))
-		return model.URIAction(uri), nil
+		return model.ActionURI(uri), nil
 	case "GoTo":
 		dest, err := r.processDestination(action["D"])
 		if err != nil {
 			return nil, err
 		}
-		return model.GoToAction{D: dest}, nil
+		return model.ActionGoTo{D: dest}, nil
 	default:
 		return nil, nil
 	}
 }
 
 // TODO: more annotation subtypes
-func (r *resolver) resolveAnnotationSubType(annot pdfcpu.Dict) (model.AnnotationType, error) {
+func (r *resolver) resolveAnnotationSubType(annot pdfcpu.Dict) (model.Annotation, error) {
 	var err error
 	name, _ := r.resolveName(annot["Subtype"])
 	switch name {
 	case "Link":
-		var an model.LinkAnnotation
+		var an model.AnnotationLink
 		aDict, isDict := r.resolve(annot["A"]).(pdfcpu.Dict)
 		if isDict {
 			an.A, err = r.processAction(aDict)
@@ -302,14 +302,14 @@ func (r *resolver) resolveAnnotationSubType(annot pdfcpu.Dict) (model.Annotation
 		}
 		return an, nil
 	case "FileAttachment":
-		var an model.FileAttachmentAnnotation
+		var an model.AnnotationFileAttachment
 		title, _ := isString(r.resolve(annot["T"]))
 		an.T = decodeTextString(title)
 		an.FS, err = r.resolveFileSpec(annot["FS"])
 		return an, err
 	case "Widget":
 		// TODO:
-		return model.WidgetAnnotation{}, nil
+		return model.AnnotationWidget{}, nil
 	default:
 		return nil, nil
 	}

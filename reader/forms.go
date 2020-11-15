@@ -28,7 +28,7 @@ func (r resolver) processAcroForm(acroForm pdfcpu.Object) (*model.AcroForm, erro
 		err error
 	)
 	fields, _ := r.resolveArray(form["Fields"])
-	out.Fields = make([]*model.FormField, len(fields))
+	out.Fields = make([]*model.FormFieldDict, len(fields))
 	for i, f := range fields {
 		ff, err := r.resolveFormField(f, nil)
 		if err != nil {
@@ -43,7 +43,7 @@ func (r resolver) processAcroForm(acroForm pdfcpu.Object) (*model.AcroForm, erro
 		out.SigFlags = model.SignatureFlag(sig)
 	}
 	if co, _ := r.resolveArray(form["CO"]); len(co) != 0 {
-		out.CO = make([]*model.FormField, 0, len(co))
+		out.CO = make([]*model.FormFieldDict, 0, len(co))
 		for _, c := range co {
 			ref, ok := c.(pdfcpu.IndirectRef)
 			if !ok {
@@ -76,7 +76,7 @@ func (r resolver) processAcroForm(acroForm pdfcpu.Object) (*model.AcroForm, erro
 // so we will only use the Widget
 // the boolean returned is true if `form` is actually a form field.
 // the attibutes Parent,Kids, Widgets are not set
-func (r resolver) isFormField(form pdfcpu.Dict) (field model.FormField, isField bool) {
+func (r resolver) isFormField(form pdfcpu.Dict) (field model.FormFieldDict, isField bool) {
 	if _, ok := r.resolveName(form["FT"]); ok {
 		isField = true
 		field.FT = r.processFormFieldType(form)
@@ -134,12 +134,12 @@ func (r resolver) processAA(aa pdfcpu.Object) *model.FormFielAdditionalActions {
 	return &out
 }
 
-func (r resolver) processJSAction(action pdfcpu.Object) model.JavaScriptAction {
+func (r resolver) processJSAction(action pdfcpu.Object) model.ActionJavaScript {
 	var js string
 	if K, ok := r.resolve(action).(pdfcpu.Dict); ok {
 		js = r.textOrStream(K["JS"])
 	}
-	return model.JavaScriptAction{JS: js}
+	return model.ActionJavaScript{JS: js}
 }
 
 // extract a text string from either a string or a stream object,
@@ -161,7 +161,7 @@ func (r resolver) textOrStream(object pdfcpu.Object) string {
 // TODO: fix form tree parsing
 // `parent` will be nil for the top-level fields
 // if not, its type maybe be checked to find the field type by inheritance
-func (r resolver) resolveFormField(o pdfcpu.Object, parent *model.FormField) (*model.FormField, error) {
+func (r resolver) resolveFormField(o pdfcpu.Object, parent *model.FormFieldDict) (*model.FormFieldDict, error) {
 	var err error
 	ref, isRef := o.(pdfcpu.IndirectRef)
 	if isRef {
@@ -232,9 +232,9 @@ func (r resolver) resolveWidget(form pdfcpu.Dict) (model.Widget, bool, error) {
 	if err != nil {
 		return model.Widget{}, false, err
 	}
-	if widget, isWidget := annot.Subtype.(model.WidgetAnnotation); isWidget {
+	if widget, isWidget := annot.Subtype.(model.AnnotationWidget); isWidget {
 		// we found a merged widget
-		return model.Widget{BaseAnnotation: annot.BaseAnnotation, WidgetAnnotation: widget}, true, nil
+		return model.Widget{BaseAnnotation: annot.BaseAnnotation, AnnotationWidget: widget}, true, nil
 	}
 	return model.Widget{}, false, nil
 }
@@ -242,7 +242,7 @@ func (r resolver) resolveWidget(form pdfcpu.Dict) (model.Widget, bool, error) {
 // ------------------- specialization of form fields -------------------
 
 // may return nil it the type if inherited
-func (r resolver) processFormFieldType(form pdfcpu.Dict) model.FormFieldType {
+func (r resolver) processFormFieldType(form pdfcpu.Dict) model.FormField {
 	ft, _ := r.resolveName(form["FT"])
 	switch ft {
 	case fieldBtn:

@@ -70,7 +70,7 @@ func limitsName(n nameTree) [2]string {
 // to a name.
 type NameToDest struct {
 	Name        string
-	Destination *ExplicitDestination // indirect object
+	Destination *DestinationExplicit // indirect object
 }
 
 // DestTree links a serie of arbitrary name
@@ -106,8 +106,8 @@ func (d DestTree) Limits() [2]string {
 
 // LookupTable walks the name tree and
 // accumulates the result into one map
-func (d DestTree) LookupTable() map[string]*ExplicitDestination {
-	out := make(map[string]*ExplicitDestination)
+func (d DestTree) LookupTable() map[string]*DestinationExplicit {
+	out := make(map[string]*DestinationExplicit)
 	for _, v := range d.Names {
 		out[v.Name] = v.Destination
 	}

@@ -36,11 +36,11 @@ const (
 // of a field (attribut FT) are inherited (or not) at the same time.
 // This should not be a problem in pratice, because if a parent
 // changes its type, the values related to it should change as well.
-type FormField struct {
-	FT FormFieldType // inheritable, so might be nil
+type FormFieldDict struct {
+	FT FormField // inheritable, so might be nil
 
-	Parent *FormField   // nil for the top level fields
-	Kids   []*FormField // nil for a leaf node
+	Parent *FormFieldDict   // nil for the top level fields
+	Kids   []*FormFieldDict // nil for a leaf node
 	// not nil only for a leaf node
 	// represented in PDF under the/Kids entry,
 	// or merged if their is only one widget
@@ -62,7 +62,7 @@ type FormField struct {
 }
 
 // descendants returns all the (strict) descendants of `f`
-func (f *FormField) descendants() []*FormField {
+func (f *FormFieldDict) descendants() []*FormFieldDict {
 	out := f.Kids
 	for _, kid := range f.Kids {
 		out = append(out, kid.descendants()...)
@@ -73,7 +73,7 @@ func (f *FormField) descendants() []*FormField {
 // FullFieldName returns the fully qualified field name, which is not explicitly defined
 // but is constructed from the partial field names of the field
 // and all of its ancestors
-func (f *FormField) FullFieldName() string {
+func (f *FormFieldDict) FullFieldName() string {
 	if f.Parent == nil {
 		return f.T
 	}
@@ -82,7 +82,7 @@ func (f *FormField) FullFieldName() string {
 
 // require it's own reference to pass it to its kids
 // `parent` will be invalid for the root fields
-func (f *FormField) pdfString(pdf pdfWriter, ownRef, parent, catalog Reference) string {
+func (f *FormFieldDict) pdfString(pdf pdfWriter, ownRef, parent, catalog Reference) string {
 	b := newBuffer()
 	b.WriteString("<<")
 	if f.FT != nil { // might be nil if inherited
@@ -156,17 +156,17 @@ const (
 type Widget struct {
 	BaseAnnotation
 
-	WidgetAnnotation
+	AnnotationWidget
 }
 
 func (w Widget) pdfString(pdf pdfWriter, ownRef, parent Reference) string {
 	return fmt.Sprintf("<<%s %s/Parent %s>>",
-		w.BaseAnnotation.fields(pdf, ownRef), w.WidgetAnnotation.annotationFields(pdf, ownRef), parent)
+		w.BaseAnnotation.fields(pdf, ownRef), w.AnnotationWidget.annotationFields(pdf, ownRef), parent)
 }
 
-// FormFieldType provides additional form attributes,
+// FormField provides additional form attributes,
 // depending on the field type.
-type FormFieldType interface {
+type FormField interface {
 	// must include the type entry/FT
 	// `catalog` is needed by FieldSignature
 	// `fieldRef` is the reference of the field dict object
@@ -384,7 +384,7 @@ type SignatureBuildDictionary interface {
 // we, as other libraries, do: we only allow it to point to the Catalog.
 type SignatureRefDict struct {
 	TransformMethod Name // among DocMDP, UR, FieldMDP
-	TransformParams TransformParams
+	TransformParams Transform
 
 	DigestMethod Name
 }
@@ -394,9 +394,9 @@ func (s SignatureRefDict) pdfString(pdf pdfWriter, catalog, ref Reference) strin
 		s.TransformMethod, s.TransformParams.transformParamsDict(pdf, ref), s.DigestMethod, catalog)
 }
 
-// TransformParams determines which objects are included and excluded
+// Transform determines which objects are included and excluded
 // in revision comparison
-type TransformParams interface {
+type Transform interface {
 	transformParamsDict(pdf pdfWriter, ref Reference) string
 }
 
@@ -631,14 +631,14 @@ const (
 )
 
 type AcroForm struct {
-	Fields          []*FormField
+	Fields          []*FormFieldDict
 	NeedAppearances bool
 	SigFlags        SignatureFlag // optional, default to 0
 
 	// (optional) references to field dictionaries with calculation actions, defining
 	// the calculation order in which their values will be recalculated
 	// when the value of any field changes
-	CO []*FormField
+	CO []*FormFieldDict
 	DR *ResourcesDict // optional
 	DA string         // optional
 	Q  int            // optional, default to 0
@@ -648,7 +648,7 @@ type AcroForm struct {
 
 // Flatten walk the tree of form fields and accumulate them
 // in a flat list.
-func (a AcroForm) Flatten() []*FormField {
+func (a AcroForm) Flatten() []*FormFieldDict {
 	out := a.Fields
 	for _, kid := range a.Fields {
 		out = append(out, kid.descendants()...)

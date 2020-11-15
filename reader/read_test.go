@@ -156,12 +156,12 @@ func TestType3(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	type3Fonts := map[*model.Font]bool{}
+	type3Fonts := map[*model.FontDict]bool{}
 	type3Refs := 0
 	for _, page := range doc.Catalog.Pages.Flatten() {
 		if res := page.Resources; res != nil {
 			for _, font := range res.Font {
-				if _, ok := font.Subtype.(model.Type3); ok {
+				if _, ok := font.Subtype.(model.FontType3); ok {
 					type3Fonts[font] = true
 					type3Refs++
 				}

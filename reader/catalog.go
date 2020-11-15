@@ -136,10 +136,10 @@ func (r resolver) resolveOneXObjectForm(obj pdfcpu.Object) (*model.XObjectForm, 
 // The value of this entry shall be a dictionary in which
 // each key is a destination name and the corresponding value is either an array defining the destination, using
 // the syntax shown in Table 151, or a dictionary with a D entry whose value is such an array.
-func (r *resolver) resolveOneNamedDest(dest pdfcpu.Object) (*model.ExplicitDestination, error) {
+func (r *resolver) resolveOneNamedDest(dest pdfcpu.Object) (*model.DestinationExplicit, error) {
 	dest = r.resolve(dest)
 	var (
-		expDest *model.ExplicitDestination
+		expDest *model.DestinationExplicit
 		err     error
 	)
 	switch dest := dest.(type) {

@@ -9,14 +9,14 @@ import (
 )
 
 // if not error return a non nil pointer
-func (r resolver) resolveFunction(fn pdfcpu.Object) (*model.Function, error) {
+func (r resolver) resolveFunction(fn pdfcpu.Object) (*model.FunctionDict, error) {
 	fnRef, isRef := fn.(pdfcpu.IndirectRef)
 	if fnM := r.functions[fnRef]; isRef && fnM != nil {
 		return fnM, nil
 	}
 	fn = r.resolve(fn)
 	var (
-		out    model.Function
+		out    model.FunctionDict
 		err    error
 		dict   pdfcpu.Dict
 		stream pdfcpu.StreamDict
@@ -46,7 +46,7 @@ func (r resolver) resolveFunction(fn pdfcpu.Object) (*model.Function, error) {
 		if err != nil {
 			return nil, err
 		}
-		out.FunctionType = model.PostScriptCalculatorFunction(*stream)
+		out.FunctionType = model.FunctionPostScriptCalculator(*stream)
 	}
 	if err != nil {
 		return nil, err
@@ -86,13 +86,13 @@ func (r resolver) processRange(range_ pdfcpu.Array) ([]model.Range, error) {
 	return out, nil
 }
 
-func (r resolver) processExpInterpolationFn(fn pdfcpu.Dict) (model.ExpInterpolationFunction, error) {
+func (r resolver) processExpInterpolationFn(fn pdfcpu.Dict) (model.FunctionExpInterpolation, error) {
 	C0, _ := r.resolveArray(fn["C0"])
 	C1, _ := r.resolveArray(fn["C1"])
 	if len(C0) != len(C1) {
-		return model.ExpInterpolationFunction{}, errors.New("array length must be equal for C0 and C1")
+		return model.FunctionExpInterpolation{}, errors.New("array length must be equal for C0 and C1")
 	}
-	var out model.ExpInterpolationFunction
+	var out model.FunctionExpInterpolation
 	out.C0 = r.processFloatArray(C0)
 	out.C1 = r.processFloatArray(C1)
 	if N, ok := r.resolveInt(fn["N"]); ok {
@@ -101,11 +101,11 @@ func (r resolver) processExpInterpolationFn(fn pdfcpu.Dict) (model.ExpInterpolat
 	return out, nil
 }
 
-func (r resolver) resolveStitchingFn(fn pdfcpu.Dict) (model.StitchingFunction, error) {
+func (r resolver) resolveStitchingFn(fn pdfcpu.Dict) (model.FunctionStitching, error) {
 	fns, _ := r.resolveArray(fn["Functions"])
 	K := len(fns)
-	var out model.StitchingFunction
-	out.Functions = make([]model.Function, K)
+	var out model.FunctionStitching
+	out.Functions = make([]model.FunctionDict, K)
 	for i, f := range fns {
 		fn, err := r.resolveFunction(f)
 		if err != nil {
@@ -131,15 +131,15 @@ func (r resolver) resolveStitchingFn(fn pdfcpu.Dict) (model.StitchingFunction, e
 	return out, nil
 }
 
-func (r resolver) processSampledFn(stream pdfcpu.StreamDict) (model.SampledFunction, error) {
+func (r resolver) processSampledFn(stream pdfcpu.StreamDict) (model.FunctionSampled, error) {
 	cs, err := r.resolveStream(stream)
 	if err != nil {
-		return model.SampledFunction{}, err
+		return model.FunctionSampled{}, err
 	}
 	if cs == nil {
-		return model.SampledFunction{}, errors.New("missing stream for Sampled function")
+		return model.FunctionSampled{}, errors.New("missing stream for Sampled function")
 	}
-	out := model.SampledFunction{Stream: *cs}
+	out := model.FunctionSampled{Stream: *cs}
 	size, _ := r.resolveArray(stream.Dict["Size"])
 	m := len(size)
 	out.Size = make([]int, m)

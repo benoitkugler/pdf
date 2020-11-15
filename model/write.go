@@ -100,7 +100,7 @@ type pdfWriter struct {
 	cache    map[Referencable]Reference
 	pages    map[PageNode]Reference
 	outlines map[*OutlineItem]Reference
-	fields   map[*FormField]Reference
+	fields   map[*FormFieldDict]Reference
 
 	encrypt Encrypt
 }
@@ -111,7 +111,7 @@ func newWriter(dest io.Writer, encrypt Encrypt) pdfWriter {
 		cache:    make(map[Referencable]Reference),
 		pages:    make(map[PageNode]Reference),
 		outlines: make(map[*OutlineItem]Reference),
-		fields:   make(map[*FormField]Reference),
+		fields:   make(map[*FormFieldDict]Reference),
 		encrypt:  encrypt,
 	}
 }
@@ -215,18 +215,18 @@ type Referencable interface {
 	pdfContent(pdf pdfWriter, objectRef Reference) (content string, stream []byte)
 }
 
-func (*FormField) IsReferencable()          {}
-func (*Font) IsReferencable()               {}
+func (*FormFieldDict) IsReferencable()      {}
+func (*FontDict) IsReferencable()           {}
 func (*GraphicState) IsReferencable()       {}
-func (*EncodingDict) IsReferencable()       {}
-func (*Annotation) IsReferencable()         {}
+func (*SimpleEncodingDict) IsReferencable() {}
+func (*AnnotationDict) IsReferencable()     {}
 func (*FileSpec) IsReferencable()           {}
 func (*EmbeddedFileStream) IsReferencable() {}
 func (*ShadingDict) IsReferencable()        {}
-func (*Function) IsReferencable()           {}
-func (*TilingPatern) IsReferencable()       {}
-func (*ShadingPatern) IsReferencable()      {}
-func (*ICCBasedColorSpace) IsReferencable() {}
+func (*FunctionDict) IsReferencable()       {}
+func (*PaternTiling) IsReferencable()       {}
+func (*PaternShading) IsReferencable()      {}
+func (*ColorSpaceICCBased) IsReferencable() {}
 func (*ColorTableStream) IsReferencable()   {}
 func (*XObjectForm) IsReferencable()        {}
 func (*XObjectImage) IsReferencable()       {}

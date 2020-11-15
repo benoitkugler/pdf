@@ -24,7 +24,7 @@ func (d *DashPattern) Clone() *DashPattern {
 }
 
 type FontStyle struct {
-	Font *Font
+	Font *FontDict
 	Size float64
 }
 
@@ -35,7 +35,7 @@ func (f FontStyle) pdfString(pdf pdfWriter) string {
 
 func (f FontStyle) clone(cache cloneCache) FontStyle {
 	out := f
-	out.Font = cache.checkOrClone(f.Font).(*Font)
+	out.Font = cache.checkOrClone(f.Font).(*FontDict)
 	return out
 }
 
@@ -107,18 +107,18 @@ func (g *GraphicState) clone(cache cloneCache) Referencable {
 
 // check conformity with either Referencable or directColorSpace
 
-var _ Referencable = (*ICCBasedColorSpace)(nil)
-var _ directColorSpace = SeparationColorSpace{}
-var _ directColorSpace = NameColorSpace("")
-var _ directColorSpace = CalGrayColorSpace{}
-var _ directColorSpace = CalRGBColorSpace{}
-var _ directColorSpace = LabColorSpace{}
-var _ directColorSpace = IndexedColorSpace{}
-var _ directColorSpace = UncoloredTilingPattern{}
+var _ Referencable = (*ColorSpaceICCBased)(nil)
+var _ directColorSpace = ColorSpaceSeparation{}
+var _ directColorSpace = ColorSpaceName("")
+var _ directColorSpace = ColorSpaceCalGray{}
+var _ directColorSpace = ColorSpaceCalRGB{}
+var _ directColorSpace = ColorSpaceLab{}
+var _ directColorSpace = ColorSpaceIndexed{}
+var _ directColorSpace = ColorSpaceUncoloredPattern{}
 
 // check conformity with the ColorSpace interface
 
-var _ ColorSpace = (*ICCBasedColorSpace)(nil)
+var _ ColorSpace = (*ColorSpaceICCBased)(nil)
 
 // ColorSpace is either a Name or a more complex object
 type ColorSpace interface {
@@ -132,14 +132,14 @@ type directColorSpace interface {
 	pdfString(pdf pdfWriter) string
 }
 
-func (*ICCBasedColorSpace) isColorSpace()    {}
-func (SeparationColorSpace) isColorSpace()   {}
-func (NameColorSpace) isColorSpace()         {}
-func (CalGrayColorSpace) isColorSpace()      {}
-func (CalRGBColorSpace) isColorSpace()       {}
-func (LabColorSpace) isColorSpace()          {}
-func (IndexedColorSpace) isColorSpace()      {}
-func (UncoloredTilingPattern) isColorSpace() {}
+func (*ColorSpaceICCBased) isColorSpace()        {}
+func (ColorSpaceSeparation) isColorSpace()       {}
+func (ColorSpaceName) isColorSpace()             {}
+func (ColorSpaceCalGray) isColorSpace()          {}
+func (ColorSpaceCalRGB) isColorSpace()           {}
+func (ColorSpaceLab) isColorSpace()              {}
+func (ColorSpaceIndexed) isColorSpace()          {}
+func (ColorSpaceUncoloredPattern) isColorSpace() {}
 
 // return either an indirect reference or a direct object
 func writeColorSpace(c ColorSpace, pdf pdfWriter) string {
@@ -165,7 +165,7 @@ func cloneColorSpace(c ColorSpace, cache cloneCache) ColorSpace {
 	return cache.checkOrClone(refe).(ColorSpace)
 }
 
-type ICCBasedColorSpace struct {
+type ColorSpaceICCBased struct {
 	Stream
 
 	N         int        // 1, 3 or 4
@@ -175,7 +175,7 @@ type ICCBasedColorSpace struct {
 
 // returns the stream object. `pdf` is used
 // to write potential alternate space.
-func (c *ICCBasedColorSpace) pdfContent(pdf pdfWriter, _ Reference) (string, []byte) {
+func (c *ColorSpaceICCBased) pdfContent(pdf pdfWriter, _ Reference) (string, []byte) {
 	baseArgs := c.PDFCommonFields()
 	b := newBuffer()
 	b.fmt("<</N %d %s", c.N, baseArgs)
@@ -190,7 +190,7 @@ func (c *ICCBasedColorSpace) pdfContent(pdf pdfWriter, _ Reference) (string, []b
 	return b.String(), c.Content
 }
 
-func (cs *ICCBasedColorSpace) clone(cache cloneCache) Referencable {
+func (cs *ColorSpaceICCBased) clone(cache cloneCache) Referencable {
 	if cs == nil {
 		return cs
 	}
@@ -203,21 +203,21 @@ func (cs *ICCBasedColorSpace) clone(cache cloneCache) Referencable {
 	return &out
 }
 
-// SeparationColorSpace is defined in PDF as an array
+// ColorSpaceSeparation is defined in PDF as an array
 // [/Separation name alternateSpace tintTransform ]
-type SeparationColorSpace struct {
+type ColorSpaceSeparation struct {
 	Name           Name
-	AlternateSpace ColorSpace // required may not be another special colour space
-	TintTransform  Function   // required, may be an indirect object
+	AlternateSpace ColorSpace   // required may not be another special colour space
+	TintTransform  FunctionDict // required, may be an indirect object
 }
 
-func (s SeparationColorSpace) pdfString(pdf pdfWriter) string {
+func (s ColorSpaceSeparation) pdfString(pdf pdfWriter) string {
 	cs := writeColorSpace(s.AlternateSpace, pdf)
 	funcRef := pdf.addObject(s.TintTransform.pdfContent(pdf))
 	return fmt.Sprintf("[/Separation %s %s %s]", s.Name, cs, funcRef)
 }
 
-func (s SeparationColorSpace) cloneCS(cache cloneCache) ColorSpace {
+func (s ColorSpaceSeparation) cloneCS(cache cloneCache) ColorSpace {
 	out := s
 	if s.AlternateSpace != nil {
 		out.AlternateSpace = cloneColorSpace(s.AlternateSpace, cache)
@@ -227,20 +227,20 @@ func (s SeparationColorSpace) cloneCS(cache cloneCache) ColorSpace {
 }
 
 const (
-	CSDeviceRGB  NameColorSpace = "DeviceRGB"
-	CSDeviceGray NameColorSpace = "DeviceGray"
-	CSDeviceCMYK NameColorSpace = "DeviceCMYK"
-	CSPattern    NameColorSpace = "Pattern"
-	CSIndexed    NameColorSpace = "Indexed"
-	CSSeparation NameColorSpace = "Separation"
-	CSDeviceN    NameColorSpace = "DeviceN"
+	CSDeviceRGB  ColorSpaceName = "DeviceRGB"
+	CSDeviceGray ColorSpaceName = "DeviceGray"
+	CSDeviceCMYK ColorSpaceName = "DeviceCMYK"
+	CSPattern    ColorSpaceName = "Pattern"
+	CSIndexed    ColorSpaceName = "Indexed"
+	CSSeparation ColorSpaceName = "Separation"
+	CSDeviceN    ColorSpaceName = "DeviceN"
 )
 
-type NameColorSpace Name
+type ColorSpaceName Name
 
 // NewNameColorSpace validate the color space
-func NewNameColorSpace(cs string) (NameColorSpace, error) {
-	c := NameColorSpace(cs)
+func NewNameColorSpace(cs string) (ColorSpaceName, error) {
+	c := ColorSpaceName(cs)
 	switch c {
 	case CSDeviceGray, CSDeviceRGB, CSDeviceCMYK, CSPattern, CSIndexed, CSSeparation, CSDeviceN:
 		return c, nil
@@ -249,19 +249,19 @@ func NewNameColorSpace(cs string) (NameColorSpace, error) {
 	}
 }
 
-func (n NameColorSpace) pdfString(pdfWriter) string {
+func (n ColorSpaceName) pdfString(pdfWriter) string {
 	return Name(n).String()
 }
 
-func (n NameColorSpace) cloneCS(cloneCache) ColorSpace { return n }
+func (n ColorSpaceName) cloneCS(cloneCache) ColorSpace { return n }
 
-type CalGrayColorSpace struct {
+type ColorSpaceCalGray struct {
 	WhitePoint [3]float64
 	BlackPoint [3]float64 // optional, default to [0 0 0]
 	Gamma      float64    // optional, default to 1
 }
 
-func (c CalGrayColorSpace) pdfString(pdfWriter) string {
+func (c ColorSpaceCalGray) pdfString(pdfWriter) string {
 	out := fmt.Sprintf("<</WhitePoint %s", writeFloatArray(c.WhitePoint[:]))
 	if c.BlackPoint != [3]float64{} {
 		out += fmt.Sprintf("/BlackPoint %s", writeFloatArray(c.BlackPoint[:]))
@@ -273,16 +273,16 @@ func (c CalGrayColorSpace) pdfString(pdfWriter) string {
 	return out
 }
 
-func (c CalGrayColorSpace) cloneCS(cloneCache) ColorSpace { return c }
+func (c ColorSpaceCalGray) cloneCS(cloneCache) ColorSpace { return c }
 
-type CalRGBColorSpace struct {
+type ColorSpaceCalRGB struct {
 	WhitePoint [3]float64
 	BlackPoint [3]float64 // optional, default to [0 0 0]
 	Gamma      [3]float64 // optional, default to [1 1 1]
 	Matrix     [9]float64 // [ X_A Y_A Z_A X_B Y_B Z_B X_C Y_C Z_C ], optional, default to identity
 }
 
-func (c CalRGBColorSpace) pdfString(pdfWriter) string {
+func (c ColorSpaceCalRGB) pdfString(pdfWriter) string {
 	out := fmt.Sprintf("<</WhitePoint %s", writeFloatArray(c.WhitePoint[:]))
 	if c.BlackPoint != [3]float64{} {
 		out += fmt.Sprintf("/BlackPoint %s", writeFloatArray(c.BlackPoint[:]))
@@ -297,15 +297,15 @@ func (c CalRGBColorSpace) pdfString(pdfWriter) string {
 	return out
 }
 
-func (c CalRGBColorSpace) cloneCS(cloneCache) ColorSpace { return c }
+func (c ColorSpaceCalRGB) cloneCS(cloneCache) ColorSpace { return c }
 
-type LabColorSpace struct {
+type ColorSpaceLab struct {
 	WhitePoint [3]float64
 	BlackPoint [3]float64 // optional, default to [0 0 0]
 	Range      [4]float64 // [ a_min a_max b_min b_max ], optional, default to [−100 100 −100 100 ]
 }
 
-func (c LabColorSpace) pdfString(pdfWriter) string {
+func (c ColorSpaceLab) pdfString(pdfWriter) string {
 	out := fmt.Sprintf("<</WhitePoint %s", writeFloatArray(c.WhitePoint[:]))
 	if c.BlackPoint != [3]float64{} {
 		out += fmt.Sprintf("/BlackPoint %s", writeFloatArray(c.BlackPoint[:]))
@@ -317,17 +317,17 @@ func (c LabColorSpace) pdfString(pdfWriter) string {
 	return out
 }
 
-func (c LabColorSpace) cloneCS(cloneCache) ColorSpace { return c }
+func (c ColorSpaceLab) cloneCS(cloneCache) ColorSpace { return c }
 
-// IndexedColorSpace is written in PDF as
+// ColorSpaceIndexed is written in PDF as
 // [/Indexed base hival lookup ]
-type IndexedColorSpace struct {
+type ColorSpaceIndexed struct {
 	Base   ColorSpace // required
 	Hival  uint8
 	Lookup ColorTable
 }
 
-func (c IndexedColorSpace) pdfString(pdf pdfWriter) string {
+func (c ColorSpaceIndexed) pdfString(pdf pdfWriter) string {
 	base := writeColorSpace(c.Base, pdf)
 	var tableString string
 	switch table := c.Lookup.(type) {
@@ -340,7 +340,7 @@ func (c IndexedColorSpace) pdfString(pdf pdfWriter) string {
 	return fmt.Sprintf("[/Indexed %s %d %s]", base, c.Hival, tableString)
 }
 
-func (c IndexedColorSpace) cloneCS(cache cloneCache) ColorSpace {
+func (c ColorSpaceIndexed) cloneCS(cache cloneCache) ColorSpace {
 	out := c
 	out.Base = cloneColorSpace(c.Base, cache)
 	switch l := c.Lookup.(type) {
@@ -377,19 +377,19 @@ func (table *ColorTableStream) clone(cloneCache) Referencable {
 
 type ColorTableBytes []byte
 
-// UncoloredTilingPattern is written in PDF
+// ColorSpaceUncoloredPattern is written in PDF
 // [/Pattern underlyingColorSpace ]
-type UncoloredTilingPattern struct {
+type ColorSpaceUncoloredPattern struct {
 	UnderlyingColorSpace ColorSpace // required
 }
 
-func (c UncoloredTilingPattern) pdfString(pdf pdfWriter) string {
+func (c ColorSpaceUncoloredPattern) pdfString(pdf pdfWriter) string {
 	under := writeColorSpace(c.UnderlyingColorSpace, pdf)
 	return fmt.Sprintf("[/Pattern %s]", under)
 }
 
-func (c UncoloredTilingPattern) cloneCS(cache cloneCache) ColorSpace {
-	return UncoloredTilingPattern{UnderlyingColorSpace: cloneColorSpace(c.UnderlyingColorSpace, cache)}
+func (c ColorSpaceUncoloredPattern) cloneCS(cache cloneCache) ColorSpace {
+	return ColorSpaceUncoloredPattern{UnderlyingColorSpace: cloneColorSpace(c.UnderlyingColorSpace, cache)}
 }
 
 // ----------------------- Patterns -----------------------
@@ -400,11 +400,11 @@ type Pattern interface {
 	Referencable
 }
 
-func (*TilingPatern) isPattern()  {}
-func (*ShadingPatern) isPattern() {}
+func (*PaternTiling) isPattern()  {}
+func (*PaternShading) isPattern() {}
 
-// TilingPatern is a type 1 pattern
-type TilingPatern struct {
+// PaternTiling is a type 1 pattern
+type PaternTiling struct {
 	ContentStream
 
 	PaintType  uint8 // 1 for coloured; 2 for uncoloured
@@ -417,11 +417,11 @@ type TilingPatern struct {
 }
 
 // TODO: tiling patern
-func (t *TilingPatern) pdfContent(pdf pdfWriter, _ Reference) (string, []byte) {
+func (t *PaternTiling) pdfContent(pdf pdfWriter, _ Reference) (string, []byte) {
 	return "<<>>", nil
 }
 
-func (t *TilingPatern) clone(cache cloneCache) Referencable {
+func (t *PaternTiling) clone(cache cloneCache) Referencable {
 	if t == nil {
 		return t
 	}
@@ -431,29 +431,29 @@ func (t *TilingPatern) clone(cache cloneCache) Referencable {
 	return &out
 }
 
-// ShadingType may FunctionBased, Axial, Radial, FreeForm,
+// Shading may FunctionBased, Axial, Radial, FreeForm,
 // Lattice, Coons, TensorProduct
-type ShadingType interface {
+type Shading interface {
 	isShading()
 	pdfContent(commonFields string, pdf pdfWriter) (string, []byte)
-	Clone() ShadingType
+	Clone() Shading
 }
 
-func (FunctionBased) isShading() {}
-func (Axial) isShading()         {}
-func (Radial) isShading()        {}
-func (FreeForm) isShading()      {}
-func (Lattice) isShading()       {}
-func (Coons) isShading()         {}
-func (TensorProduct) isShading() {}
+func (ShadingFunctionBased) isShading() {}
+func (ShadingAxial) isShading()         {}
+func (ShadingRadial) isShading()        {}
+func (ShadingFreeForm) isShading()      {}
+func (ShadingLattice) isShading()       {}
+func (ShadingCoons) isShading()         {}
+func (ShadingTensorProduct) isShading() {}
 
-type FunctionBased struct {
-	Domain   [4]float64 // optional, default to [0 1 0 1]
-	Matrix   Matrix     // optional, default to identity
-	Function []Function // either one 2 -> n function, or n 2 -> 1 functions
+type ShadingFunctionBased struct {
+	Domain   [4]float64     // optional, default to [0 1 0 1]
+	Matrix   Matrix         // optional, default to identity
+	Function []FunctionDict // either one 2 -> n function, or n 2 -> 1 functions
 }
 
-func (s FunctionBased) pdfContent(commonFields string, pdf pdfWriter) (string, []byte) {
+func (s ShadingFunctionBased) pdfContent(commonFields string, pdf pdfWriter) (string, []byte) {
 	b := newBuffer()
 	fns := pdf.writeFunctions(s.Function)
 	b.fmt("<</ShadingType 1 %s/Function %s", commonFields, writeRefArray(fns))
@@ -468,16 +468,16 @@ func (s FunctionBased) pdfContent(commonFields string, pdf pdfWriter) (string, [
 }
 
 // Clone returns a deep copy with concrete type `FunctionBased`
-func (f FunctionBased) Clone() ShadingType {
+func (f ShadingFunctionBased) Clone() Shading {
 	out := f
-	out.Function = append([]Function(nil), f.Function...)
+	out.Function = append([]FunctionDict(nil), f.Function...)
 	return out
 }
 
 type BaseGradient struct {
-	Domain   [2]float64 // optional, default to [0 1]
-	Function []Function // either one 1 -> n function, or n 1->1 functions
-	Extend   [2]bool    // optional, default to [false, false]
+	Domain   [2]float64     // optional, default to [0 1]
+	Function []FunctionDict // either one 1 -> n function, or n 1->1 functions
+	Extend   [2]bool        // optional, default to [false, false]
 }
 
 //	return the inner fields, without << >>
@@ -498,7 +498,7 @@ func (g BaseGradient) pdfString(pdf pdfWriter) string {
 func (b BaseGradient) Clone() BaseGradient {
 	out := b
 	if b.Function != nil { // to preserve reflect.DeepEqual
-		out.Function = make([]Function, len(b.Function))
+		out.Function = make([]FunctionDict, len(b.Function))
 	}
 	for i, f := range b.Function {
 		out.Function[i] = f.Clone()
@@ -506,12 +506,12 @@ func (b BaseGradient) Clone() BaseGradient {
 	return out
 }
 
-type Axial struct {
+type ShadingAxial struct {
 	BaseGradient
 	Coords [4]float64 // x0, y0, x1, y1
 }
 
-func (s Axial) pdfContent(commonFields string, pdf pdfWriter) (string, []byte) {
+func (s ShadingAxial) pdfContent(commonFields string, pdf pdfWriter) (string, []byte) {
 	gradArgs := s.BaseGradient.pdfString(pdf)
 	out := fmt.Sprintf("<</ShadingType 2 %s %s/Coords %s>>",
 		commonFields, gradArgs, writeFloatArray(s.Coords[:]))
@@ -519,18 +519,18 @@ func (s Axial) pdfContent(commonFields string, pdf pdfWriter) (string, []byte) {
 }
 
 // Clone returns a deep copy with concrete type `Axial`
-func (f Axial) Clone() ShadingType {
+func (f ShadingAxial) Clone() Shading {
 	out := f
 	out.BaseGradient = f.BaseGradient.Clone()
 	return out
 }
 
-type Radial struct {
+type ShadingRadial struct {
 	BaseGradient
 	Coords [6]float64 // x0, y0, r0, x1, y1, r1
 }
 
-func (s Radial) pdfContent(commonFields string, pdf pdfWriter) (string, []byte) {
+func (s ShadingRadial) pdfContent(commonFields string, pdf pdfWriter) (string, []byte) {
 	gradArgs := s.BaseGradient.pdfString(pdf)
 	out := fmt.Sprintf("<</ShadingType 3 %s %s/Coords %s>>",
 		commonFields, gradArgs, writeFloatArray(s.Coords[:]))
@@ -538,26 +538,26 @@ func (s Radial) pdfContent(commonFields string, pdf pdfWriter) (string, []byte) 
 }
 
 // Clone returns a deep copy with concrete type `Radial`
-func (f Radial) Clone() ShadingType {
+func (f ShadingRadial) Clone() Shading {
 	out := f
 	out.BaseGradient = f.BaseGradient.Clone()
 	return out
 }
 
-type FreeForm struct{} // TODO:
-type Lattice struct{}  // TODO:
+type ShadingFreeForm struct{} // TODO:
+type ShadingLattice struct{}  // TODO:
 
-type Coons struct {
+type ShadingCoons struct {
 	Stream
 
 	BitsPerCoordinate uint8 // 1, 2, 4, 8, 12, 16, 24, or 32
 	BitsPerComponent  uint8 // 1, 2, 4, 8, 12, or 16
 	BitsPerFlag       uint8 // 2, 4, or 8
 	Decode            []Range
-	Function          []Function // optional, one 1->n function or n 1->1 functions (n is the number of colour components)
+	Function          []FunctionDict // optional, one 1->n function or n 1->1 functions (n is the number of colour components)
 }
 
-func (c Coons) pdfContent(commonFields string, pdf pdfWriter) (string, []byte) {
+func (c ShadingCoons) pdfContent(commonFields string, pdf pdfWriter) (string, []byte) {
 	args := c.PDFCommonFields()
 	b := newBuffer()
 	b.fmt("<</ShadingType 6 %s %s/BitsPerCoordinate %d/BitsPerComponent %d/BitsPerFlag %d/Decode %s",
@@ -571,12 +571,12 @@ func (c Coons) pdfContent(commonFields string, pdf pdfWriter) (string, []byte) {
 }
 
 // Clone returns a deep copy with concrete type `Coons`
-func (co Coons) Clone() ShadingType {
+func (co ShadingCoons) Clone() Shading {
 	out := co
 	out.Stream = co.Stream.Clone()
 	out.Decode = append([]Range(nil), co.Decode...)
 	if co.Function != nil { // to preserve reflect.DeepEqual
-		out.Function = make([]Function, len(co.Function))
+		out.Function = make([]FunctionDict, len(co.Function))
 	}
 	for i, f := range co.Function {
 		out.Function[i] = f.Clone()
@@ -584,11 +584,11 @@ func (co Coons) Clone() ShadingType {
 	return out
 }
 
-type TensorProduct struct{} // TODO:
+type ShadingTensorProduct struct{} // TODO:
 
 // ShadingDict is either a plain dict, or is a stream (+ dict)
 type ShadingDict struct {
-	ShadingType ShadingType
+	ShadingType Shading
 	ColorSpace  ColorSpace // required
 	// colour components appropriate to the colour space
 	// only applied when part of a (shading) pattern
@@ -628,14 +628,14 @@ func (s *ShadingDict) clone(cache cloneCache) Referencable {
 	return &out
 }
 
-// ShadingPatern is a type2 pattern
-type ShadingPatern struct {
+// PaternShading is a type2 pattern
+type PaternShading struct {
 	Shading   *ShadingDict  // required
 	Matrix    Matrix        // optionnal, default to Identity
 	ExtGState *GraphicState // optionnal
 }
 
-func (s *ShadingPatern) pdfContent(pdf pdfWriter, _ Reference) (string, []byte) {
+func (s *PaternShading) pdfContent(pdf pdfWriter, _ Reference) (string, []byte) {
 	b := newBuffer()
 	shadingRef := pdf.addItem(s.Shading)
 	b.fmt("<</PatternType 2/Shading %s", shadingRef)
@@ -650,7 +650,7 @@ func (s *ShadingPatern) pdfContent(pdf pdfWriter, _ Reference) (string, []byte) 
 	return b.String(), nil
 }
 
-func (s *ShadingPatern) clone(cache cloneCache) Referencable {
+func (s *PaternShading) clone(cache cloneCache) Referencable {
 	if s == nil {
 		return s
 	}

@@ -6,16 +6,16 @@ import (
 )
 
 func TestCloneFont(t *testing.T) {
-	fonts := []FontType{
-		Type0{Encoding: EmbeddedCMapEncoding{}},
-		Type0{Encoding: PredefinedCMapEncoding("")},
-		Type1{
+	fonts := []Font{
+		FontType0{Encoding: CMapEncodingEmbedded{}},
+		FontType0{Encoding: CMapEncodingPredefined("")},
+		FontType1{
 			Encoding: MacRomanEncoding,
 		},
-		TrueType{
+		FontTrueType{
 			Widths: make([]int, 12),
 		},
-		Type3{
+		FontType3{
 			Encoding:  MacExpertEncoding,
 			CharProcs: map[Name]ContentStream{"mkdmsk": {}},
 		},

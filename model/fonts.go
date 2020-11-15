@@ -6,17 +6,17 @@ import (
 	"strings"
 )
 
-// Font is a PDF font Dictionary
-type Font struct {
-	Subtype FontType
+// FontDict is a PDF font Dictionary
+type FontDict struct {
+	Subtype Font
 }
 
-func (f *Font) pdfContent(pdf pdfWriter, _ Reference) (string, []byte) {
+func (f *FontDict) pdfContent(pdf pdfWriter, _ Reference) (string, []byte) {
 	return f.Subtype.fontPDFString(pdf), nil
 }
 
 // clone returns a deep copy, with concrete type `*Font`
-func (f *Font) clone(cache cloneCache) Referencable {
+func (f *FontDict) clone(cache cloneCache) Referencable {
 	if f == nil {
 		return f
 	}
@@ -27,14 +27,14 @@ func (f *Font) clone(cache cloneCache) Referencable {
 	return &out
 }
 
-// FontType is one of Type0, Type1, TrueType or Type3
-type FontType interface {
+// Font is one of Type0, FontType1, TrueType or Type3
+type Font interface {
 	fontPDFString(pdf pdfWriter) string
 	// returns a deep copy, preserving the concrete type
-	clone(cloneCache) FontType
+	clone(cloneCache) Font
 }
 
-type Type1 struct {
+type FontType1 struct {
 	BaseFont  Name
 	FirstChar byte
 	// length (LastChar − FirstChar + 1) index i is char FirstChar + i
@@ -45,23 +45,23 @@ type Type1 struct {
 }
 
 // LastChar return the last caracter encoded by the font (see Widths)
-func (t Type1) LastChar() byte {
+func (t FontType1) LastChar() byte {
 	return byte(len(t.Widths)) + t.FirstChar - 1
 }
 
 // font must be Type1 or TrueType,
 // and is needed for the FontDescriptor
-func t1orttPDFString(font FontType, pdf pdfWriter) string {
+func t1orttPDFString(font Font, pdf pdfWriter) string {
 	var (
-		t       Type1
+		t       FontType1
 		subtype Name
 	)
 	switch font := font.(type) {
-	case Type1:
+	case FontType1:
 		t = font
 		subtype = "Type1"
-	case TrueType:
-		t = Type1(font)
+	case FontTrueType:
+		t = FontType1(font)
 		subtype = "TrueType"
 	}
 	fd := pdf.addObject(t.FontDescriptor.pdfString(pdf, font), nil) // FontDescriptor need the type of font
@@ -77,12 +77,12 @@ func t1orttPDFString(font FontType, pdf pdfWriter) string {
 	return b.String()
 }
 
-func (t Type1) fontPDFString(pdf pdfWriter) string {
+func (t FontType1) fontPDFString(pdf pdfWriter) string {
 	return t1orttPDFString(t, pdf)
 }
 
 // returns a deep copy with concrete type `Type1`
-func (t Type1) clone(cache cloneCache) FontType {
+func (t FontType1) clone(cache cloneCache) Font {
 	out := t                                     // shallow copy
 	out.Widths = append([]int(nil), t.Widths...) // preserve deep equal
 	out.FontDescriptor = t.FontDescriptor.Clone()
@@ -92,18 +92,18 @@ func (t Type1) clone(cache cloneCache) FontType {
 	return out
 }
 
-type TrueType Type1
+type FontTrueType FontType1
 
-func (t TrueType) fontPDFString(pdf pdfWriter) string {
+func (t FontTrueType) fontPDFString(pdf pdfWriter) string {
 	return t1orttPDFString(t, pdf)
 }
 
 // returns a deep copy with concrete type `TrueType`
-func (t TrueType) clone(cache cloneCache) FontType {
-	return TrueType(Type1(t).clone(cache).(Type1))
+func (t FontTrueType) clone(cache cloneCache) Font {
+	return FontTrueType(FontType1(t).clone(cache).(FontType1))
 }
 
-type Type3 struct {
+type FontType3 struct {
 	FontBBox       Rectangle
 	FontMatrix     Matrix
 	CharProcs      map[Name]ContentStream
@@ -116,11 +116,11 @@ type Type3 struct {
 }
 
 // LastChar return the last caracter encoded by the font (see Widths)
-func (t Type3) LastChar() byte {
+func (t FontType3) LastChar() byte {
 	return byte(len(t.Widths)) + t.FirstChar - 1
 }
 
-func (f Type3) fontPDFString(pdf pdfWriter) string {
+func (f FontType3) fontPDFString(pdf pdfWriter) string {
 	b := newBuffer()
 	b.line("<</Type/Font/Subtype/Type3/FontBBox %s/FontMatrix %s",
 		f.FontBBox.String(), f.FontMatrix.String())
@@ -149,7 +149,7 @@ func (f Type3) fontPDFString(pdf pdfWriter) string {
 }
 
 // clone returns a deep copy, with concrete type `Type3`
-func (t Type3) clone(cache cloneCache) FontType {
+func (t FontType3) clone(cache cloneCache) Font {
 	out := t
 	if t.CharProcs != nil { // preserve reflect.DeepEqual
 		out.CharProcs = make(map[Name]ContentStream, len(t.CharProcs))
@@ -217,7 +217,7 @@ type FontDescriptor struct {
 }
 
 // font is used to choose the key for the potential FontFile
-func (f FontDescriptor) pdfString(pdf pdfWriter, font FontType) string {
+func (f FontDescriptor) pdfString(pdf pdfWriter, font Font) string {
 	b := newBuffer()
 	b.line("<</Type/FontDescriptor/FontName %s/Flags %d/FontBBox %s/ItalicAngle %.3f/Ascent %.3f/Descent %.3f",
 		f.FontName, f.Flags, f.FontBBox.String(), f.ItalicAngle, f.Ascent, f.Descent)
@@ -244,11 +244,11 @@ func (f FontDescriptor) pdfString(pdf pdfWriter, font FontType) string {
 	if f.FontFile != nil {
 		var key Name
 		switch font.(type) {
-		case Type1:
+		case FontType1:
 			key = "FontFile"
-		case TrueType:
+		case FontTrueType:
 			key = "FontFile2"
-		case Type3:
+		case FontType3:
 			key = "FontFile3"
 		}
 		ref := pdf.addObject(f.FontFile.pdfContent())
@@ -274,17 +274,17 @@ type SimpleEncoding interface {
 }
 
 const (
-	MacRomanEncoding  PredefinedEncoding = "MacRomanEncoding"
-	MacExpertEncoding PredefinedEncoding = "MacExpertEncoding"
-	WinAnsiEncoding   PredefinedEncoding = "WinAnsiEncoding"
+	MacRomanEncoding  SimpleEncodingPredefined = "MacRomanEncoding"
+	MacExpertEncoding SimpleEncodingPredefined = "MacExpertEncoding"
+	WinAnsiEncoding   SimpleEncodingPredefined = "WinAnsiEncoding"
 )
 
-type PredefinedEncoding Name
+type SimpleEncodingPredefined Name
 
-// NewPrededinedEncoding validated the string `s`
+// NewSimpleEncodingPredefined validated the string `s`
 // and return either a valid `PredefinedEncoding` or nil
-func NewPrededinedEncoding(s string) SimpleEncoding {
-	e := PredefinedEncoding(s)
+func NewSimpleEncodingPredefined(s string) SimpleEncoding {
+	e := SimpleEncodingPredefined(s)
 	switch e {
 	case MacExpertEncoding, MacRomanEncoding, WinAnsiEncoding:
 		return e
@@ -293,12 +293,12 @@ func NewPrededinedEncoding(s string) SimpleEncoding {
 	}
 }
 
-func (enc PredefinedEncoding) simpleEncodingPDFString(pdf pdfWriter) string {
+func (enc SimpleEncodingPredefined) simpleEncodingPDFString(pdf pdfWriter) string {
 	return Name(enc).String()
 }
 
 // Clone returns a deep copy with concrete type `PredefinedEncoding`
-func (enc PredefinedEncoding) cloneSE(cloneCache) SimpleEncoding { return enc }
+func (enc SimpleEncodingPredefined) cloneSE(cloneCache) SimpleEncoding { return enc }
 
 // Differences describes the differences from the encoding specified by BaseEncoding
 // It is written in a PDF file as a more condensed form: it is an array:
@@ -338,12 +338,12 @@ func (d Differences) Clone() Differences {
 	return out
 }
 
-type EncodingDict struct {
+type SimpleEncodingDict struct {
 	BaseEncoding Name        // optionnal
 	Differences  Differences // optionnal
 }
 
-func (e *EncodingDict) pdfContent(pdfWriter pdfWriter, _ Reference) (string, []byte) {
+func (e *SimpleEncodingDict) pdfContent(pdfWriter pdfWriter, _ Reference) (string, []byte) {
 	out := "<<"
 	if e.BaseEncoding != "" {
 		out += "/BaseEncoding " + e.BaseEncoding.String()
@@ -355,13 +355,13 @@ func (e *EncodingDict) pdfContent(pdfWriter pdfWriter, _ Reference) (string, []b
 	return out, nil
 }
 
-func (enc *EncodingDict) simpleEncodingPDFString(pdf pdfWriter) string {
+func (enc *SimpleEncodingDict) simpleEncodingPDFString(pdf pdfWriter) string {
 	ref := pdf.addItem(enc)
 	return ref.String()
 }
 
 // clone returns a deep copy with concrete type *EncodingDict
-func (enc *EncodingDict) clone(cloneCache) Referencable {
+func (enc *SimpleEncodingDict) clone(cloneCache) Referencable {
 	if enc == nil {
 		return enc
 	}
@@ -370,20 +370,20 @@ func (enc *EncodingDict) clone(cloneCache) Referencable {
 	return &out
 }
 
-func (enc *EncodingDict) cloneSE(cache cloneCache) SimpleEncoding {
-	return cache.checkOrClone(enc).(*EncodingDict)
+func (enc *SimpleEncodingDict) cloneSE(cache cloneCache) SimpleEncoding {
+	return cache.checkOrClone(enc).(*SimpleEncodingDict)
 }
 
 // -------------------------- Type 0 --------------------------
 
-type Type0 struct {
+type FontType0 struct {
 	BaseFont        Name
 	Encoding        CMapEncoding
 	DescendantFonts CIDFontDictionary // in PDF, array of one indirect object
 	ToUnicode       *Stream           // optionnal, as indirect object
 }
 
-func (f Type0) fontPDFString(pdf pdfWriter) string {
+func (f FontType0) fontPDFString(pdf pdfWriter) string {
 	enc := writeCMapEncoding(f.Encoding, pdf)
 	desc := pdf.createObject()
 	pdf.writeObject(f.DescendantFonts.pdfString(pdf, desc), nil, desc)
@@ -398,7 +398,7 @@ func (f Type0) fontPDFString(pdf pdfWriter) string {
 }
 
 // returns a deep copy with concrete type `Type0`
-func (t Type0) clone(cloneCache) FontType {
+func (t FontType0) clone(cloneCache) Font {
 	out := t
 	out.Encoding = t.Encoding.Clone()
 	out.DescendantFonts = t.DescendantFonts.Clone()
@@ -416,27 +416,27 @@ type CMapEncoding interface {
 	Clone() CMapEncoding
 }
 
-func (PredefinedCMapEncoding) isCMapEncoding() {}
-func (EmbeddedCMapEncoding) isCMapEncoding()   {}
+func (CMapEncodingPredefined) isCMapEncoding() {}
+func (CMapEncodingEmbedded) isCMapEncoding()   {}
 
-type PredefinedCMapEncoding Name
+type CMapEncodingPredefined Name
 
 // Clone returns a deep copy with concrete type `PredefinedCMapEncoding`
-func (p PredefinedCMapEncoding) Clone() CMapEncoding { return p }
+func (p CMapEncodingPredefined) Clone() CMapEncoding { return p }
 
-type EmbeddedCMapEncoding Stream
+type CMapEncodingEmbedded Stream
 
 // Clone returns a deep copy with concrete type `EmbeddedCMapEncoding`
-func (p EmbeddedCMapEncoding) Clone() CMapEncoding {
-	return EmbeddedCMapEncoding(Stream(p).Clone())
+func (p CMapEncodingEmbedded) Clone() CMapEncoding {
+	return CMapEncodingEmbedded(Stream(p).Clone())
 }
 
 // return either a ref or a name
 func writeCMapEncoding(enc CMapEncoding, pdf pdfWriter) string {
 	switch enc := enc.(type) {
-	case PredefinedCMapEncoding:
+	case CMapEncodingPredefined:
 		return Name(enc).String()
-	case EmbeddedCMapEncoding:
+	case CMapEncodingEmbedded:
 		ref := pdf.addObject(Stream(enc).PDFContent())
 		return ref.String()
 	default:
@@ -457,7 +457,7 @@ type CIDFontDictionary struct {
 
 func (c CIDFontDictionary) pdfString(pdf pdfWriter, ref Reference) string {
 	b := newBuffer()
-	fD := pdf.addObject(c.FontDescriptor.pdfString(pdf, Type0{}), nil)
+	fD := pdf.addObject(c.FontDescriptor.pdfString(pdf, FontType0{}), nil)
 	b.line("<</Type/Font/Subtype %s/BaseFont %s/CIDSystemInfo %s/FontDescriptor %s",
 		c.Subtype, c.BaseFont, c.CIDSystemInfo.pdfString(pdf, ref), fD)
 	if c.DW != 0 {

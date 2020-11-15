@@ -3,25 +3,25 @@ package model
 import "fmt"
 
 type FormFielAdditionalActions struct {
-	K JavaScriptAction // optional, on update
-	F JavaScriptAction // optional, before formating
-	V JavaScriptAction // optional, on validate
-	C JavaScriptAction // optional, to recalculate
+	K ActionJavaScript // optional, on update
+	F ActionJavaScript // optional, before formating
+	V ActionJavaScript // optional, on validate
+	C ActionJavaScript // optional, to recalculate
 }
 
 func (f FormFielAdditionalActions) pdfString(pdf pdfWriter, ref Reference) string {
 	b := newBuffer()
 	b.WriteString("<<")
-	if f.K != (JavaScriptAction{}) {
+	if f.K != (ActionJavaScript{}) {
 		b.line("/K %s", f.K.ActionDictionary(pdf, ref))
 	}
-	if f.F != (JavaScriptAction{}) {
+	if f.F != (ActionJavaScript{}) {
 		b.line("/F %s", f.F.ActionDictionary(pdf, ref))
 	}
-	if f.V != (JavaScriptAction{}) {
+	if f.V != (ActionJavaScript{}) {
 		b.line("/V %s", f.V.ActionDictionary(pdf, ref))
 	}
-	if f.C != (JavaScriptAction{}) {
+	if f.C != (ActionJavaScript{}) {
 		b.line("/C %s", f.C.ActionDictionary(pdf, ref))
 	}
 	b.fmt(">>")
@@ -36,25 +36,33 @@ type Action interface {
 	clone(cache cloneCache) Action
 }
 
-// URIAction is a URI which should be ASCII encoded
-type URIAction string
+type ActionJavaScript struct {
+	JS string // text string, may be found in PDF as stream object
+}
 
-func (uri URIAction) actionDictionary(pdf pdfWriter, ref Reference) string {
+func (j ActionJavaScript) ActionDictionary(pdf pdfWriter, ref Reference) string {
+	return fmt.Sprintf("<</S/JavaScript/JS %s>>", pdf.EncodeString(j.JS, TextString, ref))
+}
+
+// ActionURI is a URI which should be ASCII encoded
+type ActionURI string
+
+func (uri ActionURI) actionDictionary(pdf pdfWriter, ref Reference) string {
 	return fmt.Sprintf("<</S/URI/URI (%s)>>", pdf.EncodeString(string(uri), ASCIIString, ref))
 }
 
-func (uri URIAction) clone(cache cloneCache) Action { return uri }
+func (uri ActionURI) clone(cache cloneCache) Action { return uri }
 
-type GoToAction struct {
+type ActionGoTo struct {
 	D Destination
 }
 
-func (ac GoToAction) actionDictionary(pdf pdfWriter, _ Reference) string {
+func (ac ActionGoTo) actionDictionary(pdf pdfWriter, _ Reference) string {
 	return fmt.Sprintf("<</S/GoTo/D %s>>", ac.D.pdfDestination(pdf))
 }
 
-func (ac GoToAction) clone(cache cloneCache) Action {
-	return GoToAction{D: ac.D.clone(cache)}
+func (ac ActionGoTo) clone(cache cloneCache) Action {
+	return ActionGoTo{D: ac.D.clone(cache)}
 }
 
 type Destination interface {
@@ -63,14 +71,14 @@ type Destination interface {
 	clone(cache cloneCache) Destination
 }
 
-// ExplicitDestination is an explicit destination to a page
-type ExplicitDestination struct {
+// DestinationExplicit is an explicit destination to a page
+type DestinationExplicit struct {
 	Page      *PageObject
 	Left, Top float64 // Undef for null value
 	Zoom      float64
 }
 
-func (d ExplicitDestination) pdfDestination(pdf pdfWriter) string {
+func (d DestinationExplicit) pdfDestination(pdf pdfWriter) string {
 	pageRef := pdf.pages[d.Page]
 	left, top := "null", "null"
 	if d.Left != Undef {
@@ -82,7 +90,7 @@ func (d ExplicitDestination) pdfDestination(pdf pdfWriter) string {
 	return fmt.Sprintf("[%s/XYZ %s %s %.3f]", pageRef, left, top, d.Zoom)
 }
 
-func (d ExplicitDestination) clone(cache cloneCache) Destination {
+func (d DestinationExplicit) clone(cache cloneCache) Destination {
 	out := d
 	out.Page = cache.pages[d.Page].(*PageObject)
 	return d
@@ -101,11 +109,3 @@ type DestinationString string
 func (s DestinationString) pdfDestination(pdf pdfWriter) string { return fmt.Sprintf("(%s)", s) }
 
 func (d DestinationString) clone(cloneCache) Destination { return d }
-
-type JavaScriptAction struct {
-	JS string // text string, may be found in PDF as stream object
-}
-
-func (j JavaScriptAction) ActionDictionary(pdf pdfWriter, ref Reference) string {
-	return fmt.Sprintf("<</S/JavaScript/JS %s>>", pdf.EncodeString(j.JS, TextString, ref))
-}

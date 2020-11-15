@@ -125,13 +125,13 @@ func (p *PageTree) clone(cache cloneCache) PageNode {
 type PageObject struct {
 	// TODO: complete fields
 	Parent                    *PageTree
-	Resources                 *ResourcesDict  // if nil, will be inherited from the parent
-	MediaBox                  *Rectangle      // if nil, will be inherited from the parent
-	CropBox                   *Rectangle      // if nil, will be inherited. if still nil, default to MediaBox
-	BleedBox, TrimBox, ArtBox *Rectangle      // if nil, default to CropBox
-	Rotate                    *Rotation       // if nil, will be inherited from the parent. Only multiple of 90 are allowed
-	Annots                    []*Annotation   // optional
-	Contents                  []ContentStream // array of stream (often of length 1)
+	Resources                 *ResourcesDict    // if nil, will be inherited from the parent
+	MediaBox                  *Rectangle        // if nil, will be inherited from the parent
+	CropBox                   *Rectangle        // if nil, will be inherited. if still nil, default to MediaBox
+	BleedBox, TrimBox, ArtBox *Rectangle        // if nil, default to CropBox
+	Rotate                    *Rotation         // if nil, will be inherited from the parent. Only multiple of 90 are allowed
+	Annots                    []*AnnotationDict // optional
+	Contents                  []ContentStream   // array of stream (often of length 1)
 }
 
 // the pdf page map is used to fetch the object number
@@ -218,10 +218,10 @@ func (po *PageObject) clone(cache cloneCache) PageNode {
 		out.Rotate = &r
 	}
 	if po.Annots != nil { // preserve reflect.DeepEqual
-		out.Annots = make([]*Annotation, len(po.Annots))
+		out.Annots = make([]*AnnotationDict, len(po.Annots))
 	}
 	for i, a := range po.Annots {
-		out.Annots[i] = cache.checkOrClone(a).(*Annotation)
+		out.Annots[i] = cache.checkOrClone(a).(*AnnotationDict)
 	}
 	if po.Contents != nil {
 		out.Contents = make([]ContentStream, len(po.Contents))
@@ -238,7 +238,7 @@ type ResourcesDict struct {
 	ColorSpace map[Name]ColorSpace    // optionnal
 	Shading    map[Name]*ShadingDict  // optionnal
 	Pattern    map[Name]Pattern       // optionnal
-	Font       map[Name]*Font         // optionnal
+	Font       map[Name]*FontDict     // optionnal
 	XObject    map[Name]XObject       // optionnal
 }
 
@@ -326,10 +326,10 @@ func (r ResourcesDict) clone(cache cloneCache) ResourcesDict {
 		out.Pattern[n] = cache.checkOrClone(v).(Pattern)
 	}
 	if r.Font != nil {
-		out.Font = make(map[Name]*Font, len(r.Font))
+		out.Font = make(map[Name]*FontDict, len(r.Font))
 	}
 	for n, v := range r.Font {
-		out.Font[n] = cache.checkOrClone(v).(*Font)
+		out.Font[n] = cache.checkOrClone(v).(*FontDict)
 	}
 	if r.XObject != nil {
 		out.XObject = make(map[Name]XObject, len(r.XObject))
