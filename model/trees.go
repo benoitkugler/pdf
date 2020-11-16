@@ -73,6 +73,15 @@ type NameToDest struct {
 	Destination *DestinationExplicit // indirect object
 }
 
+func (n NameToDest) clone(cache cloneCache) NameToDest {
+	out := n
+	if n.Destination != nil {
+		dest := n.Destination.clone(cache).(DestinationExplicit)
+		out.Destination = &dest
+	}
+	return out
+}
+
 // DestTree links a serie of arbitrary name
 // to explicit destination, enabling `NamedDestination`
 // to reference them
@@ -144,6 +153,24 @@ func (p DestTree) pdfString(pdf pdfWriter, ref Reference) string {
 	return b.String()
 }
 
+// cache.pages must have been filled
+func (d DestTree) clone(cache cloneCache) DestTree {
+	out := d
+	if d.Kids != nil { // preserve reflect.DeepEqual
+		out.Kids = make([]DestTree, len(d.Kids))
+	}
+	for i, k := range d.Kids {
+		out.Kids[i] = k.clone(cache)
+	}
+	if d.Names != nil { // preserve reflect.DeepEqual
+		out.Names = make([]NameToDest, len(d.Names))
+	}
+	for i, k := range d.Names {
+		out.Names[i] = k.clone(cache)
+	}
+	return out
+}
+
 // ----------------------------------------------------------------------
 
 type NameToFile struct {
@@ -204,10 +231,16 @@ func (p EmbeddedFileTree) clone(cache cloneCache) EmbeddedFileTree {
 
 // -----------------------------------------------------------------------
 
+// PageLabel defines the labelling characteristics for the pages
+// in a range.
 type PageLabel struct {
 	S  Name
-	P  string
-	St int // optionnal default to 1
+	P  string // optional
+	St int    // optionnal default to 1
+}
+
+func (p PageLabel) pdfString(st PDFStringEncoder, ref Reference) string {
+	return fmt.Sprintf("<</S %s /P %s /St %d>>", p.S, st.EncodeString(p.P, TextString, ref), p.St)
 }
 
 type NumToPageLabel struct {
@@ -258,15 +291,51 @@ func (d PageLabelsTree) LookupTable() map[int]PageLabel {
 	return out
 }
 
-// TODO: PageLabelsTree
-func (p PageLabelsTree) pdfString(pdf pdfWriter) string {
-	return "<<>>"
+func (p PageLabelsTree) pdfString(pdf pdfWriter, ref Reference) string {
+	b := newBuffer()
+	limits := p.Limits()
+	b.line("<</Limits [%d %d]", limits[0], limits[1])
+	if len(p.Kids) != 0 {
+		b.fmt("/Kids [")
+		for _, kid := range p.Kids {
+			kidRef := pdf.createObject()
+			pdf.writeObject(kid.pdfString(pdf, kidRef), nil, kidRef)
+			b.fmt("%s ", kidRef)
+		}
+		b.line("]")
+	}
+	if len(p.Nums) != 0 {
+		b.fmt("/Nums [ ")
+		for _, num := range p.Nums {
+			b.fmt("%d %s ", num.Num, num.PageLabel.pdfString(pdf, ref))
+		}
+		b.line("]")
+	}
+	b.fmt(">>")
+	return b.String()
+}
+
+func (p PageLabelsTree) Clone() PageLabelsTree {
+	out := p
+	out.Nums = append([]NumToPageLabel(nil), p.Nums...)
+	if p.Kids != nil {
+		out.Kids = make([]PageLabelsTree, len(p.Kids))
+		for i, k := range p.Kids {
+			out.Kids[i] = k.Clone()
+		}
+	}
+	return out
 }
 
 // ------------------------------------------------------------
 type NameToStructureElement struct {
 	Name      string
 	Structure *StructureElement
+}
+
+// TODO: use the cache to attribute the right pointer
+func (n NameToStructureElement) clone(cache cloneCache) NameToStructureElement {
+	return n
 }
 
 type IDTree struct {
@@ -297,6 +366,23 @@ func (d IDTree) Limits() [2]string {
 	return limitsName(d)
 }
 
+func (d IDTree) clone(cache cloneCache) IDTree {
+	out := d
+	if d.Kids != nil { // preserve reflect.DeepEqual
+		out.Kids = make([]IDTree, len(d.Kids))
+		for i, k := range d.Kids {
+			out.Kids[i] = k.clone(cache)
+		}
+	}
+	if d.Names != nil { // preserve reflect.DeepEqual
+		out.Names = make([]NameToStructureElement, len(d.Names))
+		for i, k := range d.Names {
+			out.Names[i] = k.clone(cache)
+		}
+	}
+	return out
+}
+
 type NumToParent struct {
 	Num    int
 	Parent []*StructureElement // 1-element array may be written directly in PDF
@@ -325,4 +411,16 @@ func (d ParentTree) kids() []numTree {
 
 func (d ParentTree) Limits() [2]int {
 	return limitsNum(d)
+}
+
+func (d ParentTree) Clone() ParentTree {
+	out := d
+	out.Nums = append([]NumToParent(nil), d.Nums...)
+	if d.Kids != nil {
+		out.Kids = make([]ParentTree, len(d.Kids))
+		for i, k := range d.Kids {
+			out.Kids[i] = k.Clone()
+		}
+	}
+	return out
 }

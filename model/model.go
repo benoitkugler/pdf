@@ -45,8 +45,19 @@ func (doc Document) Clone() Document {
 }
 
 type cloneCache struct {
-	refs  map[Referencable]Referencable
-	pages map[PageNode]PageNode // concrete type are preserved
+	refs   map[Referencable]Referencable
+	pages  map[PageNode]PageNode // concrete type are preserved
+	fields map[*FormFieldDict]*FormFieldDict
+	// outlines map[*OutlineItem]*OutlineItem
+}
+
+func newCloneCache() cloneCache {
+	return cloneCache{
+		refs:   make(map[Referencable]Referencable),
+		pages:  make(map[PageNode]PageNode),
+		fields: make(map[*FormFieldDict]*FormFieldDict),
+		// outlines: make(map[*OutlineItem]*OutlineItem),
+	}
 }
 
 // convenience function to check if the object
@@ -113,8 +124,9 @@ func (cat Catalog) pdfString(pdf pdfWriter, catalog Reference) string {
 	b.line("/Pages %s", pageRef)
 
 	if pLabel := cat.PageLabels; pLabel != nil {
-		ref := pdf.addObject(pLabel.pdfString(pdf), nil)
-		b.line("/PageLabels %s", ref)
+		labelsRef := pdf.createObject()
+		pdf.writeObject(pLabel.pdfString(pdf, labelsRef), nil, labelsRef)
+		b.line("/PageLabels %s", labelsRef)
 	}
 
 	b.line("/Names %s", cat.Names.pdfString(pdf))
@@ -151,11 +163,7 @@ func (cat Catalog) pdfString(pdf pdfWriter, catalog Reference) string {
 
 // Clone returns a deep copy of the catalog.
 func (cat Catalog) Clone() Catalog {
-	cache := cloneCache{
-		refs:  make(map[Referencable]Referencable),
-		pages: make(map[PageNode]PageNode),
-	}
-	out := cat
+	cache := newCloneCache()
 	// Some pages may need to know in advance the
 	// pointer to an arbitrary cloned page, such as annotation link
 	// with GoTo actions
@@ -164,13 +172,30 @@ func (cat Catalog) Clone() Catalog {
 	// (at this point, the cache `pages` is filled)
 	cache.allocateClones(&cat.Pages)
 
+	out := cat
 	outPage := cat.Pages.clone(cache).(*PageTree)
 	out.Pages = *outPage
-
-	return Catalog{}
+	out.Names = cat.Names.clone(cache)
+	if cat.ViewerPreferences != nil {
+		v := *cat.ViewerPreferences
+		out.ViewerPreferences = &v
+	}
+	out.AcroForm = cat.AcroForm.clone(cache)
+	if de := cat.Dests; de != nil {
+		des := de.clone(cache)
+		out.Dests = &des
+	}
+	if cat.PageLabels != nil {
+		pl := out.PageLabels.Clone()
+		cat.PageLabels = &pl
+	}
+	out.Outlines = cat.Outlines.clone(cache)
+	out.StructTreeRoot = cat.StructTreeRoot.clone(cache)
+	return cat
 }
 
 // NameDictionary establish the correspondence between names and objects
+// TODO: add more names
 type NameDictionary struct {
 	EmbeddedFiles EmbeddedFileTree
 	Dests         *DestTree // optional
@@ -197,7 +222,10 @@ func (n NameDictionary) pdfString(pdf pdfWriter) string {
 func (n NameDictionary) clone(cache cloneCache) NameDictionary {
 	out := n
 	out.EmbeddedFiles = n.EmbeddedFiles.clone(cache)
-	// TODO:
+	if n.Dests != nil {
+		ds := n.Dests.clone(cache)
+		out.Dests = &ds
+	}
 	return out
 }
 

@@ -357,6 +357,36 @@ func (s StructureTree) ParentTreeNextKey() int {
 	return high + 1
 }
 
+func (s *StructureTree) clone(cache cloneCache) *StructureTree {
+	if s == nil {
+		return nil
+	}
+	out := *s
+	if s.K != nil { // preserve nil
+		out.K = make([]*StructureElement, len(s.K))
+		for i, k := range s.K {
+			out.K[i] = k.clone(nil)
+		}
+	}
+	// TODO: check
+	out.IDTree = s.IDTree.clone(cache)
+	out.ParentTree = s.ParentTree.Clone()
+	if s.RoleMap != nil {
+		out.RoleMap = make(map[Name]Name, len(s.RoleMap))
+		for k, v := range s.RoleMap {
+			out.RoleMap[k] = v
+		}
+	}
+	if s.ClassMap != nil {
+		out.ClassMap = make(map[Name][]AttributeObject, len(s.ClassMap))
+		for k, v := range s.ClassMap {
+			v := append([]AttributeObject(nil), v...)
+			out.ClassMap[k] = v
+		}
+	}
+	return &out
+}
+
 type StructureElement struct {
 	S          Name
 	P          *StructureElement // parent
@@ -373,6 +403,18 @@ type StructureElement struct {
 	ActualText string            // optional, text string
 }
 
+func (s *StructureElement) clone(parent *StructureElement) *StructureElement {
+	if s == nil {
+		return nil
+	}
+	out := *s
+	// TODO:
+	out.K = append([]ContentItem(nil), s.K...)
+	out.A = append([]AttributeObject(nil), s.A...)
+	out.C = append([]Name(nil), s.C...)
+	return &out
+}
+
 // ContentItem may be *StructureElement,
 type ContentItem interface {
 	//TODO:
@@ -384,7 +426,7 @@ type AttributeObject struct{}
 
 // ------------------------------- Bookmarks -------------------------------
 
-//TODO: read and write
+//TODO: read
 
 // Outline is the root of the ouline hierarchie
 type Outline struct {
@@ -418,6 +460,15 @@ func (o *Outline) pdfString(pdf pdfWriter, ref Reference) string {
 	pdf.outlines[last] = lastRef
 	pdf.writeObject(last.pdfString(pdf, lastRef, ref), nil, lastRef)
 	return fmt.Sprintf("<</First %s/Last %s/Count %d>>", firstRef, lastRef, o.Count())
+}
+
+func (o *Outline) clone(cache cloneCache) *Outline {
+	if o == nil {
+		return nil
+	}
+	out := *o
+	out.First = o.First.clone(cache, o)
+	return &out
 }
 
 type OutlineNode interface {
@@ -550,4 +601,22 @@ func (o *OutlineItem) pdfString(pdf pdfWriter, ref, parent Reference) string {
 	}
 	b.fmt(">>")
 	return b.String()
+}
+
+func (o *OutlineItem) clone(cache cloneCache, parent OutlineNode) *OutlineItem {
+	if o == nil {
+		return o
+	}
+	out := *o
+	out.Parent = parent
+	if o.Dest != nil {
+		out.Dest = o.Dest.clone(cache)
+	}
+	if o.A != nil {
+		out.A = o.A.clone(cache)
+	}
+	// TODO: Structure element
+	out.First = o.First.clone(cache, &out)
+	out.Next = o.Next.clone(cache, parent)
+	return &out
 }

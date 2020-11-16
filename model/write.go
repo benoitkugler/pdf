@@ -215,7 +215,6 @@ type Referencable interface {
 	pdfContent(pdf pdfWriter, objectRef Reference) (content string, stream []byte)
 }
 
-func (*FormFieldDict) IsReferencable()      {}
 func (*FontDict) IsReferencable()           {}
 func (*GraphicState) IsReferencable()       {}
 func (*SimpleEncodingDict) IsReferencable() {}

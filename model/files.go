@@ -81,6 +81,9 @@ func (emb *EmbeddedFileStream) pdfContent(pdf pdfWriter, ref Reference) (string,
 
 // clone returns a deep copy, with concrete type `*EmbeddedFileStream`
 func (emb *EmbeddedFileStream) clone(cloneCache) Referencable {
+	if emb == nil {
+		return emb
+	}
 	out := *emb // shallow copy
 	out.Stream = emb.Stream.Clone()
 	return &out

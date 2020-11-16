@@ -44,7 +44,6 @@ type FormFieldDict struct {
 	// not nil only for a leaf node
 	// represented in PDF under the/Kids entry,
 	// or merged if their is only one widget
-	// The annotation subtype must be WidgetAnnotation
 	Widgets []Widget
 
 	T  string // optional, text string
@@ -80,23 +79,29 @@ func (f *FormFieldDict) FullFieldName() string {
 	return f.Parent.FullFieldName() + "." + f.T
 }
 
-// require it's own reference to pass it to its kids
-// `parent` will be invalid for the root fields
-func (f *FormFieldDict) pdfString(pdf pdfWriter, ownRef, parent, catalog Reference) string {
+// also allocate an object number for itself and stores it into pdf.fields
+func (f *FormFieldDict) pdfString(pdf pdfWriter, catalog Reference) string {
+	// before recursing, first register it's own ref
+	// so that it is accessible by the kids
+	ownRef := pdf.createObject()
+	pdf.fields[f] = ownRef // register to the cache
+
 	b := newBuffer()
 	b.WriteString("<<")
 	if f.FT != nil { // might be nil if inherited
 		b.WriteString(f.FT.formFieldAttrs(pdf, catalog, ownRef))
 	}
 	if f.Parent != nil {
+		parent := pdf.fields[f.Parent]
 		b.fmt("/Parent %s", parent)
 	}
+
 	if len(f.Kids) != 0 {
 		refs := make([]Reference, len(f.Kids))
 		for i, kid := range f.Kids {
-			kidRef := pdf.createObject()
-			pdf.fields[kid] = kidRef // register to the cache
-			pdf.writeObject(kid.pdfString(pdf, kidRef, ownRef, catalog), nil, kidRef)
+			kidS := kid.pdfString(pdf, catalog)
+			kidRef := pdf.fields[kid] // now valid
+			pdf.writeObject(kidS, nil, kidRef)
 			refs[i] = kidRef
 		}
 		b.fmt("/Kids %s", writeRefArray(refs))
@@ -139,6 +144,34 @@ func (f *FormFieldDict) pdfString(pdf pdfWriter, ownRef, parent, catalog Referen
 	return b.String()
 }
 
+// also stores into pdf.fields
+func (f *FormFieldDict) clone(cache cloneCache) *FormFieldDict {
+	if f == nil {
+		return nil
+	}
+	out := *f
+	out.Parent = cache.fields[f.Parent]
+	// before recursing, store the clone
+	cache.fields[f] = &out
+	if f.FT != nil {
+		out.FT = f.FT.clone(cache)
+	}
+	if f.Widgets != nil { // preserve nil
+		out.Widgets = make([]Widget, len(f.Widgets))
+		for i, w := range f.Widgets {
+			out.Widgets[i] = w.clone(cache)
+		}
+	}
+	if f.Kids != nil { // preserve nil
+		out.Kids = make([]*FormFieldDict, len(f.Kids))
+		for i, k := range f.Kids {
+			out.Kids[i] = k.clone(cache)
+		}
+	}
+	out.AA = f.AA.Clone()
+	return &out
+}
+
 // ---------------------------------------------------
 
 type Highlighting Name
@@ -164,6 +197,13 @@ func (w Widget) pdfString(pdf pdfWriter, ownRef, parent Reference) string {
 		w.BaseAnnotation.fields(pdf, ownRef), w.AnnotationWidget.annotationFields(pdf, ownRef), parent)
 }
 
+func (w Widget) clone(cache cloneCache) Widget {
+	out := w
+	out.AnnotationWidget = w.AnnotationWidget.clone(cache).(AnnotationWidget)
+	out.BaseAnnotation = w.BaseAnnotation.clone(cache)
+	return out
+}
+
 // FormField provides additional form attributes,
 // depending on the field type.
 type FormField interface {
@@ -171,6 +211,8 @@ type FormField interface {
 	// `catalog` is needed by FieldSignature
 	// `fieldRef` is the reference of the field dict object
 	formFieldAttrs(pdf pdfWriter, catalog, fieldRef Reference) string
+	// return a deep copy, preserving concrete type
+	clone(cache cloneCache) FormField
 }
 
 // FormFieldText are boxes or spaces in which the user can enter text from the keyboard.
@@ -187,6 +229,8 @@ func (f FormFieldText) formFieldAttrs(pdf pdfWriter, _, fieldRef Reference) stri
 	return out
 }
 
+func (f FormFieldText) clone(cloneCache) FormField { return f }
+
 // FormFieldButton represent interactive controls on the screen
 // that the user can manipulate with the mouse.
 // They include pushbuttons, check boxes, and radio buttons.
@@ -200,6 +244,12 @@ func (f FormFieldButton) formFieldAttrs(pdf pdfWriter, _, fieldRef Reference) st
 	if len(f.Opt) != 0 {
 		out += fmt.Sprintf("/Opt [%s]", pdf.stringsArray(f.Opt, TextString, fieldRef))
 	}
+	return out
+}
+
+func (f FormFieldButton) clone(cloneCache) FormField {
+	out := f
+	out.Opt = append([]string(nil), f.Opt...)
 	return out
 }
 
@@ -257,6 +307,14 @@ func (f FormFieldChoice) formFieldAttrs(pdf pdfWriter, _, fieldRef Reference) st
 	return b.String()
 }
 
+func (f FormFieldChoice) clone(cloneCache) FormField {
+	out := f
+	out.V = append([]string(nil), f.V...)
+	out.Opt = append([]Option(nil), f.Opt...)
+	out.I = append([]int(nil), f.I...)
+	return out
+}
+
 // FormFieldSignature represent digital signatures and
 // optional data for authenticating the name of the signer and
 // the document’s contents.
@@ -279,6 +337,14 @@ func (f FormFieldSignature) formFieldAttrs(pdf pdfWriter, catalog, fieldRef Refe
 		ref := pdf.addObject(f.SV.pdfString(pdf, fieldRef), nil)
 		out += fmt.Sprintf("/SV %s", ref)
 	}
+	return out
+}
+
+func (f FormFieldSignature) clone(cache cloneCache) FormField {
+	out := f
+	out.V = f.V.Clone()
+	out.Lock = f.Lock.Clone()
+	out.SV = f.SV.Clone()
 	return out
 }
 
@@ -362,6 +428,26 @@ func (s SignatureDict) pdfString(pdf pdfWriter, catalog, fieldRef Reference) str
 	return b.String()
 }
 
+// Clone returns a deep copy
+func (s *SignatureDict) Clone() *SignatureDict {
+	if s == nil {
+		return nil
+	}
+	out := *s
+	out.Cert = append([]string(nil), s.Cert...)
+	out.ByteRange = append([][2]int(nil), s.ByteRange...)
+	if s.Reference != nil { // preserve nil
+		out.Reference = make([]SignatureRefDict, len(s.Reference))
+	}
+	for i, r := range s.Reference {
+		out.Reference[i] = r.Clone()
+	}
+	if s.Prop_Build != nil {
+		out.Prop_Build = s.Prop_Build.Clone()
+	}
+	return &out
+}
+
 // SignatureBuildDictionary is implementation-specific by design.
 // It can be used to store audit information that is specific to the software application
 // that was used to create the signature.
@@ -394,10 +480,21 @@ func (s SignatureRefDict) pdfString(pdf pdfWriter, catalog, ref Reference) strin
 		s.TransformMethod, s.TransformParams.transformParamsDict(pdf, ref), s.DigestMethod, catalog)
 }
 
+// Clone returns a deep copy
+func (s SignatureRefDict) Clone() SignatureRefDict {
+	out := s
+	if s.TransformParams != nil {
+		out.TransformParams = s.TransformParams.Clone()
+	}
+	return out
+}
+
 // Transform determines which objects are included and excluded
 // in revision comparison
 type Transform interface {
 	transformParamsDict(pdf pdfWriter, ref Reference) string
+	// Clone returns a deep copy of the transform, preserving the concrete type.
+	Clone() Transform
 }
 
 type TransformDocMDP struct {
@@ -416,6 +513,8 @@ func (t TransformDocMDP) transformParamsDict(pdfWriter, Reference) string {
 	out += ">>"
 	return out
 }
+
+func (t TransformDocMDP) Clone() Transform { return t }
 
 type TransformUR struct {
 	Document  []Name // optional
@@ -456,6 +555,16 @@ func (t TransformUR) transformParamsDict(pdf pdfWriter, ref Reference) string {
 	return b.String()
 }
 
+func (t TransformUR) Clone() Transform {
+	out := t
+	out.Document = append([]Name(nil), t.Document...)
+	out.Annots = append([]Name(nil), t.Annots...)
+	out.Form = append([]Name(nil), t.Form...)
+	out.Signature = append([]Name(nil), t.Signature...)
+	out.EF = append([]Name(nil), t.EF...)
+	return out
+}
+
 // TransformFieldMDP is used to detect changes to the values of a list of form fields.
 type TransformFieldMDP struct {
 	Action Name
@@ -472,6 +581,12 @@ func (t TransformFieldMDP) transformParamsDict(pdf pdfWriter, ref Reference) str
 	return out
 }
 
+func (t TransformFieldMDP) Clone() Transform {
+	out := t
+	out.Fields = append([]string(nil), t.Fields...)
+	return out
+}
+
 type LockDict struct {
 	Action Name     // one of All,Include,Exclude
 	Fields []string // field names, text strings, optional when Action == All
@@ -484,6 +599,15 @@ func (l LockDict) pdfString(pdf pdfWriter, ref Reference) string {
 	}
 	out += ">>"
 	return out
+}
+
+func (l *LockDict) Clone() *LockDict {
+	if l == nil {
+		return nil
+	}
+	out := *l
+	out.Fields = append([]string(nil), l.Fields...)
+	return &out
 }
 
 type SeedDict struct {
@@ -539,6 +663,20 @@ func (s SeedDict) pdfString(pdf pdfWriter, ref Reference) string {
 	return b.String()
 }
 
+func (s *SeedDict) Clone() *SeedDict {
+	if s == nil {
+		return nil
+	}
+	out := *s
+	out.SubFilter = append([]Name(nil), s.SubFilter...)
+	out.DigestMethod = append([]Name(nil), s.DigestMethod...)
+	out.Reasons = append([]string(nil), s.Reasons...)
+	out.LegalAttestation = append([]string(nil), s.LegalAttestation...)
+	out.Cert = s.Cert.Clone()
+	out.TimeStamp = s.TimeStamp.Clone()
+	return &out
+}
+
 type TimeStampDict struct {
 	URL string // ASCII string
 	Ff  uint8  // 0 or 1, default to 0
@@ -546,6 +684,14 @@ type TimeStampDict struct {
 
 func (s TimeStampDict) pdfString(pdf pdfWriter, ref Reference) string {
 	return fmt.Sprintf("<</URL %s/Ff %d>>", pdf.EncodeString(s.URL, ASCIIString, ref), s.Ff)
+}
+
+func (t *TimeStampDict) Clone() *TimeStampDict {
+	if t == nil {
+		return t
+	}
+	out := *t
+	return &out
 }
 
 // CertDict contains characteristics of the certificate that shall be used when signing
@@ -597,6 +743,32 @@ func (c CertDict) pdfString(pdf pdfWriter, ref Reference) string {
 	}
 	b.fmt(">>")
 	return b.String()
+}
+
+// Clone returns a deep copy
+func (c *CertDict) Clone() *CertDict {
+	if c == nil {
+		return nil
+	}
+	out := *c
+	out.Subject = append([]string(nil), c.Subject...)
+	out.KeyUsage = append([]string(nil), c.KeyUsage...)
+	out.Issuer = append([]string(nil), c.Issuer...)
+	out.OID = append([]string(nil), c.OID...)
+	if c.SubjectDN != nil { // preserve nil
+		out.SubjectDN = make([]map[Name]string, len(c.SubjectDN))
+		for i, m := range c.SubjectDN {
+			var newM map[Name]string
+			if m != nil { // preserve nil
+				newM = make(map[Name]string, len(newM))
+				for n, v := range m {
+					newM[n] = v
+				}
+			}
+			out.SubjectDN[i] = newM
+		}
+	}
+	return &out
 }
 
 type CertFlag uint8
@@ -660,9 +832,9 @@ func (a AcroForm) pdfString(pdf pdfWriter, catalog, acroRef Reference) string {
 	b := newBuffer()
 	refs := make([]Reference, len(a.Fields))
 	for i, f := range a.Fields {
-		fieldRef := pdf.createObject()
-		pdf.fields[f] = fieldRef // add to the cache
-		pdf.addObject(f.pdfString(pdf, fieldRef, -1, catalog), nil)
+		s := f.pdfString(pdf, catalog)
+		fieldRef := pdf.fields[f] // add to the cache
+		pdf.writeObject(s, nil, fieldRef)
 		refs[i] = fieldRef
 	}
 	b.fmt("<</Fields %s", writeRefArray(refs))
@@ -689,4 +861,28 @@ func (a AcroForm) pdfString(pdf pdfWriter, catalog, acroRef Reference) string {
 	}
 	b.fmt(">>")
 	return b.String()
+}
+
+func (a *AcroForm) clone(cache cloneCache) *AcroForm {
+	if a == nil {
+		return nil
+	}
+	out := *a
+	if a.Fields != nil { // preserve nil
+		out.Fields = make([]*FormFieldDict, len(a.Fields))
+		for i, f := range a.Fields {
+			out.Fields[i] = f.clone(cache)
+		}
+	}
+	if a.CO != nil { // preserve nil
+		out.CO = make([]*FormFieldDict, len(a.CO))
+		for i, c := range a.CO {
+			out.CO[i] = cache.fields[c]
+		}
+	}
+	if a.DR != nil {
+		dr := a.DR.clone(cache)
+		out.DR = &dr
+	}
+	return &out
 }

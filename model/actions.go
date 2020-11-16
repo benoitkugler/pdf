@@ -28,6 +28,14 @@ func (f FormFielAdditionalActions) pdfString(pdf pdfWriter, ref Reference) strin
 	return b.String()
 }
 
+func (ff *FormFielAdditionalActions) Clone() *FormFielAdditionalActions {
+	if ff == nil {
+		return nil
+	}
+	a := *ff
+	return &a
+}
+
 // TODO: support more action type
 type Action interface {
 	// actionDictionary returns the dictionary defining the action
@@ -90,6 +98,7 @@ func (d DestinationExplicit) pdfDestination(pdf pdfWriter) string {
 	return fmt.Sprintf("[%s/XYZ %s %s %.3f]", pageRef, left, top, d.Zoom)
 }
 
+// concrete type is DestinationExplicit
 func (d DestinationExplicit) clone(cache cloneCache) Destination {
 	out := d
 	out.Page = cache.pages[d.Page].(*PageObject)
