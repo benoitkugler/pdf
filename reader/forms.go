@@ -308,6 +308,6 @@ func (r resolver) processFormFieldType(form pdfcpu.Dict) model.FormField {
 
 // TODO: process signature field
 func (r resolver) processSignatureField(form pdfcpu.Dict) model.FormFieldSignature {
-	fmt.Println(form)
+	fmt.Println("TODO", form)
 	return model.FormFieldSignature{}
 }

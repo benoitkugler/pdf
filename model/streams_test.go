@@ -7,19 +7,16 @@ import (
 
 func TestStream(t *testing.T) {
 	s := Stream{
-		Filter:  []Filter{JPX, ASCII85, ASCIIHex, JBIG2, Flate},
+		Filter: []Filter{
+			{Name: JPX, DecodeParams: map[Name]int{"P1": 1, "EndOfLine": 0, "EncodedByteAlign": 1}},
+			{Name: ASCII85},
+			{Name: ASCIIHex, DecodeParams: map[Name]int{"P1": 1, "EndOfLine": 0, "EncodedByteAlign": 1}},
+			{Name: JBIG2},
+			{Name: Flate},
+		},
 		Content: make([]byte, 245),
 	}
-	st1 := s.PDFCommonFields()
 
-	s.DecodeParms = []map[Name]int{
-		{"P1": 1, "EndOfLine": 0, "EncodedByteAlign": 1},
-		nil,
-		{"P1": 1, "EndOfLine": 0, "EncodedByteAlign": 1},
-		nil,
-		nil,
-	}
 	st2 := s.PDFCommonFields()
-	fmt.Println(st1)
 	fmt.Println(st2)
 }

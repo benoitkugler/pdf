@@ -1,29 +1,44 @@
 package apidemo
 
 import (
+	"fmt"
 	"os"
 	"reflect"
 	"testing"
+	"time"
 
 	"github.com/benoitkugler/pdf/model"
 )
 
 func TestEmbeddedFiles(t *testing.T) {
+	// fin, err := os.Open("type3.pdf")
+	// if err != nil {
+	// 	t.Fatal(err)
+	// }
+	// defer fin.Close()
+	// doc, err := reader.ParsePDF(fin, "")
+	// if err != nil {
+	// 	t.Fatal(err)
+	// }
 	var doc model.Document
 
-	f, err := os.Create("embedded.pdf")
+	out, err := os.Create("embedded.pdf")
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer f.Close()
+	defer out.Close()
+	// out := new(bytes.Buffer)
 
-	err = AddAttachments(&doc, f, []string{
+	files := []string{
 		"api.go",
-		"api_test.go,une description en français de ce superbé code",
-	})
+		"api_test.go, une description en français de ce superbé code",
+	}
+	ti := time.Now()
+	err = AddAttachments(&doc, out, files)
 	if err != nil {
 		t.Fatal(err)
 	}
+	fmt.Println("done in", time.Since(ti))
 
 	list := ListAttachments(doc)
 	expected := []string{"api.go", "api_test.go"}

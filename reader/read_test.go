@@ -5,7 +5,6 @@ import (
 	"encoding/ascii85"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"os"
 	"strings"
@@ -13,7 +12,6 @@ import (
 	"time"
 
 	"github.com/benoitkugler/pdf/model"
-	"github.com/pdfcpu/pdfcpu/pkg/filter"
 	"github.com/pdfcpu/pdfcpu/pkg/pdfcpu"
 	"github.com/phpdave11/gofpdf"
 )
@@ -51,25 +49,6 @@ func TestGenerateEmpty(t *testing.T) {
 	if err := g.OutputFileAndClose("datatest/Empty.pdf"); err != nil {
 		t.Fatal(err)
 	}
-}
-
-func decodeStream(stream model.Stream) ([]byte, error) {
-	var current io.Reader = bytes.NewReader(stream.Content)
-	for i, f := range stream.Filter {
-		params := map[string]int{}
-		for n, v := range stream.ParamsForFilter(i) {
-			params[string(n)] = v
-		}
-		fp, err := filter.NewFilter(string(f), params)
-		if err != nil {
-			return nil, err
-		}
-		current, err = fp.Decode(current)
-		if err != nil {
-			return nil, err
-		}
-	}
-	return ioutil.ReadAll(current)
 }
 
 func TestOpen(t *testing.T) {
@@ -185,21 +164,22 @@ func TestProtected(t *testing.T) {
 	fmt.Println(doc.Trailer.Encrypt)
 }
 func TestStream(t *testing.T) {
-	ctx, err := pdfcpu.ReadFile("datatest/PDF_SPEC.pdf", nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	stream, _, err := ctx.XRefTable.DereferenceStreamDict(*pdfcpu.NewIndirectRef(2, 0))
-	if err != nil {
-		t.Fatal(err)
-	}
 	f, err := os.Open("datatest/PDF_SPEC.pdf")
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer f.Close()
-	fmt.Println(string(stream.Raw[0:20]))
 
+	doc, err := ParsePDF(f, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	s, err := doc.Catalog.Pages.Flatten()[0].Contents[0].Decode()
+	if err != nil {
+		t.Fatal(err)
+	}
+	fmt.Println(string(s))
 }
 
 func TestAlterFields(t *testing.T) {
@@ -293,8 +273,8 @@ func TestWrite(t *testing.T) {
 }
 
 func TestReWrite(t *testing.T) {
-	name := "datatest/PDF_SPEC"
-	// name := "datatest/type3"
+	// name := "datatest/PDF_SPEC"
+	name := "datatest/type3"
 	f, err := os.Open(name + ".pdf")
 	if err != nil {
 		t.Fatal(err)
@@ -304,9 +284,6 @@ func TestReWrite(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-
-	fmt.Println(string(doc.Catalog.Pages.Flatten()[0].Contents[0].Content[0:20]))
-	fmt.Println(doc.Catalog.Pages.Flatten()[0].Contents[0].Content[0:20])
 
 	out, err := os.Create(name + "_2.pdf")
 	if err != nil {
@@ -319,7 +296,15 @@ func TestReWrite(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	fmt.Println("PDF wrote in", time.Since(ti))
+	fmt.Println("PDF wrote to disk in", time.Since(ti))
+
+	out2 := bytes.Buffer{}
+	ti = time.Now()
+	err = doc.Write(&out2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fmt.Println("PDF wrote to memory in", time.Since(ti))
 
 	_, err = pdfcpu.ReadFile(name+"_2.pdf", nil)
 	if err != nil {

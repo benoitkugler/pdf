@@ -40,9 +40,7 @@ func (r resolver) resolveStream(content pdfcpu.Object) (*model.Stream, error) {
 	ar, _ := filters.(pdfcpu.Array)
 	for _, name := range ar {
 		if filterName, isName := r.resolveName(name); isName {
-			if f := model.NewFilter(string(filterName)); f != "" {
-				out.Filter = []model.Filter{f}
-			}
+			out.Filter = []model.Filter{{Name: model.Name(filterName)}}
 		}
 	}
 	decode := r.resolve(stream.Dict["DecodeParms"])
@@ -51,15 +49,14 @@ func (r resolver) resolveStream(content pdfcpu.Object) (*model.Stream, error) {
 		if len(decode) != len(out.Filter) {
 			return nil, fmt.Errorf("unexpected length for DecodeParms array: %d", len(decode))
 		}
-		for _, parms := range decode {
-			parmsModel := r.processDecodeParms(parms)
-			out.DecodeParms = append(out.DecodeParms, parmsModel)
+		for i, parms := range decode {
+			out.Filter[i].DecodeParams = r.processDecodeParms(parms)
 		}
 	case pdfcpu.Dict: // one filter and one dict param
 		if len(out.Filter) != 1 {
 			return nil, errType("DecodeParms", decode)
 		}
-		out.DecodeParms = append(out.DecodeParms, r.processDecodeParms(decode))
+		out.Filter[0].DecodeParams = r.processDecodeParms(decode)
 	}
 
 	return &out, nil

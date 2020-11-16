@@ -1,6 +1,8 @@
 package model
 
 import (
+	"crypto/md5"
+	"encoding/hex"
 	"fmt"
 	"time"
 )
@@ -43,10 +45,18 @@ func (f *FileSpec) clone(cache cloneCache) Referencable {
 }
 
 type EmbeddedFileParams struct {
-	Size         int       // optional
 	CreationDate time.Time // optional
 	ModDate      time.Time // optional
+	Size         int       // optional
 	CheckSum     string    // optional, must be hex16 encoded
+}
+
+// SetChecksumAndSize compute the size and the checksum of the `content`,
+// which must be the original (not encoded) data.
+func (f *EmbeddedFileParams) SetChecksumAndSize(content []byte) {
+	f.Size = len(content)
+	tmp := md5.Sum(content)
+	f.CheckSum = hex.EncodeToString(tmp[:])
 }
 
 func (params EmbeddedFileParams) pdfString(pdf pdfWriter, ref Reference) string {

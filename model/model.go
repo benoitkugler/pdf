@@ -44,35 +44,6 @@ func (doc Document) Clone() Document {
 	return doc
 }
 
-type cloneCache struct {
-	refs   map[Referencable]Referencable
-	pages  map[PageNode]PageNode // concrete type are preserved
-	fields map[*FormFieldDict]*FormFieldDict
-	// outlines map[*OutlineItem]*OutlineItem
-}
-
-func newCloneCache() cloneCache {
-	return cloneCache{
-		refs:   make(map[Referencable]Referencable),
-		pages:  make(map[PageNode]PageNode),
-		fields: make(map[*FormFieldDict]*FormFieldDict),
-		// outlines: make(map[*OutlineItem]*OutlineItem),
-	}
-}
-
-// convenience function to check if the object
-// is already cloned and return the clone object, or do the cloning.
-// the concrete type of `origin` is preserved, so that the return
-// value can be type-asserted back to its original concrete type
-func (cache cloneCache) checkOrClone(origin Referencable) Referencable {
-	if cloned := cache.refs[origin]; cloned != nil {
-		return cloned
-	}
-	out := origin.clone(cache)
-	cache.refs[origin] = out // update the cache
-	return out
-}
-
 // Write walks the entire document and writes its content
 // into `output`, producing a valid PDF file.
 func (doc Document) Write(output io.Writer) error {
@@ -159,6 +130,35 @@ func (cat Catalog) pdfString(pdf pdfWriter, catalog Reference) string {
 	b.fmt(">>")
 
 	return b.String()
+}
+
+type cloneCache struct {
+	refs   map[Referencable]Referencable
+	pages  map[PageNode]PageNode // concrete type are preserved
+	fields map[*FormFieldDict]*FormFieldDict
+	// outlines map[*OutlineItem]*OutlineItem
+}
+
+func newCloneCache() cloneCache {
+	return cloneCache{
+		refs:   make(map[Referencable]Referencable),
+		pages:  make(map[PageNode]PageNode),
+		fields: make(map[*FormFieldDict]*FormFieldDict),
+		// outlines: make(map[*OutlineItem]*OutlineItem),
+	}
+}
+
+// convenience function to check if the object
+// is already cloned and return the clone object, or do the cloning.
+// the concrete type of `origin` is preserved, so that the return
+// value can be type-asserted back to its original concrete type
+func (cache cloneCache) checkOrClone(origin Referencable) Referencable {
+	if cloned := cache.refs[origin]; cloned != nil {
+		return cloned
+	}
+	out := origin.clone(cache)
+	cache.refs[origin] = out // update the cache
+	return out
 }
 
 // Clone returns a deep copy of the catalog.

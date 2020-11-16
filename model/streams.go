@@ -1,36 +1,65 @@
 package model
 
 import (
+	"bytes"
 	"fmt"
+	"io"
+	"io/ioutil"
 	"strings"
+
+	"github.com/benoitkugler/pdfcpu/pkg/filter"
 )
 
 const (
-	ASCII85   Filter = "ASCII85Decode"
-	ASCIIHex  Filter = "ASCIIHexDecode"
-	RunLength Filter = "RunLengthDecode"
-	LZW       Filter = "LZWDecode"
-	Flate     Filter = "FlateDecode"
-	CCITTFax  Filter = "CCITTFaxDecode"
-	JBIG2     Filter = "JBIG2Decode"
-	DCT       Filter = "DCTDecode"
-	JPX       Filter = "JPXDecode"
+	ASCII85   Name = "ASCII85Decode"
+	ASCIIHex  Name = "ASCIIHexDecode"
+	RunLength Name = "RunLengthDecode"
+	LZW       Name = "LZWDecode"
+	Flate     Name = "FlateDecode"
+	CCITTFax  Name = "CCITTFaxDecode"
+	JBIG2     Name = "JBIG2Decode"
+	DCT       Name = "DCTDecode"
+	JPX       Name = "JPXDecode"
 )
 
-type Filter Name
-
-// NewFilter validate `s` and returns
-// an empty string it is not a known filter
-func NewFilter(s string) Filter {
-	f := Filter(s)
-	switch f {
-	case ASCII85, ASCIIHex, RunLength, LZW,
-		Flate, CCITTFax, JBIG2, DCT, JPX:
-		return f
-	default:
-		return ""
-	}
+type Filter struct {
+	Name Name
+	// optional, boolean value are stored as 0 (false) or 1 (true)
+	DecodeParams map[Name]int
 }
+
+// Clone returns a deep copy of the filter
+func (f Filter) Clone() Filter {
+	out := f
+	if f.DecodeParams != nil {
+		out.DecodeParams = make(map[Name]int, len(f.DecodeParams))
+		for n, v := range f.DecodeParams {
+			out.DecodeParams[n] = v
+		}
+	}
+	return out
+}
+
+func (f Filter) params() map[string]int {
+	out := make(map[string]int, len(f.DecodeParams))
+	for k, v := range f.DecodeParams {
+		out[string(k)] = v
+	}
+	return out
+}
+
+// // NewFilter validate `s` and returns
+// // an empty string it is not a known filter
+// func NewFilter(s string) Filter {
+// 	f := Filter(s)
+// 	switch f {
+// 	case ASCII85, ASCIIHex, RunLength, LZW,
+// 		Flate, CCITTFax, JBIG2, DCT, JPX:
+// 		return f
+// 	default:
+// 		return ""
+// 	}
+// }
 
 var booleanNames = map[Name]bool{
 	"EndOfLine":        true,
@@ -39,20 +68,69 @@ var booleanNames = map[Name]bool{
 	"BlackIs1":         true,
 }
 
+// type DecodeParams []map[Name]int
+
 // Stream is a PDF stream.
 // New Stream must be created
 // by applying the filters described
 // in `StreamDict.Filters` to the non-filtered data
-// to obtain `Content`
-// TODO: support filters processing
+// to obtain `Content`. See NewStream for a convenient
+// way to encode stream.
 type Stream struct {
 	// Length      int
 	Filter []Filter
-	// nil, or same length than Filters.
-	// boolean value are stored as 0 (false) or 1 (true)
-	DecodeParms []map[Name]int
+
+	// DecodeParms DecodeParams
 
 	Content []byte // such as read/writen, not decoded
+}
+
+// NewStream attemps to encode `content` using the given filters,
+// applying them in the given order, and storing them in the returned object
+// following the PDF order (that is, reversed).
+// Be aware that not all PDF filters are supported (see filters.List).
+func NewStream(content []byte, filters []Filter) (Stream, error) {
+	var r io.Reader = bytes.NewReader(content)
+	L := len(filters)
+	reversed := make([]Filter, L)
+	for i, fi := range filters {
+		fil, err := filter.NewFilter(string(fi.Name), fi.params())
+		if err != nil {
+			return Stream{}, err
+		}
+		r, err = fil.Encode(r)
+		if err != nil {
+			return Stream{}, err
+		}
+		reversed[L-1-i] = fi
+	}
+	var (
+		out Stream
+		err error
+	)
+	out.Content, err = ioutil.ReadAll(r)
+	if err != nil {
+		return out, err
+	}
+	out.Filter = reversed
+	return out, nil
+}
+
+// Decode attemps to apply the Filters to decode its content.
+// Be aware that not all PDF filters are supported (see filters.List).
+func (s Stream) Decode() ([]byte, error) {
+	var r io.Reader = bytes.NewReader(s.Content)
+	for _, fi := range s.Filter {
+		fil, err := filter.NewFilter(string(fi.Name), fi.params())
+		if err != nil {
+			return nil, err
+		}
+		r, err = fil.Decode(r)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return ioutil.ReadAll(r)
 }
 
 func (c Stream) Length() int {
@@ -62,16 +140,11 @@ func (c Stream) Length() int {
 // Clone returns a deep copy of the stream
 func (c Stream) Clone() Stream {
 	var s Stream
-	s.Filter = append([]Filter(nil), c.Filter...)
-	if c.DecodeParms != nil { // so that deep equal is true
-		s.DecodeParms = make([]map[Name]int, len(c.DecodeParms))
-	}
-	for i, d := range c.DecodeParms {
-		m := make(map[Name]int, len(d))
-		for n, v := range d {
-			m[n] = v
+	if c.Filter != nil { // preserve nil
+		s.Filter = make([]Filter, len(c.Filter))
+		for i, f := range c.Filter {
+			s.Filter[i] = f.Clone()
 		}
-		s.DecodeParms[i] = m
 	}
 	s.Content = append([]byte(nil), c.Content...)
 	return s
@@ -79,12 +152,16 @@ func (c Stream) Clone() Stream {
 
 // ParamsForFilter is a convenience which returns
 // the additionnal arguments of the i-th filter
-func (s Stream) ParamsForFilter(index int) map[Name]int {
-	if len(s.DecodeParms) == 0 {
-		return nil
-	}
-	return s.DecodeParms[index]
-}
+// func (dc DecodeParams) ParamsForFilter(index int) map[string]int {
+// 	if index >= len(dc) {
+// 		return nil
+// 	}
+// 	out := make(map[string]int)
+// 	for k, v := range dc[index] {
+// 		out[string(k)] = v
+// 	}
+// 	return out
+// }
 
 // PDFCommonArgs returns the content of the Dictionary of `s`
 // without the enclosing << >>.
@@ -94,20 +171,15 @@ func (s Stream) PDFCommonFields() string {
 	b.fmt("/Length %d", s.Length())
 	if len(s.Filter) != 0 {
 		fs := make([]string, len(s.Filter))
-		for i, f := range s.Filter {
-			fs[i] = Name(f).String()
-		}
-		b.fmt("/Filter [%s]", strings.Join(fs, " "))
-	}
-	if len(s.DecodeParms) != 0 {
 		var st strings.Builder
-		for _, v := range s.DecodeParms {
-			if len(v) == 0 {
+		for i, f := range s.Filter {
+			fs[i] = Name(f.Name).String()
+			if len(f.DecodeParams) == 0 {
 				st.WriteString("null ")
 				continue
 			}
 			st.WriteString("<< ")
-			for n, k := range v {
+			for n, k := range f.DecodeParams {
 				var arg interface{} = k
 				if booleanNames[n] {
 					arg = k == 1
@@ -116,7 +188,7 @@ func (s Stream) PDFCommonFields() string {
 			}
 			st.WriteString(" >> ")
 		}
-		b.fmt("/DecodeParams [ %s]", st.String())
+		b.fmt("/Filter [%s]/DecodeParams [ %s]", strings.Join(fs, " "), st.String())
 	}
 	return b.String()
 }

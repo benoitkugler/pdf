@@ -1,10 +1,6 @@
 package apidemo
 
 import (
-	"bytes"
-	"compress/zlib"
-	"crypto/md5"
-	"encoding/hex"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -22,28 +18,6 @@ func ListAttachments(doc model.Document) []string {
 		out[i] = file.FileSpec.UF
 	}
 	return out
-}
-
-// return the hex encoded checksum of `data`
-func checksum(data []byte) string {
-	tmp := md5.Sum(data)
-	sl := make([]byte, len(tmp))
-	for i, v := range tmp {
-		sl[i] = v
-	}
-	return hex.EncodeToString(sl)
-}
-
-// sliceCompress returns a zlib-compressed copy of the specified byte array
-func sliceCompress(data []byte) ([]byte, error) {
-	var buf bytes.Buffer
-	cmp, _ := zlib.NewWriterLevel(&buf, zlib.BestSpeed)
-	_, err := cmp.Write(data)
-	if err != nil {
-		return nil, err
-	}
-	err = cmp.Close()
-	return buf.Bytes(), err
 }
 
 // AddAttachments embeds files into the document and writes the result to w.
@@ -71,20 +45,18 @@ func AddAttachments(doc *model.Document, w io.Writer, files []string) error {
 		if err != nil {
 			return err
 		}
-		mt := fi.ModTime()
 
-		var emb model.EmbeddedFileStream
-		emb.Content, err = ioutil.ReadAll(f)
+		content, err := ioutil.ReadAll(f)
 		if err != nil {
 			return fmt.Errorf("can't read file : %w", err)
 		}
-		emb.Params.ModDate = mt
-		emb.Params.Size = int(fi.Size())
-		emb.Params.CheckSum = checksum(emb.Content)
+
+		var emb model.EmbeddedFileStream
+		emb.Params.SetChecksumAndSize(content)
+		emb.Params.ModDate = fi.ModTime()
 
 		// compression with flate, optional
-		emb.Stream.Filter = []model.Filter{model.Flate}
-		emb.Content, err = sliceCompress(emb.Content)
+		emb.Stream, err = model.NewStream(content, []model.Filter{{Name: model.Flate}, {Name: model.ASCIIHex}})
 		if err != nil {
 			return fmt.Errorf("can't compress file : %w", err)
 		}

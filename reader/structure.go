@@ -59,7 +59,7 @@ func (r resolver) resolveStructureTree(obj pdfcpu.Object) (*model.StructureTree,
 		case pdfcpu.IndirectRef: // only one attribute
 
 		default:
-			fmt.Println(k, v)
+			fmt.Println("class map", k, v)
 
 		}
 	}
