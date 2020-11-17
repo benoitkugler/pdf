@@ -126,6 +126,11 @@ func (r resolver) resolveOneXObjectForm(obj pdfcpu.Object) (*model.XObjectForm, 
 			return nil, err
 		}
 	}
+	if st, ok := r.resolveInt(stream.Dict["StructParent"]); ok {
+		ap.StructParent = model.Int(st)
+	} else if st, ok := r.resolveInt(stream.Dict["StructParents"]); ok {
+		ap.StructParents = model.Int(st)
+	}
 
 	if isRef {
 		r.xObjectForms[xObjRef] = &ap
@@ -306,5 +311,21 @@ func (r resolver) resolveOutlineItem(object pdfcpu.Object, parent model.OutlineN
 	if f, ok := r.resolveInt(dict["F"]); ok {
 		out.F = model.OutlineFlag(f)
 	}
+	return &out, nil
+}
+
+func (r resolver) resolveMarkDict(object pdfcpu.Object) (*model.MarkDict, error) {
+	object = r.resolve(object)
+	if object == nil {
+		return nil, nil
+	}
+	dict, ok := object.(pdfcpu.Dict)
+	if !ok {
+		return nil, errType("MarkInfo", object)
+	}
+	var out model.MarkDict
+	out.Marked, _ = r.resolveBool(dict["Marked"])
+	out.UserProperties, _ = r.resolveBool(dict["UserProperties"])
+	out.Suspects, _ = r.resolveBool(dict["Suspects"])
 	return &out, nil
 }

@@ -5,9 +5,11 @@
 // the majority of the PDF specification.
 //
 // This package aims at being used without having to think (to much)
-// to the PDF implementations details. In particular,
+// of the PDF implementations details. In particular, unless stated otherwise,
 // all the strings should be UTF-8 encoded. The library
-// will take care to encode them when needed.
+// will take care to encode them when needed. They are a few exceptions, where
+// ASCII strings are required: it is then up to the user to make sure
+// the given string is ASCII.
 // TODO: remove encoding hints from comments of string fields
 //
 // The entry point of the package is the type `Document`.
@@ -35,7 +37,7 @@ type Document struct {
 // It may be useful when we want to load
 // a 'template' document once at server startup, and then
 // modyfing it for each request.
-// For every type implementing `Referencable`, the equalities
+// For every type implementing `Referenceable`, the equalities
 // between pointers are preserved.
 func (doc Document) Clone() Document {
 	out := doc
@@ -74,6 +76,7 @@ type Catalog struct {
 	PageLabels        *PageLabelsTree    // optional
 	Outlines          *Outline           // optional
 	StructTreeRoot    *StructureTree     // optional
+	MarkInfo          *MarkDict          // optional
 	PageLayout        Name               // optional
 	PageMode          Name               // optional
 }
@@ -127,23 +130,33 @@ func (cat Catalog) pdfString(pdf pdfWriter, catalog Reference) string {
 		pdf.writeObject(outline.pdfString(pdf, outlineRef), nil, outlineRef)
 		b.line("/Outlines %s", outlineRef)
 	}
+	if cat.StructTreeRoot != nil {
+		stRef := pdf.createObject()
+		pdf.writeObject(cat.StructTreeRoot.pdfString(pdf, stRef), nil, stRef)
+		b.line("/StructTreeRoot %s", stRef)
+	}
+	if m := cat.MarkInfo; m != nil {
+		b.line("/MarkInfo %s", m)
+	}
 	b.fmt(">>")
 
 	return b.String()
 }
 
 type cloneCache struct {
-	refs   map[Referencable]Referencable
-	pages  map[PageNode]PageNode // concrete type are preserved
-	fields map[*FormFieldDict]*FormFieldDict
+	refs      map[Referenceable]Referenceable
+	pages     map[PageNode]PageNode // concrete type are preserved
+	fields    map[*FormFieldDict]*FormFieldDict
+	structure map[*StructureElement]*StructureElement
 	// outlines map[*OutlineItem]*OutlineItem
 }
 
 func newCloneCache() cloneCache {
 	return cloneCache{
-		refs:   make(map[Referencable]Referencable),
-		pages:  make(map[PageNode]PageNode),
-		fields: make(map[*FormFieldDict]*FormFieldDict),
+		refs:      make(map[Referenceable]Referenceable),
+		pages:     make(map[PageNode]PageNode),
+		fields:    make(map[*FormFieldDict]*FormFieldDict),
+		structure: make(map[*StructureElement]*StructureElement),
 		// outlines: make(map[*OutlineItem]*OutlineItem),
 	}
 }
@@ -152,7 +165,7 @@ func newCloneCache() cloneCache {
 // is already cloned and return the clone object, or do the cloning.
 // the concrete type of `origin` is preserved, so that the return
 // value can be type-asserted back to its original concrete type
-func (cache cloneCache) checkOrClone(origin Referencable) Referencable {
+func (cache cloneCache) checkOrClone(origin Referenceable) Referenceable {
 	if cloned := cache.refs[origin]; cloned != nil {
 		return cloned
 	}
@@ -191,6 +204,10 @@ func (cat Catalog) Clone() Catalog {
 	}
 	out.Outlines = cat.Outlines.clone(cache)
 	out.StructTreeRoot = cat.StructTreeRoot.clone(cache)
+	if cat.MarkInfo != nil {
+		m := *cat.MarkInfo
+		out.MarkInfo = &m
+	}
 	return cat
 }
 

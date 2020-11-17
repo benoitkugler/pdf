@@ -35,7 +35,7 @@ func (f *FileSpec) pdfContent(pdf pdfWriter, ref Reference) (string, []byte) {
 	return b.String(), nil
 }
 
-func (f *FileSpec) clone(cache cloneCache) Referencable {
+func (f *FileSpec) clone(cache cloneCache) Referenceable {
 	if f == nil {
 		return f
 	}
@@ -90,7 +90,7 @@ func (emb *EmbeddedFileStream) pdfContent(pdf pdfWriter, ref Reference) (string,
 }
 
 // clone returns a deep copy, with concrete type `*EmbeddedFileStream`
-func (emb *EmbeddedFileStream) clone(cloneCache) Referencable {
+func (emb *EmbeddedFileStream) clone(cloneCache) Referenceable {
 	if emb == nil {
 		return emb
 	}

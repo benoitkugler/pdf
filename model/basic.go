@@ -7,6 +7,28 @@ import (
 
 // implements basic types found in PDF files
 
+// MaybeInt is an Int or nothing
+// It'a an other way to specify *int, easier to clone
+type MaybeInt interface {
+	isMaybeInt()
+}
+
+// Int implements MaybeInt
+type Int int
+
+func (i Int) isMaybeInt() {}
+
+// MaybeFloat is a Float or nothing
+// It'a an other way to specify *float64, easier to clone
+type MaybeFloat interface {
+	isMaybeFloat()
+}
+
+// Float implements MaybeFloat
+type Float float64
+
+func (i Float) isMaybeFloat() {}
+
 type Rectangle struct {
 	Llx, Lly, Urx, Ury float64 // lower-left x, lower-left y, upper-right x, and upper-right y coordinates of the rectangle
 }

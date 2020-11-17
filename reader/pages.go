@@ -112,6 +112,9 @@ func (r *resolver) resolvePageObject(node pdfcpu.Dict, parent *model.PageTree) (
 		}
 		page.Annots = append(page.Annots, an)
 	}
+	if st, ok := r.resolveInt(node["StructParents"]); ok {
+		page.StructParents = model.Int(st)
+	}
 	return &page, nil
 }
 
@@ -129,6 +132,7 @@ func (r *resolver) resolveAnnotation(annot pdfcpu.Object) (*model.AnnotationDict
 	if err != nil {
 		return nil, err
 	}
+
 	if isRef { // write the annotation back into the cache
 		r.annotations[annotRef] = &annotModel
 	}
@@ -168,6 +172,9 @@ func (r *resolver) resolveAnnotationFields(annotDict pdfcpu.Dict) (model.Annotat
 	annotModel.AP, err = r.resolveAppearanceDict(annotDict["AP"])
 	if err != nil {
 		return annotModel, err
+	}
+	if st, ok := r.resolveInt(annotDict["StructParent"]); ok {
+		annotModel.StructParent = model.Int(st)
 	}
 
 	annotModel.Subtype, err = r.resolveAnnotationSubType(annotDict)
@@ -226,7 +233,6 @@ func (r *resolver) resolveExplicitDestination(dest pdfcpu.Array) (*model.Destina
 		return nil, nil
 	}
 	out := new(model.DestinationExplicit)
-	out.Left, out.Top = model.Undef, model.Undef
 	pageRef, isRef := dest[0].(pdfcpu.IndirectRef)
 	if !isRef {
 		return nil, errType("Dest.Page", dest[0])
@@ -235,10 +241,10 @@ func (r *resolver) resolveExplicitDestination(dest pdfcpu.Array) (*model.Destina
 		return nil, fmt.Errorf("expected/XYZ in Destination, got unsupported %s", dest[1])
 	}
 	if left, ok := r.resolveNumber(dest[2]); ok {
-		out.Left = left
+		out.Left = model.Float(left)
 	}
 	if top, ok := r.resolveNumber(dest[3]); ok {
-		out.Top = top
+		out.Top = model.Float(top)
 	}
 	out.Zoom, _ = r.resolveNumber(dest[4])
 	// store the incomplete destination to process later on

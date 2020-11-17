@@ -16,7 +16,7 @@ func (f *FontDict) pdfContent(pdf pdfWriter, _ Reference) (string, []byte) {
 }
 
 // clone returns a deep copy, with concrete type `*Font`
-func (f *FontDict) clone(cache cloneCache) Referencable {
+func (f *FontDict) clone(cache cloneCache) Referenceable {
 	if f == nil {
 		return f
 	}
@@ -361,7 +361,7 @@ func (enc *SimpleEncodingDict) simpleEncodingPDFString(pdf pdfWriter) string {
 }
 
 // clone returns a deep copy with concrete type *EncodingDict
-func (enc *SimpleEncodingDict) clone(cloneCache) Referencable {
+func (enc *SimpleEncodingDict) clone(cloneCache) Referenceable {
 	if enc == nil {
 		return enc
 	}
@@ -504,16 +504,16 @@ func (c CIDFontDictionary) Clone() CIDFontDictionary {
 }
 
 type CIDSystemInfo struct {
-	Registry   string
-	Ordering   string
+	Registry   string // must be ASCII string
+	Ordering   string // must be ASCII string
 	Supplement int
 }
 
 // returns a dictionary representation
 func (c CIDSystemInfo) pdfString(pdf pdfWriter, ref Reference) string {
 	return fmt.Sprintf("<</Registry %s/Ordering %s/Supplement %d>>",
-		pdf.EncodeString(c.Registry, ASCIIString, ref),
-		pdf.EncodeString(c.Ordering, ASCIIString, ref), c.Supplement)
+		pdf.EncodeString(c.Registry, ByteString, ref),
+		pdf.EncodeString(c.Ordering, ByteString, ref), c.Supplement)
 }
 
 // CIDWidth groups the two ways of defining widths for CID

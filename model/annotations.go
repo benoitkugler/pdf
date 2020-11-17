@@ -60,16 +60,16 @@ func (b *Border) Clone() *Border {
 
 // BorderStyle specifies the border characteristics for some types of annotations
 type BorderStyle struct {
-	W float64   // optional, default to 1, Undef not to specify it
-	S Name      // optional
-	D []float64 // optional, default to [3], nil not to specify it
+	W MaybeFloat // optional, default to 1
+	S Name       // optional
+	D []float64  // optional, default to [3], nil not to specify it
 }
 
 func (bo BorderStyle) pdfString() string {
 	b := newBuffer()
 	b.WriteString("<<")
-	if bo.W != Undef {
-		b.fmt("/W %.3f", bo.W)
+	if bo.W != nil {
+		b.fmt("/W %.3f", bo.W.(Float))
 	}
 	if bo.S != "" {
 		b.fmt("/S %s", bo.S)
@@ -98,9 +98,10 @@ type BaseAnnotation struct {
 	// Appearance state (key of the AP.N subDictionary).
 	// Required if the appearance dictionary AP contains one or more
 	// subdictionaries
-	AS     Name
-	F      int     // optional
-	Border *Border // optional
+	AS           Name
+	F            int      // optional
+	Border       *Border  // optional
+	StructParent MaybeInt // required if the annotation is a structural content item
 }
 
 func (ba BaseAnnotation) fields(pdf pdfWriter, ref Reference) string {
@@ -120,6 +121,9 @@ func (ba BaseAnnotation) fields(pdf pdfWriter, ref Reference) string {
 	}
 	if bo := ba.Border; bo != nil {
 		b.fmt("/Border %s", bo.pdfString())
+	}
+	if ba.StructParent != nil {
+		b.fmt("/StructParent %d", ba.StructParent.(Int))
 	}
 	return b.String()
 }
@@ -143,7 +147,7 @@ func (a *AnnotationDict) pdfContent(pdf pdfWriter, ref Reference) (string, []byt
 	return fmt.Sprintf("<<%s %s >>", base, subtype), nil
 }
 
-func (a *AnnotationDict) clone(cache cloneCache) Referencable {
+func (a *AnnotationDict) clone(cache cloneCache) Referenceable {
 	if a == nil {
 		return a
 	}

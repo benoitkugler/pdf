@@ -269,6 +269,11 @@ func (r resolver) catalog() (model.Catalog, error) {
 		return out, err
 	}
 
+	out.MarkInfo, err = r.resolveMarkDict(d["MarkInfo"])
+	if err != nil {
+		return out, err
+	}
+
 	// complete the destinations
 	for _, dest := range r.destinationsToComplete {
 		po := r.pages[dest.ref]

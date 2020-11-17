@@ -2,8 +2,6 @@ package model
 
 import "fmt"
 
-const Undef = -122
-
 type DashPattern struct {
 	Array []float64
 	Phase float64
@@ -41,16 +39,16 @@ func (f FontStyle) clone(cache cloneCache) FontStyle {
 
 type GraphicState struct {
 	LW   float64
-	LC   int // optional, >= 0, Undef for not specified
-	LJ   int // optional, >= 0, Undef for not specified
+	LC   MaybeInt // optional, >= 0
+	LJ   MaybeInt // optional, >= 0
 	ML   float64
 	D    *DashPattern // optional
 	RI   Name
-	Font FontStyle // font and size
-	CA   float64   // optional, >= 0, Undef for not specified
-	Ca   float64   // non-stroking, optional, >= 0, Undef for not specified
+	Font FontStyle  // font and size
+	CA   MaybeFloat // optional, >= 0
+	Ca   MaybeFloat // non-stroking, optional, >= 0
 	AIS  bool
-	SM   float64
+	SM   MaybeFloat // optional
 	SA   bool
 }
 
@@ -60,11 +58,11 @@ func (g *GraphicState) pdfContent(pdf pdfWriter, _ Reference) (string, []byte) {
 	if g.LW != 0 {
 		b.fmt("/LW %.3f", g.LW)
 	}
-	if g.LC != Undef {
-		b.fmt("/LC %d", g.LC)
+	if g.LC != nil {
+		b.fmt("/LC %d", g.LC.(Int))
 	}
-	if g.LJ != Undef {
-		b.fmt("/LJ %d", g.LJ)
+	if g.LJ != nil {
+		b.fmt("/LJ %d", g.LJ.(Int))
 	}
 	if g.ML != 0 {
 		b.fmt("/ML %.3f", g.ML)
@@ -78,22 +76,22 @@ func (g *GraphicState) pdfContent(pdf pdfWriter, _ Reference) (string, []byte) {
 	if g.Font.Font != nil {
 		b.fmt("/Font %s", g.Font.pdfString(pdf))
 	}
-	if g.CA != Undef {
-		b.fmt("/CA %.3f", g.CA)
+	if g.CA != nil {
+		b.fmt("/CA %.3f", g.CA.(Float))
 	}
-	if g.Ca != Undef {
-		b.fmt("/ca %.3f", g.Ca)
+	if g.Ca != nil {
+		b.fmt("/ca %.3f", g.Ca.(Float))
 	}
 	b.fmt("/AIS %v", g.AIS)
-	if g.SM != Undef {
-		b.fmt("/SM %.3f", g.SM)
+	if g.SM != nil {
+		b.fmt("/SM %.3f", g.SM.(Float))
 	}
 	b.fmt("/SA %v", g.SA)
 	b.WriteString(">>")
 	return b.String(), nil
 }
 
-func (g *GraphicState) clone(cache cloneCache) Referencable {
+func (g *GraphicState) clone(cache cloneCache) Referenceable {
 	if g == nil {
 		return g
 	}
@@ -105,9 +103,9 @@ func (g *GraphicState) clone(cache cloneCache) Referencable {
 
 // ----------------------- colors spaces -----------------------
 
-// check conformity with either Referencable or directColorSpace
+// check conformity with either Referenceable or directColorSpace
 
-var _ Referencable = (*ColorSpaceICCBased)(nil)
+var _ Referenceable = (*ColorSpaceICCBased)(nil)
 var _ directColorSpace = ColorSpaceSeparation{}
 var _ directColorSpace = ColorSpaceName("")
 var _ directColorSpace = ColorSpaceCalGray{}
@@ -146,8 +144,8 @@ func writeColorSpace(c ColorSpace, pdf pdfWriter) string {
 	if c, ok := c.(directColorSpace); ok {
 		return c.pdfString(pdf)
 	}
-	// if it's not direct, it must be Referencable
-	ca, _ := c.(Referencable)
+	// if it's not direct, it must be Referenceable
+	ca, _ := c.(Referenceable)
 	ref := pdf.addItem(ca)
 	return ref.String()
 }
@@ -160,8 +158,8 @@ func cloneColorSpace(c ColorSpace, cache cloneCache) ColorSpace {
 	if c, ok := c.(directColorSpace); ok {
 		return c.cloneCS(cache)
 	}
-	// if it's not direct, it must be Referencable
-	refe, _ := c.(Referencable)
+	// if it's not direct, it must be Referenceable
+	refe, _ := c.(Referenceable)
 	return cache.checkOrClone(refe).(ColorSpace)
 }
 
@@ -190,7 +188,7 @@ func (c *ColorSpaceICCBased) pdfContent(pdf pdfWriter, _ Reference) (string, []b
 	return b.String(), c.Content
 }
 
-func (cs *ColorSpaceICCBased) clone(cache cloneCache) Referencable {
+func (cs *ColorSpaceICCBased) clone(cache cloneCache) Referenceable {
 	if cs == nil {
 		return cs
 	}
@@ -367,7 +365,7 @@ func (table *ColorTableStream) pdfContent(pdfWriter, Reference) (string, []byte)
 	return (*Stream)(table).PDFContent()
 }
 
-func (table *ColorTableStream) clone(cloneCache) Referencable {
+func (table *ColorTableStream) clone(cloneCache) Referenceable {
 	if table == nil {
 		return table
 	}
@@ -397,7 +395,7 @@ func (c ColorSpaceUncoloredPattern) cloneCS(cache cloneCache) ColorSpace {
 // Pattern is either a Tiling or a Shading pattern
 type Pattern interface {
 	isPattern()
-	Referencable
+	Referenceable
 }
 
 func (*PatternTiling) isPattern()  {}
@@ -421,7 +419,7 @@ func (t *PatternTiling) pdfContent(pdf pdfWriter, _ Reference) (string, []byte) 
 	return "<<>>", nil
 }
 
-func (t *PatternTiling) clone(cache cloneCache) Referencable {
+func (t *PatternTiling) clone(cache cloneCache) Referenceable {
 	if t == nil {
 		return t
 	}
@@ -611,7 +609,7 @@ func (s *ShadingDict) pdfContent(pdf pdfWriter, _ Reference) (string, []byte) {
 	return s.ShadingType.pdfContent(b.String(), pdf)
 }
 
-func (s *ShadingDict) clone(cache cloneCache) Referencable {
+func (s *ShadingDict) clone(cache cloneCache) Referenceable {
 	if s == nil {
 		return s
 	}
@@ -650,7 +648,7 @@ func (s *PatternShading) pdfContent(pdf pdfWriter, _ Reference) (string, []byte)
 	return b.String(), nil
 }
 
-func (s *PatternShading) clone(cache cloneCache) Referencable {
+func (s *PatternShading) clone(cache cloneCache) Referenceable {
 	if s == nil {
 		return s
 	}

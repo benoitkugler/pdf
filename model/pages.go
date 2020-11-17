@@ -132,6 +132,7 @@ type PageObject struct {
 	Rotate                    *Rotation         // if nil, will be inherited from the parent. Only multiple of 90 are allowed
 	Annots                    []*AnnotationDict // optional
 	Contents                  []ContentStream   // array of stream (often of length 1)
+	StructParents             MaybeInt          // Required if the page contains structural content items
 }
 
 // the pdf page map is used to fetch the object number
@@ -175,6 +176,9 @@ func (p *PageObject) pdfString(pdf pdfWriter) string {
 	}
 	if len(contents) != 0 {
 		b.line("/Contents %s", writeRefArray(contents))
+	}
+	if p.StructParents != nil {
+		b.fmt("/StructParents %d", p.StructParents.(Int))
 	}
 	b.WriteString(">>")
 	return b.String()
@@ -339,90 +343,6 @@ func (r ResourcesDict) clone(cache cloneCache) ResourcesDict {
 	}
 	return out
 }
-
-// ----------------------- structure -----------------------
-
-type StructureTree struct {
-	K          []*StructureElement // 1-array may be written in PDF directly as a dict
-	IDTree     IDTree
-	ParentTree ParentTree
-	RoleMap    map[Name]Name
-	ClassMap   map[Name][]AttributeObject // for each key, 1-array may be written in PDF directly
-}
-
-// An integer greater than any key in the parent tree, which shall be
-// used as a key for the next entry added to the tree
-func (s StructureTree) ParentTreeNextKey() int {
-	high := s.ParentTree.Limits()[1]
-	return high + 1
-}
-
-func (s *StructureTree) clone(cache cloneCache) *StructureTree {
-	if s == nil {
-		return nil
-	}
-	out := *s
-	if s.K != nil { // preserve nil
-		out.K = make([]*StructureElement, len(s.K))
-		for i, k := range s.K {
-			out.K[i] = k.clone(nil)
-		}
-	}
-	// TODO: check
-	out.IDTree = s.IDTree.clone(cache)
-	out.ParentTree = s.ParentTree.Clone()
-	if s.RoleMap != nil {
-		out.RoleMap = make(map[Name]Name, len(s.RoleMap))
-		for k, v := range s.RoleMap {
-			out.RoleMap[k] = v
-		}
-	}
-	if s.ClassMap != nil {
-		out.ClassMap = make(map[Name][]AttributeObject, len(s.ClassMap))
-		for k, v := range s.ClassMap {
-			v := append([]AttributeObject(nil), v...)
-			out.ClassMap[k] = v
-		}
-	}
-	return &out
-}
-
-type StructureElement struct {
-	S          Name
-	P          *StructureElement // parent
-	ID         string            // byte string
-	Pg         *PageObject       // optional
-	K          []ContentItem     // 1-array may be written in PDF directly
-	A          []AttributeObject // 1-array may be written in PDF directly
-	C          []Name            // 1-array may be written in PDF directly
-	R          int               // optional
-	T          string            // optional, text string
-	Lang       string            // optional, text string
-	Alt        string            // optional, text string
-	E          string            // optional, text string
-	ActualText string            // optional, text string
-}
-
-func (s *StructureElement) clone(parent *StructureElement) *StructureElement {
-	if s == nil {
-		return nil
-	}
-	out := *s
-	// TODO:
-	out.K = append([]ContentItem(nil), s.K...)
-	out.A = append([]AttributeObject(nil), s.A...)
-	out.C = append([]Name(nil), s.C...)
-	return &out
-}
-
-// ContentItem may be *StructureElement,
-type ContentItem interface {
-	//TODO:
-	isContentItem()
-}
-
-//TODO:
-type AttributeObject struct{}
 
 // ------------------------------- Bookmarks -------------------------------
 

@@ -217,14 +217,14 @@ type FormField interface {
 
 // FormFieldText are boxes or spaces in which the user can enter text from the keyboard.
 type FormFieldText struct {
-	V      string // text string, may be written in PDF as a stream
-	MaxLen int    // optional, Undef when not set
+	V      string   // text string, may be written in PDF as a stream
+	MaxLen MaybeInt // optional
 }
 
 func (f FormFieldText) formFieldAttrs(pdf pdfWriter, _, fieldRef Reference) string {
 	out := fmt.Sprintf("/FT/Tx/V %s", pdf.EncodeString(f.V, TextString, fieldRef))
-	if f.MaxLen != Undef {
-		out += fmt.Sprintf("/MaxLen %d", f.MaxLen)
+	if f.MaxLen != nil {
+		out += fmt.Sprintf("/MaxLen %d", f.MaxLen.(Int))
 	}
 	return out
 }
@@ -618,9 +618,9 @@ type SeedDict struct {
 	V            float64   // optional
 	Cert         *CertDict // optional
 	Reasons      []string  // optional, text strings
-	// optional,  from 0 to 3, default to Undef
+	// optional,  from 0 to 3
 	// writen in pdf as a dictionary with entry P
-	MDP              int8
+	MDP              MaybeInt
 	TimeStamp        *TimeStampDict // optional
 	LegalAttestation []string       // optional, text strings
 	AddRevInfo       bool           // optional, default to false
@@ -650,8 +650,8 @@ func (s SeedDict) pdfString(pdf pdfWriter, ref Reference) string {
 	if len(s.Reasons) != 0 {
 		b.fmt("/Reasons %s", pdf.stringsArray(s.Reasons, TextString, ref))
 	}
-	if s.MDP != Undef {
-		b.fmt("/MDP <</P %d>>", s.MDP)
+	if s.MDP != nil {
+		b.fmt("/MDP <</P %d>>", s.MDP.(Int))
 	}
 	if s.TimeStamp != nil {
 		b.fmt("/TimeStamp %s", s.TimeStamp.pdfString(pdf, ref))
@@ -678,12 +678,12 @@ func (s *SeedDict) Clone() *SeedDict {
 }
 
 type TimeStampDict struct {
-	URL string // ASCII string
+	URL string // URL must be ASCII string
 	Ff  uint8  // 0 or 1, default to 0
 }
 
 func (s TimeStampDict) pdfString(pdf pdfWriter, ref Reference) string {
-	return fmt.Sprintf("<</URL %s/Ff %d>>", pdf.EncodeString(s.URL, ASCIIString, ref), s.Ff)
+	return fmt.Sprintf("<</URL %s/Ff %d>>", pdf.EncodeString(s.URL, ByteString, ref), s.Ff)
 }
 
 func (t *TimeStampDict) Clone() *TimeStampDict {
@@ -699,10 +699,10 @@ type CertDict struct {
 	Ff        uint8             // optional, default to 0
 	Subject   []string          // optional byte strings
 	SubjectDN []map[Name]string // optional, each map values are text strings
-	KeyUsage  []string          // optional, ASCII strings
+	KeyUsage  []string          // optional, must be ASCII strings
 	Issuer    []string          // optional, byte strings
 	OID       []string          // optional, byte strings
-	URL       string            // optional, ASCII string
+	URL       string            // optional, must be ASCII string
 	URLType   Name              // optional
 }
 
@@ -727,7 +727,7 @@ func (c CertDict) pdfString(pdf pdfWriter, ref Reference) string {
 		b.fmt("]")
 	}
 	if len(c.KeyUsage) != 0 {
-		b.fmt("/KeyUsage %s", pdf.stringsArray(c.KeyUsage, ASCIIString, ref))
+		b.fmt("/KeyUsage %s", pdf.stringsArray(c.KeyUsage, ByteString, ref))
 	}
 	if len(c.Issuer) != 0 {
 		b.fmt("/Issuer %s", pdf.stringsArray(c.Issuer, ByteString, ref))
@@ -736,7 +736,7 @@ func (c CertDict) pdfString(pdf pdfWriter, ref Reference) string {
 		b.fmt("/OID %s", pdf.stringsArray(c.OID, ByteString, ref))
 	}
 	if c.URL != "" {
-		b.fmt("/URL %s", pdf.EncodeString(c.URL, ASCIIString, ref))
+		b.fmt("/URL %s", pdf.EncodeString(c.URL, ByteString, ref))
 	}
 	if c.URLType != "" {
 		b.fmt("/URLType %s", c.URLType)

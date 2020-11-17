@@ -52,11 +52,11 @@ func (j ActionJavaScript) ActionDictionary(pdf pdfWriter, ref Reference) string 
 	return fmt.Sprintf("<</S/JavaScript/JS %s>>", pdf.EncodeString(j.JS, TextString, ref))
 }
 
-// ActionURI is a URI which should be ASCII encoded
+// ActionURI is a URI which must be ASCII string
 type ActionURI string
 
 func (uri ActionURI) actionDictionary(pdf pdfWriter, ref Reference) string {
-	return fmt.Sprintf("<</S/URI/URI (%s)>>", pdf.EncodeString(string(uri), ASCIIString, ref))
+	return fmt.Sprintf("<</S/URI/URI (%s)>>", pdf.EncodeString(string(uri), ByteString, ref))
 }
 
 func (uri ActionURI) clone(cache cloneCache) Action { return uri }
@@ -82,18 +82,18 @@ type Destination interface {
 // DestinationExplicit is an explicit destination to a page
 type DestinationExplicit struct {
 	Page      *PageObject
-	Left, Top float64 // Undef for null value
+	Left, Top MaybeFloat
 	Zoom      float64
 }
 
 func (d DestinationExplicit) pdfDestination(pdf pdfWriter) string {
 	pageRef := pdf.pages[d.Page]
 	left, top := "null", "null"
-	if d.Left != Undef {
-		left = fmt.Sprintf("%.3f", d.Left)
+	if d.Left != nil {
+		left = fmt.Sprintf("%.3f", d.Left.(Float))
 	}
-	if d.Top != Undef {
-		top = fmt.Sprintf("%.3f", d.Top)
+	if d.Top != nil {
+		top = fmt.Sprintf("%.3f", d.Top.(Float))
 	}
 	return fmt.Sprintf("[%s/XYZ %s %s %.3f]", pageRef, left, top, d.Zoom)
 }

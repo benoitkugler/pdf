@@ -296,9 +296,7 @@ func (r resolver) processFormFieldType(form pdfcpu.Dict) model.FormField {
 		var out model.FormFieldText
 		out.V = r.textOrStream(form["V"])
 		if ml, ok := r.resolveInt(form["MaxLen"]); ok {
-			out.MaxLen = ml
-		} else {
-			out.MaxLen = model.Undef
+			out.MaxLen = model.Int(ml)
 		}
 		return out
 	default: // nil or invalid

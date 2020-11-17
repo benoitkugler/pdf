@@ -248,6 +248,11 @@ type NumToPageLabel struct {
 	PageLabel PageLabel // rather a direct object
 }
 
+// return two elements, to be included in an array
+func (n NumToPageLabel) pdfString(pdf pdfWriter, ref Reference) string {
+	return fmt.Sprintf("%d %s", n.Num, n.PageLabel.pdfString(pdf, ref))
+}
+
 type PageLabelsTree struct {
 	Kids []PageLabelsTree
 	Nums []NumToPageLabel
@@ -307,7 +312,7 @@ func (p PageLabelsTree) pdfString(pdf pdfWriter, ref Reference) string {
 	if len(p.Nums) != 0 {
 		b.fmt("/Nums [ ")
 		for _, num := range p.Nums {
-			b.fmt("%d %s ", num.Num, num.PageLabel.pdfString(pdf, ref))
+			b.fmt("%s ", num.pdfString(pdf, ref))
 		}
 		b.line("]")
 	}
@@ -333,9 +338,15 @@ type NameToStructureElement struct {
 	Structure *StructureElement
 }
 
-// TODO: use the cache to attribute the right pointer
+// return two elements, to be included in an array
+func (n NameToStructureElement) pdfString(pdf pdfWriter) string {
+	return fmt.Sprintf("%s %s", n.Name, pdf.structure[n.Structure])
+}
+
 func (n NameToStructureElement) clone(cache cloneCache) NameToStructureElement {
-	return n
+	out := n
+	out.Structure = cache.structure[n.Structure]
+	return out
 }
 
 type IDTree struct {
@@ -366,6 +377,7 @@ func (d IDTree) Limits() [2]string {
 	return limitsName(d)
 }
 
+// requires that the structure tree is already clone
 func (d IDTree) clone(cache cloneCache) IDTree {
 	out := d
 	if d.Kids != nil { // preserve reflect.DeepEqual
@@ -383,9 +395,61 @@ func (d IDTree) clone(cache cloneCache) IDTree {
 	return out
 }
 
+// requires the structure to have been written
+func (d IDTree) pdfString(pdf pdfWriter) string {
+	b := newBuffer()
+	limits := d.Limits()
+	b.line("<</Limits [%s %s]", limits[0], limits[1])
+	if len(d.Kids) != 0 {
+		b.fmt("/Kids [")
+		for _, kid := range d.Kids {
+			kidRef := pdf.addObject(kid.pdfString(pdf), nil)
+			b.fmt("%s ", kidRef)
+		}
+		b.line("]")
+	}
+	if len(d.Names) != 0 {
+		b.fmt("/Names [ ")
+		for _, num := range d.Names {
+			b.fmt("%s ", num.pdfString(pdf))
+		}
+		b.line("]")
+	}
+	b.fmt(">>")
+	return b.String()
+}
+
 type NumToParent struct {
-	Num    int
-	Parent []*StructureElement // 1-element array may be written directly in PDF
+	Num int
+	// either Parent or Parents must be non nil
+	Parent  *StructureElement
+	Parents []*StructureElement
+}
+
+func (n NumToParent) pdfString(pdf pdfWriter) string {
+	var parent string
+	if n.Parent != nil {
+		parent = pdf.structure[n.Parent].String()
+	} else {
+		refs := make([]Reference, len(n.Parents))
+		for i, p := range n.Parents {
+			refs[i] = pdf.structure[p]
+		}
+		parent = writeRefArray(refs)
+	}
+	return fmt.Sprintf("%d %s", n.Num, parent)
+}
+
+func (n NumToParent) clone(cache cloneCache) NumToParent {
+	out := n
+	out.Parent = cache.structure[n.Parent]
+	if n.Parents != nil {
+		out.Parents = make([]*StructureElement, len(n.Parents))
+		for i, p := range n.Parents {
+			out.Parents[i] = cache.structure[p]
+		}
+	}
+	return out
 }
 
 type ParentTree struct {
@@ -413,14 +477,43 @@ func (d ParentTree) Limits() [2]int {
 	return limitsNum(d)
 }
 
-func (d ParentTree) Clone() ParentTree {
+// structure elements must have been cloned
+func (d ParentTree) clone(cache cloneCache) ParentTree {
 	out := d
-	out.Nums = append([]NumToParent(nil), d.Nums...)
-	if d.Kids != nil {
+	if d.Nums != nil { // preserve nil
+		out.Nums = make([]NumToParent, len(d.Nums))
+		for i, n := range d.Nums {
+			out.Nums[i] = n.clone(cache)
+		}
+	}
+	if d.Kids != nil { // preserve nil
 		out.Kids = make([]ParentTree, len(d.Kids))
 		for i, k := range d.Kids {
-			out.Kids[i] = k.Clone()
+			out.Kids[i] = k.clone(cache)
 		}
 	}
 	return out
+}
+
+func (d ParentTree) pdfString(pdf pdfWriter) string {
+	b := newBuffer()
+	limits := d.Limits()
+	b.line("<</Limits [%d %d]", limits[0], limits[1])
+	if len(d.Kids) != 0 {
+		b.fmt("/Kids [")
+		for _, kid := range d.Kids {
+			kidRef := pdf.addObject(kid.pdfString(pdf), nil)
+			b.fmt("%s ", kidRef)
+		}
+		b.line("]")
+	}
+	if len(d.Nums) != 0 {
+		b.fmt("/Nums [ ")
+		for _, num := range d.Nums {
+			b.fmt("%s ", num.pdfString(pdf))
+		}
+		b.line("]")
+	}
+	b.fmt(">>")
+	return b.String()
 }

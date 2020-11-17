@@ -97,10 +97,11 @@ func (w *output) writeFooter(encrypt Encrypt, root, info Reference) {
 type pdfWriter struct {
 	*output
 
-	cache    map[Referencable]Reference
-	pages    map[PageNode]Reference
-	outlines map[*OutlineItem]Reference
-	fields   map[*FormFieldDict]Reference
+	cache     map[Referenceable]Reference
+	pages     map[PageNode]Reference
+	outlines  map[*OutlineItem]Reference
+	fields    map[*FormFieldDict]Reference
+	structure map[*StructureElement]Reference
 
 	encrypt Encrypt
 }
@@ -108,7 +109,7 @@ type pdfWriter struct {
 func newWriter(dest io.Writer, encrypt Encrypt) pdfWriter {
 	return pdfWriter{
 		output:   &output{dst: dest, objOffsets: []int{0}},
-		cache:    make(map[Referencable]Reference),
+		cache:    make(map[Referenceable]Reference),
 		pages:    make(map[PageNode]Reference),
 		outlines: make(map[*OutlineItem]Reference),
 		fields:   make(map[*FormFieldDict]Reference),
@@ -119,10 +120,10 @@ func newWriter(dest io.Writer, encrypt Encrypt) pdfWriter {
 type PDFStringEncoding uint8
 
 const (
-	ASCIIString PDFStringEncoding = iota // ASCII encoding and escaping
-	ByteString                           // no special treatment, except escaping
-	HexString                            // hex form
-	TextString                           // one of the PDF encoding: PDFDocEncoding or UTF16-BE
+	ByteString PDFStringEncoding = iota // no special treatment, except escaping
+	// ASCIIString                          // ASCII encoding and escaping
+	HexString  // hex form
+	TextString // one of the PDF encoding: PDFDocEncoding or UTF16-BE
 )
 
 var (
@@ -151,7 +152,7 @@ func (p pdfWriter) EncodeString(s string, mode PDFStringEncoding, context Refere
 	// }
 
 	switch mode {
-	case ASCIIString, ByteString: // TODO: check is we must ensure ASCII
+	case ByteString:
 		s = replacer.Replace(s)
 		return "(" + s + ")"
 	case HexString:
@@ -200,38 +201,38 @@ func (p pdfWriter) addObject(content string, stream []byte) Reference {
 
 // writerCache
 
-// Referencable is a private interface implemented
+// Referenceable is a private interface implemented
 // by the structures idenfied by pointers.
 // For such a structure, two usage of the same pointer
 // in a `Document` will be written in the PDF file using the same
 // object number, avoiding unnecessary duplications.
-type Referencable interface {
-	IsReferencable()
+type Referenceable interface {
+	IsReferenceable()
 	// clone returns a deep copy, preserving the concrete type
 	// it will use the `cache` for child items which are themselves
-	// `Referencable`
+	// `Referenceable`
 	// see cloneCache.checkOrClone to avoid unwanted allocations
-	clone(cache cloneCache) Referencable
+	clone(cache cloneCache) Referenceable
 	pdfContent(pdf pdfWriter, objectRef Reference) (content string, stream []byte)
 }
 
-func (*FontDict) IsReferencable()           {}
-func (*GraphicState) IsReferencable()       {}
-func (*SimpleEncodingDict) IsReferencable() {}
-func (*AnnotationDict) IsReferencable()     {}
-func (*FileSpec) IsReferencable()           {}
-func (*EmbeddedFileStream) IsReferencable() {}
-func (*ShadingDict) IsReferencable()        {}
-func (*FunctionDict) IsReferencable()       {}
-func (*PatternTiling) IsReferencable()      {}
-func (*PatternShading) IsReferencable()     {}
-func (*ColorSpaceICCBased) IsReferencable() {}
-func (*ColorTableStream) IsReferencable()   {}
-func (*XObjectForm) IsReferencable()        {}
-func (*XObjectImage) IsReferencable()       {}
+func (*FontDict) IsReferenceable()           {}
+func (*GraphicState) IsReferenceable()       {}
+func (*SimpleEncodingDict) IsReferenceable() {}
+func (*AnnotationDict) IsReferenceable()     {}
+func (*FileSpec) IsReferenceable()           {}
+func (*EmbeddedFileStream) IsReferenceable() {}
+func (*ShadingDict) IsReferenceable()        {}
+func (*FunctionDict) IsReferenceable()       {}
+func (*PatternTiling) IsReferenceable()      {}
+func (*PatternShading) IsReferenceable()     {}
+func (*ColorSpaceICCBased) IsReferenceable() {}
+func (*ColorTableStream) IsReferenceable()   {}
+func (*XObjectForm) IsReferenceable()        {}
+func (*XObjectImage) IsReferenceable()       {}
 
 // check the cache and write a new item if not found
-func (pdf pdfWriter) addItem(item Referencable) Reference {
+func (pdf pdfWriter) addItem(item Referenceable) Reference {
 	if ref, has := pdf.cache[item]; has {
 		return ref
 	}

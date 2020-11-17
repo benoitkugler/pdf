@@ -139,6 +139,9 @@ func (r resolver) resolveOneXObjectImage(img pdfcpu.Object) (*model.XObjectImage
 	if s, ok := r.resolveInt(stream.Dict["SMaskInData"]); ok {
 		out.SMaskInData = uint8(s)
 	}
+	if st, ok := r.resolveInt(stream.Dict["StructParent"]); ok {
+		out.StructParent = model.Int(st)
+	}
 
 	if isRef {
 		r.images[imgRef] = &out

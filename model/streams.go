@@ -7,7 +7,7 @@ import (
 	"io/ioutil"
 	"strings"
 
-	"github.com/benoitkugler/pdfcpu/pkg/filter"
+	"github.com/pdfcpu/pdfcpu/pkg/filter"
 )
 
 const (
@@ -214,7 +214,7 @@ func (c ContentStream) Clone() ContentStream {
 
 // XObject is either an image or PDF form
 type XObject interface {
-	Referencable
+	Referenceable
 	isXObject()
 }
 
@@ -229,6 +229,14 @@ type XObjectForm struct {
 	BBox      Rectangle
 	Matrix    Matrix         // optional, default to identity
 	Resources *ResourcesDict // optional
+
+	// Integer key of the form XObject’s entry in the structural parent tree.
+	// At most one of the entries StructParent or StructParents shall be
+	// present: a form XObject shall be either a content item in its entirety (StructParent) or
+	// a container for marked-content sequences that are content items (StructParents), but
+	// not both.
+	// Optional
+	StructParent, StructParents MaybeInt
 }
 
 func (f *XObjectForm) pdfContent(pdf pdfWriter, _ Reference) (string, []byte) {
@@ -241,13 +249,18 @@ func (f *XObjectForm) pdfContent(pdf pdfWriter, _ Reference) (string, []byte) {
 	if f.Resources != nil {
 		b.line("/Resources %s", f.Resources.pdfString(pdf))
 	}
+	if f.StructParent != nil {
+		b.fmt("/StructParent %d", f.StructParent.(Int))
+	} else if f.StructParents != nil {
+		b.fmt("/StructParents %d", f.StructParent.(Int))
+	}
 	b.fmt(">>")
 	return b.String(), f.Content
 }
 
 // clone returns a deep copy of the form
 // (with concrete type `XObjectForm`)
-func (f *XObjectForm) clone(cache cloneCache) Referencable {
+func (f *XObjectForm) clone(cache cloneCache) Referenceable {
 	if f == nil {
 		return f
 	}
@@ -281,11 +294,12 @@ type XObjectImage struct {
 
 	// optional. Array of length : number of color component required by color space.
 	// Special case for Mask image where [1 0] is also allowed (despite not having 1 <= 0)
-	Decode      []Range
-	Interpolate bool             // optional
-	Alternates  []AlternateImage // optional
-	SMask       *XObjectImage    // optional
-	SMaskInData uint8            // optional, 0, 1 or 2
+	Decode       []Range
+	Interpolate  bool             // optional
+	Alternates   []AlternateImage // optional
+	SMask        *XObjectImage    // optional
+	SMaskInData  uint8            // optional, 0, 1 or 2
+	StructParent MaybeInt         // required if the image is a structural content item
 }
 
 func (f *XObjectImage) pdfContent(pdf pdfWriter, _ Reference) (string, []byte) {
@@ -318,11 +332,14 @@ func (f *XObjectImage) pdfContent(pdf pdfWriter, _ Reference) (string, []byte) {
 		ref := pdf.addItem(f.SMask)
 		b.fmt("/SMask %s", ref)
 	}
+	if f.StructParent != nil {
+		b.fmt("/StructParent %d", f.StructParent.(Int))
+	}
 	b.WriteString(">>")
 	return b.String(), f.Content
 }
 
-func (img *XObjectImage) clone(cache cloneCache) Referencable {
+func (img *XObjectImage) clone(cache cloneCache) Referenceable {
 	if img == nil {
 		return img
 	}

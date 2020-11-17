@@ -559,31 +559,25 @@ func (r resolver) resolveOneExtGState(state pdfcpu.Object) (*model.GraphicState,
 
 func (r resolver) parseStateDict(state pdfcpu.Dict) (*model.GraphicState, error) {
 	var out model.GraphicState
-	// undefined values
-	out.LC = model.Undef
-	out.LJ = model.Undef
-	out.CA = model.Undef
-	out.Ca = model.Undef
-	out.SM = model.Undef
 
 	out.LW, _ = r.resolveNumber(state["LW"])
 	out.ML, _ = r.resolveNumber(state["ML"])
 	out.RI, _ = r.resolveName(state["RI"])
 
 	if lc, ok := r.resolveInt(state["LC"]); ok { // 0 is not a default value
-		out.LC = lc
+		out.LC = model.Int(lc)
 	}
 	if lj, ok := r.resolveInt(state["LJ"]); ok { // 0 is not a default value
-		out.LJ = lj
+		out.LJ = model.Int(lj)
 	}
 	if ca, ok := r.resolveNumber(state["CA"]); ok { // 0 is not a default value
-		out.CA = ca
+		out.CA = model.Float(ca)
 	}
 	if ca, ok := r.resolveNumber(state["Ca"]); ok { // 0 is not a default value
-		out.Ca = ca
+		out.Ca = model.Float(ca)
 	}
 	if sm, ok := r.resolveNumber(state["SM"]); ok { // 0 is not a default value
-		out.SM = sm
+		out.SM = model.Float(sm)
 	}
 	out.AIS, _ = r.resolveBool(state["AIS"])
 	out.SA, _ = r.resolveBool(state["SA"])
