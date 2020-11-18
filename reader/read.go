@@ -37,6 +37,7 @@ type resolver struct {
 	images            map[pdfcpu.IndirectRef]*model.XObjectImage
 	iccs              map[pdfcpu.IndirectRef]*model.ColorSpaceICCBased
 	colorTableStreams map[pdfcpu.IndirectRef]*model.ColorTableStream
+	structure         map[pdfcpu.IndirectRef]*model.StructureElement
 
 	// annotations may reference pages which are not yet processed
 	// we store them and update the Page field later
@@ -166,17 +167,28 @@ func (r resolver) processCryptFilter(crypt pdfcpu.Object) model.CrypFilter {
 }
 
 func ParsePDF(source io.ReadSeeker, userPassword string) (model.Document, error) {
-	var out model.Document
 	config := pdfcpu.NewDefaultConfiguration()
 	config.UserPW = userPassword
 	config.DecodeAllStreams = true
+
 	ti := time.Now()
+
 	ctx, err := pdfcpu.Read(source, config)
 	if err != nil {
-		return out, fmt.Errorf("can't read PDF: %w", err)
+		return model.Document{}, fmt.Errorf("can't read PDF: %w", err)
 	}
-	fmt.Printf("pdfcpu processing: %s\n", time.Since(ti))
 
+	fmt.Printf("pdfcpu processing: %s\n", time.Since(ti))
+	ti = time.Now()
+
+	out, err := ProcessContext(ctx)
+
+	fmt.Printf("model processing: %s\n", time.Since(ti))
+
+	return out, nil
+}
+
+func ProcessContext(ctx *pdfcpu.Context) (model.Document, error) {
 	r := resolver{
 		xref:            ctx.XRefTable,
 		formFields:      make(map[pdfcpu.IndirectRef]*model.FormFieldDict),
@@ -197,22 +209,20 @@ func ParsePDF(source io.ReadSeeker, userPassword string) (model.Document, error)
 		images:            make(map[pdfcpu.IndirectRef]*model.XObjectImage),
 		iccs:              make(map[pdfcpu.IndirectRef]*model.ColorSpaceICCBased),
 		colorTableStreams: make(map[pdfcpu.IndirectRef]*model.ColorTableStream),
+		structure:         make(map[pdfcpu.IndirectRef]*model.StructureElement),
 	}
-
-	ti = time.Now()
+	var (
+		out model.Document
+		err error
+	)
 
 	out.Trailer.Info = r.info()
 
 	out.Trailer.Encrypt = r.encrypt()
 
 	out.Catalog, err = r.catalog()
-	if err != nil {
-		return out, err
-	}
 
-	fmt.Printf("model processing: %s\n", time.Since(ti))
-
-	return out, nil
+	return out, err
 }
 
 func (r resolver) catalog() (model.Catalog, error) {
@@ -237,22 +247,32 @@ func (r resolver) catalog() (model.Catalog, error) {
 		return out, err
 	}
 
+	// complete the destinations
+	for _, dest := range r.destinationsToComplete {
+		po := r.pages[dest.ref]
+		if po == nil {
+			return out, fmt.Errorf("reference %s not found in pages: ignoring destination", dest.ref)
+		}
+		dest.destination.Page = po
+	}
+
 	out.Names, err = r.processNameDict(d["Names"])
 	if err != nil {
 		return out, err
 	}
-
+	// TODO: annotations
 	out.PageLayout, _ = r.resolveName(d["PageLayout"])
 	out.PageMode, _ = r.resolveName(d["PageMode"])
 
 	if pl := d["PageLabels"]; pl != nil {
 		out.PageLabels = new(model.PageLabelsTree)
-		err = r.resolvePageLabelsTree(pl, out.PageLabels)
+		err = r.resolveNumberTree(pl, pageLabelTree{out: out.PageLabels})
 		if err != nil {
 			return out, err
 		}
 	}
 
+	// pages, annotations, xforms need to be resolved
 	out.StructTreeRoot, err = r.resolveStructureTree(d["StructTreeRoot"])
 	if err != nil {
 		return out, err
@@ -274,15 +294,6 @@ func (r resolver) catalog() (model.Catalog, error) {
 		return out, err
 	}
 
-	// complete the destinations
-	for _, dest := range r.destinationsToComplete {
-		po := r.pages[dest.ref]
-		if po == nil {
-			return out, fmt.Errorf("reference %s not found in pages: ignoring destination", dest.ref)
-		}
-		dest.destination.Page = po
-	}
-
 	return out, nil
 }
 
@@ -290,9 +301,8 @@ func (r resolver) catalog() (model.Catalog, error) {
 // An indirect reference to an undefined object shall not be considered an error by a conforming reader;
 // it shall be treated as a reference to the null object.
 func (r resolver) resolve(o pdfcpu.Object) pdfcpu.Object {
-	// despite it's signature, Dereference always return a nil error
-	out, _ := r.xref.Dereference(o)
-	return out
+	o, _ = r.xref.Dereference(o) // return no error despite its signature
+	return o
 }
 
 func (r resolver) resolveBool(o pdfcpu.Object) (bool, bool) {

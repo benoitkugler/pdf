@@ -239,6 +239,11 @@ type XObjectForm struct {
 	StructParent, StructParents MaybeInt
 }
 
+// GetStructParent implements StructParentObject
+func (a *XObjectForm) GetStructParent() MaybeInt {
+	return a.StructParent
+}
+
 func (f *XObjectForm) pdfContent(pdf pdfWriter, _ Reference) (string, []byte) {
 	args := f.ContentStream.PDFCommonFields()
 	b := newBuffer()
@@ -300,6 +305,11 @@ type XObjectImage struct {
 	SMask        *XObjectImage    // optional
 	SMaskInData  uint8            // optional, 0, 1 or 2
 	StructParent MaybeInt         // required if the image is a structural content item
+}
+
+// GetStructParent implements StructParentObject
+func (img *XObjectImage) GetStructParent() MaybeInt {
+	return img.StructParent
 }
 
 func (f *XObjectImage) pdfContent(pdf pdfWriter, _ Reference) (string, []byte) {

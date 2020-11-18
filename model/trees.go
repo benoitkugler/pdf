@@ -339,8 +339,9 @@ type NameToStructureElement struct {
 }
 
 // return two elements, to be included in an array
-func (n NameToStructureElement) pdfString(pdf pdfWriter) string {
-	return fmt.Sprintf("%s %s", n.Name, pdf.structure[n.Structure])
+func (n NameToStructureElement) pdfString(pdf pdfWriter, ref Reference) string {
+	return fmt.Sprintf("%s %s",
+		pdf.EncodeString(n.Name, ByteString, ref), pdf.structure[n.Structure])
 }
 
 func (n NameToStructureElement) clone(cache cloneCache) NameToStructureElement {
@@ -352,6 +353,29 @@ func (n NameToStructureElement) clone(cache cloneCache) NameToStructureElement {
 type IDTree struct {
 	Kids  []IDTree
 	Names []NameToStructureElement
+}
+
+// AddKid add `kid` to the tree, after sorting its names lexically in ascending order,
+// as required by the SPEC. It may be used when building a custom tree.
+func (id *IDTree) AddKid(kid IDTree) {
+	sort.Slice(kid.Names, func(i, j int) bool {
+		return kid.Names[i].Name < kid.Names[j].Name
+	})
+	id.Kids = append(id.Kids, kid)
+}
+
+// Lookup walks the tree and accumulate the names into one map.
+func (id IDTree) Lookup() map[string]*StructureElement {
+	out := make(map[string]*StructureElement, len(id.Names))
+	for _, name := range id.Names {
+		out[name.Name] = name.Structure
+	}
+	for _, kid := range id.Kids {
+		for name, s := range kid.Lookup() { // merge
+			out[name] = s
+		}
+	}
+	return out
 }
 
 func (d IDTree) names() []string {
@@ -396,14 +420,17 @@ func (d IDTree) clone(cache cloneCache) IDTree {
 }
 
 // requires the structure to have been written
-func (d IDTree) pdfString(pdf pdfWriter) string {
+func (d IDTree) pdfString(pdf pdfWriter, ref Reference) string {
 	b := newBuffer()
 	limits := d.Limits()
-	b.line("<</Limits [%s %s]", limits[0], limits[1])
+	b.line("<</Limits [%s %s]",
+		pdf.EncodeString(limits[0], ByteString, ref),
+		pdf.EncodeString(limits[1], ByteString, ref))
 	if len(d.Kids) != 0 {
 		b.fmt("/Kids [")
 		for _, kid := range d.Kids {
-			kidRef := pdf.addObject(kid.pdfString(pdf), nil)
+			kidRef := pdf.createObject()
+			pdf.writeObject(kid.pdfString(pdf, kidRef), nil, kidRef)
 			b.fmt("%s ", kidRef)
 		}
 		b.line("]")
@@ -411,7 +438,7 @@ func (d IDTree) pdfString(pdf pdfWriter) string {
 	if len(d.Names) != 0 {
 		b.fmt("/Names [ ")
 		for _, num := range d.Names {
-			b.fmt("%s ", num.pdfString(pdf))
+			b.fmt("%s ", num.pdfString(pdf, ref))
 		}
 		b.line("]")
 	}
@@ -419,6 +446,12 @@ func (d IDTree) pdfString(pdf pdfWriter) string {
 	return b.String()
 }
 
+// NumToParent store the values of `ParentTree`.
+// For an object that is a content item in its own right, the value shall be
+// a *StructureElement, that contains it as a content item.
+// For a page object or content stream containing marked-content
+// sequences that are content items, the value shall be []*StructureElement,
+// parent elements of those marked-content sequences.
 type NumToParent struct {
 	Num int
 	// either Parent or Parents must be non nil
@@ -452,6 +485,8 @@ func (n NumToParent) clone(cache cloneCache) NumToParent {
 	return out
 }
 
+// ParentTree associate to a StructParent or StructParents entry
+// the corresponding *StructureElement(s)
 type ParentTree struct {
 	Kids []ParentTree
 	Nums []NumToParent

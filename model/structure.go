@@ -48,8 +48,38 @@ func (s StructureTree) ParentTreeNextKey() int {
 // It should be good enough for most use case,
 // but when a custom shape for the tree is needed,
 // the `IDTree` attribut may be set directly.
+// FIXME: the implementation is incorrect: two Names list
+// may overlap
 func (s *StructureTree) BuildIDTree() {
-	// TODO:
+	// the tree is a list of xxx kids, each of them
+	// having a length of namesMaxLength
+	const namesMaxLength = 50
+	var root, currentKid IDTree
+
+	var walk func(se *StructureElement)
+	walk = func(se *StructureElement) {
+		if se.ID != "" {
+			if len(currentKid.Names) == namesMaxLength { // use another kid
+				root.AddKid(currentKid)
+				currentKid = IDTree{}
+			}
+			currentKid.Names = append(currentKid.Names, NameToStructureElement{
+				Name:      se.ID,
+				Structure: se,
+			})
+		}
+		for _, kid := range se.K {
+			if kidS, ok := kid.(*StructureElement); ok {
+				walk(kidS)
+			}
+		}
+	}
+	for _, se := range s.K {
+		walk(se)
+	}
+	// need to add currentKid to the root
+	root.AddKid(currentKid)
+	s.IDTree = root
 }
 
 // BuildParentTree walks through the structure,
@@ -59,8 +89,59 @@ func (s *StructureTree) BuildIDTree() {
 // It should be good enough for most use case,
 // but when a custom shape for the tree is needed,
 // the `ParentTree` attribut may be set directly.
+// FIXME:
 func (s *StructureTree) BuildParentTree() {
-	// TODO:
+	// the tree is a list of xxx kids, each of them
+	// having a length of namesMaxLength
+	const namesMaxLength = 50
+	var root, currentKid ParentTree
+
+	// tmp cache
+	dict := map[int][]*StructureElement{}
+
+	var walk func(se *StructureElement)
+	walk = func(se *StructureElement) {
+		// if se.ID != "" {
+		// 	if len(currentKid.Names) == namesMaxLength { // use another kid
+		// 		root.AddKid(currentKid)
+		// 		currentKid = ParentTree{}
+		// 	}
+		// 	currentKid.Names = append(currentKid.Names, NameToStructureElement{
+		// 		Name:      se.ID,
+		// 		Structure: se,
+		// 	})
+		// }
+		for _, kid := range se.K {
+			switch kid := kid.(type) {
+			case *StructureElement:
+				walk(kid) // recursion
+			case ContentItemMarkedReference:
+				var structParents MaybeInt
+				switch ct := kid.Container.(type) {
+				case *PageObject:
+					structParents = ct.StructParents
+				case *XObjectForm:
+					structParents = ct.StructParents
+				}
+				if sp, ok := structParents.(Int); ok {
+					dict[int(sp)] = append(dict[int(sp)], se)
+				}
+			case ContentItemObjectReference:
+				if kid.Obj != nil {
+					if structParent := kid.Obj.GetStructParent(); structParent != nil {
+						n := NumToParent{Num: int(structParent.(Int)), Parent: se}
+						currentKid.Nums = append(currentKid.Nums, n)
+					}
+				}
+			}
+		}
+	}
+	for _, se := range s.K {
+		walk(se)
+	}
+	// need to add currentKid to the root
+	// root.AddKid(currentKid)
+	s.ParentTree = root
 }
 
 func (s *StructureTree) clone(cache cloneCache) *StructureTree {
@@ -124,9 +205,14 @@ func (s StructureTree) pdfString(pdf pdfWriter, ref Reference) string {
 		classChunks = append(classChunks, fmt.Sprintf("%s [%s]", k, strings.Join(attrChunks, " ")))
 	}
 
-	b.fmt("<</Type/StructTreeRoot/K %s/IDTree %s/ParentTree %s/ParentTreeNextKey %d/RoleMap %s/ClassMap %s>>",
-		writeRefArray(refs), s.IDTree.pdfString(pdf), s.ParentTree.pdfString(pdf),
-		s.ParentTreeNextKey(), strings.Join(roleChunks, ""), classChunks)
+	idTreeRef := pdf.createObject()
+	pdf.writeObject(s.IDTree.pdfString(pdf, idTreeRef), nil, idTreeRef)
+
+	b.line("<</Type/StructTreeRoot/K %s/IDTree %s/ParentTree %s/ParentTreeNextKey %d",
+		writeRefArray(refs), idTreeRef, s.ParentTree.pdfString(pdf), s.ParentTreeNextKey())
+	b.line("/RoleMap <<%s>>", strings.Join(roleChunks, ""))
+	b.line("/ClassMap<<%s>> ", strings.Join(classChunks, ""))
+	b.WriteString(">>")
 	return b.String()
 }
 
@@ -190,7 +276,7 @@ func (s *StructureElement) pdfString(pdf pdfWriter, own, parent Reference) strin
 	for i, c := range s.C {
 		chunks[i] = c.String()
 	}
-	b.line("/C %s", strings.Join(chunks, " "))
+	b.line("/C [%s]", strings.Join(chunks, " "))
 	if s.R != 0 {
 		b.fmt("/R %d", s.R)
 	}
@@ -286,8 +372,8 @@ type ContentItemMarkedReference struct {
 	// TODO: StmOwn
 }
 
-// ContentMarkedContainer is either a page object or
-// a XobjectForm (found for exemple in appearance streams)
+// ContentMarkedContainer is either *PageObject
+// or *XObjectForm (found for exemple in appearance streams)
 type ContentMarkedContainer interface {
 	isContentMarkedContainer()
 }
@@ -320,17 +406,31 @@ func (c ContentItemMarkedReference) clone(cache cloneCache) ContentItem {
 	return out
 }
 
+// StructParentObject identifies the PDF object
+// that may be reference in the Structure Tree,
+// that is, the objects that have a StructParent entry.
+// It may be one of *AnnotationDict, *XObjectForm or *XObjectImage
+type StructParentObject interface {
+	Referenceable
+	// isStructParentObject()
+	GetStructParent() MaybeInt
+}
+
+// func (*AnnotationDict) isStructParentObject() {}
+// func (*XObjectForm) isStructParentObject()    {}
+// func (*XObjectImage) isStructParentObject()   {}
+
 // ContentItemObjectReference identifies an entire PDF object, such as an XObject or an annotation, that is
 // associated with a page but not directly included in the page’s content stream
 type ContentItemObjectReference struct {
-	Pg  *PageObject   // optional
-	Obj Referenceable // required
+	Pg  *PageObject        // optional
+	Obj StructParentObject // required
 }
 
 // requires that pages and all other objects have been written
 func (c ContentItemObjectReference) pdfString(pdf pdfWriter) string {
 	ref := pdf.cache[c.Obj]
-	out := fmt.Sprintf("<</Type/OBJR/Obj%s", ref)
+	out := fmt.Sprintf("<</Type/OBJR/Obj %s", ref)
 	if c.Pg != nil {
 		ref := pdf.pages[c.Pg]
 		out += fmt.Sprintf("/Pg %s", ref)
@@ -344,7 +444,9 @@ func (c ContentItemObjectReference) clone(cache cloneCache) ContentItem {
 		out.Pg = cache.pages[c.Pg].(*PageObject)
 	}
 	if c.Obj != nil {
-		out.Obj = cache.refs[c.Obj]
+		// since refs preserve the concrete types
+		// we can safely cast back to StructParentObject
+		out.Obj = cache.refs[c.Obj].(StructParentObject)
 	}
 	return out
 }
@@ -390,16 +492,7 @@ func (a AttributeObject) Clone() AttributeObject {
 // Attribute is the customable part of an attribute object
 // It should be composed of direct object, so that
 // PDFString and Clone are easily implementable
-type Attribute interface {
-	// PDFString must return a PDF representation of the value
-	// `enc` and `context` must be used to properly encode and encrypt
-	// text strings, if needed
-	PDFString(enc PDFStringEncoder, context Reference) string
-
-	// Clone must return a deep copy of the attribute
-	// (preserving concrete type).
-	Clone() Attribute
-}
+type Attribute = UPValue
 
 // AttributeUserProperties is a predefined kind of Attribute
 // It may be used only if an AttributeObject with O = UserProperties
@@ -408,7 +501,14 @@ type AttributeUserProperties []UserProperty
 
 // Clone implements Attribute
 func (us AttributeUserProperties) Clone() Attribute {
-	return append(AttributeUserProperties(nil), us...)
+	var out AttributeUserProperties
+	if us != nil {
+		out = make(AttributeUserProperties, len(us))
+		for i, a := range out {
+			out[i] = a.Clone()
+		}
+	}
+	return out
 }
 
 // PDFString implements Attribute
@@ -420,30 +520,19 @@ func (us AttributeUserProperties) PDFString(enc PDFStringEncoder, context Refere
 	return "[" + strings.Join(chunks, " ") + "]"
 }
 
-// UPValue should be one of UPString, UPNumber, UPBool.
+// UPValue stores a user defined, direct, PDF object,
+// which knows how to handle strings and to clone itself.
+// See the package values for an implementation.
+// This interface is not needed to use most of the package,
+// but is necessary to handle edge case, where the static type
+// of objects are not defined by the SPEC.
 type UPValue interface {
 	// PDFString must return a PDF representation of the value
 	// `enc` and `context` must be used to properly encode and encrypt
 	// text strings, if needed
 	PDFString(enc PDFStringEncoder, context Reference) string
-}
-
-type UPString string
-
-func (v UPString) PDFString(enc PDFStringEncoder, context Reference) string {
-	return enc.EncodeString(string(v), TextString, context)
-}
-
-type UPNumber float64
-
-func (v UPNumber) PDFString(PDFStringEncoder, Reference) string {
-	return fmt.Sprintf("%.3f", v)
-}
-
-type UPBool bool
-
-func (v UPBool) PDFString(PDFStringEncoder, Reference) string {
-	return fmt.Sprintf("%v", v)
+	// Clone returns a deep copy, preserving the concrete type.
+	Clone() UPValue
 }
 
 type UserProperty struct {
@@ -461,4 +550,13 @@ func (u UserProperty) PDFString(enc PDFStringEncoder, context Reference) string 
 	return fmt.Sprintf("<</N %s%s/F %s/H %v>>",
 		enc.EncodeString(u.N, TextString, context), v,
 		enc.EncodeString(u.F, TextString, context), u.H)
+}
+
+// Clone returns a deep copy
+func (u UserProperty) Clone() UserProperty {
+	out := u
+	if u.V != nil {
+		out.V = u.V.Clone()
+	}
+	return out
 }

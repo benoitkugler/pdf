@@ -7,6 +7,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -68,8 +69,57 @@ func TestOpen(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	fmt.Println(doc.Catalog.MarkInfo)
 
+	nbStruct := 0
+	nbIds := 0
+	var walkStruct func(*model.StructureElement)
+	walkStruct = func(m *model.StructureElement) {
+		nbStruct++
+		for _, k := range m.K {
+			if s, ok := k.(*model.StructureElement); ok {
+				walkStruct(s)
+			}
+		}
+		for _, att := range m.A {
+			for name := range att.Attributes {
+				if name == "ID" {
+					nbIds++
+				}
+			}
+		}
+	}
+	for _, s := range doc.Catalog.StructTreeRoot.K {
+		walkStruct(s)
+	}
+	fmt.Println("structures elements", nbStruct)
+	fmt.Println("ID fields in custom attributes", nbIds)
+	d1 := doc.Catalog.StructTreeRoot.IDTree.Lookup()
+	fmt.Println("original id tree kids",
+		len(doc.Catalog.StructTreeRoot.IDTree.Kids),
+		"total size", len(d1))
+	fmt.Println("total size")
+	doc.Catalog.StructTreeRoot.BuildIDTree()
+	d2 := doc.Catalog.StructTreeRoot.IDTree.Lookup()
+	fmt.Println("automatic id tree kids",
+		len(doc.Catalog.StructTreeRoot.IDTree.Kids),
+		"total size", len(d2))
+	if !reflect.DeepEqual(d1, d2) {
+		t.Errorf("expected %v, got %v", d1, d2)
+	}
+}
+
+func BenchmarkProcess(b *testing.B) {
+	ctx, err := pdfcpu.ReadFile("datatest/PDF_SPEC.pdf", nil)
+	if err != nil {
+		b.Fatal(err)
+	}
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, err := ProcessContext(ctx)
+		if err != nil {
+			b.Fatal(err)
+		}
+	}
 }
 
 func TestDataset(t *testing.T) {
@@ -198,11 +248,8 @@ func TestAlterFields(t *testing.T) {
 }
 
 func TestBytes(t *testing.T) {
-	bs := []byte{82, 201, 80, 85, 66, 76, 73, 81, 85, 69, 32, 70, 82, 65, 78, 199, 65, 73, 83, 69}
-	for _, b := range bs {
-		fmt.Println(string(rune(b)))
-	}
-	fmt.Println(string(bs))
+	var b byte = 0x20
+	fmt.Println(string(b))
 }
 
 func TestUnicode(t *testing.T) {
@@ -262,8 +309,8 @@ func TestWrite(t *testing.T) {
 }
 
 func TestReWrite(t *testing.T) {
-	// name := "datatest/PDF_SPEC"
-	name := "datatest/type3"
+	name := "datatest/PDF_SPEC"
+	// name := "datatest/type3"
 	f, err := os.Open(name + ".pdf")
 	if err != nil {
 		t.Fatal(err)

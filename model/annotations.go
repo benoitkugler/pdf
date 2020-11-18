@@ -140,6 +140,11 @@ type AnnotationDict struct {
 	Subtype Annotation
 }
 
+// GetStructParent implements StructParentObject
+func (a *AnnotationDict) GetStructParent() MaybeInt {
+	return a.StructParent
+}
+
 // pdfContent impements is cachable
 func (a *AnnotationDict) pdfContent(pdf pdfWriter, ref Reference) (string, []byte) {
 	base := a.BaseAnnotation.fields(pdf, ref)

@@ -90,28 +90,54 @@ func (d embFileNameTree) resolveLeafValueAppend(r *resolver, name string, value 
 	return err
 }
 
-// number tree
+type idTree struct {
+	out *model.IDTree // target which will be filled
+}
 
-func (r *resolver) resolvePageLabelsTree(entry pdfcpu.Object, output *model.PageLabelsTree) error {
+func (d idTree) createKid() nameTree {
+	return idTree{out: new(model.IDTree)}
+}
+func (d idTree) appendKid(kid nameTree) {
+	d.out.Kids = append(d.out.Kids, *kid.(idTree).out)
+}
+func (d idTree) resolveLeafValueAppend(r *resolver, name string, value pdfcpu.Object) error {
+	ref, isRef := value.(pdfcpu.IndirectRef)
+	if !isRef {
+		return errType("IDTree value", value)
+	}
+	st := r.structure[ref]
+	d.out.Names = append(d.out.Names, model.NameToStructureElement{Name: name, Structure: st})
+	return nil
+}
+
+// number-tree like items
+type numberTree interface {
+	createKid() numberTree
+	appendKid(kid numberTree) // kid will be the value returned by createKid
+	// must handle the case where `value` is indirect
+	resolveLeafValueAppend(r *resolver, number int, value pdfcpu.Object) error
+}
+
+// resolveNumberTree is a "generic function" which walk a number tree
+// and fill the given output
+func (r *resolver) resolveNumberTree(entry pdfcpu.Object, output numberTree) error {
 	entry = r.resolve(entry)
 	dict, isDict := entry.(pdfcpu.Dict)
 	if !isDict {
-		return errType("Name Tree value", entry)
+		return errType("Number Tree value", entry)
 	}
-
-	// limits is inferred from the content
 
 	if kids, _ := r.resolveArray(dict["Kids"]); kids != nil {
 		// intermediate node
 		// one node shouldn't be refered twice,
-		// dont bother tracking ref
+		// so dont bother tracking ref
 		for _, kid := range kids {
-			kidModel := new(model.PageLabelsTree)
-			err := r.resolvePageLabelsTree(kid, kidModel)
+			kidModel := output.createKid()
+			err := r.resolveNumberTree(kid, kidModel)
 			if err != nil {
 				return err
 			}
-			output.Kids = append(output.Kids, *kidModel)
+			output.appendKid(kidModel)
 		}
 		return nil
 	}
@@ -123,15 +149,30 @@ func (r *resolver) resolvePageLabelsTree(entry pdfcpu.Object, output *model.Page
 		return fmt.Errorf("expected even length array in number tree, got %s", nums)
 	}
 	for l := 0; l < L/2; l++ {
-		num, _ := r.resolveInt(nums[2*l])
+		number, _ := r.resolveInt(nums[2*l])
 		value := nums[2*l+1]
-		pageLabel, err := r.processPageLabel(value)
+		err := output.resolveLeafValueAppend(r, number, value)
 		if err != nil {
 			return err
 		}
-		output.Nums = append(output.Nums, model.NumToPageLabel{Num: num, PageLabel: pageLabel})
 	}
 	return nil
+}
+
+type pageLabelTree struct {
+	out *model.PageLabelsTree // will be filled
+}
+
+func (d pageLabelTree) createKid() numberTree {
+	return pageLabelTree{out: new(model.PageLabelsTree)}
+}
+func (d pageLabelTree) appendKid(kid numberTree) {
+	d.out.Kids = append(d.out.Kids, *kid.(pageLabelTree).out)
+}
+func (d pageLabelTree) resolveLeafValueAppend(r *resolver, number int, value pdfcpu.Object) error {
+	label, err := r.processPageLabel(value)
+	d.out.Nums = append(d.out.Nums, model.NumToPageLabel{Num: number, PageLabel: label})
+	return err
 }
 
 func (r resolver) processPageLabel(entry pdfcpu.Object) (model.PageLabel, error) {
@@ -150,4 +191,36 @@ func (r resolver) processPageLabel(entry pdfcpu.Object) (model.PageLabel, error)
 		out.St = *st
 	}
 	return out, nil
+}
+
+type parentTree struct {
+	out *model.ParentTree // will be filled
+}
+
+func (d parentTree) createKid() numberTree {
+	return parentTree{out: new(model.ParentTree)}
+}
+func (d parentTree) appendKid(kid numberTree) {
+	d.out.Kids = append(d.out.Kids, *kid.(parentTree).out)
+}
+func (d parentTree) resolveLeafValueAppend(r *resolver, number int, value pdfcpu.Object) error {
+	var parent model.NumToParent
+	parent.Num = number
+	// value must be either an indirect ref, or a direct array of indirect ref
+	if ref, isRef := value.(pdfcpu.IndirectRef); isRef {
+		parent.Parent = r.structure[ref]
+	} else if array, ok := value.(pdfcpu.Array); ok {
+		parent.Parents = make([]*model.StructureElement, 0, len(array))
+		for _, p := range array {
+			ref, ok := p.(pdfcpu.IndirectRef)
+			if !ok { // invalid: ignore
+				continue
+			}
+			parent.Parents = append(parent.Parents, r.structure[ref])
+		}
+	} else {
+		return errType("value in ParentTree", value)
+	}
+	d.out.Nums = append(d.out.Nums, parent)
+	return nil
 }
