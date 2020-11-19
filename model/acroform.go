@@ -5,28 +5,32 @@ import (
 	"time"
 )
 
+// See Table 221 – Field flags common to all field types
+// Table 226 – Field flags specific to button fields
+// Table 228 – Field flags specific to text fields
+// Table 230 – Field flags specific to choice fields
 type FormFlag uint32
 
 const (
-	ReadOnly          FormFlag = 1
-	Required          FormFlag = 1 << 1
-	NoExport          FormFlag = 1 << 2
-	Multiline         FormFlag = 1 << 12
-	Password          FormFlag = 1 << 13
-	NoToggleToOff     FormFlag = 1 << 14
-	Radio             FormFlag = 1 << 15
-	Pushbutton        FormFlag = 1 << 16
-	FileSelect        FormFlag = 1 << 20
-	DoNotSpellCheck   FormFlag = 1 << 22
-	DoNotScroll       FormFlag = 1 << 23
-	Comb              FormFlag = 1 << 24
-	RadiosInUnison    FormFlag = 1 << 25
-	RichText          FormFlag = 1 << 25
-	Combo             FormFlag = 1 << 17
-	Edit              FormFlag = 1 << 18
-	Sort              FormFlag = 1 << 19
-	MultiSelect       FormFlag = 1 << 21
-	CommitOnSelChange FormFlag = 1 << 26
+	ReadOnly          FormFlag = 1 << (1 - 1)
+	Required          FormFlag = 1 << (2 - 1)
+	NoExport          FormFlag = 1 << (3 - 1)
+	Multiline         FormFlag = 1 << (13 - 1)
+	Password          FormFlag = 1 << (14 - 1)
+	NoToggleToOff     FormFlag = 1 << (15 - 1)
+	Radio             FormFlag = 1 << (16 - 1)
+	Pushbutton        FormFlag = 1 << (17 - 1)
+	FileSelect        FormFlag = 1 << (21 - 1)
+	DoNotSpellCheck   FormFlag = 1 << (23 - 1)
+	DoNotScroll       FormFlag = 1 << (24 - 1)
+	Comb              FormFlag = 1 << (25 - 1)
+	RadiosInUnison    FormFlag = 1 << (26 - 1)
+	RichText          FormFlag = 1 << (26 - 1)
+	Combo             FormFlag = 1 << (18 - 1)
+	Edit              FormFlag = 1 << (19 - 1)
+	Sort              FormFlag = 1 << (20 - 1)
+	MultiSelect       FormFlag = 1 << (22 - 1)
+	CommitOnSelChange FormFlag = 1 << (27 - 1)
 )
 
 // FormFields are organized hierarchically into one or more tree structures.

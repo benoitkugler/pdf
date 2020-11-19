@@ -177,18 +177,19 @@ func (t FontType3) clone(cache cloneCache) Font {
 }
 
 // FontFlag specify various characteristics of a font.
+// See Table 123 – Font flags of the PDF SPEC.
 type FontFlag uint32
 
 const (
-	FixedPitch  FontFlag = 1
-	Serif       FontFlag = 1 << 1
-	Symbolic    FontFlag = 1 << 2
-	Script      FontFlag = 1 << 3
-	Nonsymbolic FontFlag = 1 << 5
-	Italic      FontFlag = 1 << 6
-	AllCap      FontFlag = 1 << 16
-	SmallCap    FontFlag = 1 << 17
-	ForceBold   FontFlag = 1 << 18
+	FixedPitch  FontFlag = 1 << (1 - 1)
+	Serif       FontFlag = 1 << (2 - 1)
+	Symbolic    FontFlag = 1 << (3 - 1)
+	Script      FontFlag = 1 << (4 - 1)
+	Nonsymbolic FontFlag = 1 << (6 - 1)
+	Italic      FontFlag = 1 << (7 - 1)
+	AllCap      FontFlag = 1 << (17 - 1)
+	SmallCap    FontFlag = 1 << (18 - 1)
+	ForceBold   FontFlag = 1 << (19 - 1)
 )
 
 type FontDescriptor struct {

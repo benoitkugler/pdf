@@ -62,7 +62,7 @@ func (w *output) writeHeader() {
 	w.bytes([]byte("\n"))
 }
 
-func (w *output) writeFooter(encrypt Encrypt, root, info Reference) {
+func (w *output) writeFooter(trailer Trailer, root, info Reference) {
 	var b bytes.Buffer
 	// Cross-ref
 	o, n := w.written, len(w.objOffsets)-1
@@ -78,10 +78,10 @@ func (w *output) writeFooter(encrypt Encrypt, root, info Reference) {
 	b.WriteString(fmt.Sprintf("/Size %d\n", n+1))
 	b.WriteString(fmt.Sprintf("/Root %d 0 R\n", root))
 	b.WriteString(fmt.Sprintf("/Info %d 0 R\n", info))
-	if encrypt.V != 0 {
-		// TODO:
-		// b.WriteString("/Encrypt %d 0 R", f.protect.objNum)
-		// f.out("/ID [()()]")
+	if trailer.Encrypt.V != 0 {
+		b.WriteString(fmt.Sprintf("/Encrypt %s", trailer.Encrypt.pdfString()))
+		b.WriteString(fmt.Sprintf("/ID [%s %s]",
+			escapeFormatByteString(trailer.ID[0]), escapeFormatByteString(trailer.ID[1])))
 	}
 	b.WriteString(">>\n")
 	b.WriteString("startxref\n")
@@ -139,6 +139,14 @@ type PDFStringEncoder interface {
 	EncodeString(s string, mode PDFStringEncoding, context Reference) string
 }
 
+// return a pdf compatible string
+// this function should't generaly be used (see EncodeString)
+// but is useful when strings must not be encrypted
+func escapeFormatByteString(s string) string {
+	s = replacer.Replace(s)
+	return "(" + s + ")"
+}
+
 func (p pdfWriter) EncodeString(s string, mode PDFStringEncoding, context Reference) string {
 	if p.err != nil {
 		return ""
@@ -153,8 +161,7 @@ func (p pdfWriter) EncodeString(s string, mode PDFStringEncoding, context Refere
 
 	switch mode {
 	case ByteString:
-		s = replacer.Replace(s)
-		return "(" + s + ")"
+		return escapeFormatByteString(s)
 	case HexString:
 		return "<" + hex.EncodeToString([]byte(s)) + ">"
 	case TextString:

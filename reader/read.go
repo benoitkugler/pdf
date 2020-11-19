@@ -119,27 +119,80 @@ func (r resolver) info() model.Info {
 	return out
 }
 
-func (r resolver) encrypt() model.Encrypt {
+func (r resolver) encrypt() (model.Encrypt, error) {
 	var out model.Encrypt
-	if enc := r.xref.Encrypt; enc != nil {
-		d, _ := r.resolve(*enc).(pdfcpu.Dict)
+	enc := r.xref.Encrypt
+	if enc == nil {
+		return model.Encrypt{}, nil
+	}
 
-		out.Filter, _ = r.resolveName(d["Filter"])
-		out.SubFilter, _ = r.resolveName(d["SubFilter"])
+	d, _ := r.resolve(*enc).(pdfcpu.Dict)
 
-		v, _ := r.resolveInt(d["V"])
-		out.V = model.EncryptionAlgorithm(v)
+	out.Filter, _ = r.resolveName(d["Filter"])
+	out.SubFilter, _ = r.resolveName(d["SubFilter"])
 
-		out.Length, _ = r.resolveInt(d["Length"])
+	v, _ := r.resolveInt(d["V"])
+	out.V = model.EncryptionAlgorithm(v)
 
-		cf, _ := r.resolve(d["CF"]).(pdfcpu.Dict)
-		out.CF = make(map[model.Name]model.CrypFilter, len(cf))
-		for name, c := range cf {
-			out.CF[model.Name(name)] = r.processCryptFilter(c)
+	out.Length, _ = r.resolveInt(d["Length"])
+
+	cf, _ := r.resolve(d["CF"]).(pdfcpu.Dict)
+	out.CF = make(map[model.Name]model.CrypFilter, len(cf))
+	for name, c := range cf {
+		out.CF[model.Name(name)] = r.processCryptFilter(c)
+	}
+	out.StmF, _ = r.resolveName(d["StmF"])
+	out.StrF, _ = r.resolveName(d["StrF"])
+	out.EFF, _ = r.resolveName(d["EFF"])
+
+	p, _ := r.resolveInt(d["P"])
+	out.P = model.UserPermissions(p)
+
+	// subtypes
+	var err error
+	if out.Filter == "Standard" {
+		out.EncryptionHandler, err = r.processStandardSecurityHandler(d)
+		if err != nil {
+			return out, err
 		}
-		out.StmF, _ = r.resolveName(d["StmF"])
-		out.StrF, _ = r.resolveName(d["StrF"])
-		out.EFF, _ = r.resolveName(d["EFF"])
+	} else {
+		out.EncryptionHandler = r.processPublicKeySecurityHandler(d)
+	}
+
+	return out, nil
+}
+
+func (r resolver) processStandardSecurityHandler(dict pdfcpu.Dict) (model.EncryptionStandard, error) {
+	var out model.EncryptionStandard
+	r_, _ := r.resolveInt(dict["R"])
+	out.R = uint8(r_)
+
+	o, _ := isString(r.resolve(dict["O"]))
+	if len(o) != 32 {
+		return out, fmt.Errorf("expected 32-length byte string for entry O, got %v", o)
+	}
+	for i := 0; i < len(o); i++ {
+		out.O[i] = o[i]
+	}
+
+	u, _ := isString(r.resolve(dict["U"]))
+	if len(u) != 32 {
+		return out, fmt.Errorf("expected 32-length byte string for entry U, got %v", u)
+	}
+	for i := 0; i < len(u); i++ {
+		out.U[i] = u[i]
+	}
+	if meta, ok := r.resolveBool(dict["EncryptMetadata"]); ok {
+		out.DontEncryptMetadata = !meta
+	}
+	return out, nil
+}
+
+func (r resolver) processPublicKeySecurityHandler(dict pdfcpu.Dict) model.EncryptionPublicKey {
+	rec, _ := r.resolveArray(dict["Recipients"])
+	out := make(model.EncryptionPublicKey, len(rec))
+	for i, re := range rec {
+		out[i], _ = isString(r.resolve(re))
 	}
 	return out
 }
@@ -159,9 +212,8 @@ func (r resolver) processCryptFilter(crypt pdfcpu.Object) model.CrypFilter {
 			out.Recipients[i], _ = isString(r.resolve(re))
 		}
 	}
-	out.EncryptMetadata = true
 	if enc, ok := r.resolveBool(cryptDict["EncryptMetadata"]); ok {
-		out.EncryptMetadata = enc
+		out.DontEncryptMetadata = !enc
 	}
 	return out
 }
@@ -218,7 +270,10 @@ func ProcessContext(ctx *pdfcpu.Context) (model.Document, error) {
 
 	out.Trailer.Info = r.info()
 
-	out.Trailer.Encrypt = r.encrypt()
+	out.Trailer.Encrypt, err = r.encrypt()
+	if err != nil {
+		return out, err
+	}
 
 	out.Catalog, err = r.catalog()
 
