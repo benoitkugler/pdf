@@ -326,25 +326,31 @@ func (info Info) pdfString(pdf pdfWriter, ref Reference) string {
 type EncryptionAlgorithm uint8
 
 const (
-	Undocumented EncryptionAlgorithm = iota
-	AES
-	AESExt // encryption key with length greater than 40
-	Unpublished
-	InDocument
+	_ EncryptionAlgorithm = iota
+	Key40
+	KeyExt // encryption key with length greater than 40
+	_
+	KeySecurityHandler
 )
 
 // Encrypt stores the encryption-related information
+// It will be filled when reading an existing PDF document.
+// Note that to encrypt a document when writting it,
+// a call to Trailer.SetStandardEncryptionHandler is needed
+// (partly because password are needed, which are not contained in the PDF).
 type Encrypt struct {
 	EncryptionHandler EncryptionHandler
 	Filter            Name
 	SubFilter         Name
 	V                 EncryptionAlgorithm
-	Length            int
-	CF                map[Name]CrypFilter // optional
-	StmF              Name                // optional
-	StrF              Name                // optional
-	EFF               Name                // optional
-	P                 UserPermissions
+	// in bytes, from 5 to 16, optional, default to 5
+	// written in pdf as bit length
+	Length uint8
+	CF     map[Name]CrypFilter // optional
+	StmF   Name                // optional
+	StrF   Name                // optional
+	EFF    Name                // optional
+	P      UserPermissions
 }
 
 func (e Encrypt) Clone() Encrypt {
@@ -431,24 +437,10 @@ type EncryptionHandler interface {
 	encryptionAddFields() string
 	// Clone returns a deep copy, preserving the concrete type.
 	Clone() EncryptionHandler
+	// Crypt transform the incoming `data` in place, using `n`
+	// as the object number of its context.
+	Crypt(n Reference, data []byte)
 }
-
-type EncryptionStandard struct {
-	R uint8 // 2 ,3 or 4
-	O [32]byte
-	U [32]byte
-	// optional, default value is false
-	// written in PDF under the key /EncryptMetadata
-	DontEncryptMetadata bool
-}
-
-func (e EncryptionStandard) encryptionAddFields() string {
-	return fmt.Sprintf("/R %d /O %s /U %s /EncryptMetadata %v",
-		e.R, escapeFormatByteString(string(e.O[:])),
-		escapeFormatByteString(string(e.U[:])), !e.DontEncryptMetadata)
-}
-
-func (e EncryptionStandard) Clone() EncryptionHandler { return e }
 
 // EncryptionPublicKey is written in PDF under the /Recipients key.
 type EncryptionPublicKey []string
@@ -464,20 +456,3 @@ func (e EncryptionPublicKey) encryptionAddFields() string {
 func (e EncryptionPublicKey) Clone() EncryptionHandler {
 	return append(EncryptionPublicKey(nil), e...)
 }
-
-// UserPermissions is a flag.
-// See Table 22 – User access permissions and Table 24 – Public-Key security handler user access permissions
-// in the PDF SPEC.
-type UserPermissions uint32
-
-const (
-	PermissionChangeEncryption UserPermissions = 1 << (2 - 1)  // Permits change of encryption and enables all other permissions.
-	PermissionPrint            UserPermissions = 1 << (3 - 1)  // Print the document.
-	PermissionModify           UserPermissions = 1 << (4 - 1)  // Modify the contents of the document by operations other than those controlled by bits 6, 9, and 11.
-	PermissionCopy             UserPermissions = 1 << (5 - 1)  // Copy or otherwise extract text and graphics from the document
-	PermissionAdd              UserPermissions = 1 << (6 - 1)  // Add or modify text annotations, fill in interactive form fields
-	PermissionFill             UserPermissions = 1 << (9 - 1)  // Fill in existing interactive form fields
-	PermissionExtract          UserPermissions = 1 << (10 - 1) // Extract text and graphics
-	PermissionAssemble         UserPermissions = 1 << (11 - 1) // Assemble the document (insert, rotate, or delete pages and create bookmarks or thumbnail images)
-	PermissionPrintDigital     UserPermissions = 1 << (12 - 1) // Print the document to a representation from which a faithful digital copy of the PDF content could be generated.
-)

@@ -167,7 +167,7 @@ func (s StructureTree) pdfString(pdf pdfWriter, ref Reference) string {
 	refs := make([]Reference, len(s.K))
 	for i, k := range s.K {
 		kidRef := pdf.createObject()
-		pdf.writeObject(k.pdfString(pdf, kidRef, -1), nil, kidRef)
+		pdf.writeObject(k.pdfString(pdf, kidRef, 0), nil, kidRef)
 		refs[i] = kidRef
 	}
 

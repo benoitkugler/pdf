@@ -134,7 +134,11 @@ func (r resolver) encrypt() (model.Encrypt, error) {
 	v, _ := r.resolveInt(d["V"])
 	out.V = model.EncryptionAlgorithm(v)
 
-	out.Length, _ = r.resolveInt(d["Length"])
+	length, _ := r.resolveInt(d["Length"])
+	if length%8 != 0 {
+		return out, fmt.Errorf("field Length must be a multiple of 8")
+	}
+	out.Length = uint8(length / 8)
 
 	cf, _ := r.resolve(d["CF"]).(pdfcpu.Dict)
 	out.CF = make(map[model.Name]model.CrypFilter, len(cf))

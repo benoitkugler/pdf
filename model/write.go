@@ -12,7 +12,7 @@ import (
 
 // Reference is the object number of a PDF object.
 // It is only needed to write a document.
-type Reference int
+type Reference uint32
 
 // String return a string to be used when writing a PDF
 func (r Reference) String() string {
