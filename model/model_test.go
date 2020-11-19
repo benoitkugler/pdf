@@ -62,3 +62,11 @@ func TestCloneNames(t *testing.T) {
 		t.Errorf("expected %v, got %v", e, e2)
 	}
 }
+
+func TestCloneDocument(t *testing.T) {
+	var doc Document
+
+	if clone := doc.Clone(); !reflect.DeepEqual(doc, clone) {
+		t.Errorf("expected %v, got %v", doc, clone)
+	}
+}

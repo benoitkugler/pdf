@@ -355,13 +355,67 @@ type IDTree struct {
 	Names []NameToStructureElement
 }
 
-// AddKid add `kid` to the tree, after sorting its names lexically in ascending order,
-// as required by the SPEC. It may be used when building a custom tree.
-func (id *IDTree) AddKid(kid IDTree) {
-	sort.Slice(kid.Names, func(i, j int) bool {
-		return kid.Names[i].Name < kid.Names[j].Name
-	})
-	id.Kids = append(id.Kids, kid)
+// NewIDTree builds a valid IDTree from the given maping.
+// The tree should be good enough for most use cases,
+// but you may also build you own.
+func NewIDTree(ids map[string]*StructureElement) IDTree {
+	// keys must be sorted
+	allKeys := make([]string, 0, len(ids))
+	for k := range ids {
+		allKeys = append(allKeys, k)
+	}
+	sort.Strings(allKeys)
+
+	const maxKidLength, maxKeysLength = 20, 50
+
+	// walk takes a sorted list of keys
+	// and build an IDTree, by splitting if if necessary
+	var walk func(keys []string) IDTree
+	walk = func(keys []string) IDTree {
+		var node IDTree
+
+		if len(keys) <= maxKeysLength {
+			// all names fit into one leaf object
+			node.Names = make([]NameToStructureElement, len(keys))
+			for i, n := range keys {
+				node.Names[i] = NameToStructureElement{Name: n, Structure: ids[n]}
+			}
+			return node
+		}
+
+		// too many names: we split the list into subtrees
+		sizeChunk := len(keys) / (maxKidLength - 1) // so that we have at most maxKidLength
+		for _, chunk := range splitStrings(keys, sizeChunk) {
+			node.Kids = append(node.Kids, walk(chunk))
+		}
+		return node
+	}
+
+	return walk(allKeys)
+}
+
+func splitStrings(names []string, sizeChunk int) [][]string {
+	out := make([][]string, 0, 1+len(names)/sizeChunk)
+	for i := 0; i < len(names); i += sizeChunk {
+		sliceEnd := i + sizeChunk
+		if i+sizeChunk > len(names) {
+			sliceEnd = len(names)
+		}
+		out = append(out, names[i:sliceEnd])
+	}
+	return out
+}
+
+func splitInts(nums []int, sizeChunk int) [][]int {
+	out := make([][]int, 0, 1+len(nums)/sizeChunk)
+	for i := 0; i < len(nums); i += sizeChunk {
+		sliceEnd := i + sizeChunk
+		if i+sizeChunk > len(nums) {
+			sliceEnd = len(nums)
+		}
+		out = append(out, nums[i:sliceEnd])
+	}
+	return out
 }
 
 // Lookup walks the tree and accumulate the names into one map.
@@ -490,6 +544,63 @@ func (n NumToParent) clone(cache cloneCache) NumToParent {
 type ParentTree struct {
 	Kids []ParentTree
 	Nums []NumToParent
+}
+
+// NewParentTree builds a valid ParentTree from the given maping.
+// The tree should be good enough for most use cases,
+// but you may also build you own.
+// Note that the field `Num` in the `parents` values are ignored:
+// the key in the map is used instead.
+func NewParentTree(parents map[int]NumToParent) ParentTree {
+	// keys must be sorted
+	allKeys := make([]int, 0, len(parents))
+	for k := range parents {
+		allKeys = append(allKeys, k)
+	}
+	sort.Ints(allKeys)
+
+	const maxKidLength, maxKeysLength = 20, 50
+
+	// walk takes a sorted list of keys
+	// and build an ParentTree, by splitting if if necessary
+	var walk func(keys []int) ParentTree
+	walk = func(keys []int) ParentTree {
+		var node ParentTree
+
+		if len(keys) <= maxKeysLength {
+			// all keys fit into one leaf object
+			node.Nums = make([]NumToParent, len(keys))
+			for i, n := range keys {
+				out := parents[n]
+				out.Num = n
+				node.Nums[i] = out
+			}
+			return node
+		}
+
+		// too many keys: we split the list into subtrees
+		sizeChunk := len(keys) / (maxKidLength - 1) // so that we have at most maxKidLength
+		for _, chunk := range splitInts(keys, sizeChunk) {
+			node.Kids = append(node.Kids, walk(chunk))
+		}
+		return node
+	}
+
+	return walk(allKeys)
+}
+
+// Lookup walks the tree and accumulate the parents into one map.
+func (id ParentTree) Lookup() map[int]NumToParent {
+	out := make(map[int]NumToParent, len(id.Nums))
+	for _, num := range id.Nums {
+		out[num.Num] = num
+	}
+	for _, kid := range id.Kids {
+		for num, s := range kid.Lookup() { // merge
+			out[num] = s
+		}
+	}
+	return out
 }
 
 func (d ParentTree) nums() []int {

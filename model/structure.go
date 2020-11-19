@@ -24,7 +24,8 @@ func (m MarkDict) String() string {
 // StructureTree is the root of the structure tree.
 //
 // When read from an existing file, `IDTree` and `ParentTree`
-// will be filled. However, when creating a new structure tree,
+// will be filled.
+// However, when creating a new structure tree,
 // since the information is mostly redundant (only the shape of the trees are to choose),
 // `BuildIDTree` and `BuildParentTree` may be used as a convenience.
 type StructureTree struct {
@@ -48,25 +49,16 @@ func (s StructureTree) ParentTreeNextKey() int {
 // It should be good enough for most use case,
 // but when a custom shape for the tree is needed,
 // the `IDTree` attribut may be set directly.
-// FIXME: the implementation is incorrect: two Names list
-// may overlap
 func (s *StructureTree) BuildIDTree() {
-	// the tree is a list of xxx kids, each of them
-	// having a length of namesMaxLength
-	const namesMaxLength = 50
-	var root, currentKid IDTree
+	// we use a simple approach, with two passes:
+	// 	- a map is used to accumulate the mappings
+	//	- the map is then transformed into a tree
+	tmp := make(map[string]*StructureElement)
 
 	var walk func(se *StructureElement)
 	walk = func(se *StructureElement) {
 		if se.ID != "" {
-			if len(currentKid.Names) == namesMaxLength { // use another kid
-				root.AddKid(currentKid)
-				currentKid = IDTree{}
-			}
-			currentKid.Names = append(currentKid.Names, NameToStructureElement{
-				Name:      se.ID,
-				Structure: se,
-			})
+			tmp[se.ID] = se
 		}
 		for _, kid := range se.K {
 			if kidS, ok := kid.(*StructureElement); ok {
@@ -77,9 +69,7 @@ func (s *StructureTree) BuildIDTree() {
 	for _, se := range s.K {
 		walk(se)
 	}
-	// need to add currentKid to the root
-	root.AddKid(currentKid)
-	s.IDTree = root
+	s.IDTree = NewIDTree(tmp)
 }
 
 // BuildParentTree walks through the structure,
@@ -89,28 +79,14 @@ func (s *StructureTree) BuildIDTree() {
 // It should be good enough for most use case,
 // but when a custom shape for the tree is needed,
 // the `ParentTree` attribut may be set directly.
-// FIXME:
 func (s *StructureTree) BuildParentTree() {
-	// the tree is a list of xxx kids, each of them
-	// having a length of namesMaxLength
-	const namesMaxLength = 50
-	var root, currentKid ParentTree
-
-	// tmp cache
-	dict := map[int][]*StructureElement{}
+	// we use a simple approach, with two passes:
+	// 	- a map is used to accumulate the mappings
+	//	- the map is then transformed into a tree
+	tmp := make(map[int]NumToParent)
 
 	var walk func(se *StructureElement)
 	walk = func(se *StructureElement) {
-		// if se.ID != "" {
-		// 	if len(currentKid.Names) == namesMaxLength { // use another kid
-		// 		root.AddKid(currentKid)
-		// 		currentKid = ParentTree{}
-		// 	}
-		// 	currentKid.Names = append(currentKid.Names, NameToStructureElement{
-		// 		Name:      se.ID,
-		// 		Structure: se,
-		// 	})
-		// }
 		for _, kid := range se.K {
 			switch kid := kid.(type) {
 			case *StructureElement:
@@ -122,15 +98,19 @@ func (s *StructureTree) BuildParentTree() {
 					structParents = ct.StructParents
 				case *XObjectForm:
 					structParents = ct.StructParents
+				case nil: // default to the structure element
+					structParents = se.Pg.StructParents
 				}
 				if sp, ok := structParents.(Int); ok {
-					dict[int(sp)] = append(dict[int(sp)], se)
+					a := tmp[int(sp)]
+					a.Parents = append(a.Parents, se)
+					tmp[int(sp)] = a
 				}
 			case ContentItemObjectReference:
 				if kid.Obj != nil {
 					if structParent := kid.Obj.GetStructParent(); structParent != nil {
-						n := NumToParent{Num: int(structParent.(Int)), Parent: se}
-						currentKid.Nums = append(currentKid.Nums, n)
+						num := int(structParent.(Int))
+						tmp[num] = NumToParent{Parent: se}
 					}
 				}
 			}
@@ -139,9 +119,8 @@ func (s *StructureTree) BuildParentTree() {
 	for _, se := range s.K {
 		walk(se)
 	}
-	// need to add currentKid to the root
-	// root.AddKid(currentKid)
-	s.ParentTree = root
+
+	s.ParentTree = NewParentTree(tmp)
 }
 
 func (s *StructureTree) clone(cache cloneCache) *StructureTree {
