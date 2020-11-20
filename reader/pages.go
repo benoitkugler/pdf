@@ -14,11 +14,34 @@ func (r resolver) processPages(entry pdfcpu.Object) (model.PageTree, error) {
 	if !isDict {
 		return model.PageTree{}, errType("Pages", pages)
 	}
+	// actions may require page object that are not yet processed
+	// so, we make two passes: a first pass to fill the map indirect ref -> page object
+	// and a second pass to do the real processing
+	r.allocatesPages(pagesDict)
+
 	root, err := r.resolvePageTree(pagesDict, nil)
 	if err != nil {
 		return model.PageTree{}, err
 	}
 	return *root, err
+}
+
+// delay error handling to the second pass
+func (r resolver) allocatesPages(pages pdfcpu.Object) {
+	ref, isRef := pages.(pdfcpu.IndirectRef)
+	pagesDict, _ := r.resolve(pages).(pdfcpu.Dict)
+	name, _ := r.resolveName(pagesDict["Type"])
+	switch name {
+	case "Pages": // recursion
+		kids, _ := r.resolveArray(pagesDict["Kids"])
+		for _, kid := range kids {
+			r.allocatesPages(kid)
+		}
+	case "Page": // allocate a page object and store it
+		if isRef {
+			r.pages[ref] = new(model.PageObject)
+		}
+	}
 }
 
 func (r resolver) resolveStream(content pdfcpu.Object) (*model.Stream, error) {
@@ -62,12 +85,12 @@ func (r resolver) resolveStream(content pdfcpu.Object) (*model.Stream, error) {
 	return &out, nil
 }
 
-func (r *resolver) resolvePageObject(node pdfcpu.Dict, parent *model.PageTree) (*model.PageObject, error) {
+// `page` has been previously allocated and must be filled
+func (r resolver) resolvePageObject(node pdfcpu.Dict, parent *model.PageTree, page *model.PageObject) error {
 	resources, err := r.resolveOneResourceDict(node["Resources"])
 	if err != nil {
-		return nil, err
+		return err
 	}
-	var page model.PageObject
 	page.Parent = parent
 	page.Resources = resources
 	page.MediaBox = r.rectangleFromArray(node["MediaBox"])
@@ -88,7 +111,7 @@ func (r *resolver) resolvePageObject(node pdfcpu.Dict, parent *model.PageTree) (
 		for _, v := range contents {
 			ct, err := r.resolveStream(v)
 			if err != nil {
-				return nil, err
+				return err
 			}
 			if ct != nil {
 				page.Contents = append(page.Contents, model.ContentStream{Stream: *ct})
@@ -97,7 +120,7 @@ func (r *resolver) resolvePageObject(node pdfcpu.Dict, parent *model.PageTree) (
 	case pdfcpu.StreamDict:
 		ct, err := r.resolveStream(contents)
 		if err != nil {
-			return nil, err
+			return err
 		}
 		if ct != nil {
 			page.Contents = append(page.Contents, model.ContentStream{Stream: *ct})
@@ -108,17 +131,17 @@ func (r *resolver) resolvePageObject(node pdfcpu.Dict, parent *model.PageTree) (
 	for _, annot := range annots {
 		an, err := r.resolveAnnotation(annot)
 		if err != nil {
-			return nil, err
+			return err
 		}
 		page.Annots = append(page.Annots, an)
 	}
 	if st, ok := r.resolveInt(node["StructParents"]); ok {
 		page.StructParents = model.Int(st)
 	}
-	return &page, nil
+	return nil
 }
 
-func (r *resolver) resolveAnnotation(annot pdfcpu.Object) (*model.AnnotationDict, error) {
+func (r resolver) resolveAnnotation(annot pdfcpu.Object) (*model.AnnotationDict, error) {
 	annotRef, isRef := annot.(pdfcpu.IndirectRef)
 	if annotModel := r.annotations[annotRef]; isRef && annotModel != nil {
 		return annotModel, nil
@@ -139,7 +162,7 @@ func (r *resolver) resolveAnnotation(annot pdfcpu.Object) (*model.AnnotationDict
 	return &annotModel, nil
 }
 
-func (r *resolver) resolveAnnotationFields(annotDict pdfcpu.Dict) (model.AnnotationDict, error) {
+func (r resolver) resolveAnnotationFields(annotDict pdfcpu.Dict) (model.AnnotationDict, error) {
 	var (
 		annotModel model.AnnotationDict
 		err        error
@@ -186,7 +209,7 @@ func (r *resolver) resolveAnnotationFields(annotDict pdfcpu.Dict) (model.Annotat
 }
 
 // node, possibly root
-func (r *resolver) resolvePageTree(node pdfcpu.Dict, parent *model.PageTree) (*model.PageTree, error) {
+func (r resolver) resolvePageTree(node pdfcpu.Dict, parent *model.PageTree) (*model.PageTree, error) {
 	var page model.PageTree
 	resources, err := r.resolveOneResourceDict(node["Resources"])
 	if err != nil {
@@ -196,65 +219,106 @@ func (r *resolver) resolvePageTree(node pdfcpu.Dict, parent *model.PageTree) (*m
 	page.Resources = resources
 	kids, _ := r.resolveArray(node["Kids"])
 	for _, node := range kids {
-		// track the refs to page object, needed by destinations
-		ref, isRef := node.(pdfcpu.IndirectRef)
-		node = r.resolve(node)
-		nodeDict, ok := node.(pdfcpu.Dict)
-		if !ok {
-			return nil, errType("PageNode", node)
-		}
-		kid, err := r.processPageNode(nodeDict, &page)
+		kid, err := r.processPageNode(node, &page)
 		if err != nil {
 			return nil, err
-		}
-		if pagePtr, ok := kid.(*model.PageObject); ok && isRef {
-			r.pages[ref] = pagePtr
 		}
 		page.Kids = append(page.Kids, kid)
 	}
 	return &page, nil
 }
 
-func (r *resolver) processPageNode(node pdfcpu.Dict, parent *model.PageTree) (model.PageNode, error) {
-	name, _ := r.resolveName(node["Type"])
+func (r resolver) processPageNode(node pdfcpu.Object, parent *model.PageTree) (model.PageNode, error) {
+	// track the refs to page object, needed by destinations
+	ref, isRef := node.(pdfcpu.IndirectRef)
+	node = r.resolve(node)
+	nodeDict, ok := node.(pdfcpu.Dict)
+	if !ok {
+		return nil, errType("PageNode", node)
+	}
+	name, _ := r.resolveName(nodeDict["Type"])
 	switch name {
 	case "Pages":
-		return r.resolvePageTree(node, parent)
+		return r.resolvePageTree(nodeDict, parent)
 	case "Page":
-		return r.resolvePageObject(node, parent)
+		var page *model.PageObject
+		if isRef {
+			page = r.pages[ref]
+		} else { // should not happen
+			page = new(model.PageObject)
+		}
+		err := r.resolvePageObject(nodeDict, parent, page)
+		return page, err
 	default:
-		return nil, fmt.Errorf("unexpected value for Type field of page node: %s", node["Type"])
+		return nil, fmt.Errorf("unexpected value for Type field of page node: %s", nodeDict["Type"])
 	}
 }
 
-// TODO: support more destination
-func (r *resolver) resolveExplicitDestination(dest pdfcpu.Array) (*model.DestinationExplicit, error) {
-	if len(dest) != 5 {
-		return nil, nil
+func (r resolver) resolveDestinationLocation(dest pdfcpu.Array) (model.DestinationLocation, error) {
+	name, _ := r.resolveName(dest[1])
+	switch name {
+	case "Fit", "FitB":
+		return model.DestinationLocationFit(name), nil
+	case "FitH", "FitV", "FitBH", "FitBV":
+		if len(dest) < 3 {
+			return nil, errType("Destination Fit", dest)
+		}
+		loc := model.DestinationLocationFitDim{}
+		loc.Name = name
+		if left, ok := r.resolveNumber(dest[2]); ok {
+			loc.Dim = model.Float(left)
+		}
+		return loc, nil
+	case "XYZ":
+		if len(dest) < 5 {
+			return nil, errType("Destination XYZ", dest)
+		}
+		loc := model.DestinationLocationXYZ{}
+		if left, ok := r.resolveNumber(dest[2]); ok {
+			loc.Left = model.Float(left)
+		}
+		if top, ok := r.resolveNumber(dest[3]); ok {
+			loc.Top = model.Float(top)
+		}
+		loc.Zoom, _ = r.resolveNumber(dest[4])
+		return loc, nil
+	case "FitR":
+		if len(dest) < 6 {
+			return nil, errType("Destination FitR", dest)
+		}
+		loc := model.DestinationLocationFitR{}
+		loc.Left, _ = r.resolveNumber(dest[2])
+		loc.Bottom, _ = r.resolveNumber(dest[3])
+		loc.Right, _ = r.resolveNumber(dest[4])
+		loc.Top, _ = r.resolveNumber(dest[5])
+		return loc, nil
+	default:
+		return nil, fmt.Errorf("in Destination, got unsupported mode %s", dest[1])
 	}
-	out := new(model.DestinationExplicit)
-	pageRef, isRef := dest[0].(pdfcpu.IndirectRef)
-	if !isRef {
-		return nil, errType("Dest.Page", dest[0])
-	}
-	if name, _ := r.resolveName(dest[1]); name != "XYZ" {
-		return nil, fmt.Errorf("expected/XYZ in Destination, got unsupported %s", dest[1])
-	}
-	if left, ok := r.resolveNumber(dest[2]); ok {
-		out.Left = model.Float(left)
-	}
-	if top, ok := r.resolveNumber(dest[3]); ok {
-		out.Top = model.Float(top)
-	}
-	out.Zoom, _ = r.resolveNumber(dest[4])
-	// store the incomplete destination to process later on
-	r.destinationsToComplete = append(r.destinationsToComplete,
-		incompleteDest{ref: pageRef, destination: out})
-	return out, nil
 }
 
-// TODO: support more destination format
-func (r *resolver) processDestination(dest pdfcpu.Object) (model.Destination, error) {
+func (r resolver) resolveExplicitDestination(dest pdfcpu.Array) (model.DestinationExplicit, error) {
+	if len(dest) < 2 {
+		return nil, errType("Destination", dest)
+	}
+	var err error
+	if pageRef, isRef := dest[0].(pdfcpu.IndirectRef); isRef { // page is intern
+		var out model.DestinationExplicitIntern
+		out.Location, err = r.resolveDestinationLocation(dest)
+		if err != nil {
+			return nil, err
+		}
+		out.Page = r.pages[pageRef]
+		return out, nil
+	} else { // page is extern
+		var out model.DestinationExplicitExtern
+		out.Page, _ = r.resolveInt(dest[0])
+		out.Location, err = r.resolveDestinationLocation(dest)
+		return out, err
+	}
+}
+
+func (r resolver) processDestination(dest pdfcpu.Object) (model.Destination, error) {
 	dest = r.resolve(dest)
 	switch dest := dest.(type) {
 	case pdfcpu.Name:
@@ -269,26 +333,8 @@ func (r *resolver) processDestination(dest pdfcpu.Object) (model.Destination, er
 	}
 }
 
-// TODO: support more
-func (r *resolver) processAction(action pdfcpu.Dict) (model.Action, error) {
-	name, _ := r.resolveName(action["S"])
-	switch name {
-	case "URI":
-		uri, _ := isString(r.resolve(action["URI"]))
-		return model.ActionURI(uri), nil
-	case "GoTo":
-		dest, err := r.processDestination(action["D"])
-		if err != nil {
-			return nil, err
-		}
-		return model.ActionGoTo{D: dest}, nil
-	default:
-		return nil, nil
-	}
-}
-
 // TODO: more annotation subtypes
-func (r *resolver) resolveAnnotationSubType(annot pdfcpu.Dict) (model.Annotation, error) {
+func (r resolver) resolveAnnotationSubType(annot pdfcpu.Dict) (model.Annotation, error) {
 	var err error
 	name, _ := r.resolveName(annot["Subtype"])
 	switch name {

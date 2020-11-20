@@ -258,19 +258,17 @@ type AnnotationLink struct {
 
 func (l AnnotationLink) annotationFields(pdf pdfWriter, ref Reference) string {
 	out := "/Subtype/Link"
-	if l.A != nil {
-		out += "/A " + l.A.actionDictionary(pdf, ref)
+	if l.A.ActionType != nil {
+		out += "/A " + l.A.pdfString(pdf, ref)
 	} else if l.Dest != nil {
-		out += "/Dest " + l.Dest.pdfDestination(pdf)
+		out += "/Dest " + l.Dest.pdfDestination(pdf, ref)
 	}
 	return out
 }
 
 func (l AnnotationLink) clone(cache cloneCache) Annotation {
 	out := l
-	if l.A != nil {
-		out.A = l.A.clone(cache)
-	}
+	out.A = l.A.clone(cache)
 	if l.Dest != nil {
 		out.Dest = l.Dest.clone(cache)
 	}
@@ -291,8 +289,8 @@ func (w AnnotationWidget) annotationFields(pdf pdfWriter, ref Reference) string 
 	if w.H != "" {
 		out += fmt.Sprintf("/H %s", w.H)
 	}
-	if w.A != nil {
-		out += fmt.Sprintf("/A %s", w.A.actionDictionary(pdf, ref))
+	if w.A.ActionType != nil {
+		out += fmt.Sprintf("/A %s", w.A.pdfString(pdf, ref))
 	}
 	if w.BS != nil {
 		out += fmt.Sprintf("/BS %s", w.BS.pdfString())
@@ -302,9 +300,7 @@ func (w AnnotationWidget) annotationFields(pdf pdfWriter, ref Reference) string 
 
 func (w AnnotationWidget) clone(cache cloneCache) Annotation {
 	out := w
-	if w.A != nil {
-		out.A = w.A.clone(cache)
-	}
+	out.A = w.A.clone(cache)
 	out.BS = w.BS.Clone()
 	return out
 }

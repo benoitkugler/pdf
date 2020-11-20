@@ -141,31 +141,26 @@ func (r resolver) resolveOneXObjectForm(obj pdfcpu.Object) (*model.XObjectForm, 
 // The value of this entry shall be a dictionary in which
 // each key is a destination name and the corresponding value is either an array defining the destination, using
 // the syntax shown in Table 151, or a dictionary with a D entry whose value is such an array.
-func (r *resolver) resolveOneNamedDest(dest pdfcpu.Object) (*model.DestinationExplicit, error) {
+func (r resolver) resolveOneNamedDest(dest pdfcpu.Object) (model.DestinationExplicit, error) {
 	dest = r.resolve(dest)
-	var (
-		expDest *model.DestinationExplicit
-		err     error
-	)
 	switch dest := dest.(type) {
 	case pdfcpu.Array:
-		expDest, err = r.resolveExplicitDestination(dest)
+		return r.resolveExplicitDestination(dest)
 	case pdfcpu.Dict:
 		D, isArray := r.resolveArray(dest["D"])
 		if !isArray {
 			return nil, errType("(Dests value).D", dest["D"])
 		}
-		expDest, err = r.resolveExplicitDestination(D)
+		return r.resolveExplicitDestination(D)
 	default:
 		return nil, errType("Dests value", dest)
 	}
-	return expDest, err
 }
 
 // the entry is a simple dictonnary
 // In PDF 1.1, the correspondence between name objects and destinations shall be defined by the Dests entry in
 // the document catalogue (see 7.7.2, “Document Catalog”).
-func (r *resolver) processDictDests(entry pdfcpu.Object) (*model.DestTree, error) {
+func (r resolver) processDictDests(entry pdfcpu.Object) (*model.DestTree, error) {
 	entry = r.resolve(entry)
 	if entry == nil {
 		return nil, nil
@@ -185,19 +180,19 @@ func (r *resolver) processDictDests(entry pdfcpu.Object) (*model.DestTree, error
 	return &out, nil
 }
 
-func (r *resolver) resolveDestTree(entry pdfcpu.Object) (*model.DestTree, error) {
+func (r resolver) resolveDestTree(entry pdfcpu.Object) (*model.DestTree, error) {
 	out := new(model.DestTree)
 	err := r.resolveNameTree(entry, destNameTree{out: out})
 	return out, err
 }
 
-func (r *resolver) resolveEmbeddedFilesTree(files pdfcpu.Object) (model.EmbeddedFileTree, error) {
+func (r resolver) resolveEmbeddedFilesTree(files pdfcpu.Object) (model.EmbeddedFileTree, error) {
 	out := new(model.EmbeddedFileTree)
 	err := r.resolveNameTree(files, embFileNameTree{out: out})
 	return *out, err
 }
 
-func (r *resolver) processNameDict(entry pdfcpu.Object) (model.NameDictionary, error) {
+func (r resolver) processNameDict(entry pdfcpu.Object) (model.NameDictionary, error) {
 	var (
 		out model.NameDictionary
 		err error
@@ -328,4 +323,20 @@ func (r resolver) resolveMarkDict(object pdfcpu.Object) (*model.MarkDict, error)
 	out.UserProperties, _ = r.resolveBool(dict["UserProperties"])
 	out.Suspects, _ = r.resolveBool(dict["Suspects"])
 	return &out, nil
+}
+
+func (r resolver) resolveDestinationOrAction(object pdfcpu.Object) (model.Action, error) {
+	object = r.resolve(object)
+	switch object := object.(type) {
+	case pdfcpu.Array: // explicit destination
+		dest, err := r.resolveExplicitDestination(object)
+		if err != nil {
+			return model.Action{}, err
+		}
+		// we see simple destination as GoTo actions
+		return model.Action{ActionType: model.ActionGoTo{D: dest}}, nil
+	case pdfcpu.Dict:
+		return r.processAction(object)
+	}
+	return model.Action{}, nil
 }

@@ -12,12 +12,12 @@ type nameTree interface {
 	createKid() nameTree
 	appendKid(kid nameTree) // kid will be the value returned by createKid
 	// must handle the case where `value` is indirect
-	resolveLeafValueAppend(r *resolver, name string, value pdfcpu.Object) error
+	resolveLeafValueAppend(r resolver, name string, value pdfcpu.Object) error
 }
 
 // resolveNameTree is a "generic function" which walk a name tree
 // and fill the given output
-func (r *resolver) resolveNameTree(entry pdfcpu.Object, output nameTree) error {
+func (r resolver) resolveNameTree(entry pdfcpu.Object, output nameTree) error {
 	entry = r.resolve(entry)
 	dict, isDict := entry.(pdfcpu.Dict)
 	if !isDict {
@@ -66,7 +66,7 @@ func (d destNameTree) createKid() nameTree {
 func (d destNameTree) appendKid(kid nameTree) {
 	d.out.Kids = append(d.out.Kids, *kid.(destNameTree).out)
 }
-func (d destNameTree) resolveLeafValueAppend(r *resolver, name string, value pdfcpu.Object) error {
+func (d destNameTree) resolveLeafValueAppend(r resolver, name string, value pdfcpu.Object) error {
 	expDest, err := r.resolveOneNamedDest(value)
 	d.out.Names = append(d.out.Names, model.NameToDest{Name: name, Destination: expDest})
 	return err
@@ -84,7 +84,7 @@ func (d embFileNameTree) appendKid(kid nameTree) {
 	values := *kid.(embFileNameTree).out
 	*d.out = append(*d.out, values...)
 }
-func (d embFileNameTree) resolveLeafValueAppend(r *resolver, name string, value pdfcpu.Object) error {
+func (d embFileNameTree) resolveLeafValueAppend(r resolver, name string, value pdfcpu.Object) error {
 	fileSpec, err := r.resolveFileSpec(value)
 	*d.out = append(*d.out, model.NameToFile{Name: name, FileSpec: fileSpec})
 	return err
@@ -100,7 +100,7 @@ func (d idTree) createKid() nameTree {
 func (d idTree) appendKid(kid nameTree) {
 	d.out.Kids = append(d.out.Kids, *kid.(idTree).out)
 }
-func (d idTree) resolveLeafValueAppend(r *resolver, name string, value pdfcpu.Object) error {
+func (d idTree) resolveLeafValueAppend(r resolver, name string, value pdfcpu.Object) error {
 	ref, isRef := value.(pdfcpu.IndirectRef)
 	if !isRef {
 		return errType("IDTree value", value)
@@ -115,12 +115,12 @@ type numberTree interface {
 	createKid() numberTree
 	appendKid(kid numberTree) // kid will be the value returned by createKid
 	// must handle the case where `value` is indirect
-	resolveLeafValueAppend(r *resolver, number int, value pdfcpu.Object) error
+	resolveLeafValueAppend(r resolver, number int, value pdfcpu.Object) error
 }
 
 // resolveNumberTree is a "generic function" which walk a number tree
 // and fill the given output
-func (r *resolver) resolveNumberTree(entry pdfcpu.Object, output numberTree) error {
+func (r resolver) resolveNumberTree(entry pdfcpu.Object, output numberTree) error {
 	entry = r.resolve(entry)
 	dict, isDict := entry.(pdfcpu.Dict)
 	if !isDict {
@@ -169,7 +169,7 @@ func (d pageLabelTree) createKid() numberTree {
 func (d pageLabelTree) appendKid(kid numberTree) {
 	d.out.Kids = append(d.out.Kids, *kid.(pageLabelTree).out)
 }
-func (d pageLabelTree) resolveLeafValueAppend(r *resolver, number int, value pdfcpu.Object) error {
+func (d pageLabelTree) resolveLeafValueAppend(r resolver, number int, value pdfcpu.Object) error {
 	label, err := r.processPageLabel(value)
 	d.out.Nums = append(d.out.Nums, model.NumToPageLabel{Num: number, PageLabel: label})
 	return err
@@ -203,7 +203,7 @@ func (d parentTree) createKid() numberTree {
 func (d parentTree) appendKid(kid numberTree) {
 	d.out.Kids = append(d.out.Kids, *kid.(parentTree).out)
 }
-func (d parentTree) resolveLeafValueAppend(r *resolver, number int, value pdfcpu.Object) error {
+func (d parentTree) resolveLeafValueAppend(r resolver, number int, value pdfcpu.Object) error {
 	var parent model.NumToParent
 	parent.Num = number
 	// value must be either an indirect ref, or a direct array of indirect ref

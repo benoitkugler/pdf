@@ -2,6 +2,7 @@ package model
 
 import (
 	"bytes"
+	"os"
 	"reflect"
 	"testing"
 )
@@ -41,7 +42,7 @@ func TestCloneNames(t *testing.T) {
 		Dests: &DestTree{
 			Kids: []DestTree{
 				{Names: []NameToDest{
-					{Name: "mùdlsld", Destination: nil},
+					{Name: "mùdlsld", Destination: DestinationExplicitIntern{}},
 				},
 				},
 			},
@@ -62,5 +63,27 @@ func TestCloneDocument(t *testing.T) {
 
 	if clone := doc.Clone(); !reflect.DeepEqual(doc, clone) {
 		t.Errorf("expected %v, got %v", doc, clone)
+	}
+}
+
+func TestOpenAction(t *testing.T) {
+	var d Document
+	p3 := &PageObject{Parent: &d.Catalog.Pages}
+	d.Catalog.Pages.Kids = []PageNode{
+		&PageObject{Parent: &d.Catalog.Pages},
+		&PageObject{Parent: &d.Catalog.Pages},
+		p3,
+		&PageObject{Parent: &d.Catalog.Pages},
+	}
+	d.Catalog.OpenAction = Action{ActionType: ActionGoTo{D: DestinationExplicitIntern{
+		Page: p3, Location: DestinationLocationFit("Fit"),
+	}}}
+	f, err := os.Create("test/open_action.pdf")
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = d.Write(f, nil)
+	if err != nil {
+		t.Fatal(err)
 	}
 }

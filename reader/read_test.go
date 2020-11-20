@@ -74,17 +74,19 @@ func TestOpen(t *testing.T) {
 	// f, err := os.Open("datatest/transparents.pdf")
 	// f, err := os.Open("datatest/ModeleRecuFiscalEditable.pdf")
 	// f, err := os.Open("datatest/Protected.pdf")
-	f, err := os.Open("datatest/PDF_SPEC.pdf")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer f.Close()
+	// f, err := os.Open("datatest/PDF_SPEC.pdf")
+	// if err != nil {
+	// 	t.Fatal(err)
+	// }
+	// defer f.Close()
 
-	doc, enc, err := ParsePDF(f, "")
-	if err != nil {
-		t.Fatal(err)
-	}
-	fmt.Println(doc.Trailer, enc)
+	// doc, enc, err := ParsePDF(f, "")
+	// if err != nil {
+	// 	t.Fatal(err)
+	// }
+
+	fmt.Println(pdfSpec.Catalog.OpenAction.ActionType)
+
 }
 
 func TestStructureTree(t *testing.T) {
@@ -113,28 +115,28 @@ func TestStructureTree(t *testing.T) {
 
 	fmt.Println("ID fields in custom attributes", nbIds)
 
-	d1 := pdfSpec.Catalog.StructTreeRoot.IDTree.Lookup()
+	d1 := pdfSpec.Catalog.StructTreeRoot.IDTree.LookupTable()
 	fmt.Println("Original id tree total size", len(d1))
 
 	ti := time.Now()
 	pdfSpec.Catalog.StructTreeRoot.BuildIDTree()
 	fmt.Println("	Building IDTree in", time.Since(ti))
 
-	d2 := pdfSpec.Catalog.StructTreeRoot.IDTree.Lookup()
+	d2 := pdfSpec.Catalog.StructTreeRoot.IDTree.LookupTable()
 	fmt.Println("Automatic id tree total size", len(d2))
 
 	if !reflect.DeepEqual(d1, d2) {
 		t.Errorf("expected %v, got %v", d1, d2)
 	}
 
-	d3 := pdfSpec.Catalog.StructTreeRoot.ParentTree.Lookup()
+	d3 := pdfSpec.Catalog.StructTreeRoot.ParentTree.LookupTable()
 	fmt.Println("Original parent tree total size", len(d3))
 
 	ti = time.Now()
 	pdfSpec.Catalog.StructTreeRoot.BuildParentTree()
 	fmt.Println("	Building ParentTree in", time.Since(ti))
 
-	d4 := pdfSpec.Catalog.StructTreeRoot.ParentTree.Lookup()
+	d4 := pdfSpec.Catalog.StructTreeRoot.ParentTree.LookupTable()
 	fmt.Println("Automatic parent tree total size", len(d4))
 
 	// the StructParent 4171 is broken in the PDF spec

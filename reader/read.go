@@ -38,15 +38,10 @@ type resolver struct {
 	iccs              map[pdfcpu.IndirectRef]*model.ColorSpaceICCBased
 	colorTableStreams map[pdfcpu.IndirectRef]*model.ColorTableStream
 	structure         map[pdfcpu.IndirectRef]*model.StructureElement
-
-	// annotations may reference pages which are not yet processed
-	// we store them and update the Page field later
-	// see processPages, processDictDests
-	destinationsToComplete []incompleteDest
 }
 
 type incompleteDest struct {
-	destination *model.DestinationExplicit
+	destination *model.DestinationExplicitIntern
 	ref         pdfcpu.IndirectRef
 }
 
@@ -308,15 +303,6 @@ func (r resolver) catalog() (model.Catalog, error) {
 		return out, err
 	}
 
-	// complete the destinations
-	for _, dest := range r.destinationsToComplete {
-		po := r.pages[dest.ref]
-		if po == nil {
-			return out, fmt.Errorf("reference %s not found in pages: ignoring destination", dest.ref)
-		}
-		dest.destination.Page = po
-	}
-
 	out.Names, err = r.processNameDict(d["Names"])
 	if err != nil {
 		return out, err
@@ -351,6 +337,16 @@ func (r resolver) catalog() (model.Catalog, error) {
 	}
 
 	out.MarkInfo, err = r.resolveMarkDict(d["MarkInfo"])
+	if err != nil {
+		return out, err
+	}
+
+	uriDict, ok := r.resolve(d["URI"]).(pdfcpu.Dict)
+	if ok {
+		out.URI, _ = isString(r.resolve(uriDict["Base"]))
+	}
+
+	out.OpenAction, err = r.resolveDestinationOrAction(d["OpenAction"])
 	if err != nil {
 		return out, err
 	}

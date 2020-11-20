@@ -16,7 +16,7 @@ type FileSpec struct {
 	Desc string // optional
 }
 
-// returns the dictionnay. `pdf` is used
+// returns the dictionnay, with a nil content `pdf` is used
 // to create the EmbeddedFileStream object.
 func (f *FileSpec) pdfContent(pdf pdfWriter, ref Reference) (string, []byte) {
 	b := newBuffer()

@@ -70,15 +70,12 @@ func limitsName(n nameTree) [2]string {
 // to a name.
 type NameToDest struct {
 	Name        string
-	Destination *DestinationExplicit // indirect object
+	Destination DestinationExplicit
 }
 
 func (n NameToDest) clone(cache cloneCache) NameToDest {
 	out := n
-	if n.Destination != nil {
-		dest := n.Destination.clone(cache).(DestinationExplicit)
-		out.Destination = &dest
-	}
+	out.Destination = n.Destination.clone(cache).(DestinationExplicit)
 	return out
 }
 
@@ -115,8 +112,8 @@ func (d DestTree) Limits() [2]string {
 
 // LookupTable walks the name tree and
 // accumulates the result into one map
-func (d DestTree) LookupTable() map[string]*DestinationExplicit {
-	out := make(map[string]*DestinationExplicit)
+func (d DestTree) LookupTable() map[string]DestinationExplicit {
+	out := make(map[string]DestinationExplicit)
 	for _, v := range d.Names {
 		out[v.Name] = v.Destination
 	}
@@ -145,7 +142,7 @@ func (p DestTree) pdfString(pdf pdfWriter, ref Reference) string {
 	if len(p.Names) != 0 {
 		b.fmt("/Names [ ")
 		for _, name := range p.Names {
-			b.fmt("%s %s ", pdf.EncodeString(name.Name, ByteString, ref), name.Destination.pdfDestination(pdf))
+			b.fmt("%s %s ", pdf.EncodeString(name.Name, ByteString, ref), name.Destination.pdfDestination(pdf, ref))
 		}
 		b.line("]")
 	}
@@ -418,14 +415,14 @@ func splitInts(nums []int, sizeChunk int) [][]int {
 	return out
 }
 
-// Lookup walks the tree and accumulate the names into one map.
-func (id IDTree) Lookup() map[string]*StructureElement {
+// LookupTable walks the tree and accumulate the names into one map.
+func (id IDTree) LookupTable() map[string]*StructureElement {
 	out := make(map[string]*StructureElement, len(id.Names))
 	for _, name := range id.Names {
 		out[name.Name] = name.Structure
 	}
 	for _, kid := range id.Kids {
-		for name, s := range kid.Lookup() { // merge
+		for name, s := range kid.LookupTable() { // merge
 			out[name] = s
 		}
 	}
@@ -589,14 +586,14 @@ func NewParentTree(parents map[int]NumToParent) ParentTree {
 	return walk(allKeys)
 }
 
-// Lookup walks the tree and accumulate the parents into one map.
-func (id ParentTree) Lookup() map[int]NumToParent {
+// LookupTable walks the tree and accumulate the parents into one map.
+func (id ParentTree) LookupTable() map[int]NumToParent {
 	out := make(map[int]NumToParent, len(id.Nums))
 	for _, num := range id.Nums {
 		out[num.Num] = num
 	}
 	for _, kid := range id.Kids {
-		for num, s := range kid.Lookup() { // merge
+		for num, s := range kid.LookupTable() { // merge
 			out[num] = s
 		}
 	}

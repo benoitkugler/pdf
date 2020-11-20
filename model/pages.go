@@ -137,7 +137,7 @@ type PageObject struct {
 
 // the pdf page map is used to fetch the object number
 func (p *PageObject) pdfString(pdf pdfWriter) string {
-	parentReference := pdf.pages[p]
+	parentReference := pdf.pages[p.Parent]
 	b := newBuffer()
 	b.line("<<")
 	b.line("/Type/Page")
@@ -507,10 +507,10 @@ func (o *OutlineItem) pdfString(pdf pdfWriter, ref, parent Reference) string {
 	}
 	b.fmt("/Count %d", count)
 	if o.Dest != nil {
-		b.fmt("/Dest %s", o.Dest.pdfDestination(pdf))
+		b.fmt("/Dest %s", o.Dest.pdfDestination(pdf, ref))
 	}
-	if o.A != nil {
-		b.fmt("/A %s", o.A.actionDictionary(pdf, ref))
+	if o.A.ActionType != nil {
+		b.fmt("/A %s", o.A.pdfString(pdf, ref))
 	}
 	// TODO: structure element
 	if o.C != [3]float64{} {
@@ -532,9 +532,7 @@ func (o *OutlineItem) clone(cache cloneCache, parent OutlineNode) *OutlineItem {
 	if o.Dest != nil {
 		out.Dest = o.Dest.clone(cache)
 	}
-	if o.A != nil {
-		out.A = o.A.clone(cache)
-	}
+	out.A = o.A.clone(cache)
 	// TODO: Structure element
 	out.First = o.First.clone(cache, &out)
 	out.Next = o.Next.clone(cache, parent)

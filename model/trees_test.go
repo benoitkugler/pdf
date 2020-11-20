@@ -44,7 +44,7 @@ func TestIDTree(t *testing.T) {
 	}
 
 	tree := NewIDTree(m)
-	m2 := tree.Lookup()
+	m2 := tree.LookupTable()
 	if !reflect.DeepEqual(m, m2) {
 		t.Errorf("expected %v, got %v", m, m2)
 	}
@@ -58,7 +58,7 @@ func TestParentTree(t *testing.T) {
 	}
 
 	tree := NewParentTree(m)
-	m2 := tree.Lookup()
+	m2 := tree.LookupTable()
 	if !reflect.DeepEqual(m, m2) {
 		t.Errorf("expected %v, got %v", m, m2)
 	}

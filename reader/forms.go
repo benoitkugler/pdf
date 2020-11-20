@@ -2,6 +2,7 @@ package reader
 
 import (
 	"fmt"
+	"log"
 
 	"github.com/benoitkugler/pdf/model"
 	"github.com/pdfcpu/pdfcpu/pkg/pdfcpu"
@@ -126,39 +127,49 @@ func (r resolver) processAA(aa pdfcpu.Object) *model.FormFielAdditionalActions {
 	if !ok {
 		return nil
 	}
-	var out model.FormFielAdditionalActions
-	out.K = r.processJSAction(aaDict["K"])
-	out.F = r.processJSAction(aaDict["F"])
-	out.V = r.processJSAction(aaDict["V"])
-	out.C = r.processJSAction(aaDict["C"])
-	return &out
-}
-
-func (r resolver) processJSAction(action pdfcpu.Object) model.ActionJavaScript {
-	var js string
-	if K, ok := r.resolve(action).(pdfcpu.Dict); ok {
-		js = r.textOrStream(K["JS"])
+	var (
+		out model.FormFielAdditionalActions
+		err error
+	)
+	out.K, err = r.processAction(aaDict["K"])
+	if err != nil {
+		return nil
 	}
-	return model.ActionJavaScript{JS: js}
+	out.F, err = r.processAction(aaDict["F"])
+	if err != nil {
+		return nil
+	}
+	out.V, err = r.processAction(aaDict["V"])
+	if err != nil {
+		return nil
+	}
+	out.C, err = r.processAction(aaDict["C"])
+	if err != nil {
+		return nil
+	}
+	return &out
 }
 
 // extract a text string from either a string or a stream object,
 // after dereferencing
 func (r resolver) textOrStream(object pdfcpu.Object) string {
 	content := r.resolve(object)
-	// TODO: decode stream to be in part with strings
-	// this requires to check pdfcpu filters
+	var jsString string
 	if stream, ok := content.(pdfcpu.StreamDict); ok {
 		s, _ := r.resolveStream(stream)
 		if s != nil {
-			return string(s.Content)
+			decoded, err := s.Decode()
+			if err != nil { // best effort: we return the raw stream
+				log.Println("failed to decode text stream", err)
+				decoded = s.Content
+			}
+			jsString = string(decoded)
 		}
 	}
-	jsString, _ := isString(content)
+	jsString, _ = isString(content)
 	return decodeTextString(jsString)
 }
 
-// TODO: fix form tree parsing
 // `parent` will be nil for the top-level fields
 // if not, its type maybe be checked to find the field type by inheritance
 func (r resolver) resolveFormField(o pdfcpu.Object, parent *model.FormFieldDict) (*model.FormFieldDict, error) {

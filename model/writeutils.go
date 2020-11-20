@@ -8,6 +8,13 @@ import (
 	"time"
 )
 
+func writeMaybeFloat(f MaybeFloat) string {
+	if f == nil {
+		return "null"
+	}
+	return fmt.Sprintf("%.3f", f.(Float))
+}
+
 func writeIntArray(as []int) string {
 	b := make([]string, len(as))
 	for i, a := range as {

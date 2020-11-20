@@ -54,7 +54,7 @@ func (doc Document) Clone() Document {
 // Write walks the entire document and writes its content
 // into `output`, producing a valid PDF file.
 // `encryption` is an optional encryption dictionary
-func (doc Document) Write(output io.Writer, encryption *Encrypt) error {
+func (doc *Document) Write(output io.Writer, encryption *Encrypt) error {
 	wr := newWriter(output, encryption)
 
 	wr.writeHeader()
@@ -90,11 +90,15 @@ type Catalog struct {
 	MarkInfo          *MarkDict          // optional
 	PageLayout        Name               // optional
 	PageMode          Name               // optional
+	// optional. A simple GoTo action to a direct destination
+	// may be found as an array in a PDF file.
+	OpenAction Action
+	URI        string // optional, ASCII string, written in PDF as a dictionary
 }
 
 // returns the Dictionary of `cat`
 // `catalog` is needed by the potential signature fields
-func (cat Catalog) pdfString(pdf pdfWriter, catalog Reference) string {
+func (cat *Catalog) pdfString(pdf pdfWriter, catalog Reference) string {
 	// some pages may need to know in advance the
 	// object number of an arbitrary page, such as annotation link
 	// with GoTo actions
@@ -148,6 +152,12 @@ func (cat Catalog) pdfString(pdf pdfWriter, catalog Reference) string {
 	}
 	if m := cat.MarkInfo; m != nil {
 		b.line("/MarkInfo %s", m)
+	}
+	if cat.URI != "" {
+		b.line("/URI <</Base %s>>", pdf.EncodeString(cat.URI, ByteString, catalog))
+	}
+	if cat.OpenAction.ActionType != nil {
+		b.line("/OpenAction %s", cat.OpenAction.pdfString(pdf, catalog))
 	}
 	b.fmt(">>")
 
@@ -219,6 +229,7 @@ func (cat Catalog) Clone() Catalog {
 		m := *cat.MarkInfo
 		out.MarkInfo = &m
 	}
+	out.OpenAction = cat.OpenAction.clone(cache)
 	return cat
 }
 
