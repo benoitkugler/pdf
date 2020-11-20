@@ -84,7 +84,7 @@ func TestOpen(t *testing.T) {
 	// if err != nil {
 	// 	t.Fatal(err)
 	// }
-
+	fmt.Println(len(pdfSpec.Catalog.Pages.Flatten()))
 	fmt.Println(pdfSpec.Catalog.OpenAction.ActionType)
 
 }
@@ -299,26 +299,14 @@ func TestWrite(t *testing.T) {
 }
 
 func TestReWrite(t *testing.T) {
-	name := "datatest/PDF_SPEC"
-	// name := "datatest/type3"
-	f, err := os.Open(name + ".pdf")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer f.Close()
-	doc, _, err := ParsePDF(f, "")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	out, err := os.Create(name + "_2.pdf")
+	out, err := os.Create("datatest/PDF_SPEC_2.pdf")
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer out.Close()
 
 	ti := time.Now()
-	err = doc.Write(out, nil)
+	err = pdfSpec.Write(out, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -326,13 +314,13 @@ func TestReWrite(t *testing.T) {
 
 	out2 := bytes.Buffer{}
 	ti = time.Now()
-	err = doc.Write(&out2, nil)
+	err = pdfSpec.Write(&out2, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 	fmt.Println("PDF wrote to memory in", time.Since(ti))
 
-	_, err = pdfcpu.ReadFile(name+"_2.pdf", nil)
+	_, err = pdfcpu.ReadFile("datatest/PDF_SPEC_2.pdf", nil)
 	if err != nil {
 		t.Fatal(err)
 	}

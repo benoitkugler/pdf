@@ -44,11 +44,11 @@ type Document struct {
 // modyfing it for each request.
 // For every type implementing `Referenceable`, the equalities
 // between pointers are preserved.
-func (doc Document) Clone() Document {
-	out := doc
+func (doc *Document) Clone() Document {
+	out := *doc
 	out.Trailer = doc.Trailer.Clone()
 	out.Catalog = doc.Catalog.Clone()
-	return doc
+	return out
 }
 
 // Write walks the entire document and writes its content
@@ -230,7 +230,7 @@ func (cat Catalog) Clone() Catalog {
 		out.MarkInfo = &m
 	}
 	out.OpenAction = cat.OpenAction.clone(cache)
-	return cat
+	return out
 }
 
 // NameDictionary establish the correspondence between names and objects

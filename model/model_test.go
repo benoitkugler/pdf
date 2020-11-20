@@ -68,12 +68,14 @@ func TestCloneDocument(t *testing.T) {
 
 func TestOpenAction(t *testing.T) {
 	var d Document
-	p3 := &PageObject{Parent: &d.Catalog.Pages}
+	p3 := &PageObject{}
 	d.Catalog.Pages.Kids = []PageNode{
-		&PageObject{Parent: &d.Catalog.Pages},
-		&PageObject{Parent: &d.Catalog.Pages},
+		&PageObject{},
+		&PageObject{},
 		p3,
-		&PageObject{Parent: &d.Catalog.Pages},
+		&PageTree{
+			Kids: []PageNode{&PageObject{}},
+		},
 	}
 	d.Catalog.OpenAction = Action{ActionType: ActionGoTo{D: DestinationExplicitIntern{
 		Page: p3, Location: DestinationLocationFit("Fit"),

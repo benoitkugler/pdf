@@ -7,6 +7,8 @@ import (
 // PageNode is either a `PageTree` or a `PageObject`
 type PageNode interface {
 	isPageNode()
+	// Count returns the number of Page objects (leaf node)
+	// in all the descendants of `p` (including `p`)
 	Count() int
 	pdfString(pdf pdfWriter) string
 	clone(cache cloneCache) PageNode
@@ -18,11 +20,10 @@ func (*PageObject) isPageNode() {}
 // PageTree describe the page hierarchy
 // of a PDF file.
 type PageTree struct {
-	Parent    *PageTree
 	Kids      []PageNode
 	Resources *ResourcesDict // if nil, will be inherited from the parent
 
-	// countValue *int// cached for performance
+	parent *PageTree // cache, set up during pre-allocation
 }
 
 // Count returns the number of Page objects (leaf node)
@@ -54,14 +55,17 @@ func (p PageTree) Flatten() []*PageObject {
 
 // walk to associate an object number to each page nodes
 // in the `pages` attribute of `pdf`
+// also build up the parent to simplify the writing
 // see catalog.pdfString for more details
 func (pdf pdfWriter) allocateReferences(p *PageTree) {
 	pdf.pages[p] = pdf.createObject()
 	for _, kid := range p.Kids {
 		switch kid := kid.(type) {
 		case *PageTree:
+			kid.parent = p
 			pdf.allocateReferences(kid)
 		case *PageObject:
+			kid.parent = p
 			pdf.pages[kid] = pdf.createObject()
 		}
 	}
@@ -92,8 +96,8 @@ func (pages *PageTree) pdfString(pdf pdfWriter) string {
 		kidRefs[i] = kidRef
 	}
 	parent := ""
-	if pages.Parent != nil {
-		parent = fmt.Sprintf("/Parent %s", pdf.pages[pages.Parent])
+	if pages.parent != nil {
+		parent = fmt.Sprintf("/Parent %s", pdf.pages[pages.parent])
 	}
 	res := ""
 	if pages.Resources != nil {
@@ -106,9 +110,7 @@ func (pages *PageTree) pdfString(pdf pdfWriter) string {
 
 func (p *PageTree) clone(cache cloneCache) PageNode {
 	out := cache.pages[p].(*PageTree)
-	if p.Parent != nil {
-		out.Parent = cache.pages[p.Parent].(*PageTree)
-	}
+	// ignoring parent since it is not used until writing
 	if p.Resources != nil {
 		res := p.Resources.clone(cache)
 		out.Resources = &res
@@ -124,7 +126,6 @@ func (p *PageTree) clone(cache cloneCache) PageNode {
 
 type PageObject struct {
 	// TODO: complete fields
-	Parent                    *PageTree
 	Resources                 *ResourcesDict    // if nil, will be inherited from the parent
 	MediaBox                  *Rectangle        // if nil, will be inherited from the parent
 	CropBox                   *Rectangle        // if nil, will be inherited. if still nil, default to MediaBox
@@ -133,11 +134,12 @@ type PageObject struct {
 	Annots                    []*AnnotationDict // optional
 	Contents                  []ContentStream   // array of stream (often of length 1)
 	StructParents             MaybeInt          // Required if the page contains structural content items
+	parent                    *PageTree         // cache, set up during pre-allocation
 }
 
 // the pdf page map is used to fetch the object number
 func (p *PageObject) pdfString(pdf pdfWriter) string {
-	parentReference := pdf.pages[p.Parent]
+	parentReference := pdf.pages[p.parent]
 	b := newBuffer()
 	b.line("<<")
 	b.line("/Type/Page")
@@ -190,9 +192,8 @@ func (*PageObject) Count() int { return 1 }
 // return a deep copy, with concrete type *PageObject
 // cache.pages must have been previsouly filled
 func (po *PageObject) clone(cache cloneCache) PageNode {
-	parentCloned := cache.pages[po.Parent].(*PageTree)
 	out := cache.pages[po].(*PageObject)
-	out.Parent = parentCloned
+	// ignoring parent since it is not used until writing
 	if po.Resources != nil {
 		res := po.Resources.clone(cache)
 		out.Resources = &res

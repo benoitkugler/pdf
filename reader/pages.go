@@ -19,7 +19,7 @@ func (r resolver) processPages(entry pdfcpu.Object) (model.PageTree, error) {
 	// and a second pass to do the real processing
 	r.allocatesPages(pagesDict)
 
-	root, err := r.resolvePageTree(pagesDict, nil)
+	root, err := r.resolvePageTree(pagesDict)
 	if err != nil {
 		return model.PageTree{}, err
 	}
@@ -86,12 +86,11 @@ func (r resolver) resolveStream(content pdfcpu.Object) (*model.Stream, error) {
 }
 
 // `page` has been previously allocated and must be filled
-func (r resolver) resolvePageObject(node pdfcpu.Dict, parent *model.PageTree, page *model.PageObject) error {
+func (r resolver) resolvePageObject(node pdfcpu.Dict, page *model.PageObject) error {
 	resources, err := r.resolveOneResourceDict(node["Resources"])
 	if err != nil {
 		return err
 	}
-	page.Parent = parent
 	page.Resources = resources
 	page.MediaBox = r.rectangleFromArray(node["MediaBox"])
 	page.CropBox = r.rectangleFromArray(node["CropBox"])
@@ -209,17 +208,16 @@ func (r resolver) resolveAnnotationFields(annotDict pdfcpu.Dict) (model.Annotati
 }
 
 // node, possibly root
-func (r resolver) resolvePageTree(node pdfcpu.Dict, parent *model.PageTree) (*model.PageTree, error) {
+func (r resolver) resolvePageTree(node pdfcpu.Dict) (*model.PageTree, error) {
 	var page model.PageTree
 	resources, err := r.resolveOneResourceDict(node["Resources"])
 	if err != nil {
 		return nil, err
 	}
-	page.Parent = parent
 	page.Resources = resources
 	kids, _ := r.resolveArray(node["Kids"])
 	for _, node := range kids {
-		kid, err := r.processPageNode(node, &page)
+		kid, err := r.processPageNode(node)
 		if err != nil {
 			return nil, err
 		}
@@ -228,7 +226,7 @@ func (r resolver) resolvePageTree(node pdfcpu.Dict, parent *model.PageTree) (*mo
 	return &page, nil
 }
 
-func (r resolver) processPageNode(node pdfcpu.Object, parent *model.PageTree) (model.PageNode, error) {
+func (r resolver) processPageNode(node pdfcpu.Object) (model.PageNode, error) {
 	// track the refs to page object, needed by destinations
 	ref, isRef := node.(pdfcpu.IndirectRef)
 	node = r.resolve(node)
@@ -239,7 +237,7 @@ func (r resolver) processPageNode(node pdfcpu.Object, parent *model.PageTree) (m
 	name, _ := r.resolveName(nodeDict["Type"])
 	switch name {
 	case "Pages":
-		return r.resolvePageTree(nodeDict, parent)
+		return r.resolvePageTree(nodeDict)
 	case "Page":
 		var page *model.PageObject
 		if isRef {
@@ -247,7 +245,7 @@ func (r resolver) processPageNode(node pdfcpu.Object, parent *model.PageTree) (m
 		} else { // should not happen
 			page = new(model.PageObject)
 		}
-		err := r.resolvePageObject(nodeDict, parent, page)
+		err := r.resolvePageObject(nodeDict, page)
 		return page, err
 	default:
 		return nil, fmt.Errorf("unexpected value for Type field of page node: %s", nodeDict["Type"])
