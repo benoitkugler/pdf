@@ -62,11 +62,11 @@ type EncryptionStandard struct {
 
 // SetStandardEncryptionHandler create a Standard security handler
 // and install it on the document.
-// The field V and P of the encrypt dict should be setup previously.
+// The field V and P of the encrypt dict must be setup previously.
 // `userPassword` and `ownerPassword` are used to generate the encryption keys
 // and will be needed to decrypt the document.
 func (t *Trailer) SetStandardEncryptionHandler(userPassword, ownerPassword string, encryptMetadata bool) {
-	enc := t.Encrypt
+	enc := &t.Encrypt
 	enc.Filter = "Standard"
 	enc.SubFilter = ""
 	var out EncryptionStandard
@@ -106,7 +106,7 @@ func (t *Trailer) SetStandardEncryptionHandler(userPassword, ownerPassword strin
 	out.encryptionKey = sum[0:keyLength]
 	out.U = t.generateUserHash(out.R, out.encryptionKey)
 
-	t.Encrypt.EncryptionHandler = out
+	enc.EncryptionHandler = out
 }
 
 func (e EncryptionStandard) encryptionAddFields() string {
@@ -121,20 +121,28 @@ func (e EncryptionStandard) Clone() EncryptionHandler {
 	return out
 }
 
-// Crypt encrypt in-place the given `data` using its object number,
-// with the RC4 algorithm.
-func (p EncryptionStandard) Crypt(n Reference, data []byte) {
-	rc4cipher, _ := rc4.NewCipher(p.objectEncrytionKey(n))
-	rc4cipher.XORKeyStream(data, data)
+func (e EncryptionStandard) isSetup() bool {
+	return len(e.encryptionKey) >= 0
 }
 
-func (p EncryptionStandard) objectEncrytionKey(n Reference) []byte {
+// Crypt encrypt in-place the given `data` using its object number,
+// with the RC4 algorithm.
+func (p EncryptionStandard) Crypt(n Reference, data []byte) ([]byte, error) {
+	out := make([]byte, len(data))
+	rc4cipher, _ := rc4.NewCipher(objectEncrytionKey(p.encryptionKey, n, false))
+	rc4cipher.XORKeyStream(out, data)
+	return out, nil
+}
+
+func objectEncrytionKey(baseKey []byte, n Reference, aes bool) []byte {
 	var nbuf [4]byte
 	binary.LittleEndian.PutUint32(nbuf[:], uint32(n))
-	b := append([]byte(nil), p.encryptionKey...)
-	b = append(b, nbuf[0], nbuf[1], nbuf[2], 0, 0) // generation number is 0
+	b := append(baseKey, nbuf[0], nbuf[1], nbuf[2], 0, 0) // copy and padding (generation number is 0)
+	if aes {
+		b = append(b, 0x73, 0x41, 0x6C, 0x54) // append sAlT
+	}
 	s := md5.Sum(b)
-	size := len(p.encryptionKey) + 5
+	size := len(baseKey) + 5
 	if size > 16 {
 		size = 16
 	}
@@ -187,7 +195,57 @@ func (t Trailer) generateUserHash(revision uint8, encryptionKey []byte) (v [32]b
 
 // ------------------------------------------------------------------------------------
 
-// TODO:
-func (e EncryptionPublicKey) Crypt(n Reference, data []byte) {
-	return
+// Crypt is not supported for the PublicKey security handler
+// Thus, this function return the plain data.
+func (e EncryptionPublicKey) Crypt(n Reference, data []byte) ([]byte, error) {
+	return data, nil
 }
+
+func (e EncryptionPublicKey) isSetup() bool { return false }
+
+// func cryptAes(objectKey, data []byte) ([]byte, error) {
+// 	// pad data to aes.Blocksize
+// 	l := len(data) % aes.BlockSize
+// 	var c byte = 0x10
+// 	if l > 0 {
+// 		c = byte(aes.BlockSize - l)
+// 	}
+// 	data = append(data, bytes.Repeat([]byte{c}, aes.BlockSize-l)...)
+// 	// now, len(data) >= 16 and len(data)%16 == 0
+
+// 	block := make([]byte, aes.BlockSize+len(data)) // room for 16 random bytes
+// 	iv := block[:aes.BlockSize]
+
+// 	_, err := io.ReadFull(rand.Reader, iv)
+// 	if err != nil {
+// 		return nil, err
+// 	}
+
+// 	cb, err := aes.NewCipher(objectKey)
+// 	if err != nil {
+// 		return nil, err
+// 	}
+
+// 	mode := cipher.NewCBCEncrypter(cb, iv)
+// 	mode.CryptBlocks(block[aes.BlockSize:], data)
+
+// 	return block, nil
+// }
+
+// func (s EncryptionPublicKey) generateEncryptionKey(keyLength uint8, cryptMetadata bool) ([]byte, error) {
+// 	data := make([]byte, 20) // a)
+// 	_, err := io.ReadFull(rand.Reader, data)
+// 	if err != nil {
+// 		return nil, err
+// 	}
+
+// 	for _, rec := range s { // b)
+// 		data = append(data, rec...)
+// 	}
+
+// 	if !cryptMetadata { // c)
+// 		data = append(data, 0xff, 0xff, 0xff, 0xff)
+// 	}
+// 	sum := sha1.Sum(data)
+// 	return sum[0:keyLength], nil
+// }

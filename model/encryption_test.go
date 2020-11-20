@@ -1,9 +1,13 @@
 package model
 
 import (
+	"bytes"
 	"crypto/rc4"
-	"fmt"
+	"os"
+	"strings"
 	"testing"
+
+	"github.com/pdfcpu/pdfcpu/pkg/pdfcpu"
 )
 
 func TestOverlap(t *testing.T) {
@@ -11,18 +15,60 @@ func TestOverlap(t *testing.T) {
 	in := []byte("ldsqdlqsùdl")
 	out := make([]byte, len(in))
 	rc.XORKeyStream(out, in)
-	fmt.Println(out)
 
 	rc, _ = rc4.NewCipher([]byte("medlùl"))
-	fmt.Println(in)
 	rc.XORKeyStream(in, in)
-	fmt.Println(in)
+	if !bytes.Equal(out, in) {
+		t.Errorf("expected same output, got %v and %v", out, in)
+	}
 }
 
-func TestRC4(t *testing.T) {
-	tr := Trailer{Encrypt: Encrypt{V: 1, P: PermissionCopy | PermissionFill}}
-	tr.SetStandardEncryptionHandler("mdsl", "lmkemke", true)
-	d := []byte("ezelùmelùsùsdmsdùsùù	amùsùmzezmezùeùlùm")
-	tr.Encrypt.EncryptionHandler.Crypt(45, d)
-	fmt.Println(string(d))
+func TestRC4Basic(t *testing.T) {
+	var doc Document
+	doc.Catalog.Pages.Kids = []PageNode{&PageObject{Contents: []ContentStream{
+		{Stream: Stream{Content: []byte(strings.Repeat("dlmskd", 10))}},
+	}}}
+	up, op := "dlà&#mks", "elmzk89.ek"
+	for _, v := range [...]EncryptionAlgorithm{Key40, KeyExt} {
+		for _, p := range [...]UserPermissions{
+			PermissionPrint,
+			PermissionModify,
+			PermissionCopy,
+			PermissionAdd,
+			PermissionFill,
+			PermissionExtract,
+			PermissionAssemble,
+			PermissionPrintDigital,
+		} {
+			doc.Trailer.Encrypt.V = v
+			doc.Trailer.Encrypt.P = p
+			doc.Trailer.SetStandardEncryptionHandler(up, op, true)
+			f, err := os.Create("test/rc4.pdf")
+			if err != nil {
+				t.Fatal(err)
+			}
+			err = doc.Write(f)
+			if err != nil {
+				t.Error(err)
+			}
+			f.Close()
+
+			_, err = pdfcpu.ReadFile("test/rc4.pdf", &pdfcpu.Configuration{Reader15: true, UserPW: up})
+			if err != nil {
+				t.Error(err)
+			}
+			_, err = pdfcpu.ReadFile("test/rc4.pdf", &pdfcpu.Configuration{Reader15: true, OwnerPW: op})
+			if err != nil {
+				t.Error(err)
+			}
+			_, err = pdfcpu.ReadFile("test/rc4.pdf", &pdfcpu.Configuration{Reader15: true, OwnerPW: op + "4"})
+			if err == nil {
+				t.Errorf("expected error")
+			}
+			_, err = pdfcpu.ReadFile("test/rc4.pdf", &pdfcpu.Configuration{Reader15: true, UserPW: up + "4"})
+			if err == nil {
+				t.Errorf("expected error")
+			}
+		}
+	}
 }

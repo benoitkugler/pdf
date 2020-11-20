@@ -62,7 +62,7 @@ func (w *output) writeHeader() {
 	w.bytes([]byte("\n"))
 }
 
-func (w *output) writeFooter(trailer Trailer, root, info Reference) {
+func (w *output) writeFooter(trailer Trailer, root, info, encrypt Reference) {
 	var b bytes.Buffer
 	// Cross-ref
 	o, n := w.written, len(w.objOffsets)-1
@@ -78,9 +78,9 @@ func (w *output) writeFooter(trailer Trailer, root, info Reference) {
 	b.WriteString(fmt.Sprintf("/Size %d\n", n+1))
 	b.WriteString(fmt.Sprintf("/Root %d 0 R\n", root))
 	b.WriteString(fmt.Sprintf("/Info %d 0 R\n", info))
-	if trailer.Encrypt.V != 0 {
-		b.WriteString(fmt.Sprintf("/Encrypt %s", trailer.Encrypt.pdfString()))
-		b.WriteString(fmt.Sprintf("/ID [%s %s]",
+	if encrypt > 0 {
+		b.WriteString(fmt.Sprintf("/Encrypt %s\n", encrypt))
+		b.WriteString(fmt.Sprintf("/ID [%s %s]\n",
 			escapeFormatByteString(trailer.ID[0]), escapeFormatByteString(trailer.ID[1])))
 	}
 	b.WriteString(">>\n")
@@ -103,10 +103,10 @@ type pdfWriter struct {
 	fields    map[*FormFieldDict]Reference
 	structure map[*StructureElement]Reference
 
-	encrypt Encrypt
+	encrypt EncryptionHandler
 }
 
-func newWriter(dest io.Writer, encrypt Encrypt) pdfWriter {
+func newWriter(dest io.Writer, encrypt EncryptionHandler) pdfWriter {
 	return pdfWriter{
 		output:   &output{dst: dest, objOffsets: []int{0}},
 		cache:    make(map[Referenceable]Reference),
@@ -136,6 +136,7 @@ var (
 // It will also encrypt `s`, if needed, using
 // `context`, which is the object number of the containing object.
 type PDFStringEncoder interface {
+	// EncodeString may panic if `mode` is not one of `ByteString`, `HexString`, `TextString`
 	EncodeString(s string, mode PDFStringEncoding, context Reference) string
 }
 
@@ -152,28 +153,30 @@ func (p pdfWriter) EncodeString(s string, mode PDFStringEncoding, context Refere
 		return ""
 	}
 
-	// TODO: encryption
-	// if f.protect.encrypted {
-	// 	b := []byte(s)
-	// 	f.protect.rc4(uint32(f.n), &b)
-	// 	s = string(b)
-	// }
-
-	switch mode {
-	case ByteString:
-		return escapeFormatByteString(s)
-	case HexString:
-		return "<" + hex.EncodeToString([]byte(s)) + ">"
-	case TextString:
-		s, err := utf16Enc.NewEncoder().String(s)
+	if mode == TextString {
+		// TODO: choose between utf16 and pdfencoding
+		var err error
+		s, err = utf16Enc.NewEncoder().String(s)
 		if err != nil {
 			p.err = fmt.Errorf("invalid text string %s: %w", s, err)
 			return ""
 		}
-		s = replacer.Replace(s)
-		return "(" + s + ")"
+	}
+
+	// TODO: check if p.encrypt is valid
+	if p.encrypt != nil {
+		sb := []byte(s)
+		p.encrypt.Crypt(context, sb)
+		s = string(sb)
+	}
+
+	switch mode {
+	case ByteString, TextString:
+		return escapeFormatByteString(s) // string litteral
+	case HexString:
+		return "<" + hex.EncodeToString([]byte(s)) + ">" // hex string
 	default:
-		panic("should be an exhaustive switch")
+		panic("invalid encoding mode")
 	}
 }
 
@@ -186,14 +189,17 @@ func (w pdfWriter) writeObject(content string, stream []byte, ref Reference) {
 	w.objOffsets[ref] = w.written
 	w.bytes([]byte(fmt.Sprintf("%d 0 obj\n", ref)))
 	w.bytes([]byte(content))
-	if stream != nil { // TODO: encryption
+	if stream != nil {
 		w.bytes([]byte("\nstream\n"))
-		w.bytes(stream)
-		if len(stream) > 0 && stream[len(stream)-1] != '\n' {
-			// There should be an end-of-line marker after the data and before endstream
-			w.bytes([]byte{'\n'})
+		if w.encrypt != nil { // TODO: check if p.encrypt is valid
+			// we must ensure we dont modify the original stream
+			// which may be a Stream.Content slice
+			stream = append([]byte(nil), stream...)
+			w.encrypt.Crypt(ref, stream)
 		}
-		w.bytes([]byte("endstream"))
+		w.bytes(stream)
+		// There should be an end-of-line marker after the data and before endstream
+		w.bytes([]byte("\nendstream"))
 	}
 	w.bytes([]byte("\nendobj\n"))
 }
