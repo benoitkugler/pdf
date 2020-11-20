@@ -22,7 +22,7 @@ func TestEmbeddedFiles(t *testing.T) {
 	// }
 	var doc model.Document
 
-	out, err := os.Create("embedded.pdf")
+	out, err := os.Create("test/embedded.pdf")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -34,7 +34,7 @@ func TestEmbeddedFiles(t *testing.T) {
 		"api_test.go, une description en français de ce superbé code",
 	}
 	ti := time.Now()
-	err = AddAttachments(&doc, out, files)
+	err = AddAttachments(&doc, nil, out, files)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -18,7 +18,6 @@ package model
 import (
 	"fmt"
 	"io"
-	"strings"
 	"time"
 )
 
@@ -54,8 +53,9 @@ func (doc Document) Clone() Document {
 
 // Write walks the entire document and writes its content
 // into `output`, producing a valid PDF file.
-func (doc Document) Write(output io.Writer) error {
-	wr := newWriter(output, doc.Trailer.Encrypt.EncryptionHandler)
+// `encryption` is an optional encryption dictionary
+func (doc Document) Write(output io.Writer, encryption *Encrypt) error {
+	wr := newWriter(output, encryption)
 
 	wr.writeHeader()
 
@@ -65,8 +65,8 @@ func (doc Document) Write(output io.Writer) error {
 	wr.writeObject(doc.Trailer.Info.pdfString(wr, info), nil, info)
 
 	var encRef Reference
-	if doc.Trailer.Encrypt.V != 0 {
-		encRef = wr.addObject(doc.Trailer.Encrypt.pdfString(), nil)
+	if encryption != nil {
+		encRef = wr.addObject(encryption.pdfString(), nil)
 	}
 
 	wr.writeFooter(doc.Trailer, root, info, encRef)
@@ -271,14 +271,14 @@ func (p ViewerPreferences) pdfString(pdf pdfWriter) string {
 
 type Trailer struct {
 	//TODO: check Prev field
-	Encrypt Encrypt
-	Info    Info
-	ID      [2]string // optional (must be not crypted, direct objects)
+	// Encrypt Encrypt
+	Info Info
+	ID   [2]string // optional (must be not crypted, direct objects)
 }
 
 func (t Trailer) Clone() Trailer {
 	out := t
-	out.Encrypt = t.Encrypt.Clone()
+	// out.Encrypt = t.Encrypt.Clone()
 	return out
 }
 
@@ -324,150 +324,4 @@ func (info Info) pdfString(pdf pdfWriter, ref Reference) string {
 	}
 	b.fmt(">>")
 	return b.String()
-}
-
-// EncryptionAlgorithm is a code specifying the algorithm to be used in encrypting and
-// decrypting the document
-type EncryptionAlgorithm uint8
-
-const (
-	_ EncryptionAlgorithm = iota
-	Key40
-	KeyExt // encryption key with length greater than 40
-	_
-	KeySecurityHandler
-)
-
-// Encrypt stores the encryption-related information
-// It will be filled when reading an existing PDF document.
-// Note that to encrypt a document when writting it,
-// a call to Trailer.SetStandardEncryptionHandler is needed
-// (partly because password are needed, which are not contained in the PDF).
-// Also note that encryption with a public key is not supported.
-type Encrypt struct {
-	EncryptionHandler EncryptionHandler
-	Filter            Name
-	SubFilter         Name
-	V                 EncryptionAlgorithm
-	// in bytes, from 5 to 16, optional, default to 5
-	// written in pdf as bit length
-	Length uint8
-	CF     map[Name]CrypFilter // optional
-	StmF   Name                // optional
-	StrF   Name                // optional
-	EFF    Name                // optional
-	P      UserPermissions
-}
-
-func (e Encrypt) Clone() Encrypt {
-	out := e
-	if e.EncryptionHandler != nil {
-		out.EncryptionHandler = e.EncryptionHandler.Clone()
-	}
-	if e.CF != nil { // preserve reflet.DeepEqual
-		out.CF = make(map[Name]CrypFilter, len(e.CF))
-		for k, v := range e.CF {
-			out.CF[k] = v.Clone()
-		}
-	}
-	return out
-}
-
-func (e Encrypt) pdfString() string {
-	b := newBuffer()
-	b.line("<<")
-	b.fmt("/Filter %s /V %d /P %d", e.Filter, e.V, e.P)
-	if e.Length != 0 {
-		b.fmt("/Length %d", e.Length)
-	}
-	if e.SubFilter != "" {
-		b.fmt("/SubFilter %s", e.SubFilter)
-	}
-	if e.EncryptionHandler != nil {
-		b.WriteString(e.EncryptionHandler.encryptionAddFields() + "\n")
-	}
-	if e.StmF != "" {
-		b.fmt("/StmF %s", e.StmF)
-	}
-	if e.StrF != "" {
-		b.fmt("/StrF %s", e.StrF)
-	}
-	if e.EFF != "" {
-		b.fmt("/EFF %s", e.EFF)
-	}
-	if e.CF != nil {
-		b.fmt("/CF <<")
-		for n, v := range e.CF {
-			b.fmt("%s %s ", n, v.pdfString(true))
-		}
-		b.line(">>")
-	}
-	b.WriteString(">>")
-	return b.String()
-}
-
-type CrypFilter struct {
-	CFM       Name // optional
-	AuthEvent Name // optional
-	Length    int  // optional
-
-	// byte strings, required for public-key security handlers
-	// for Crypt filter decode parameter dictionary,
-	// a one element array is written in PDF directly as a string
-	Recipients []string
-	// optional, default to false
-	// written in PDF under the key /EncryptMetadata
-	DontEncryptMetadata bool
-}
-
-func (c CrypFilter) pdfString(fromCrypt bool) string {
-	out := "<<"
-	if c.CFM != "" {
-		out += "/CFM " + c.CFM.String()
-	}
-	if c.AuthEvent != "" {
-		out += "/AuthEvent " + c.AuthEvent.String()
-	}
-	if c.Length != 0 {
-		out += fmt.Sprintf("/Length %d", c.Length)
-	}
-	if fromCrypt && len(c.Recipients) == 1 {
-		out += "/Recipients " + escapeFormatByteString(c.Recipients[0])
-	}
-	out += fmt.Sprintf("/EncryptMetadata %v>>", !c.DontEncryptMetadata)
-	return out
-}
-
-// Clone returns a deep copy
-func (c CrypFilter) Clone() CrypFilter {
-	out := c
-	out.Recipients = append([]string(nil), c.Recipients...)
-	return out
-}
-
-//EncryptionHandler is either EncryptionStandard or EncryptionPublicKey
-type EncryptionHandler interface {
-	encryptionAddFields() string
-	// return true if the handler is ready to encrypt data
-	isSetup() bool
-	// Clone returns a deep copy, preserving the concrete type.
-	Clone() EncryptionHandler
-	// Crypt transform the incoming `data`, using `n`
-	// as the object number of its context, and return the encrypted bytes.
-	Crypt(n Reference, data []byte) ([]byte, error)
-}
-
-// EncryptionPublicKey is written in PDF under the /Recipients key.
-type EncryptionPublicKey []string
-
-func (e EncryptionPublicKey) encryptionAddFields() string {
-	chunks := make([]string, len(e))
-	for i, s := range e {
-		chunks[i] = escapeFormatByteString(s)
-	}
-	return fmt.Sprintf("/Recipients [%s]", strings.Join(chunks, " "))
-}
-
-func (e EncryptionPublicKey) Clone() EncryptionHandler {
-	return append(EncryptionPublicKey(nil), e...)
 }

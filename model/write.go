@@ -103,10 +103,10 @@ type pdfWriter struct {
 	fields    map[*FormFieldDict]Reference
 	structure map[*StructureElement]Reference
 
-	encrypt EncryptionHandler
+	encrypt *Encrypt
 }
 
-func newWriter(dest io.Writer, encrypt EncryptionHandler) pdfWriter {
+func newWriter(dest io.Writer, encrypt *Encrypt) pdfWriter {
 	return pdfWriter{
 		output:   &output{dst: dest, objOffsets: []int{0}},
 		cache:    make(map[Referenceable]Reference),
@@ -163,10 +163,9 @@ func (p pdfWriter) EncodeString(s string, mode PDFStringEncoding, context Refere
 		}
 	}
 
-	// TODO: check if p.encrypt is valid
-	if p.encrypt != nil {
+	if p.encrypt != nil && p.encrypt.EncryptionHandler != nil {
 		sb := []byte(s)
-		p.encrypt.Crypt(context, sb)
+		p.encrypt.EncryptionHandler.crypt(context, sb)
 		s = string(sb)
 	}
 
@@ -191,11 +190,11 @@ func (w pdfWriter) writeObject(content string, stream []byte, ref Reference) {
 	w.bytes([]byte(content))
 	if stream != nil {
 		w.bytes([]byte("\nstream\n"))
-		if w.encrypt != nil { // TODO: check if p.encrypt is valid
+		if w.encrypt != nil && w.encrypt.EncryptionHandler != nil {
 			// we must ensure we dont modify the original stream
 			// which may be a Stream.Content slice
 			stream = append([]byte(nil), stream...)
-			w.encrypt.Crypt(ref, stream)
+			w.encrypt.EncryptionHandler.crypt(ref, stream)
 		}
 		w.bytes(stream)
 		// There should be an end-of-line marker after the data and before endstream

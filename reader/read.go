@@ -119,11 +119,11 @@ func (r resolver) info() model.Info {
 	return out
 }
 
-func (r resolver) encrypt() (model.Encrypt, error) {
+func (r resolver) encrypt() (*model.Encrypt, error) {
 	var out model.Encrypt
 	enc := r.xref.Encrypt
 	if enc == nil {
-		return model.Encrypt{}, nil
+		return nil, nil
 	}
 
 	d, _ := r.resolve(*enc).(pdfcpu.Dict)
@@ -136,7 +136,7 @@ func (r resolver) encrypt() (model.Encrypt, error) {
 
 	length, _ := r.resolveInt(d["Length"])
 	if length%8 != 0 {
-		return out, fmt.Errorf("field Length must be a multiple of 8")
+		return nil, fmt.Errorf("field Length must be a multiple of 8")
 	}
 	out.Length = uint8(length / 8)
 
@@ -157,13 +157,13 @@ func (r resolver) encrypt() (model.Encrypt, error) {
 	if out.Filter == "Standard" {
 		out.EncryptionHandler, err = r.processStandardSecurityHandler(d)
 		if err != nil {
-			return out, err
+			return nil, err
 		}
 	} else {
 		out.EncryptionHandler = r.processPublicKeySecurityHandler(d)
 	}
 
-	return out, nil
+	return &out, nil
 }
 
 func (r resolver) processStandardSecurityHandler(dict pdfcpu.Dict) (model.EncryptionStandard, error) {
@@ -222,7 +222,7 @@ func (r resolver) processCryptFilter(crypt pdfcpu.Object) model.CrypFilter {
 	return out
 }
 
-func ParsePDF(source io.ReadSeeker, userPassword string) (model.Document, error) {
+func ParsePDF(source io.ReadSeeker, userPassword string) (model.Document, *model.Encrypt, error) {
 	config := pdfcpu.NewDefaultConfiguration()
 	config.UserPW = userPassword
 	config.DecodeAllStreams = true
@@ -231,20 +231,22 @@ func ParsePDF(source io.ReadSeeker, userPassword string) (model.Document, error)
 
 	ctx, err := pdfcpu.Read(source, config)
 	if err != nil {
-		return model.Document{}, fmt.Errorf("can't read PDF: %w", err)
+		return model.Document{}, nil, fmt.Errorf("can't read PDF: %w", err)
 	}
 
 	fmt.Printf("pdfcpu processing: %s\n", time.Since(ti))
 	ti = time.Now()
 
-	out, err := ProcessContext(ctx)
+	out, enc, err := ProcessContext(ctx)
 
 	fmt.Printf("model processing: %s\n", time.Since(ti))
 
-	return out, nil
+	return out, enc, nil
 }
 
-func ProcessContext(ctx *pdfcpu.Context) (model.Document, error) {
+// ProcessContext walk through a parsed PDF to build a model.
+// It also returns the potential encryption information.
+func ProcessContext(ctx *pdfcpu.Context) (model.Document, *model.Encrypt, error) {
 	r := resolver{
 		xref:            ctx.XRefTable,
 		formFields:      make(map[pdfcpu.IndirectRef]*model.FormFieldDict),
@@ -274,14 +276,14 @@ func ProcessContext(ctx *pdfcpu.Context) (model.Document, error) {
 
 	out.Trailer.Info = r.info()
 
-	out.Trailer.Encrypt, err = r.encrypt()
+	enc, err := r.encrypt()
 	if err != nil {
-		return out, err
+		return out, nil, err
 	}
 
 	out.Catalog, err = r.catalog()
 
-	return out, err
+	return out, enc, err
 }
 
 func (r resolver) catalog() (model.Catalog, error) {

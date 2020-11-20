@@ -22,7 +22,7 @@ func ListAttachments(doc model.Document) []string {
 
 // AddAttachments embeds files into the document and writes the result to w.
 // A file is either a file name or a file name and a description separated by a comma.
-func AddAttachments(doc *model.Document, w io.Writer, files []string) error {
+func AddAttachments(doc *model.Document, enc *model.Encrypt, w io.Writer, files []string) error {
 	for _, fn := range files {
 		s := strings.Split(fn, ",")
 		if len(s) == 0 || len(s) > 2 {
@@ -72,6 +72,6 @@ func AddAttachments(doc *model.Document, w io.Writer, files []string) error {
 		doc.Catalog.Names.EmbeddedFiles = append(doc.Catalog.Names.EmbeddedFiles, att)
 	}
 
-	err := doc.Write(w)
+	err := doc.Write(w, enc)
 	return err
 }

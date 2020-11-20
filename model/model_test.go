@@ -9,7 +9,7 @@ import (
 func TestEmptyDocument(t *testing.T) {
 	var d Document
 	var b bytes.Buffer
-	err := d.Write(&b)
+	err := d.Write(&b, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -18,7 +18,7 @@ func TestEmptyDocument(t *testing.T) {
 	}
 }
 
-func TestCloneTrailer(t *testing.T) {
+func TestCloneEncrypt(t *testing.T) {
 	e := Encrypt{
 		CF: map[Name]CrypFilter{
 			"lmds": {},
@@ -30,12 +30,6 @@ func TestCloneTrailer(t *testing.T) {
 	e2 := e.Clone()
 	if !reflect.DeepEqual(e, e2) {
 		t.Errorf("expected %v, got %v", e, e2)
-	}
-
-	tr := Trailer{Encrypt: e}
-	tr2 := tr.Clone()
-	if !reflect.DeepEqual(tr, tr2) {
-		t.Errorf("expected %v, got %v", tr, tr2)
 	}
 }
 

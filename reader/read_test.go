@@ -26,7 +26,7 @@ func init() {
 	}
 	defer f.Close()
 
-	pdfSpec, err = ParsePDF(f, "")
+	pdfSpec, _, err = ParsePDF(f, "")
 	if err != nil {
 		panic(err)
 	}
@@ -80,11 +80,11 @@ func TestOpen(t *testing.T) {
 	}
 	defer f.Close()
 
-	doc, err := ParsePDF(f, "")
+	doc, enc, err := ParsePDF(f, "")
 	if err != nil {
 		t.Fatal(err)
 	}
-	fmt.Println(doc.Trailer)
+	fmt.Println(doc.Trailer, enc)
 }
 
 func TestStructureTree(t *testing.T) {
@@ -171,7 +171,7 @@ func BenchmarkProcess(b *testing.B) {
 	}
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, err := ProcessContext(ctx)
+		_, _, err := ProcessContext(ctx)
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -195,7 +195,7 @@ func TestDataset(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		doc, err := ParsePDF(f, "")
+		doc, _, err := ParsePDF(f, "")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -226,7 +226,7 @@ func TestType3(t *testing.T) {
 	}
 	defer f.Close()
 
-	doc, err := ParsePDF(f, "")
+	doc, _, err := ParsePDF(f, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -252,11 +252,14 @@ func TestProtected(t *testing.T) {
 	}
 	defer f.Close()
 
-	doc, err := ParsePDF(f, "aaaa")
+	_, enc, err := ParsePDF(f, "aaaa")
 	if err != nil {
 		t.Fatal(err)
 	}
-	fmt.Println(doc.Trailer.Encrypt)
+	if enc == nil {
+		t.Error("expected Encryption dictionary")
+	}
+	fmt.Println(*enc)
 }
 
 func TestWrite(t *testing.T) {
@@ -276,7 +279,7 @@ func TestWrite(t *testing.T) {
 		},
 	}
 	out := &bytes.Buffer{}
-	err := doc.Write(out)
+	err := doc.Write(out, nil)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -284,7 +287,7 @@ func TestWrite(t *testing.T) {
 
 	var inMemory io.ReadSeeker = bytes.NewReader(out.Bytes())
 
-	doc2, err := ParsePDF(inMemory, "")
+	doc2, _, err := ParsePDF(inMemory, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -301,7 +304,7 @@ func TestReWrite(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer f.Close()
-	doc, err := ParsePDF(f, "")
+	doc, _, err := ParsePDF(f, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -313,7 +316,7 @@ func TestReWrite(t *testing.T) {
 	defer out.Close()
 
 	ti := time.Now()
-	err = doc.Write(out)
+	err = doc.Write(out, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -321,7 +324,7 @@ func TestReWrite(t *testing.T) {
 
 	out2 := bytes.Buffer{}
 	ti = time.Now()
-	err = doc.Write(&out2)
+	err = doc.Write(&out2, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -340,7 +343,7 @@ func BenchmarkWrite(b *testing.B) {
 			b.Fatal(err)
 		}
 
-		err = pdfSpec.Write(out)
+		err = pdfSpec.Write(out, nil)
 		if err != nil {
 			b.Fatal(err)
 		}

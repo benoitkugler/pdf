@@ -7,6 +7,7 @@ import (
 	"crypto/rc4"
 	"encoding/binary"
 	"fmt"
+	"strings"
 )
 
 var padding = [...]byte{
@@ -48,6 +49,150 @@ func (u UserPermissions) isRevision3() bool {
 	return !b
 }
 
+// EncryptionAlgorithm is a code specifying the algorithm to be used in encrypting and
+// decrypting the document
+type EncryptionAlgorithm uint8
+
+const (
+	_ EncryptionAlgorithm = iota
+	Key40
+	KeyExt // encryption key with length greater than 40
+	_
+	KeySecurityHandler
+)
+
+// Encrypt stores the encryption-related information
+// It will be filled when reading an existing PDF document.
+// Note that to encrypt a document when writting it,
+// a call to Trailer.SetStandardEncryptionHandler is needed
+// (partly because password are needed, which are not contained in the PDF).
+// Also note that encryption with a public key is not supported.
+type Encrypt struct {
+	EncryptionHandler EncryptionHandler
+	Filter            Name
+	SubFilter         Name
+	V                 EncryptionAlgorithm
+	// in bytes, from 5 to 16, optional, default to 5
+	// written in pdf as bit length
+	Length uint8
+	CF     map[Name]CrypFilter // optional
+	StmF   Name                // optional
+	StrF   Name                // optional
+	EFF    Name                // optional
+	P      UserPermissions
+}
+
+func (e Encrypt) Clone() Encrypt {
+	out := e
+	if e.EncryptionHandler != nil {
+		out.EncryptionHandler = e.EncryptionHandler.Clone()
+	}
+	if e.CF != nil { // preserve reflet.DeepEqual
+		out.CF = make(map[Name]CrypFilter, len(e.CF))
+		for k, v := range e.CF {
+			out.CF[k] = v.Clone()
+		}
+	}
+	return out
+}
+
+func (e Encrypt) pdfString() string {
+	b := newBuffer()
+	b.line("<<")
+	b.fmt("/Filter %s /V %d /P %d", e.Filter, e.V, e.P)
+	if e.Length != 0 {
+		b.fmt("/Length %d", e.Length)
+	}
+	if e.SubFilter != "" {
+		b.fmt("/SubFilter %s", e.SubFilter)
+	}
+	if e.EncryptionHandler != nil {
+		b.WriteString(e.EncryptionHandler.encryptionAddFields() + "\n")
+	}
+	if e.StmF != "" {
+		b.fmt("/StmF %s", e.StmF)
+	}
+	if e.StrF != "" {
+		b.fmt("/StrF %s", e.StrF)
+	}
+	if e.EFF != "" {
+		b.fmt("/EFF %s", e.EFF)
+	}
+	if e.CF != nil {
+		b.fmt("/CF <<")
+		for n, v := range e.CF {
+			b.fmt("%s %s ", n, v.pdfString(true))
+		}
+		b.line(">>")
+	}
+	b.WriteString(">>")
+	return b.String()
+}
+
+type CrypFilter struct {
+	CFM       Name // optional
+	AuthEvent Name // optional
+	Length    int  // optional
+
+	// byte strings, required for public-key security handlers
+	// for Crypt filter decode parameter dictionary,
+	// a one element array is written in PDF directly as a string
+	Recipients []string
+	// optional, default to false
+	// written in PDF under the key /EncryptMetadata
+	DontEncryptMetadata bool
+}
+
+func (c CrypFilter) pdfString(fromCrypt bool) string {
+	out := "<<"
+	if c.CFM != "" {
+		out += "/CFM " + c.CFM.String()
+	}
+	if c.AuthEvent != "" {
+		out += "/AuthEvent " + c.AuthEvent.String()
+	}
+	if c.Length != 0 {
+		out += fmt.Sprintf("/Length %d", c.Length)
+	}
+	if fromCrypt && len(c.Recipients) == 1 {
+		out += "/Recipients " + escapeFormatByteString(c.Recipients[0])
+	}
+	out += fmt.Sprintf("/EncryptMetadata %v>>", !c.DontEncryptMetadata)
+	return out
+}
+
+// Clone returns a deep copy
+func (c CrypFilter) Clone() CrypFilter {
+	out := c
+	out.Recipients = append([]string(nil), c.Recipients...)
+	return out
+}
+
+//EncryptionHandler is either EncryptionStandard or EncryptionPublicKey
+type EncryptionHandler interface {
+	encryptionAddFields() string
+	// Clone returns a deep copy, preserving the concrete type.
+	Clone() EncryptionHandler
+	// crypt transform the incoming `data`, using `n`
+	// as the object number of its context, and return the encrypted bytes.
+	crypt(n Reference, data []byte) ([]byte, error)
+}
+
+// EncryptionPublicKey is written in PDF under the /Recipients key.
+type EncryptionPublicKey []string
+
+func (e EncryptionPublicKey) encryptionAddFields() string {
+	chunks := make([]string, len(e))
+	for i, s := range e {
+		chunks[i] = escapeFormatByteString(s)
+	}
+	return fmt.Sprintf("/Recipients [%s]", strings.Join(chunks, " "))
+}
+
+func (e EncryptionPublicKey) Clone() EncryptionHandler {
+	return append(EncryptionPublicKey(nil), e...)
+}
+
 type EncryptionStandard struct {
 	R uint8 // 2 ,3 or 4
 	O [32]byte
@@ -60,13 +205,12 @@ type EncryptionStandard struct {
 	encryptionKey []byte
 }
 
-// SetStandardEncryptionHandler create a Standard security handler
-// and install it on the document.
+// UseStandardEncryptionHandler create a Standard security handler
+// and install it on the returned encrypt dict..
 // The field V and P of the encrypt dict must be setup previously.
 // `userPassword` and `ownerPassword` are used to generate the encryption keys
 // and will be needed to decrypt the document.
-func (t *Trailer) SetStandardEncryptionHandler(userPassword, ownerPassword string, encryptMetadata bool) {
-	enc := &t.Encrypt
+func (d Document) UseStandardEncryptionHandler(enc Encrypt, userPassword, ownerPassword string, encryptMetadata bool) Encrypt {
 	enc.Filter = "Standard"
 	enc.SubFilter = ""
 	var out EncryptionStandard
@@ -92,7 +236,7 @@ func (t *Trailer) SetStandardEncryptionHandler(userPassword, ownerPassword strin
 	buf := append([]byte(nil), userPass[:]...)
 	buf = append(buf, out.O[:]...)
 	buf = append(buf, enc.P.bytes()...)
-	buf = append(buf, t.ID[0]...)
+	buf = append(buf, d.Trailer.ID[0]...)
 	if out.R >= 4 && !encryptMetadata {
 		buf = append(buf, 0xff, 0xff, 0xff, 0xff)
 	}
@@ -104,9 +248,9 @@ func (t *Trailer) SetStandardEncryptionHandler(userPassword, ownerPassword strin
 		}
 	}
 	out.encryptionKey = sum[0:keyLength]
-	out.U = t.generateUserHash(out.R, out.encryptionKey)
-
+	out.U = d.Trailer.generateUserHash(out.R, out.encryptionKey)
 	enc.EncryptionHandler = out
+	return enc
 }
 
 func (e EncryptionStandard) encryptionAddFields() string {
@@ -121,13 +265,9 @@ func (e EncryptionStandard) Clone() EncryptionHandler {
 	return out
 }
 
-func (e EncryptionStandard) isSetup() bool {
-	return len(e.encryptionKey) >= 0
-}
-
-// Crypt encrypt in-place the given `data` using its object number,
+// crypt encrypt in-place the given `data` using its object number,
 // with the RC4 algorithm.
-func (p EncryptionStandard) Crypt(n Reference, data []byte) ([]byte, error) {
+func (p EncryptionStandard) crypt(n Reference, data []byte) ([]byte, error) {
 	out := make([]byte, len(data))
 	rc4cipher, _ := rc4.NewCipher(objectEncrytionKey(p.encryptionKey, n, false))
 	rc4cipher.XORKeyStream(out, data)
@@ -195,13 +335,11 @@ func (t Trailer) generateUserHash(revision uint8, encryptionKey []byte) (v [32]b
 
 // ------------------------------------------------------------------------------------
 
-// Crypt is not supported for the PublicKey security handler
+// crypt is not supported for the PublicKey security handler
 // Thus, this function return the plain data.
-func (e EncryptionPublicKey) Crypt(n Reference, data []byte) ([]byte, error) {
+func (e EncryptionPublicKey) crypt(n Reference, data []byte) ([]byte, error) {
 	return data, nil
 }
-
-func (e EncryptionPublicKey) isSetup() bool { return false }
 
 // func cryptAes(objectKey, data []byte) ([]byte, error) {
 // 	// pad data to aes.Blocksize

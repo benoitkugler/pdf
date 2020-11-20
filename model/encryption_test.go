@@ -40,14 +40,13 @@ func TestRC4Basic(t *testing.T) {
 			PermissionAssemble,
 			PermissionPrintDigital,
 		} {
-			doc.Trailer.Encrypt.V = v
-			doc.Trailer.Encrypt.P = p
-			doc.Trailer.SetStandardEncryptionHandler(up, op, true)
+			enc := Encrypt{V: v, P: p}
+			enc = doc.UseStandardEncryptionHandler(enc, up, op, true)
 			f, err := os.Create("test/rc4.pdf")
 			if err != nil {
 				t.Fatal(err)
 			}
-			err = doc.Write(f)
+			err = doc.Write(f, &enc)
 			if err != nil {
 				t.Error(err)
 			}
