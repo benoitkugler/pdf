@@ -116,7 +116,7 @@ func TestDataset(t *testing.T) {
 		"datatest/CMYK_OP.pdf",
 		"datatest/CMYKSpot_OP.pdf",
 		"datatest/Shading.pdf",
-		"datatest/Shading2.pdf",
+		"datatest/Shading4.pdf",
 		"datatest/Font_Substitution.pdf",
 	}
 

@@ -7,6 +7,7 @@ import (
 	"github.com/pdfcpu/pdfcpu/pkg/pdfcpu"
 )
 
+// may return nil if `ac` is nil or invalid
 func (r resolver) processAction(ac pdfcpu.Object) (out model.Action, err error) {
 	action, _ := r.resolve(ac).(pdfcpu.Dict)
 	if action["S"] == nil {

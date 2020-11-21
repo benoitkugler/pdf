@@ -169,27 +169,41 @@ func (r resolver) resolveAnnotationFields(annotDict pdfcpu.Dict) (model.Annotati
 		annotModel model.AnnotationDict
 		err        error
 	)
+	annotModel.BaseAnnotation, err = r.resolveBaseAnnotation(annotDict)
+	if err != nil {
+		return annotModel, err
+	}
+
+	annotModel.Subtype, err = r.resolveAnnotationSubType(annotDict)
+	if err != nil {
+		return annotModel, err
+	}
+
+	return annotModel, nil
+}
+
+func (r resolver) resolveBaseAnnotation(annotDict pdfcpu.Dict) (out model.BaseAnnotation, err error) {
 	if rect := r.rectangleFromArray(annotDict["Rect"]); rect != nil {
-		annotModel.Rect = *rect
+		out.Rect = *rect
 	}
 
 	contents, _ := isString(r.resolve(annotDict["Contents"]))
-	annotModel.Contents = decodeTextString(contents)
+	out.Contents = decodeTextString(contents)
 
 	nm, _ := isString(r.resolve(annotDict["NM"]))
-	annotModel.NM = decodeTextString(nm)
+	out.NM = decodeTextString(nm)
 
 	if m, ok := isString(r.resolve(annotDict["M"])); ok {
 		if mt, ok := pdfcpu.DateTime(m); ok {
-			annotModel.M = mt
+			out.M = mt
 		}
 	}
 
 	if f, ok := r.resolveInt(annotDict["F"]); ok {
-		annotModel.F = model.AnnotationFlag(f)
+		out.F = model.AnnotationFlag(f)
 	}
 	if name, ok := r.resolveName(annotDict["Name"]); ok {
-		annotModel.AS = name
+		out.AS = name
 	}
 	border, _ := r.resolveArray(annotDict["Border"])
 	var bo model.Border
@@ -201,29 +215,40 @@ func (r resolver) resolveAnnotationFields(annotDict pdfcpu.Dict) (model.Annotati
 			dash, _ := r.resolveArray(border[4])
 			bo.DashArray = r.processFloatArray(dash)
 		}
-		annotModel.Border = &bo
+		out.Border = &bo
 	}
 
 	color, _ := r.resolveArray(annotDict["C"])
 	switch len(color) {
-	case 0, 1, 3, 4: // accepted color values
-		annotModel.C = r.processFloatArray(color)
+	case 0, 1, 3, 4: // accepted color lengths
+		out.C = r.processFloatArray(color)
 	}
 
-	annotModel.AP, err = r.resolveAppearanceDict(annotDict["AP"])
+	out.AP, err = r.resolveAppearanceDict(annotDict["AP"])
 	if err != nil {
-		return annotModel, err
+		return out, err
 	}
 	if st, ok := r.resolveInt(annotDict["StructParent"]); ok {
-		annotModel.StructParent = model.Int(st)
+		out.StructParent = model.Int(st)
 	}
+	return out, nil
+}
 
-	annotModel.Subtype, err = r.resolveAnnotationSubType(annotDict)
-	if err != nil {
-		return annotModel, err
+func (r resolver) resolveBorderStyle(o pdfcpu.Object) *model.BorderStyle {
+	dict, _ := r.resolve(o).(pdfcpu.Dict)
+	if dict == nil {
+		return nil
 	}
-
-	return annotModel, nil
+	var out model.BorderStyle
+	if w, ok := r.resolveNumber(dict["W"]); ok {
+		out.W = model.Float(w)
+	}
+	out.S, _ = r.resolveName(dict["S"])
+	d, _ := r.resolveArray(dict["D"])
+	if d != nil {
+		out.D = r.processFloatArray(d)
+	}
+	return &out
 }
 
 // node, possibly root
@@ -355,17 +380,43 @@ func (r resolver) resolveAnnotationSubType(annot pdfcpu.Dict) (model.Annotation,
 	var err error
 	name, _ := r.resolveName(annot["Subtype"])
 	switch name {
+	case "Text":
+		var an model.AnnotationText
+		an.AnnotationMarkup, err = r.resolveAnnotationMarkup(annot)
+		if err != nil {
+			return nil, err
+		}
+		an.Open, _ = r.resolveBool(annot["Open"])
+		an.Name, _ = r.resolveName(annot["Name"])
+		if st, ok := isString(r.resolve(annot["State"])); ok {
+			an.State = decodeTextString(st)
+		}
+		if st, ok := isString(r.resolve(annot["StateModel"])); ok {
+			an.StateModel = decodeTextString(st)
+		}
+		return an, nil
 	case "Link":
 		var an model.AnnotationLink
-		aDict, isDict := r.resolve(annot["A"]).(pdfcpu.Dict)
-		if isDict {
+		if aDict, isDict := r.resolve(annot["A"]).(pdfcpu.Dict); isDict {
 			an.A, err = r.processAction(aDict)
-			return an, err
+			if err != nil {
+				return nil, err
+			}
+		} else if dest := r.resolve(annot["Dest"]); dest != nil {
+			an.Dest, err = r.processDestination(dest)
+			if err != nil {
+				return nil, err
+			}
 		}
-		an.Dest, err = r.processDestination(annot["Dest"])
+		h, _ := r.resolveName(annot["H"])
+		an.H = model.Highlighting(h)
+		an.PA, err = r.processAction(annot["PA"])
 		if err != nil {
-			return an, err
+			return nil, err
 		}
+		qp, _ := r.resolveArray(annot["QuadPoints"])
+		an.QuadPoints = r.processFloatArray(qp)
+		an.BS = r.resolveBorderStyle(annot["BS"])
 		return an, nil
 	case "FileAttachment":
 		var an model.AnnotationFileAttachment
@@ -377,8 +428,52 @@ func (r resolver) resolveAnnotationSubType(annot pdfcpu.Dict) (model.Annotation,
 		// TODO:
 		return model.AnnotationWidget{}, nil
 	default:
+		fmt.Println("TODO :", annot)
 		return nil, nil
 	}
+}
+
+func (r resolver) resolveAnnotationMarkup(annot pdfcpu.Dict) (out model.AnnotationMarkup, err error) {
+	t, _ := isString(r.resolve(annot["T"]))
+	out.T = decodeTextString(t)
+	out.Popup, err = r.resolveAnnotationPopup(annot)
+	if err != nil {
+		return out, err
+	}
+	if ca, ok := r.resolveNumber(annot["CA"]); ok {
+		out.CA = model.Float(ca)
+	}
+	out.RC = r.textOrStream(annot["RC"])
+
+	cd, _ := isString(r.resolve(annot["CreationDate"]))
+	out.CreationDate, _ = pdfcpu.DateTime(cd)
+
+	subj, _ := isString(r.resolve(annot["Subj"]))
+	out.Subj = decodeTextString(subj)
+
+	out.IT, _ = r.resolveName(annot["IT"])
+	return out, nil
+}
+
+func (r resolver) resolveAnnotationPopup(o pdfcpu.Object) (*model.AnnotationPopup, error) {
+	o = r.resolve(o)
+	if o == nil {
+		return nil, nil
+	}
+	dict, ok := o.(pdfcpu.Dict)
+	if !ok {
+		return nil, errType("Popup Annotation", o)
+	}
+	var (
+		out model.AnnotationPopup
+		err error
+	)
+	out.BaseAnnotation, err = r.resolveBaseAnnotation(dict)
+	if err != nil {
+		return nil, err
+	}
+	out.Open, _ = r.resolveBool(dict["Open"])
+	return &out, nil
 }
 
 func (r resolver) resolveFileSpec(fs pdfcpu.Object) (*model.FileSpec, error) {

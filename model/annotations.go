@@ -66,7 +66,8 @@ type BorderStyle struct {
 	D []float64  // optional, default to [3], nil not to specify it
 }
 
-func (bo BorderStyle) pdfString() string {
+// String returns the PDF dictionary representing the border style.
+func (bo BorderStyle) String() string {
 	b := newBuffer()
 	b.WriteString("<<")
 	if bo.W != nil {
@@ -89,6 +90,26 @@ func (b *BorderStyle) Clone() *BorderStyle {
 	}
 	out := *b
 	out.D = append([]float64(nil), b.D...)
+	return &out
+}
+
+// BorderEffect specifies an effect that shall be applied to the border of the annotations
+// See Table 167 – Entries in a border effect dictionary
+type BorderEffect struct {
+	S Name    // optional
+	I float64 // optional
+}
+
+// String returns the PDF dictionary .
+func (b BorderEffect) String() string {
+	return fmt.Sprintf("<</S %s/I %.3f>>", b.S, b.I)
+}
+
+func (b *BorderEffect) Clone() *BorderEffect {
+	if b == nil {
+		return nil
+	}
+	out := *b
 	return &out
 }
 
@@ -184,6 +205,95 @@ func (ba BaseAnnotation) clone(cache cloneCache) BaseAnnotation {
 		out.C = append([]float64(nil), ba.C...)
 	}
 	return out
+}
+
+// AnnotationMarkup groups attributes common to all markup annotations
+// See Table 170 – Additional entries specific to markup annotations
+// Markup annotations are:
+//	- Text
+//	- FreeText
+//	- Line
+//	- Square
+//	- Circle
+//	- Polygon
+//	- PolyLine
+//	- Highlight
+//	- Underline
+//	- Squiggly
+//	- StrikeOut
+//	- Stamp
+//	- Caret
+//	- Ink
+//	- FileAttachment
+//	- Sound
+//	- Redact
+type AnnotationMarkup struct {
+	T            string           // optional
+	Popup        *AnnotationPopup // optional, written as an indirect reference
+	CA           MaybeFloat       // optional
+	RC           string           // optional, may be written in PDF as a text stream
+	CreationDate time.Time        // optional
+	Subj         string           // optional
+	IT           Name             // optional
+	// TODO: reply to
+}
+
+func (a AnnotationMarkup) clone(cache cloneCache) AnnotationMarkup {
+	out := a
+	if a.Popup != nil {
+		out.Popup = a.Popup.clone(cache)
+	}
+	return out
+}
+
+func (a AnnotationMarkup) pdfFields(pdf pdfWriter, context Reference) string {
+	b := newBuffer()
+	if a.T != "" {
+		b.fmt("/T %s", pdf.EncodeString(a.T, TextString, context))
+	}
+	if a.Popup != nil {
+		// the context is also the parent
+		ref := pdf.addObject(a.Popup.pdfString(pdf, context), nil)
+		b.fmt("/Popup %s", ref)
+	}
+	if a.CA != nil {
+		b.fmt("/CA %.3f", a.CA.(Float))
+	}
+	if a.RC != "" {
+		b.fmt("/RC %s", pdf.EncodeString(a.RC, TextString, context))
+	}
+	if !a.CreationDate.IsZero() {
+		b.fmt("/CreationDate %s", pdf.dateString(a.CreationDate, context))
+	}
+	if a.Subj != "" {
+		b.fmt("/Subj %s", pdf.EncodeString(a.Subj, TextString, context))
+	}
+	if a.IT != "" {
+		b.fmt("/IT %s", a.IT)
+	}
+	return b.String()
+}
+
+// AnnotationPopup is an annotation with a static type of Popup.
+// It is not used as a standalone annotation, but in a markup annotation.
+// Its Parent field is deduced from its container.
+type AnnotationPopup struct {
+	BaseAnnotation
+	Open bool // optional
+}
+
+func (an *AnnotationPopup) clone(cache cloneCache) *AnnotationPopup {
+	if an == nil {
+		return nil
+	}
+	out := *an
+	out.BaseAnnotation = an.BaseAnnotation.clone(cache)
+	return &out
+}
+
+func (a AnnotationPopup) pdfString(pdf pdfWriter, parent Reference) string {
+	common := a.BaseAnnotation.fields(pdf, parent)
+	return fmt.Sprintf("<</Subtype/Popup %s /Open %v/Parent %s>>", common, a.Open, parent)
 }
 
 type AnnotationDict struct {
@@ -284,6 +394,269 @@ type Annotation interface {
 
 // ------------------------ specializations ------------------------
 
+// AnnotationText represents a “sticky note” attached to a point in the PDF document.
+// See Table 172 – Additional entries specific to a text annotation.
+type AnnotationText struct {
+	AnnotationMarkup
+	Open       bool   // optional
+	Name       Name   // optional
+	State      string // optional
+	StateModel string // optional
+}
+
+func (f AnnotationText) annotationFields(pdf pdfWriter, ref Reference) string {
+	out := "/Subtype/Text " + f.AnnotationMarkup.pdfFields(pdf, ref)
+	if f.Open {
+		out += fmt.Sprintf("/Open %v", f.Open)
+	}
+	if f.Name != "" {
+		out += fmt.Sprintf("/Name %s", f.Name)
+	}
+	if f.State != "" {
+		out += fmt.Sprintf("/State %s", pdf.EncodeString(f.State, TextString, ref))
+	}
+	if f.StateModel != "" {
+		out += fmt.Sprintf("/StateModel %s", pdf.EncodeString(f.StateModel, TextString, ref))
+	}
+	return out
+}
+
+func (f AnnotationText) clone(cache cloneCache) Annotation {
+	out := f
+	out.AnnotationMarkup = f.AnnotationMarkup.clone(cache)
+	return out
+}
+
+// ----------------------------------------------------------
+
+// AnnotationLink either opens an URI (field A)
+// or an internal page (field Dest)
+// See Table 173 – Additional entries specific to a link annotation
+type AnnotationLink struct {
+	A          Action       // optional, represented by a dictionary in PDF
+	Dest       Destination  // may only be present is A is nil
+	H          Highlighting // optional
+	PA         Action       // optional, of type ActionURI
+	QuadPoints []float64    // optional, length 8 x n
+	BS         *BorderStyle // optional
+}
+
+func (l AnnotationLink) annotationFields(pdf pdfWriter, ref Reference) string {
+	out := "/Subtype/Link"
+	if l.A.ActionType != nil {
+		out += "/A " + l.A.pdfString(pdf, ref)
+	} else if l.Dest != nil {
+		out += "/Dest " + l.Dest.pdfDestination(pdf, ref)
+	}
+	if l.H != "" {
+		out += "/H " + Name(l.H).String()
+	}
+	if l.PA.ActionType != nil {
+		out += "/PA " + l.PA.pdfString(pdf, ref)
+	}
+	if len(l.QuadPoints) != 0 {
+		out += "/QuadPoints " + writeFloatArray(l.QuadPoints)
+	}
+	if l.BS != nil {
+		out += "/BS " + l.BS.String()
+	}
+	return out
+}
+
+func (l AnnotationLink) clone(cache cloneCache) Annotation {
+	out := l
+	out.A = l.A.clone(cache)
+	if l.Dest != nil {
+		out.Dest = l.Dest.clone(cache)
+	}
+	if l.PA.ActionType != nil {
+		out.PA = l.PA.clone(cache)
+	}
+	out.QuadPoints = append([]float64(nil), l.QuadPoints...)
+	out.BS = l.BS.Clone()
+	return out
+}
+
+// -----------------------------------------------------------
+
+// AnnotationFreeText displays text directly on the page.
+// See Table 174 – Additional entries specific to a free text annotation
+type AnnotationFreeText struct {
+	AnnotationMarkup
+	DA string        // required
+	Q  uint8         // optional
+	RC string        // optional, may be written in PDF as a text stream
+	DS string        // optional
+	CL []float64     // optional
+	BE *BorderEffect // optional
+	RD Rectangle     // optional
+	BS *BorderStyle  // optional
+	LE Name          // optional
+}
+
+func (f AnnotationFreeText) annotationFields(pdf pdfWriter, ref Reference) string {
+	b := newBuffer()
+	b.WriteString("/Subtype/FreeText " + f.AnnotationMarkup.pdfFields(pdf, ref))
+	b.WriteString("/DA " + pdf.EncodeString(f.DA, ByteString, ref))
+	if f.Q != 0 {
+		b.WriteString(fmt.Sprintf("/Q %d", f.Q))
+	}
+	if f.RC != "" {
+		b.WriteString("/RC " + pdf.EncodeString(f.RC, TextString, ref))
+	}
+	if f.DS != "" {
+		b.WriteString("/DS " + pdf.EncodeString(f.DS, TextString, ref))
+	}
+	if len(f.CL) != 0 {
+		b.WriteString("/CL " + writeFloatArray(f.CL))
+	}
+	if f.BE != nil {
+		b.WriteString("/BE " + f.BE.String())
+	}
+	if f.RD != (Rectangle{}) {
+		b.WriteString("/RD " + f.RD.String())
+	}
+	if f.BS != nil {
+		b.WriteString("/BS " + f.BS.String())
+	}
+	if f.LE != "" {
+		b.WriteString("/LE " + f.LE.String())
+	}
+	return b.String()
+}
+
+func (f AnnotationFreeText) clone(cache cloneCache) Annotation {
+	out := f
+	out.AnnotationMarkup = f.AnnotationMarkup.clone(cache)
+	out.CL = append([]float64(nil), f.CL...)
+	out.BE = f.BE.Clone()
+	out.BS = f.BS.Clone()
+	return out
+}
+
+// ------------------------------------------------------------------------------
+
+// AnnotationLine displays a single straight line on the page.
+// See Table 175 – Additional entries specific to a line annotation
+type AnnotationLine struct {
+	AnnotationMarkup
+	L   [4]float64   // required
+	BS  *BorderStyle // optional
+	LE  [2]Name      // optional
+	IC  []float64    // optional
+	LL  float64      // optional
+	LLE float64      // optional
+	Cap bool         // optional
+	LLO MaybeFloat   // optional
+	CP  Name         // optional
+	CO  [2]float64   // optional
+	// TODO: support measure dictionary
+	// Measure *MeasureDict // optional
+}
+
+func (f AnnotationLine) annotationFields(pdf pdfWriter, ref Reference) string {
+	b := newBuffer()
+	b.WriteString("/Subtype/Line " + f.AnnotationMarkup.pdfFields(pdf, ref))
+	b.WriteString("/L " + writeFloatArray(f.L[:]))
+	if f.BS != nil {
+		b.WriteString("/BS " + f.BS.String())
+	}
+	if f.LE != ([2]Name{}) {
+		b.WriteString(fmt.Sprintf("/LE %s", writeNameArray(f.LE[:])))
+	}
+	if len(f.IC) != 0 {
+		b.WriteString("/IC " + writeFloatArray(f.IC))
+	}
+	if f.LL != 0 {
+		b.fmt("/LL %.3f", f.LL)
+	}
+	if f.LLE != 0 {
+		b.fmt("/LLE %.3f", f.LLE)
+	}
+	b.fmt("/Cap %v", f.Cap)
+	if f.LLO != nil {
+		b.fmt("/LLO %.3f", f.LLO.(Float))
+	}
+	if f.CP != "" {
+		b.fmt("/CP %s", f.CP)
+	}
+	if f.CO != ([2]float64{}) {
+		b.WriteString(fmt.Sprintf("/CO %s", writeFloatArray(f.CO[:])))
+	}
+	return b.String()
+}
+
+func (f AnnotationLine) clone(cache cloneCache) Annotation {
+	out := f
+	out.AnnotationMarkup = f.AnnotationMarkup.clone(cache)
+	out.BS = f.BS.Clone()
+	out.IC = append([]float64(nil), f.IC...)
+	return out
+}
+
+// -------------------------------------------------------------------
+
+// AnnotationSquare displays a rectangle on the page.
+// See Table 177 – Additional entries specific to a square or circle annotation
+type AnnotationSquare struct {
+	AnnotationMarkup
+	BS *BorderStyle  // optional
+	IC []float64     // optional
+	BE *BorderEffect // optional
+	RD Rectangle     // optional
+}
+
+// shared with AnnorationCircle
+func (f AnnotationSquare) annotationFieldsExt(pdf pdfWriter, ref Reference, isSquare bool) string {
+	b := newBuffer()
+	subtype := Name("Circle")
+	if isSquare {
+		subtype = "Square"
+	}
+	b.fmt("/Subtype%s %s", subtype, f.AnnotationMarkup.pdfFields(pdf, ref))
+	if f.BS != nil {
+		b.WriteString("/BS " + f.BS.String())
+	}
+	if len(f.IC) != 0 {
+		b.WriteString("/IC " + writeFloatArray(f.IC))
+	}
+	if f.BE != nil {
+		b.WriteString("/BE " + f.BE.String())
+	}
+	if f.RD != (Rectangle{}) {
+		b.WriteString("/RD " + f.RD.String())
+	}
+	return b.String()
+}
+
+func (f AnnotationSquare) annotationFields(pdf pdfWriter, ref Reference) string {
+	return f.annotationFieldsExt(pdf, ref, true)
+}
+
+func (f AnnotationSquare) clone(cache cloneCache) Annotation {
+	out := f
+	out.AnnotationMarkup = f.AnnotationMarkup.clone(cache)
+	out.BS = f.BS.Clone()
+	out.IC = append([]float64(nil), f.IC...)
+	out.BE = f.BE.Clone()
+	return out
+}
+
+// AnnotationCircle displays an ellipse on the page
+type AnnotationCircle AnnotationSquare
+
+func (f AnnotationCircle) annotationFields(pdf pdfWriter, ref Reference) string {
+	return AnnotationSquare(f).annotationFieldsExt(pdf, ref, false)
+}
+
+func (f AnnotationCircle) clone(cache cloneCache) Annotation {
+	return AnnotationCircle(AnnotationSquare(f).clone(cache).(AnnotationSquare))
+}
+
+// -------------------------------------------------------------------------
+
+//TODO: add and check the remaining annotation
+
 type AnnotationFileAttachment struct {
 	T  string
 	FS *FileSpec
@@ -301,33 +674,6 @@ func (f AnnotationFileAttachment) clone(cache cloneCache) Annotation {
 }
 
 // ---------------------------------------------------
-
-// AnnotationLink either opens an URI (field A)
-// or an internal page (field Dest)
-type AnnotationLink struct {
-	// TODO: complete fields
-	A    Action      // optional, represented by a dictionary in PDF
-	Dest Destination // may only be present is A is nil
-}
-
-func (l AnnotationLink) annotationFields(pdf pdfWriter, ref Reference) string {
-	out := "/Subtype/Link"
-	if l.A.ActionType != nil {
-		out += "/A " + l.A.pdfString(pdf, ref)
-	} else if l.Dest != nil {
-		out += "/Dest " + l.Dest.pdfDestination(pdf, ref)
-	}
-	return out
-}
-
-func (l AnnotationLink) clone(cache cloneCache) Annotation {
-	out := l
-	out.A = l.A.clone(cache)
-	if l.Dest != nil {
-		out.Dest = l.Dest.clone(cache)
-	}
-	return out
-}
 
 // AnnotationWidget is an annotation widget,
 // primarily for form fields
@@ -347,7 +693,7 @@ func (w AnnotationWidget) annotationFields(pdf pdfWriter, ref Reference) string 
 		out += fmt.Sprintf("/A %s", w.A.pdfString(pdf, ref))
 	}
 	if w.BS != nil {
-		out += fmt.Sprintf("/BS %s", w.BS.pdfString())
+		out += fmt.Sprintf("/BS %s", w.BS.String())
 	}
 	return out
 }
