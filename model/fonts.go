@@ -64,7 +64,8 @@ func t1orttPDFString(font Font, pdf pdfWriter) string {
 		t = FontType1(font)
 		subtype = "TrueType"
 	}
-	fd := pdf.addObject(t.FontDescriptor.pdfString(pdf, font), nil) // FontDescriptor need the type of font
+	fd := pdf.createObject()
+	pdf.writeObject(t.FontDescriptor.pdfString(pdf, font, fd), nil, fd) // FontDescriptor need the type of font
 	b := newBuffer()
 	b.line("<</Type/Font/Subtype %s/BaseFont %s/FirstChar %d/LastChar %d",
 		subtype, t.BaseFont, t.FirstChar, t.LastChar())
@@ -134,7 +135,8 @@ func (f FontType3) fontPDFString(pdf pdfWriter) string {
 	b.line("/Encoding %s/FirstChar %d/LastChar %d/Widths %s",
 		f.Encoding.simpleEncodingPDFString(pdf), f.FirstChar, f.LastChar(), widthsRef)
 	if f.FontDescriptor != nil {
-		fdRef := pdf.addObject(f.FontDescriptor.pdfString(pdf, f), nil)
+		fdRef := pdf.createObject()
+		pdf.writeObject(f.FontDescriptor.pdfString(pdf, f, fdRef), nil, fdRef)
 		b.fmt("/FontDescriptor %s", fdRef)
 	}
 	if f.Resources != nil {
@@ -218,7 +220,7 @@ type FontDescriptor struct {
 }
 
 // font is used to choose the key for the potential FontFile
-func (f FontDescriptor) pdfString(pdf pdfWriter, font Font) string {
+func (f FontDescriptor) pdfString(pdf pdfWriter, font Font, context Reference) string {
 	b := newBuffer()
 	b.line("<</Type/FontDescriptor/FontName %s/Flags %d/FontBBox %s/ItalicAngle %.3f/Ascent %.3f/Descent %.3f",
 		f.FontName, f.Flags, f.FontBBox.String(), f.ItalicAngle, f.Ascent, f.Descent)
@@ -244,16 +246,21 @@ func (f FontDescriptor) pdfString(pdf pdfWriter, font Font) string {
 	}
 	if f.FontFile != nil {
 		var key Name
-		switch font.(type) {
-		case FontType1:
-			key = "FontFile"
-		case FontTrueType:
-			key = "FontFile2"
-		case FontType3:
+		switch f.FontFile.Subtype {
+		case "Type1C", "CIDFontType0C", "OpenType":
 			key = "FontFile3"
+		default:
+			if _, isType1 := font.(FontType1); isType1 {
+				key = "FontFile"
+			} else {
+				key = "FontFile2"
+			}
 		}
 		ref := pdf.addObject(f.FontFile.pdfContent())
 		b.fmt("%s %s ", key, ref)
+	}
+	if f.CharSet != "" {
+		b.fmt("/CharSet %s", pdf.EncodeString(f.CharSet, ByteString, context))
 	}
 	b.fmt(">>")
 	return b.String()
@@ -321,7 +328,7 @@ func (d Differences) PDFString() string {
 		if i >= 1 && keys[i-1] == k-1 { // consecutive -> add name to the same serie
 			chunks = append(chunks, name)
 		} else { // start a new serie
-			chunks = append(chunks, fmt.Sprintf("%d ", k), name)
+			chunks = append(chunks, fmt.Sprintf(" %d", k), name)
 		}
 	}
 	return fmt.Sprintf("[%s]", strings.Join(chunks, ""))
@@ -458,7 +465,8 @@ type CIDFontDictionary struct {
 
 func (c CIDFontDictionary) pdfString(pdf pdfWriter, ref Reference) string {
 	b := newBuffer()
-	fD := pdf.addObject(c.FontDescriptor.pdfString(pdf, FontType0{}), nil)
+	fD := pdf.createObject()
+	pdf.writeObject(c.FontDescriptor.pdfString(pdf, FontType0{}, fD), nil, fD)
 	b.line("<</Type/Font/Subtype %s/BaseFont %s/CIDSystemInfo %s/FontDescriptor %s",
 		c.Subtype, c.BaseFont, c.CIDSystemInfo.pdfString(pdf, ref), fD)
 	if c.DW != 0 {

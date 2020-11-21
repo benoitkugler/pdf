@@ -88,17 +88,16 @@ func TestOpen(t *testing.T) {
 	// if err != nil {
 	// 	t.Fatal(err)
 	// }
-	maping := pdfSpec.Catalog.Names.Dests.LookupTable()
-
-	for _, annot := range pdfSpec.Catalog.Pages.Flatten()[616].Annots {
-		if link, ok := annot.Subtype.(model.AnnotationLink); ok {
-			fmt.Println(link.Dest)
-			if _, ok := link.Dest.(model.DestinationName); ok {
-				t.Error("unexpected names destination")
-			} else if de, ok := link.Dest.(model.DestinationString); ok {
-				fmt.Println(maping[de].(model.DestinationExplicitIntern))
-			}
+	page := pdfSpec.Catalog.Pages.Flatten()[147]
+	for name, font := range page.Resources.Font {
+		if tt1, ok := font.Subtype.(model.FontType1); ok {
+			fmt.Println(tt1.BaseFont)
 		}
+		fmt.Printf("%s %T\n", name, font.Subtype)
+	}
+	for _, ct := range page.Contents {
+		decoded, _ := ct.Decode()
+		fmt.Println(string(decoded))
 	}
 
 }
