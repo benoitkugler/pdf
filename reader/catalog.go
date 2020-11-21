@@ -160,29 +160,29 @@ func (r resolver) resolveOneNamedDest(dest pdfcpu.Object) (model.DestinationExpl
 // the entry is a simple dictonnary
 // In PDF 1.1, the correspondence between name objects and destinations shall be defined by the Dests entry in
 // the document catalogue (see 7.7.2, “Document Catalog”).
-func (r resolver) processDictDests(entry pdfcpu.Object) (*model.DestTree, error) {
+func (r resolver) processDictDests(entry pdfcpu.Object) (model.DestTree, error) {
 	entry = r.resolve(entry)
 	if entry == nil {
-		return nil, nil
+		return model.DestTree{}, nil
 	}
 	nameDict, isDict := entry.(pdfcpu.Dict)
 	if !isDict {
-		return nil, errType("Dests", entry)
+		return model.DestTree{}, errType("Dests", entry)
 	}
 	var out model.DestTree
 	for name, dest := range nameDict {
 		expDest, err := r.resolveOneNamedDest(dest)
 		if err != nil {
-			return nil, err
+			return model.DestTree{}, err
 		}
 		out.Names = append(out.Names, model.NameToDest{Name: name, Destination: expDest})
 	}
-	return &out, nil
+	return out, nil
 }
 
-func (r resolver) resolveDestTree(entry pdfcpu.Object) (*model.DestTree, error) {
-	out := new(model.DestTree)
-	err := r.resolveNameTree(entry, destNameTree{out: out})
+func (r resolver) resolveDestTree(entry pdfcpu.Object) (model.DestTree, error) {
+	var out model.DestTree
+	err := r.resolveNameTree(entry, destNameTree{out: &out})
 	return out, err
 }
 

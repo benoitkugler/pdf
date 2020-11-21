@@ -17,8 +17,12 @@ type nameTree interface {
 
 // resolveNameTree is a "generic function" which walk a name tree
 // and fill the given output
+// if entry is (or resolve) to nil, return early
 func (r resolver) resolveNameTree(entry pdfcpu.Object, output nameTree) error {
 	entry = r.resolve(entry)
+	if entry == nil {
+		return nil
+	}
 	dict, isDict := entry.(pdfcpu.Dict)
 	if !isDict {
 		return errType("Name Tree value", entry)

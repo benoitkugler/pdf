@@ -236,7 +236,7 @@ func ParsePDF(source io.ReadSeeker, userPassword string) (model.Document, *model
 
 	fmt.Printf("model processing: %s\n", time.Since(ti))
 
-	return out, enc, nil
+	return out, enc, err
 }
 
 // ProcessContext walk through a parsed PDF to build a model.
@@ -277,7 +277,6 @@ func ProcessContext(ctx *pdfcpu.Context) (model.Document, *model.Encrypt, error)
 	}
 
 	out.Catalog, err = r.catalog()
-
 	return out, enc, err
 }
 

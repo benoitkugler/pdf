@@ -55,6 +55,14 @@ func writeRangeArray(rs []Range) string {
 	return fmt.Sprintf("[%s]", strings.Join(b, " "))
 }
 
+func writePointsArray(rs [][2]float64) string {
+	b := make([]string, len(rs))
+	for i, a := range rs {
+		b[i] = fmt.Sprintf("%.3f %.3f ", a[0], a[1])
+	}
+	return fmt.Sprintf("[%s]", strings.Join(b, " "))
+}
+
 func writeNameArray(rs []Name) string {
 	b := make([]string, len(rs))
 	for i, a := range rs {

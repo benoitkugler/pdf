@@ -39,7 +39,7 @@ func TestCloneNames(t *testing.T) {
 		EmbeddedFiles: EmbeddedFileTree{
 			{Name: "ùmlld", FileSpec: &FileSpec{}},
 		},
-		Dests: &DestTree{
+		Dests: DestTree{
 			Kids: []DestTree{
 				{Names: []NameToDest{
 					{Name: "mùdlsld", Destination: DestinationExplicitIntern{}},

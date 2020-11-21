@@ -142,7 +142,7 @@ type FunctionSampled struct {
 	BitsPerSample uint8        // 1, 2, 4, 8, 12, 16, 24 or 32
 	Order         uint8        // 1 (linear) or 3 (cubic), optional, default to 1
 	Encode        [][2]float64 // length m, optional, default to [ 0 (Size_0 − 1) 0 (Size_1 − 1) ... ]
-	Decode        []Range      // length n, optionnal, default to Range
+	Decode        [][2]float64 // length n, optionnal, default to Range
 }
 
 // adds to the common arguments the specificities of a `SampledFunction`
@@ -156,15 +156,12 @@ func (f FunctionSampled) pdfContent(baseArgs string) (string, []byte) {
 		b.WriteString(fmt.Sprintf("/Order %d", f.Order))
 	}
 	if len(f.Encode) != 0 {
-		b.WriteString("/Encode [ ")
-		for _, v := range f.Encode {
-			b.WriteString(fmt.Sprintf("%.3f %.3f ", v[0], v[1]))
-		}
-		b.WriteByte(']')
+		b.WriteString("/Encode ")
+		b.WriteString(writePointsArray(f.Encode))
 	}
 	if len(f.Decode) != 0 {
 		b.WriteString("/Decode ")
-		b.WriteString(writeRangeArray(f.Decode))
+		b.WriteString(writePointsArray(f.Decode))
 	}
 	b.WriteString(" >>")
 	return b.String(), f.Content
@@ -177,7 +174,7 @@ func (f FunctionSampled) Clone() Function {
 	out.Stream = f.Stream.Clone()
 	out.Size = append([]int(nil), f.Size...)
 	out.Encode = append([][2]float64(nil), f.Encode...)
-	out.Decode = append([]Range(nil), f.Decode...)
+	out.Decode = append([][2]float64(nil), f.Decode...)
 	return out
 }
 

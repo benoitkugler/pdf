@@ -18,8 +18,11 @@ import (
 // we use the spec as a good test candidate
 var pdfSpec model.Document
 
+const password = "78eoln_-(_àç_-')"
+
 func init() {
 	// loadPDFSpec()
+	generatePDFs()
 }
 
 func loadPDFSpec() {
@@ -35,11 +38,11 @@ func loadPDFSpec() {
 	}
 }
 
-func TestGeneratePDF(t *testing.T) {
+func generatePDFs() {
 	f := gofpdf.New("", "", "", "")
-	f.SetProtection(0, "aaaa", "aaaa")
+	f.SetProtection(0, password, "aaaa")
 	if err := f.OutputFileAndClose("datatest/Protected.pdf"); err != nil {
-		t.Fatal(err)
+		log.Fatal(err)
 	}
 
 	g := gofpdf.New("", "", "", "")
@@ -59,14 +62,12 @@ func TestGeneratePDF(t *testing.T) {
 	g.Link(20, 30, 40, 50, l)
 	g.Rect(20, 30, 40, 50, "D")
 	if err := g.OutputFileAndClose("datatest/Links.pdf"); err != nil {
-		t.Fatal(err)
+		log.Fatal(err)
 	}
-}
 
-func TestGenerateEmpty(t *testing.T) {
-	g := gofpdf.New("", "", "", "")
+	g = gofpdf.New("", "", "", "")
 	if err := g.OutputFileAndClose("datatest/Empty.pdf"); err != nil {
-		t.Fatal(err)
+		log.Fatal(err)
 	}
 }
 
@@ -77,23 +78,17 @@ func TestOpen(t *testing.T) {
 	// f, err := os.Open("datatest/transparents.pdf")
 	// f, err := os.Open("datatest/ModeleRecuFiscalEditable.pdf")
 	// f, err := os.Open("datatest/Protected.pdf")
-	// f, err := os.Open("datatest/PDF_SPEC.pdf")
-	// if err != nil {
-	// 	t.Fatal(err)
-	// }
-	// defer f.Close()
-
-	// doc, enc, err := ParsePDF(f, "")
-	// if err != nil {
-	// 	t.Fatal(err)
-	// }
-	fmt.Println(pdfSpec.Catalog.OpenAction.ActionType)
-	for _, p := range pdfSpec.Catalog.Pages.Flatten() {
-		for _, an := range p.Annots {
-			fmt.Println(an.C, an.M, an.NM)
-		}
+	f, err := os.Open("datatest/PDF_SPEC.pdf")
+	if err != nil {
+		t.Fatal(err)
 	}
+	defer f.Close()
 
+	doc, enc, err := ParsePDF(f, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	fmt.Println(doc, enc)
 }
 
 func BenchmarkProcess(b *testing.B) {
@@ -112,8 +107,9 @@ func BenchmarkProcess(b *testing.B) {
 
 func TestDataset(t *testing.T) {
 	files := [...]string{
-		"datatest/descriptif.pdf",
 		"datatest/Links.pdf",
+		"datatest/Empty.pdf",
+		"datatest/descriptif.pdf",
 		"datatest/f1118s1.pdf",
 		"datatest/transparents.pdf",
 		"datatest/ModeleRecuFiscalEditable.pdf",
@@ -130,6 +126,8 @@ func TestDataset(t *testing.T) {
 			t.Fatal(err)
 		}
 
+		fmt.Println("Parsing", file)
+
 		doc, _, err := ParsePDF(f, "")
 		if err != nil {
 			t.Fatal(err)
@@ -137,7 +135,28 @@ func TestDataset(t *testing.T) {
 
 		f.Close()
 
-		fmt.Println("pages:", len(doc.Catalog.Pages.Flatten()))
+		fmt.Println("	Pages:", len(doc.Catalog.Pages.Flatten()))
+		fmt.Println("	Dests (in Names):", len(doc.Catalog.Names.Dests.LookupTable()))
+		fmt.Println("	Dests:", len(doc.Catalog.Dests.LookupTable()))
+	}
+}
+
+func TestProtected(t *testing.T) {
+	f, err := os.Open("datatest/Protected.pdf")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+
+	_, enc, err := ParsePDF(f, password)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if enc == nil {
+		t.Error("expected Encryption dictionary")
+	}
+	if enc.Filter != "Standard" {
+		t.Errorf("expected Standard encryption, got %s", enc.Filter)
 	}
 }
 
@@ -165,23 +184,6 @@ func TestType3(t *testing.T) {
 		}
 	}
 	fmt.Println("type3 fonts found:", len(type3Fonts), "referenced", type3Refs, "times")
-}
-
-func TestProtected(t *testing.T) {
-	f, err := os.Open("datatest/Protected.pdf")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer f.Close()
-
-	_, enc, err := ParsePDF(f, "aaaa")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if enc == nil {
-		t.Error("expected Encryption dictionary")
-	}
-	fmt.Println(*enc)
 }
 
 func TestWrite(t *testing.T) {

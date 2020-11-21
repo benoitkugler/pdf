@@ -73,11 +73,18 @@ func (r resolver) resolveOneShading(shadings pdfcpu.Object) (*model.ShadingDict,
 		out.ShadingType, err = r.resolveAxialSh(shDict)
 	case 3:
 		out.ShadingType, err = r.resolveRadialSh(shDict)
-	case 4, 5, 7:
-		fmt.Println(shDict)
-		return nil, errors.New("not supported")
+	case 4:
+		out.ShadingType, err = r.resolveFreeFormSh(stream)
+	case 5:
+		out.ShadingType, err = r.resolveLatticeSh(stream)
 	case 6:
-		out.ShadingType, err = r.resolveCoonsSh(stream)
+		var ff model.ShadingFreeForm
+		ff, err = r.resolveFreeFormSh(stream)
+		out.ShadingType = model.ShadingCoons(ff)
+	case 7:
+		var ff model.ShadingFreeForm
+		ff, err = r.resolveFreeFormSh(stream)
+		out.ShadingType = model.ShadingTensorProduct(ff)
 	default:
 		return nil, fmt.Errorf("invalid shading type %d", st)
 	}
@@ -121,6 +128,11 @@ func (r resolver) resolveArrayCS(ar pdfcpu.Array) (model.ColorSpace, error) {
 	case "Indexed":
 		return r.resolveIndexed(ar)
 	case "Pattern": // uncoloured tiling pattern
+		// we accept a one array element with the name pattern
+		// even if it should rather be given as a plain name ...
+		if len(ar) == 1 {
+			return model.ColorSpacePattern, nil
+		}
 		if len(ar) != 2 {
 			return nil, fmt.Errorf("expected 2-elements array for Pattern color space, got %v", ar)
 		}
@@ -251,7 +263,7 @@ func (r resolver) resolveICCBased(ar pdfcpu.Array) (*model.ColorSpaceICCBased, e
 		return nil, err
 	}
 	ra, _ := r.resolveArray(stream.Dict["Range"])
-	out.Range, err = r.processRange(ra)
+	out.Range, err = r.processPoints(ra)
 	if err != nil {
 		return nil, err
 	}
@@ -517,26 +529,24 @@ func (r resolver) resolveRadialSh(sh pdfcpu.Dict) (model.ShadingRadial, error) {
 	return out, nil
 }
 
-func (r resolver) resolveCoonsSh(sh pdfcpu.StreamDict) (model.ShadingCoons, error) {
+func (r resolver) resolveStreamSh(sh pdfcpu.StreamDict) (model.ShadingStream, error) {
 	cs, err := r.resolveStream(sh)
 	if err != nil {
-		return model.ShadingCoons{}, err
+		return model.ShadingStream{}, err
 	}
 	if cs == nil {
-		return model.ShadingCoons{}, errors.New("missing Coons stream")
+		return model.ShadingStream{}, errors.New("missing Shading stream")
 	}
-	out := model.ShadingCoons{Stream: *cs}
+	out := model.ShadingStream{Stream: *cs}
 	if bi, ok := r.resolveInt(sh.Dict["BitsPerCoordinate"]); ok {
 		out.BitsPerCoordinate = uint8(bi)
 	}
 	if bi, ok := r.resolveInt(sh.Dict["BitsPerComponent"]); ok {
 		out.BitsPerComponent = uint8(bi)
 	}
-	if bi, ok := r.resolveInt(sh.Dict["BitsPerFlag"]); ok {
-		out.BitsPerFlag = uint8(bi)
-	}
+
 	decode, _ := r.resolveArray(sh.Dict["Decode"])
-	out.Decode, err = r.processRange(decode)
+	out.Decode, err = r.processPoints(decode)
 	if err != nil {
 		return out, err
 	}
@@ -546,6 +556,26 @@ func (r resolver) resolveCoonsSh(sh pdfcpu.StreamDict) (model.ShadingCoons, erro
 			return out, err
 		}
 	}
+	return out, nil
+}
+
+func (r resolver) resolveFreeFormSh(sh pdfcpu.StreamDict) (out model.ShadingFreeForm, err error) {
+	out.ShadingStream, err = r.resolveStreamSh(sh)
+	if err != nil {
+		return out, err
+	}
+	if bi, ok := r.resolveInt(sh.Dict["BitsPerFlag"]); ok {
+		out.BitsPerFlag = uint8(bi)
+	}
+	return out, nil
+}
+
+func (r resolver) resolveLatticeSh(sh pdfcpu.StreamDict) (out model.ShadingLattice, err error) {
+	out.ShadingStream, err = r.resolveStreamSh(sh)
+	if err != nil {
+		return out, err
+	}
+	out.VerticesPerRow, _ = r.resolveInt(sh.Dict["VerticesPerRow"])
 	return out, nil
 }
 

@@ -75,7 +75,9 @@ type NameToDest struct {
 
 func (n NameToDest) clone(cache cloneCache) NameToDest {
 	out := n
-	out.Destination = n.Destination.clone(cache).(DestinationExplicit)
+	if n.Destination != nil {
+		out.Destination = n.Destination.clone(cache).(DestinationExplicit)
+	}
 	return out
 }
 
@@ -85,6 +87,12 @@ func (n NameToDest) clone(cache cloneCache) NameToDest {
 type DestTree struct {
 	Kids  []DestTree
 	Names []NameToDest
+}
+
+// IsEmpty returns true if the tree is empty
+// and should not be written in the PDF file.
+func (d DestTree) IsEmpty() bool {
+	return len(d.Kids) == 0 && len(d.Names) == 0
 }
 
 func (d DestTree) names() []string {

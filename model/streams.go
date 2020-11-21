@@ -298,8 +298,8 @@ type XObjectImage struct {
 	Mask             Mask       // optional
 
 	// optional. Array of length : number of color component required by color space.
-	// Special case for Mask image where [1 0] is also allowed (despite not having 1 <= 0)
-	Decode       []Range
+	// Special case for Mask image where [1 0] is also allowed
+	Decode       [][2]float64
 	Interpolate  bool             // optional
 	Alternates   []AlternateImage // optional
 	SMask        *XObjectImage    // optional
@@ -326,7 +326,7 @@ func (f *XObjectImage) pdfContent(pdf pdfWriter, _ Reference) (string, []byte) {
 	}
 	//TODO: mask
 	if len(f.Decode) != 0 {
-		b.fmt("/Decode %s", writeRangeArray(f.Decode))
+		b.fmt("/Decode %s", writePointsArray(f.Decode))
 	}
 	b.line("/Interpolate %v", f.Interpolate)
 	if len(f.Alternates) != 0 {
@@ -358,7 +358,7 @@ func (img *XObjectImage) clone(cache cloneCache) Referenceable {
 	if img.Mask != nil {
 		out.Mask = img.Mask.Clone()
 	}
-	out.Decode = append([]Range(nil), img.Decode...)
+	out.Decode = append([][2]float64(nil), img.Decode...)
 	if img.Alternates != nil {
 		out.Alternates = make([]AlternateImage, len(img.Alternates))
 	}

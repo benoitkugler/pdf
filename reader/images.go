@@ -98,16 +98,16 @@ func (r resolver) resolveOneXObjectImage(img pdfcpu.Object) (*model.XObjectImage
 	}
 	decode, _ := r.resolveArray(stream.Dict["Decode"])
 	if !out.ImageMask {
-		out.Decode, err = r.processRange(decode)
+		out.Decode, err = r.processPoints(decode)
 		if err != nil {
 			return nil, err
 		}
 	} else { // special case: [0 1] or [1 0]
 		if len(decode) == 2 {
-			var ra model.Range
+			var ra [2]float64
 			ra[0], _ = r.resolveNumber(decode[0])
 			ra[1], _ = r.resolveNumber(decode[1])
-			out.Decode = []model.Range{ra}
+			out.Decode = [][2]float64{ra}
 		}
 		// else: ignore nil or invalid
 	}

@@ -83,7 +83,7 @@ type Catalog struct {
 	Names             NameDictionary     // optional
 	ViewerPreferences *ViewerPreferences // optional
 	AcroForm          *AcroForm          // optional
-	Dests             *DestTree          // optional
+	Dests             DestTree           // optional
 	PageLabels        *PageLabelsTree    // optional
 	Outlines          *Outline           // optional
 	StructTreeRoot    *StructureTree     // optional
@@ -120,7 +120,7 @@ func (cat *Catalog) pdfString(pdf pdfWriter, catalog Reference) string {
 
 	b.line("/Names %s", cat.Names.pdfString(pdf))
 
-	if dests := cat.Dests; dests != nil {
+	if dests := cat.Dests; !dests.IsEmpty() {
 		ref := pdf.createObject()
 		pdf.writeObject(dests.pdfString(pdf, ref), nil, ref)
 		b.line("/Dests %s", ref)
@@ -215,10 +215,8 @@ func (cat Catalog) Clone() Catalog {
 		out.ViewerPreferences = &v
 	}
 	out.AcroForm = cat.AcroForm.clone(cache)
-	if de := cat.Dests; de != nil {
-		des := de.clone(cache)
-		out.Dests = &des
-	}
+	out.Dests = cat.Dests.clone(cache)
+
 	if cat.PageLabels != nil {
 		pl := out.PageLabels.Clone()
 		cat.PageLabels = &pl
@@ -237,19 +235,19 @@ func (cat Catalog) Clone() Catalog {
 // TODO: add more names
 type NameDictionary struct {
 	EmbeddedFiles EmbeddedFileTree
-	Dests         *DestTree // optional
+	Dests         DestTree // optional
 	// AP
 }
 
 func (n NameDictionary) pdfString(pdf pdfWriter) string {
 	b := newBuffer()
 	b.WriteString("<<")
-	if dests := n.Dests; dests != nil {
+	if dests := n.Dests; !dests.IsEmpty() {
 		ref := pdf.createObject()
 		pdf.writeObject(dests.pdfString(pdf, ref), nil, ref)
 		b.fmt("/Dests %s", ref)
 	}
-	if emb := n.EmbeddedFiles; emb != nil {
+	if emb := n.EmbeddedFiles; len(emb) != 0 {
 		ref := pdf.createObject()
 		pdf.writeObject(emb.pdfString(pdf, ref), nil, ref)
 		b.fmt("/EmbeddedFiles %s", ref)
@@ -261,10 +259,7 @@ func (n NameDictionary) pdfString(pdf pdfWriter) string {
 func (n NameDictionary) clone(cache cloneCache) NameDictionary {
 	out := n
 	out.EmbeddedFiles = n.EmbeddedFiles.clone(cache)
-	if n.Dests != nil {
-		ds := n.Dests.clone(cache)
-		out.Dests = &ds
-	}
+	out.Dests = n.Dests.clone(cache)
 	return out
 }
 
@@ -280,7 +275,11 @@ type ViewerPreferences struct {
 }
 
 func (p ViewerPreferences) pdfString(pdf pdfWriter) string {
-	return fmt.Sprintf("<</FitWindow %v /CenterWindow%v>>", p.FitWindow, p.CenterWindow)
+	direction := Name("L2R")
+	if p.DirectionRTL {
+		direction = "R2L"
+	}
+	return fmt.Sprintf("<</FitWindow %v /CenterWindow %v /Direction %s>>", p.FitWindow, p.CenterWindow, direction)
 }
 
 type Trailer struct {

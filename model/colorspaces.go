@@ -48,9 +48,10 @@ func cloneColorSpace(c ColorSpace, cache cloneCache) ColorSpace {
 // ------------------------ Device ------------------------
 
 const (
-	ColorSpaceRGB  ColorSpaceName = "DeviceRGB"
-	ColorSpaceGray ColorSpaceName = "DeviceGray"
-	ColorSpaceCMYK ColorSpaceName = "DeviceCMYK"
+	ColorSpaceRGB     ColorSpaceName = "DeviceRGB"
+	ColorSpaceGray    ColorSpaceName = "DeviceGray"
+	ColorSpaceCMYK    ColorSpaceName = "DeviceCMYK"
+	ColorSpacePattern ColorSpaceName = "Pattern"
 )
 
 type ColorSpaceName Name
@@ -59,7 +60,7 @@ type ColorSpaceName Name
 func NewNameColorSpace(cs string) (ColorSpaceName, error) {
 	c := ColorSpaceName(cs)
 	switch c {
-	case ColorSpaceRGB, ColorSpaceGray, ColorSpaceCMYK:
+	case ColorSpaceRGB, ColorSpaceGray, ColorSpaceCMYK, ColorSpacePattern:
 		return c, nil
 	default:
 		return "", fmt.Errorf("invalid named color space %s", cs)
@@ -140,9 +141,9 @@ func (c ColorSpaceLab) cloneCS(cloneCache) ColorSpace { return c }
 type ColorSpaceICCBased struct {
 	Stream
 
-	N         int        // 1, 3 or 4
-	Alternate ColorSpace // optional
-	Range     []Range    // optional, default to [{0, 1}, ...]
+	N         int          // 1, 3 or 4
+	Alternate ColorSpace   // optional
+	Range     [][2]float64 // optional, default to [{0, 1}, ...]
 }
 
 // returns the stream object. `pdf` is used
@@ -155,7 +156,7 @@ func (c *ColorSpaceICCBased) pdfContent(pdf pdfWriter, _ Reference) (string, []b
 		b.fmt("/Alternate %s", c.Alternate.colorSpacePDFString(pdf))
 	}
 	if len(c.Range) != 0 {
-		b.fmt("/Range %s", writeRangeArray(c.Range))
+		b.fmt("/Range %s", writePointsArray(c.Range))
 	}
 	b.fmt(">>")
 	return b.String(), c.Content
@@ -172,7 +173,7 @@ func (cs *ColorSpaceICCBased) clone(cache cloneCache) Referenceable {
 	}
 	out := *cs
 	out.Stream = cs.Stream.Clone()
-	out.Range = append([]Range(nil), cs.Range...)
+	out.Range = append([][2]float64(nil), cs.Range...)
 	if cs.Alternate != nil {
 		out.Alternate = cloneColorSpace(cs.Alternate, cache)
 	}

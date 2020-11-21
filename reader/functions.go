@@ -86,6 +86,20 @@ func (r resolver) processRange(range_ pdfcpu.Array) ([]model.Range, error) {
 	return out, nil
 }
 
+// do not impose a < b
+func (r resolver) processPoints(range_ pdfcpu.Array) ([][2]float64, error) {
+	if len(range_)%2 != 0 {
+		return nil, fmt.Errorf("expected even length for array, got %v", range_)
+	}
+	out := make([][2]float64, len(range_)/2)
+	for i := range out {
+		a, _ := r.resolveNumber(range_[2*i])
+		b, _ := r.resolveNumber(range_[2*i+1])
+		out[i] = [2]float64{a, b}
+	}
+	return out, nil
+}
+
 func (r resolver) processExpInterpolationFn(fn pdfcpu.Dict) (model.FunctionExpInterpolation, error) {
 	C0, _ := r.resolveArray(fn["C0"])
 	C1, _ := r.resolveArray(fn["C1"])
@@ -153,17 +167,16 @@ func (r resolver) processSampledFn(stream pdfcpu.StreamDict) (model.FunctionSamp
 		out.Order = uint8(o)
 	}
 	encode, _ := r.resolveArray(stream.Dict["Encode"])
-	if len(encode) != 2*m {
+	if len(encode) != 2*m && len(encode) != 0 {
 		return out, fmt.Errorf("expected 2 x m elements array for Bounds, got %v", encode)
 	}
-	out.Encode = make([][2]float64, m)
-	for i := range out.Encode {
-		out.Encode[i][0], _ = r.resolveNumber(encode[2*i])
-		out.Encode[i][1], _ = r.resolveNumber(encode[2*i+1])
+	out.Encode, err = r.processPoints(encode)
+	if err != nil {
+		return out, err
 	}
 
 	decode, _ := r.resolveArray(stream.Dict["Decode"])
-	out.Decode, err = r.processRange(decode)
+	out.Decode, err = r.processPoints(decode)
 
 	return out, err
 }
