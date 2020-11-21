@@ -134,6 +134,7 @@ type PageObject struct {
 	Annots                    []*AnnotationDict // optional
 	Contents                  []ContentStream   // array of stream (often of length 1)
 	StructParents             MaybeInt          // Required if the page contains structural content items
+	Tabs                      Name              // optional, one of R , C or S
 	parent                    *PageTree         // cache, set up during pre-allocation
 }
 
@@ -181,6 +182,9 @@ func (p *PageObject) pdfString(pdf pdfWriter) string {
 	}
 	if p.StructParents != nil {
 		b.fmt("/StructParents %d", p.StructParents.(Int))
+	}
+	if p.Tabs != "" {
+		b.fmt("/Tabs %s", p.Tabs)
 	}
 	b.WriteString(">>")
 	return b.String()

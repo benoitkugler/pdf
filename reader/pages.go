@@ -137,6 +137,9 @@ func (r resolver) resolvePageObject(node pdfcpu.Dict, page *model.PageObject) er
 	if st, ok := r.resolveInt(node["StructParents"]); ok {
 		page.StructParents = model.Int(st)
 	}
+	if tabs, ok := r.resolveName(node["Tabs"]); ok {
+		page.Tabs = tabs
+	}
 	return nil
 }
 

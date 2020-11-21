@@ -1,7 +1,7 @@
-// Implements the in-memory structure of the PDFs object, using static types.
-// The structure is not directly the one found or written
+// Implements the in-memory structure of a PDF document, using static types.
+// The structure is not exactly the one found or written
 // in a PDF, but it serves as an intermediate representation
-// to facilitate PDF modifications. Still, this library supports
+// to facilitate PDF construction and modification. Still, this library supports
 // the majority of the PDF specification.
 //
 // This package aims at being used without having to think (to much)
@@ -274,6 +274,9 @@ func (n NameDictionary) clone(cache cloneCache) NameDictionary {
 type ViewerPreferences struct {
 	FitWindow    bool
 	CenterWindow bool
+	// right to left: determine the relative positioning
+	// of pages when displayed side by side or printed n-up
+	DirectionRTL bool
 }
 
 func (p ViewerPreferences) pdfString(pdf pdfWriter) string {

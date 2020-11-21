@@ -234,6 +234,9 @@ func (r resolver) resolveViewerPreferences(entry pdfcpu.Object) (*model.ViewerPr
 	if ct, ok := r.resolveBool(dict["CenterWindow"]); ok {
 		out.CenterWindow = bool(ct)
 	}
+	if ct, _ := r.resolveName(dict["Direction"]); ct == "R2L" {
+		out.DirectionRTL = true
+	}
 	return &out, nil
 }
 

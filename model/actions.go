@@ -6,40 +6,6 @@ import (
 	"strings"
 )
 
-type FormFielAdditionalActions struct {
-	K Action // JavaScript action, optional, on update
-	F Action // JavaScript action, optional, before formating
-	V Action // JavaScript action, optional, on validate
-	C Action // JavaScript action, optional, to recalculate
-}
-
-func (f FormFielAdditionalActions) pdfString(pdf pdfWriter, ref Reference) string {
-	b := newBuffer()
-	b.WriteString("<<")
-	if f.K.ActionType != nil {
-		b.line("/K %s", f.K.pdfString(pdf, ref))
-	}
-	if f.F.ActionType != nil {
-		b.line("/F %s", f.F.pdfString(pdf, ref))
-	}
-	if f.V.ActionType != nil {
-		b.line("/V %s", f.V.pdfString(pdf, ref))
-	}
-	if f.C.ActionType != nil {
-		b.line("/C %s", f.C.pdfString(pdf, ref))
-	}
-	b.fmt(">>")
-	return b.String()
-}
-
-func (ff *FormFielAdditionalActions) Clone() *FormFielAdditionalActions {
-	if ff == nil {
-		return nil
-	}
-	a := *ff
-	return &a
-}
-
 // Action defines the characteristics and behaviour of an action.
 type Action struct {
 	ActionType
@@ -71,7 +37,18 @@ func (a Action) clone(cache cloneCache) Action {
 	return out
 }
 
-// ActionType specialize the action
+// ActionType specialize the action (see Table 198 – Action types).
+// Many PDF actions are supported, excepted:
+//	- Thread
+//	- Sound
+//	- Movie
+// TODO - SubmitForm
+// TODO - ResetForm
+// TODO - ImportData
+//	- SetOCGState
+//	- Rendition
+//	- Trans
+//	- GoTo3DView
 type ActionType interface {
 	// actionParams returns the fields of dictionary defining the action
 	// as written in PDF
@@ -419,3 +396,37 @@ func (a ActionNamed) actionParams(pdfWriter, Reference) string {
 }
 
 func (ac ActionNamed) clone(cache cloneCache) ActionType { return ac }
+
+type FormFielAdditionalActions struct {
+	K Action // JavaScript action, optional, on update
+	F Action // JavaScript action, optional, before formating
+	V Action // JavaScript action, optional, on validate
+	C Action // JavaScript action, optional, to recalculate
+}
+
+func (f FormFielAdditionalActions) pdfString(pdf pdfWriter, ref Reference) string {
+	b := newBuffer()
+	b.WriteString("<<")
+	if f.K.ActionType != nil {
+		b.line("/K %s", f.K.pdfString(pdf, ref))
+	}
+	if f.F.ActionType != nil {
+		b.line("/F %s", f.F.pdfString(pdf, ref))
+	}
+	if f.V.ActionType != nil {
+		b.line("/V %s", f.V.pdfString(pdf, ref))
+	}
+	if f.C.ActionType != nil {
+		b.line("/C %s", f.C.pdfString(pdf, ref))
+	}
+	b.fmt(">>")
+	return b.String()
+}
+
+func (ff *FormFielAdditionalActions) Clone() *FormFielAdditionalActions {
+	if ff == nil {
+		return nil
+	}
+	a := *ff
+	return &a
+}
