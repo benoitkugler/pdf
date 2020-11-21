@@ -125,9 +125,17 @@ type PatternTiling struct {
 	Matrix     Matrix // optional, default to identity
 }
 
-// TODO: tiling patern
 func (t *PatternTiling) pdfContent(pdf pdfWriter, _ Reference) (string, []byte) {
-	return "<<>>", nil
+	b := newBuffer()
+	common := t.ContentStream.PDFCommonFields()
+	b.line("<</PatternType 1 %s /PaintType %d/TilingType %d/BBox %s/XStep %.3f /YStep %.3f",
+		common, t.PaintType, t.TilingType, t.BBox, t.XStep, t.YStep)
+	b.line("/Resources %s", t.Resources.pdfString(pdf))
+	if t.Matrix != (Matrix{}) {
+		b.line("/Matrix %s", t.Matrix)
+	}
+	b.WriteString(">>")
+	return b.String(), t.Content
 }
 
 func (t *PatternTiling) clone(cache cloneCache) Referenceable {

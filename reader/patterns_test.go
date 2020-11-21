@@ -168,3 +168,20 @@ func TestWriteShadings(t *testing.T) {
 		}
 	}
 }
+
+func TestPatternTiling(t *testing.T) {
+	tps := map[*model.PatternTiling]int{}
+	for _, page := range pdfSpec.Catalog.Pages.Flatten() {
+		if page.Resources == nil {
+			continue
+		}
+		for _, pat := range page.Resources.Pattern {
+			if pat, ok := pat.(*model.PatternTiling); ok {
+				tps[pat]++
+			}
+		}
+	}
+	if len(tps) != 13 {
+		t.Errorf("expected 13 tiling patterns, got %d", len(tps))
+	}
+}

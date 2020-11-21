@@ -21,7 +21,7 @@ var pdfSpec model.Document
 const password = "78eoln_-(_àç_-')"
 
 func init() {
-	// loadPDFSpec()
+	loadPDFSpec()
 	generatePDFs()
 }
 
@@ -221,7 +221,7 @@ func TestWrite(t *testing.T) {
 }
 
 func TestReWrite(t *testing.T) {
-	out, err := os.Create("datatest/PDF_SPEC_2.pdf")
+	out, err := os.Create("datatest/PDF_SPEC.pdf.pdf")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -242,7 +242,7 @@ func TestReWrite(t *testing.T) {
 	}
 	fmt.Println("PDF wrote to memory in", time.Since(ti))
 
-	_, err = pdfcpu.ReadFile("datatest/PDF_SPEC_2.pdf", nil)
+	_, err = pdfcpu.ReadFile("datatest/PDF_SPEC.pdf.pdf", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
