@@ -1,6 +1,7 @@
 package model
 
 import (
+	"bytes"
 	"reflect"
 	"testing"
 )
@@ -9,10 +10,9 @@ func TestCloneCS(t *testing.T) {
 	css := [...]ColorSpace{
 		ColorSpaceCalGray{},
 		ColorSpaceCalRGB{},
-		CSDeviceCMYK,
-		CSSeparation,
+		ColorSpaceGray,
 		&ColorSpaceICCBased{
-			Alternate: CSDeviceCMYK,
+			Alternate: ColorSpaceCMYK,
 		},
 		ColorSpaceUncoloredPattern{
 			UnderlyingColorSpace: ColorSpaceIndexed{},
@@ -26,5 +26,20 @@ func TestCloneCS(t *testing.T) {
 		if !reflect.DeepEqual(cs, cs2) {
 			t.Errorf("expected %v, got %v", cs, cs2)
 		}
+	}
+}
+
+func TestWriteColorSpace(t *testing.T) {
+	icc := &ColorSpaceICCBased{N: 4, Alternate: ColorSpaceRGB}
+	cs := ColorSpaceSeparation{
+		Name:           "test",
+		AlternateSpace: icc,
+	}
+	cs2 := ColorSpaceIndexed{cs, 5, &ColorTableStream{}}
+
+	pdf := newWriter(new(bytes.Buffer), nil)
+	pdf.addObject(cs2.colorSpacePDFString(pdf), nil)
+	if pdf.err != nil {
+		t.Error(pdf.err)
 	}
 }

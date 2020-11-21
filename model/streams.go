@@ -319,8 +319,7 @@ func (f *XObjectImage) pdfContent(pdf pdfWriter, _ Reference) (string, []byte) {
 		base, f.Width, f.Height, f.BitsPerComponent)
 	b.fmt("/ImageMask %v", f.ImageMask)
 	if f.ColorSpace != nil {
-		cs := writeColorSpace(f.ColorSpace, pdf)
-		b.fmt("/ColorSpace %s", cs)
+		b.fmt("/ColorSpace %s", f.ColorSpace.colorSpacePDFString(pdf))
 	}
 	if f.Intent != "" {
 		b.fmt("/Intent %s", f.Intent)

@@ -19,6 +19,10 @@ import (
 var pdfSpec model.Document
 
 func init() {
+	// loadPDFSpec()
+}
+
+func loadPDFSpec() {
 	f, err := os.Open("datatest/PDF_SPEC.pdf")
 	if err != nil {
 		panic(err)
@@ -113,8 +117,11 @@ func TestDataset(t *testing.T) {
 		"datatest/f1118s1.pdf",
 		"datatest/transparents.pdf",
 		"datatest/ModeleRecuFiscalEditable.pdf",
-		"datatest/PDF_SPEC.pdf",
-		"datatest/type3.pdf",
+		"datatest/CMYK_OP.pdf",
+		"datatest/CMYKSpot_OP.pdf",
+		"datatest/Shading.pdf",
+		"datatest/Shading2.pdf",
+		"datatest/Font_Substitution.pdf",
 	}
 
 	for _, file := range files {
@@ -133,19 +140,6 @@ func TestDataset(t *testing.T) {
 		fmt.Println("pages:", len(doc.Catalog.Pages.Flatten()))
 	}
 }
-
-// func parseContentSteam(content []byte) ([]pdfcpu.Object, error) {
-// 	var out []pdfcpu.Object
-// 	s := string(bytes.TrimSpace(content))
-// 	for len(s) > 0 {
-// 		obj, err := pdfcpu.ParseNextObject(&s)
-// 		if err != nil {
-// 			return nil, err
-// 		}
-// 		out = append(out, obj)
-// 	}
-// 	return out, nil
-// }
 
 func TestType3(t *testing.T) {
 	f, err := os.Open("datatest/type3.pdf")

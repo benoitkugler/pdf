@@ -265,8 +265,10 @@ func (r *ResourcesDict) pdfString(pdf pdfWriter) string {
 	if r.ColorSpace != nil {
 		b.fmt("/ColorSpace <<")
 		for n, item := range r.ColorSpace {
-			cs := writeColorSpace(item, pdf)
-			b.fmt("%s %s", n, cs)
+			if item == nil {
+				continue
+			}
+			b.fmt("%s %s", n, item.colorSpacePDFString(pdf))
 		}
 		b.line(">>")
 	}

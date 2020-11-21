@@ -100,8 +100,7 @@ func (r resolver) resolveOneColorSpace(cs pdfcpu.Object) (model.ColorSpace, erro
 	case nil:
 		return nil, nil
 	default:
-		fmt.Println("not handled", cs)
-		return nil, nil
+		return nil, errType("Color Space", cs)
 	}
 }
 
@@ -111,8 +110,12 @@ func (r resolver) resolveArrayCS(ar pdfcpu.Array) (model.ColorSpace, error) {
 	}
 	csName, _ := r.resolveName(ar[0])
 	switch csName {
-	case "Separation":
-		return r.resolveSeparation(ar)
+	case "CalGray":
+		return r.resolveCalGray(ar)
+	case "CalRGB":
+		return r.resolveCalRGB(ar)
+	case "Lab":
+		return r.resolveLab(ar)
 	case "ICCBased":
 		return r.resolveICCBased(ar)
 	case "Indexed":
@@ -126,30 +129,99 @@ func (r resolver) resolveArrayCS(ar pdfcpu.Array) (model.ColorSpace, error) {
 			return nil, err
 		}
 		return model.ColorSpaceUncoloredPattern{UnderlyingColorSpace: cs}, nil
-	default: // TODO
-		fmt.Println("TODO array CS", ar)
-		return nil, nil
+	case "Separation":
+		return r.resolveSeparation(ar)
+	case "DeviceN":
+		return r.resolveDeviceN(ar)
+	default:
+		return nil, fmt.Errorf("invalid color space name %s", csName)
 	}
 }
 
-func (r resolver) resolveSeparation(ar pdfcpu.Array) (model.ColorSpaceSeparation, error) {
-	var (
-		out model.ColorSpaceSeparation
-		err error
-	)
-	if len(ar) != 4 {
-		return out, fmt.Errorf("expected 4-elements array in Separation Color, got %v", ar)
+func (r resolver) resolveCalGray(ar pdfcpu.Array) (model.ColorSpaceCalGray, error) {
+	if len(ar) != 2 {
+		return model.ColorSpaceCalGray{}, fmt.Errorf("expected 2-elements array in CalGray Color, got %v", ar)
 	}
-	out.Name, _ = r.resolveName(ar[1])
-	out.AlternateSpace, err = r.resolveAlternateColorSpace(ar[2])
-	if err != nil {
-		return out, err
+	dict, ok := r.resolve(ar[1]).(pdfcpu.Dict)
+	if !ok {
+		return model.ColorSpaceCalGray{}, errType("CalGray", r.resolve(ar[1]))
 	}
-	fn, err := r.resolveFunction(ar[3])
-	if err != nil {
-		return out, err
+	var out model.ColorSpaceCalGray
+
+	wp, _ := r.resolveArray(dict["WhitePoint"])
+	if len(wp) != 3 {
+		return out, fmt.Errorf("expected 3-elements array in CalGray.WhitePoint, got %v", wp)
 	}
-	out.TintTransform = *fn
+	copy(out.WhitePoint[:], r.processFloatArray(wp))
+
+	bp, _ := r.resolveArray(dict["BlackPoint"])
+	if len(bp) == 3 { // optional
+		copy(out.BlackPoint[:], r.processFloatArray(bp))
+	}
+	if gamma, ok := r.resolveNumber(dict["Gamma"]); ok {
+		out.Gamma = gamma
+	}
+	return out, nil
+}
+
+func (r resolver) resolveCalRGB(ar pdfcpu.Array) (model.ColorSpaceCalRGB, error) {
+	if len(ar) != 2 {
+		return model.ColorSpaceCalRGB{}, fmt.Errorf("expected 2-elements array in CalRGB Color, got %v", ar)
+	}
+	dict, ok := r.resolve(ar[1]).(pdfcpu.Dict)
+	if !ok {
+		return model.ColorSpaceCalRGB{}, errType("CalRGB", r.resolve(ar[1]))
+	}
+	var out model.ColorSpaceCalRGB
+
+	wp, _ := r.resolveArray(dict["WhitePoint"])
+	if len(wp) != 3 {
+		return out, fmt.Errorf("expected 3-elements array in CalRGB.WhitePoint, got %v", wp)
+	}
+	copy(out.WhitePoint[:], r.processFloatArray(wp))
+
+	bp, _ := r.resolveArray(dict["BlackPoint"])
+	if len(bp) == 3 { // optional
+		copy(out.BlackPoint[:], r.processFloatArray(bp))
+	}
+
+	gamma, _ := r.resolveArray(dict["Gamma"])
+	if len(gamma) == 3 { // optional
+		copy(out.Gamma[:], r.processFloatArray(gamma))
+	}
+
+	mat, _ := r.resolveArray(dict["Matrix"])
+	if len(mat) == 9 { // optional
+		copy(out.Matrix[:], r.processFloatArray(mat))
+	}
+	return out, nil
+}
+
+func (r resolver) resolveLab(ar pdfcpu.Array) (model.ColorSpaceLab, error) {
+	if len(ar) != 2 {
+		return model.ColorSpaceLab{}, fmt.Errorf("expected 2-elements array in Lab Color, got %v", ar)
+	}
+	dict, ok := r.resolve(ar[1]).(pdfcpu.Dict)
+	if !ok {
+		return model.ColorSpaceLab{}, errType("Lab", r.resolve(ar[1]))
+	}
+	var out model.ColorSpaceLab
+
+	wp, _ := r.resolveArray(dict["WhitePoint"])
+	if len(wp) != 3 {
+		return out, fmt.Errorf("expected 3-elements array in Lab.WhitePoint, got %v", wp)
+	}
+	copy(out.WhitePoint[:], r.processFloatArray(wp))
+
+	bp, _ := r.resolveArray(dict["BlackPoint"])
+	if len(bp) == 3 { // optional
+		copy(out.BlackPoint[:], r.processFloatArray(bp))
+	}
+
+	range_, _ := r.resolveArray(dict["Range"])
+	if len(range_) == 4 { // optional
+		copy(out.Range[:], r.processFloatArray(range_))
+	}
 	return out, nil
 }
 
@@ -222,6 +294,120 @@ func (r resolver) resolveIndexed(ar pdfcpu.Array) (model.ColorSpaceIndexed, erro
 		}
 	}
 	return out, nil
+}
+
+func (r resolver) resolveSeparation(ar pdfcpu.Array) (model.ColorSpaceSeparation, error) {
+	var (
+		out model.ColorSpaceSeparation
+		err error
+	)
+	if len(ar) != 4 {
+		return out, fmt.Errorf("expected 4-elements array in Separation Color, got %v", ar)
+	}
+	out.Name, _ = r.resolveName(ar[1])
+	out.AlternateSpace, err = r.resolveAlternateColorSpace(ar[2])
+	if err != nil {
+		return out, err
+	}
+	fn, err := r.resolveFunction(ar[3])
+	if err != nil {
+		return out, err
+	}
+	out.TintTransform = *fn
+	return out, nil
+}
+
+func (r resolver) resolveDeviceN(ar pdfcpu.Array) (model.ColorSpaceDeviceN, error) {
+	var (
+		out model.ColorSpaceDeviceN
+		err error
+	)
+	if len(ar) != 4 && len(ar) != 5 {
+		return out, fmt.Errorf("expected 4 or 5 elements array in DeviceN Color, got %v", ar)
+	}
+	names, _ := r.resolveArray(ar[1])
+	out.Names = make([]model.Name, len(names))
+	for i, n := range names {
+		out.Names[i], _ = r.resolveName(n)
+	}
+	out.AlternateSpace, err = r.resolveAlternateColorSpace(ar[2])
+	if err != nil {
+		return out, err
+	}
+	fn, err := r.resolveFunction(ar[3])
+	if err != nil {
+		return out, err
+	}
+	out.TintTransform = *fn
+	if len(ar) == 5 { // optional attributes
+		out.Attributes, err = r.resolveDeviceNAttributes(ar[4])
+		if err != nil {
+			return out, err
+		}
+	}
+	return out, nil
+}
+
+func (r resolver) resolveDeviceNAttributes(obj pdfcpu.Object) (*model.ColorSpaceDeviceNAttributes, error) {
+	obj = r.resolve(obj)
+	dict, ok := obj.(pdfcpu.Dict)
+	if !ok {
+		return nil, nil // accept null or invalid value silently
+	}
+	var (
+		out model.ColorSpaceDeviceNAttributes
+		err error
+	)
+	out.Subtype, _ = r.resolveName(dict["Subtype"])
+
+	colorants, _ := r.resolve(dict["Colorants"]).(pdfcpu.Dict)
+	out.Colorants = make(map[model.Name]model.ColorSpaceSeparation, len(colorants))
+	for name, col := range colorants {
+		col, _ := r.resolveArray(col)
+		out.Colorants[model.Name(name)], err = r.resolveSeparation(col)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	processDict, _ := r.resolve(dict["Process"]).(pdfcpu.Dict)
+	out.Process.ColorSpace, err = r.resolveAlternateColorSpace(processDict["ColorSpace"]) // may return nil
+	if err != nil {
+		return nil, err
+	}
+	comps, _ := r.resolveArray(processDict["Components"])
+	out.Process.Components = make([]model.Name, len(comps))
+	for i, n := range comps {
+		out.Process.Components[i], _ = r.resolveName(n)
+	}
+
+	if mix, ok := r.resolve(processDict["MixingHints"]).(pdfcpu.Dict); ok {
+		var m model.ColorSpaceDeviceNMixingHints
+
+		sold, _ := r.resolve(mix["Solidities"]).(pdfcpu.Dict)
+		m.Solidities = make(map[model.Name]float64, len(sold))
+		for i, s := range sold {
+			m.Solidities[model.Name(i)], _ = r.resolveNumber(s)
+		}
+
+		dot, _ := r.resolve(mix["DotGain"]).(pdfcpu.Dict)
+		m.DotGain = make(map[model.Name]model.FunctionDict, len(dot))
+		for i, s := range dot {
+			fn, err := r.resolveFunction(s)
+			if err != nil {
+				return nil, err
+			}
+			m.DotGain[model.Name(i)] = *fn
+		}
+
+		print, _ := r.resolveArray(processDict["PrintingOrder"])
+		m.PrintingOrder = make([]model.Name, len(print))
+		for i, n := range print {
+			m.PrintingOrder[i], _ = r.resolveName(n)
+		}
+		out.MixingHints = &m
+	}
+	return &out, nil
 }
 
 // check that the alternate is not a special color space
