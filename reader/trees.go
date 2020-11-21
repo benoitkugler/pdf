@@ -72,7 +72,7 @@ func (d destNameTree) appendKid(kid nameTree) {
 }
 func (d destNameTree) resolveLeafValueAppend(r resolver, name string, value pdfcpu.Object) error {
 	expDest, err := r.resolveOneNamedDest(value)
-	d.out.Names = append(d.out.Names, model.NameToDest{Name: name, Destination: expDest})
+	d.out.Names = append(d.out.Names, model.NameToDest{Name: model.DestinationString(name), Destination: expDest})
 	return err
 }
 

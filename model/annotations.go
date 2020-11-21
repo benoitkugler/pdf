@@ -42,7 +42,7 @@ type Border struct {
 }
 
 func (b Border) pdfString() string {
-	out := fmt.Sprintf("[%3.f %3.f %3.f", b.HCornerRadius, b.VCornerRadius, b.BorderWidth)
+	out := fmt.Sprintf("[%.3f %.3f %.3f", b.HCornerRadius, b.VCornerRadius, b.BorderWidth)
 	if b.DashArray != nil {
 		out += " " + writeFloatArray(b.DashArray)
 	}
@@ -166,7 +166,7 @@ type BaseAnnotation struct {
 
 func (ba BaseAnnotation) fields(pdf pdfWriter, ref Reference) string {
 	b := newBuffer()
-	b.fmt("/Rectangle %s", ba.Rect)
+	b.fmt("/Type/Annot /Rect %s", ba.Rect)
 	if ba.Contents != "" {
 		b.fmt("/Contents %s", pdf.EncodeString(ba.Contents, TextString, ref))
 	}

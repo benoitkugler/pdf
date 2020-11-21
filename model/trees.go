@@ -69,7 +69,7 @@ func limitsName(n nameTree) [2]string {
 // NameToDest associate an explicit destination
 // to a name.
 type NameToDest struct {
-	Name        string
+	Name        DestinationString
 	Destination DestinationExplicit
 }
 
@@ -98,7 +98,7 @@ func (d DestTree) IsEmpty() bool {
 func (d DestTree) names() []string {
 	out := make([]string, len(d.Names))
 	for i, k := range d.Names {
-		out[i] = k.Name
+		out[i] = string(k.Name)
 	}
 	return out
 }
@@ -120,8 +120,8 @@ func (d DestTree) Limits() [2]string {
 
 // LookupTable walks the name tree and
 // accumulates the result into one map
-func (d DestTree) LookupTable() map[string]DestinationExplicit {
-	out := make(map[string]DestinationExplicit)
+func (d DestTree) LookupTable() map[DestinationString]DestinationExplicit {
+	out := make(map[DestinationString]DestinationExplicit)
 	for _, v := range d.Names {
 		out[v.Name] = v.Destination
 	}
@@ -150,7 +150,8 @@ func (p DestTree) pdfString(pdf pdfWriter, ref Reference) string {
 	if len(p.Names) != 0 {
 		b.fmt("/Names [ ")
 		for _, name := range p.Names {
-			b.fmt("%s %s ", pdf.EncodeString(name.Name, ByteString, ref), name.Destination.pdfDestination(pdf, ref))
+			b.fmt("%s %s ", pdf.EncodeString(string(name.Name), ByteString, ref),
+				name.Destination.pdfDestination(pdf, ref))
 		}
 		b.line("]")
 	}

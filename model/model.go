@@ -80,16 +80,16 @@ func (doc *Document) Write(output io.Writer, encryption *Encrypt) error {
 type Catalog struct {
 	Pages             PageTree
 	Extensions        Extensions
-	Names             NameDictionary     // optional
-	ViewerPreferences *ViewerPreferences // optional
-	AcroForm          *AcroForm          // optional
-	Dests             DestTree           // optional
-	PageLabels        *PageLabelsTree    // optional
-	Outlines          *Outline           // optional
-	StructTreeRoot    *StructureTree     // optional
-	MarkInfo          *MarkDict          // optional
-	PageLayout        Name               // optional
-	PageMode          Name               // optional
+	Names             NameDictionary               // optional
+	ViewerPreferences *ViewerPreferences           // optional
+	AcroForm          *AcroForm                    // optional
+	Dests             map[Name]DestinationExplicit // optional
+	PageLabels        *PageLabelsTree              // optional
+	Outlines          *Outline                     // optional
+	StructTreeRoot    *StructureTree               // optional
+	MarkInfo          *MarkDict                    // optional
+	PageLayout        Name                         // optional
+	PageMode          Name                         // optional
 	// optional. A simple GoTo action to a direct destination
 	// may be found as an array in a PDF file.
 	OpenAction Action
@@ -120,10 +120,12 @@ func (cat *Catalog) pdfString(pdf pdfWriter, catalog Reference) string {
 
 	b.line("/Names %s", cat.Names.pdfString(pdf))
 
-	if dests := cat.Dests; !dests.IsEmpty() {
-		ref := pdf.createObject()
-		pdf.writeObject(dests.pdfString(pdf, ref), nil, ref)
-		b.line("/Dests %s", ref)
+	if dests := cat.Dests; len(dests) != 0 {
+		b.line("/Dests <<")
+		for name, dest := range dests {
+			b.line("%s %s", name, dest.pdfDestination(pdf, catalog))
+		}
+		b.line(">>")
 	}
 	if viewerPref := cat.ViewerPreferences; viewerPref != nil {
 		ref := pdf.addObject(viewerPref.pdfString(pdf), nil)
@@ -215,7 +217,12 @@ func (cat Catalog) Clone() Catalog {
 		out.ViewerPreferences = &v
 	}
 	out.AcroForm = cat.AcroForm.clone(cache)
-	out.Dests = cat.Dests.clone(cache)
+	if cat.Dests != nil {
+		out.Dests = make(map[Name]DestinationExplicit, len(cat.Dests))
+		for k, v := range cat.Dests {
+			out.Dests[k] = v.clone(cache).(DestinationExplicit)
+		}
+	}
 
 	if cat.PageLabels != nil {
 		pl := out.PageLabels.Clone()

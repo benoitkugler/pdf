@@ -298,7 +298,7 @@ func (r resolver) catalog() (model.Catalog, error) {
 		return out, err
 	}
 
-	out.Dests, err = r.processDictDests(d["Dests"])
+	out.Dests, err = r.resolveDests(d["Dests"])
 	if err != nil {
 		return out, err
 	}

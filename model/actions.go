@@ -16,11 +16,15 @@ type Action struct {
 
 func (a Action) pdfString(pdf pdfWriter, context Reference) string {
 	subtype := a.ActionType.actionParams(pdf, context)
-	chunks := make([]string, len(a.Next))
-	for i, n := range a.Next {
-		chunks[i] = n.pdfString(pdf, context)
+	next := ""
+	if len(a.Next) != 0 {
+		chunks := make([]string, len(a.Next))
+		for i, n := range a.Next {
+			chunks[i] = n.pdfString(pdf, context)
+		}
+		next = fmt.Sprintf("/Next [%s]", strings.Join(chunks, " "))
 	}
-	return fmt.Sprintf("<<%s /Next [%s]>>", subtype, strings.Join(chunks, " "))
+	return fmt.Sprintf("<<%s %s>>", subtype, next)
 }
 
 func (a Action) clone(cache cloneCache) Action {

@@ -21,8 +21,8 @@ var pdfSpec model.Document
 const password = "78eoln_-(_àç_-')"
 
 func init() {
-	// loadPDFSpec()
-	generatePDFs()
+	loadPDFSpec()
+	// generatePDFs()
 }
 
 func loadPDFSpec() {
@@ -78,17 +78,29 @@ func TestOpen(t *testing.T) {
 	// f, err := os.Open("datatest/transparents.pdf")
 	// f, err := os.Open("datatest/ModeleRecuFiscalEditable.pdf")
 	// f, err := os.Open("datatest/Protected.pdf")
-	f, err := os.Open("datatest/PDF_SPEC.pdf")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer f.Close()
+	// f, err := os.Open("datatest/PDF_SPEC.pdf")
+	// if err != nil {
+	// 	t.Fatal(err)
+	// }
+	// defer f.Close()
 
-	doc, enc, err := ParsePDF(f, "")
-	if err != nil {
-		t.Fatal(err)
+	// doc, enc, err := ParsePDF(f, "")
+	// if err != nil {
+	// 	t.Fatal(err)
+	// }
+	maping := pdfSpec.Catalog.Names.Dests.LookupTable()
+
+	for _, annot := range pdfSpec.Catalog.Pages.Flatten()[616].Annots {
+		if link, ok := annot.Subtype.(model.AnnotationLink); ok {
+			fmt.Println(link.Dest)
+			if _, ok := link.Dest.(model.DestinationName); ok {
+				t.Error("unexpected names destination")
+			} else if de, ok := link.Dest.(model.DestinationString); ok {
+				fmt.Println(maping[de].(model.DestinationExplicitIntern))
+			}
+		}
 	}
-	fmt.Println(doc, enc)
+
 }
 
 func BenchmarkProcess(b *testing.B) {
@@ -136,8 +148,8 @@ func TestDataset(t *testing.T) {
 		f.Close()
 
 		fmt.Println("	Pages:", len(doc.Catalog.Pages.Flatten()))
-		fmt.Println("	Dests (in Names):", len(doc.Catalog.Names.Dests.LookupTable()))
-		fmt.Println("	Dests:", len(doc.Catalog.Dests.LookupTable()))
+		fmt.Println("	Dests string:", len(doc.Catalog.Names.Dests.LookupTable()))
+		fmt.Println("	Dests name:", len(doc.Catalog.Dests))
 	}
 }
 

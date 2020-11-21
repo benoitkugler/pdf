@@ -175,7 +175,7 @@ func (r resolver) processDictDests(entry pdfcpu.Object) (model.DestTree, error) 
 		if err != nil {
 			return model.DestTree{}, err
 		}
-		out.Names = append(out.Names, model.NameToDest{Name: name, Destination: expDest})
+		out.Names = append(out.Names, model.NameToDest{Name: model.DestinationString(name), Destination: expDest})
 	}
 	return out, nil
 }
@@ -342,4 +342,19 @@ func (r resolver) resolveDestinationOrAction(object pdfcpu.Object) (model.Action
 		return r.processAction(object)
 	}
 	return model.Action{}, nil
+}
+
+func (r resolver) resolveDests(object pdfcpu.Object) (map[model.Name]model.DestinationExplicit, error) {
+	dict, _ := r.resolve(object).(pdfcpu.Dict)
+	out := make(map[model.Name]model.DestinationExplicit, len(dict))
+	for name, dest := range dict {
+		if ar, ok := r.resolveArray(dest); ok {
+			exp, err := r.resolveExplicitDestination(ar)
+			if err != nil {
+				return nil, err
+			}
+			out[model.Name(name)] = exp
+		}
+	}
+	return out, nil
 }
