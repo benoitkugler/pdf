@@ -176,8 +176,17 @@ func (r resolver) resolveAnnotationFields(annotDict pdfcpu.Dict) (model.Annotati
 	contents, _ := isString(r.resolve(annotDict["Contents"]))
 	annotModel.Contents = decodeTextString(contents)
 
+	nm, _ := isString(r.resolve(annotDict["NM"]))
+	annotModel.NM = decodeTextString(nm)
+
+	if m, ok := isString(r.resolve(annotDict["M"])); ok {
+		if mt, ok := pdfcpu.DateTime(m); ok {
+			annotModel.M = mt
+		}
+	}
+
 	if f, ok := r.resolveInt(annotDict["F"]); ok {
-		annotModel.F = f
+		annotModel.F = model.AnnotationFlag(f)
 	}
 	if name, ok := r.resolveName(annotDict["Name"]); ok {
 		annotModel.AS = name
@@ -194,6 +203,13 @@ func (r resolver) resolveAnnotationFields(annotDict pdfcpu.Dict) (model.Annotati
 		}
 		annotModel.Border = &bo
 	}
+
+	color, _ := r.resolveArray(annotDict["C"])
+	switch len(color) {
+	case 0, 1, 3, 4: // accepted color values
+		annotModel.C = r.processFloatArray(color)
+	}
+
 	annotModel.AP, err = r.resolveAppearanceDict(annotDict["AP"])
 	if err != nil {
 		return annotModel, err

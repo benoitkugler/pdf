@@ -3,6 +3,7 @@ package model
 import (
 	"fmt"
 	"strings"
+	"time"
 )
 
 // const (
@@ -91,17 +92,55 @@ func (b *BorderStyle) Clone() *BorderStyle {
 	return &out
 }
 
+// AnnotationFlag describe the behaviour of an annotation. See Table 165 – Annotation flags
+type AnnotationFlag uint16
+
+const (
+	// Do not display the annotation if it does not belong to one of the
+	// standard annotation types and no annotation handler is available.
+	AInvisible AnnotationFlag = 1 << (1 - 1)
+	// Do not display or print the annotation or allow it to
+	// interact with the user, regardless of its annotation type or whether an
+	// annotation handler is available.
+	AHidden AnnotationFlag = 1 << (2 - 1)
+	// Print the annotation when the page is printed.
+	APrint AnnotationFlag = 1 << (3 - 1)
+	// Do not scale the annotation’s appearance to match the
+	// magnification of the page.
+	ANoZoom AnnotationFlag = 1 << (4 - 1)
+	// Do not rotate the annotation’s appearance to match
+	// the rotation of the page.
+	ANoRotate AnnotationFlag = 1 << (5 - 1)
+	// Do not display the annotation on the screen or allow it
+	// to interact with the user.
+	ANoView AnnotationFlag = 1 << (6 - 1)
+	// Do not allow the annotation to interact with the user.
+	AReadOnly AnnotationFlag = 1 << (7 - 1)
+	// Do not allow the annotation to be deleted or its
+	// properties (including position and size) to be modified by the user.
+	ALocked AnnotationFlag = 1 << (8 - 1)
+	// Invert the interpretation of the NoView flag for certain
+	// events.
+	AToggleNoView AnnotationFlag = 1 << (9 - 1)
+	// Do not allow the contents of the annotation to be
+	// modified by the user.
+	ALockedContents AnnotationFlag = 1 << (10 - 1)
+)
+
 type BaseAnnotation struct {
 	Rect     Rectangle
-	Contents string
+	Contents string          // optional
+	NM       string          // optional
+	M        time.Time       // optional
 	AP       *AppearanceDict // optional
 	// Appearance state (key of the AP.N subDictionary).
 	// Required if the appearance dictionary AP contains one or more
 	// subdictionaries
 	AS           Name
-	F            int      // optional
-	Border       *Border  // optional
-	StructParent MaybeInt // required if the annotation is a structural content item
+	F            AnnotationFlag // optional
+	Border       *Border        // optional
+	C            []float64      // 0, 1, 3 or 4 numbers in the range 0.0 to 1.0
+	StructParent MaybeInt       // required if the annotation is a structural content item
 }
 
 func (ba BaseAnnotation) fields(pdf pdfWriter, ref Reference) string {
@@ -109,6 +148,12 @@ func (ba BaseAnnotation) fields(pdf pdfWriter, ref Reference) string {
 	b.fmt("/Rectangle %s", ba.Rect)
 	if ba.Contents != "" {
 		b.fmt("/Contents %s", pdf.EncodeString(ba.Contents, TextString, ref))
+	}
+	if ba.NM != "" {
+		b.fmt("/NM %s", pdf.EncodeString(ba.NM, TextString, ref))
+	}
+	if !ba.M.IsZero() {
+		b.fmt("/M %s", pdf.dateString(ba.M, ref))
 	}
 	if ap := ba.AP; ap != nil {
 		b.fmt("/AP %s", ap.pdfString(pdf))
@@ -122,6 +167,9 @@ func (ba BaseAnnotation) fields(pdf pdfWriter, ref Reference) string {
 	if bo := ba.Border; bo != nil {
 		b.fmt("/Border %s", bo.pdfString())
 	}
+	if len(ba.C) != 0 {
+		b.fmt("/C %s", writeFloatArray(ba.C))
+	}
 	if ba.StructParent != nil {
 		b.fmt("/StructParent %d", ba.StructParent.(Int))
 	}
@@ -132,6 +180,9 @@ func (ba BaseAnnotation) clone(cache cloneCache) BaseAnnotation {
 	out := ba
 	out.AP = ba.AP.clone(cache)
 	out.Border = ba.Border.Clone()
+	if ba.C != nil {
+		out.C = append([]float64(nil), ba.C...)
+	}
 	return out
 }
 
@@ -222,6 +273,9 @@ func (ap AppearanceEntry) clone(cache cloneCache) AppearanceEntry {
 	return out
 }
 
+// Annotation associates an object such as a note, sound, or movie
+// with a location on a page of a PDF document,
+// or provides a way to interact with the user by means of the mouse and keyboard.
 type Annotation interface {
 	// return the specialized fields (including Subtype)
 	annotationFields(pdf pdfWriter, ref Reference) string
