@@ -425,10 +425,27 @@ func (r resolver) resolveAnnotationSubType(annot pdfcpu.Dict) (model.Annotation,
 		an.FS, err = r.resolveFileSpec(annot["FS"])
 		return an, err
 	case "Widget":
-		// TODO:
-		return model.AnnotationWidget{}, nil
+		var an model.AnnotationWidget
+		h, _ := r.resolveName(annot["H"])
+		an.H = model.Highlighting(h)
+		an.MK, err = r.resolveAnnotationMK(annot["MK"])
+		if err != nil {
+			return nil, err
+		}
+		an.A, err = r.processAction(annot["A"])
+		if err != nil {
+			return nil, err
+		}
+		an.BS = r.resolveBorderStyle(annot["BS"])
+		an.AA, err = r.resolveAnnotationAA(annot["AA"])
+		if err != nil {
+			return nil, err
+		}
+		return an, nil
+	case "": // a form field may come here
+		return nil, nil
 	default:
-		fmt.Println("TODO :", annot)
+		fmt.Println("TODO annot :", name, annot)
 		return nil, nil
 	}
 }
@@ -474,6 +491,120 @@ func (r resolver) resolveAnnotationPopup(o pdfcpu.Object) (*model.AnnotationPopu
 	}
 	out.Open, _ = r.resolveBool(dict["Open"])
 	return &out, nil
+}
+
+func (r resolver) resolveAnnotationAA(o pdfcpu.Object) (*model.AnnotationAdditionalActions, error) {
+	dict, _ := r.resolve(o).(pdfcpu.Dict)
+	var (
+		out model.AnnotationAdditionalActions
+		err error
+	)
+	out.E, err = r.processAction(dict["E"])
+	if err != nil {
+		return nil, err
+	}
+	out.X, err = r.processAction(dict["X"])
+	if err != nil {
+		return nil, err
+	}
+	out.D, err = r.processAction(dict["D"])
+	if err != nil {
+		return nil, err
+	}
+	out.U, err = r.processAction(dict["U"])
+	if err != nil {
+		return nil, err
+	}
+	out.Fo, err = r.processAction(dict["Fo"])
+	if err != nil {
+		return nil, err
+	}
+	out.Bl, err = r.processAction(dict["Bl"])
+	if err != nil {
+		return nil, err
+	}
+	out.PO, err = r.processAction(dict["PO"])
+	if err != nil {
+		return nil, err
+	}
+	out.PC, err = r.processAction(dict["PC"])
+	if err != nil {
+		return nil, err
+	}
+	out.PV, err = r.processAction(dict["PV"])
+	if err != nil {
+		return nil, err
+	}
+	out.PI, err = r.processAction(dict["PI"])
+	if err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+func (r resolver) resolveAnnotationMK(o pdfcpu.Object) (*model.AppearanceCharacteristics, error) {
+	dict, _ := r.resolve(o).(pdfcpu.Dict)
+	var out model.AppearanceCharacteristics
+	rt, _ := r.resolveInt(dict["R"])
+	if r := model.NewRotation(rt); r != nil {
+		out.R = *r
+	}
+
+	bc, _ := r.resolveArray(dict["BC"])
+	out.BC = r.processFloatArray(bc)
+
+	bg, _ := r.resolveArray(dict["BG"])
+	out.BG = r.processFloatArray(bg)
+
+	ts, _ := isString(r.resolve(dict["CA"]))
+	out.CA = decodeTextString(ts)
+	ts, _ = isString(r.resolve(dict["RC"]))
+	out.RC = decodeTextString(ts)
+	ts, _ = isString(r.resolve(dict["AC"]))
+	out.AC = decodeTextString(ts)
+
+	var err error
+	if of := dict["I"]; r.resolve(of) != nil {
+		out.I, err = r.resolveOneXObjectForm(of)
+		if err != nil {
+			return nil, err
+		}
+	}
+	if of := dict["RI"]; r.resolve(of) != nil {
+		out.RI, err = r.resolveOneXObjectForm(of)
+		if err != nil {
+			return nil, err
+		}
+	}
+	if of := dict["IX"]; r.resolve(of) != nil {
+		out.IX, err = r.resolveOneXObjectForm(of)
+		if err != nil {
+			return nil, err
+		}
+	}
+	out.IF = r.resolveIconFit(dict["IF"])
+	if tp, ok := r.resolveInt(dict["TP"]); ok {
+		out.TP = uint8(tp)
+	}
+	return &out, nil
+}
+
+func (r resolver) resolveIconFit(o pdfcpu.Object) *model.IconFit {
+	dict, ok := r.resolve(o).(pdfcpu.Dict)
+	if !ok {
+		return nil
+	}
+	var out model.IconFit
+	out.SW, _ = r.resolveName(dict["SW"])
+	out.S, _ = r.resolveName(dict["S"])
+	if a, ok := r.resolveArray(dict["A"]); ok && len(a) == 2 {
+		a := r.processFloatArray(a)
+		out.A = &[2]float64{a[0], a[1]}
+	}
+	if fb, ok := r.resolveBool(dict["FB"]); ok {
+		out.FB = fb
+	}
+	return &out
 }
 
 func (r resolver) resolveFileSpec(fs pdfcpu.Object) (*model.FileSpec, error) {

@@ -21,7 +21,7 @@ var pdfSpec model.Document
 const password = "78eoln_-(_àç_-')"
 
 func init() {
-	loadPDFSpec()
+	// loadPDFSpec()
 	generatePDFs()
 }
 

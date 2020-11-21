@@ -245,7 +245,7 @@ func (r resolver) resolveWidget(form pdfcpu.Dict) (model.Widget, bool, error) {
 	}
 	if widget, isWidget := annot.Subtype.(model.AnnotationWidget); isWidget {
 		// we found a merged widget
-		return model.Widget{BaseAnnotation: annot.BaseAnnotation, AnnotationWidget: widget}, true, nil
+		return model.Widget{BaseAnnotation: annot.BaseAnnotation, Subtype: widget}, true, nil
 	}
 	return model.Widget{}, false, nil
 }
@@ -317,6 +317,6 @@ func (r resolver) processFormFieldType(form pdfcpu.Dict) model.FormField {
 
 // TODO: process signature field
 func (r resolver) processSignatureField(form pdfcpu.Dict) model.FormFieldSignature {
-	fmt.Println("TODO", form)
+	fmt.Println("TODO Signature field", form)
 	return model.FormFieldSignature{}
 }

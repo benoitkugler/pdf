@@ -397,11 +397,13 @@ func (a ActionNamed) actionParams(pdfWriter, Reference) string {
 
 func (ac ActionNamed) clone(cache cloneCache) ActionType { return ac }
 
+// All actions are optional and must be JavaScript actions.
+// See Table 196 – Entries in a form field’s additional-actions dictionary
 type FormFielAdditionalActions struct {
-	K Action // JavaScript action, optional, on update
-	F Action // JavaScript action, optional, before formating
-	V Action // JavaScript action, optional, on validate
-	C Action // JavaScript action, optional, to recalculate
+	K Action // on update
+	F Action // before formating
+	V Action // on validate
+	C Action // to recalculate
 }
 
 func (f FormFielAdditionalActions) pdfString(pdf pdfWriter, ref Reference) string {
@@ -423,10 +425,84 @@ func (f FormFielAdditionalActions) pdfString(pdf pdfWriter, ref Reference) strin
 	return b.String()
 }
 
-func (ff *FormFielAdditionalActions) Clone() *FormFielAdditionalActions {
+func (ff *FormFielAdditionalActions) clone(cache cloneCache) *FormFielAdditionalActions {
 	if ff == nil {
 		return nil
 	}
-	a := *ff
+	var a FormFielAdditionalActions
+	a.K = ff.K.clone(cache)
+	a.F = ff.F.clone(cache)
+	a.V = ff.V.clone(cache)
+	a.C = ff.C.clone(cache)
+	return &a
+}
+
+// All actions are optional
+// See Table 194 – Entries in an annotation’s additional-actions dictionary.
+type AnnotationAdditionalActions struct {
+	E  Action // cursor enters the annotation’s active area.
+	X  Action // cursor exits the annotation’s active area.
+	D  Action // mouse button is pressed inside the annotation’s active area.
+	U  Action // mouse button is released inside the annotation’s active area.
+	Fo Action // the annotation receives the input focus.
+	Bl Action // the annotation loses the input focus.
+	PO Action // the page containing the annotation is opened.
+	PC Action // the page containing the annotation is closed.
+	PV Action // the page containing the annotation becomes visible.
+	PI Action // the page containing the annotation is no longer visible in the conforming reader’s user interface.
+}
+
+func (ann AnnotationAdditionalActions) pdfString(pdf pdfWriter, ref Reference) string {
+	b := newBuffer()
+	b.WriteString("<<")
+	if ann.E.ActionType != nil {
+		b.line("/E %s", ann.E.pdfString(pdf, ref))
+	}
+	if ann.X.ActionType != nil {
+		b.line("/X %s", ann.X.pdfString(pdf, ref))
+	}
+	if ann.D.ActionType != nil {
+		b.line("/D %s", ann.D.pdfString(pdf, ref))
+	}
+	if ann.U.ActionType != nil {
+		b.line("/U %s", ann.U.pdfString(pdf, ref))
+	}
+	if ann.Fo.ActionType != nil {
+		b.line("/Fo %s", ann.Fo.pdfString(pdf, ref))
+	}
+	if ann.Bl.ActionType != nil {
+		b.line("/Bl %s", ann.Bl.pdfString(pdf, ref))
+	}
+	if ann.PO.ActionType != nil {
+		b.line("/PO %s", ann.PO.pdfString(pdf, ref))
+	}
+	if ann.PC.ActionType != nil {
+		b.line("/PC %s", ann.PC.pdfString(pdf, ref))
+	}
+	if ann.PV.ActionType != nil {
+		b.line("/PV %s", ann.PV.pdfString(pdf, ref))
+	}
+	if ann.PI.ActionType != nil {
+		b.line("/PI %s", ann.PI.pdfString(pdf, ref))
+	}
+	b.fmt(">>")
+	return b.String()
+}
+
+func (ann *AnnotationAdditionalActions) clone(cache cloneCache) *AnnotationAdditionalActions {
+	if ann == nil {
+		return nil
+	}
+	var a AnnotationAdditionalActions
+	a.E = ann.E.clone(cache)
+	a.X = ann.X.clone(cache)
+	a.D = ann.D.clone(cache)
+	a.U = ann.U.clone(cache)
+	a.Fo = ann.Fo.clone(cache)
+	a.Bl = ann.Bl.clone(cache)
+	a.PO = ann.PO.clone(cache)
+	a.PC = ann.PC.clone(cache)
+	a.PV = ann.PV.clone(cache)
+	a.PI = ann.PI.clone(cache)
 	return &a
 }

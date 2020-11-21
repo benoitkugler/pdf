@@ -82,6 +82,7 @@ func isString(o pdfcpu.Object) (string, bool) {
 	}
 }
 
+// output as same length as input
 func (r resolver) processFloatArray(ar pdfcpu.Array) []float64 {
 	out := make([]float64, len(ar))
 	for i, v := range ar {

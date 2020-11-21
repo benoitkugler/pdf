@@ -172,7 +172,7 @@ func (f *FormFieldDict) clone(cache cloneCache) *FormFieldDict {
 			out.Kids[i] = k.clone(cache)
 		}
 	}
-	out.AA = f.AA.Clone()
+	out.AA = f.AA.clone(cache)
 	return &out
 }
 
@@ -189,21 +189,21 @@ const (
 )
 
 // Widget is an annotation
-// with a static type of Widget
+// with a static type of Widget.
 type Widget struct {
 	BaseAnnotation
 
-	AnnotationWidget
+	Subtype AnnotationWidget
 }
 
 func (w Widget) pdfString(pdf pdfWriter, ownRef, parent Reference) string {
 	return fmt.Sprintf("<<%s %s/Parent %s>>",
-		w.BaseAnnotation.fields(pdf, ownRef), w.AnnotationWidget.annotationFields(pdf, ownRef), parent)
+		w.BaseAnnotation.fields(pdf, ownRef), w.Subtype.annotationFields(pdf, ownRef), parent)
 }
 
 func (w Widget) clone(cache cloneCache) Widget {
 	out := w
-	out.AnnotationWidget = w.AnnotationWidget.clone(cache).(AnnotationWidget)
+	out.Subtype = w.Subtype.clone(cache).(AnnotationWidget)
 	out.BaseAnnotation = w.BaseAnnotation.clone(cache)
 	return out
 }

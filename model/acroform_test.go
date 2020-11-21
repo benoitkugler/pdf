@@ -34,7 +34,7 @@ func TestCloneForm(t *testing.T) {
 					Contents: "sldml",
 					Border:   &Border{DashArray: []float64{4, 5, 6, 8}},
 				},
-				AnnotationWidget: AnnotationWidget{
+				Subtype: AnnotationWidget{
 					BS: &BorderStyle{
 						S: "sd24",
 					},

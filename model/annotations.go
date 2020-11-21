@@ -677,11 +677,13 @@ func (f AnnotationFileAttachment) clone(cache cloneCache) Annotation {
 
 // AnnotationWidget is an annotation widget,
 // primarily for form fields
+// The Parent field is deduced from the containing form field.
 type AnnotationWidget struct {
-	// TODO: complete fields
-	H  Highlighting
-	A  Action // optional
-	BS *BorderStyle
+	H  Highlighting                 // optional
+	MK *AppearanceCharacteristics   // optional
+	A  Action                       // optional
+	BS *BorderStyle                 // optional
+	AA *AnnotationAdditionalActions // optional
 }
 
 func (w AnnotationWidget) annotationFields(pdf pdfWriter, ref Reference) string {
@@ -689,18 +691,136 @@ func (w AnnotationWidget) annotationFields(pdf pdfWriter, ref Reference) string 
 	if w.H != "" {
 		out += fmt.Sprintf("/H %s", w.H)
 	}
+	if w.MK != nil {
+		out += fmt.Sprintf("/MK %s", w.MK.pdfString(pdf, ref))
+	}
 	if w.A.ActionType != nil {
 		out += fmt.Sprintf("/A %s", w.A.pdfString(pdf, ref))
 	}
 	if w.BS != nil {
 		out += fmt.Sprintf("/BS %s", w.BS.String())
 	}
+	if w.AA != nil {
+		out += fmt.Sprintf("/AA %s", w.AA.pdfString(pdf, ref))
+	}
 	return out
 }
 
 func (w AnnotationWidget) clone(cache cloneCache) Annotation {
 	out := w
+	out.MK = w.MK.clone(cache)
 	out.A = w.A.clone(cache)
 	out.BS = w.BS.Clone()
+	out.AA = w.AA.clone(cache)
 	return out
+}
+
+// AppearanceCharacteristics contains additional information
+// for constructing the annotation’s appearance stream.
+// See Table 189 – Entries in an appearance characteristics dictionary
+type AppearanceCharacteristics struct {
+	R          Rotation     // optional
+	BC, BG     []float64    // optional
+	CA, RC, AC string       // optional
+	I, RI, IX  *XObjectForm // optional
+	IF         *IconFit     // optional
+	TP         uint8        // optional
+}
+
+func (a AppearanceCharacteristics) pdfString(pdf pdfWriter, ref Reference) string {
+	b := newBuffer()
+	b.WriteString("<<")
+	if a.R != 0 {
+		b.fmt("/R %d", a.R.Degrees())
+	}
+	if len(a.BC) != 0 {
+		b.fmt("/BC %s", writeFloatArray(a.BC))
+	}
+	if len(a.BG) != 0 {
+		b.fmt("/BG %s", writeFloatArray(a.BG))
+	}
+	if a.CA != "" {
+		b.fmt("/CA %s", pdf.EncodeString(a.CA, TextString, ref))
+	}
+	if a.RC != "" {
+		b.fmt("/RC %s", pdf.EncodeString(a.RC, TextString, ref))
+	}
+	if a.AC != "" {
+		b.fmt("/AC %s", pdf.EncodeString(a.AC, TextString, ref))
+	}
+	if a.I != nil {
+		ref := pdf.addItem(a.I)
+		b.fmt("/I %s", ref)
+	}
+	if a.RI != nil {
+		ref := pdf.addItem(a.RI)
+		b.fmt("/RI %s", ref)
+	}
+	if a.IX != nil {
+		ref := pdf.addItem(a.IX)
+		b.fmt("/IX %s", ref)
+	}
+	if a.IF != nil {
+		b.fmt("/IF %s", a.IF)
+	}
+	if a.TP != 0 {
+		b.fmt("/TP %d", a.TP)
+	}
+	b.WriteString(">>")
+	return b.String()
+}
+
+func (a *AppearanceCharacteristics) clone(cache cloneCache) *AppearanceCharacteristics {
+	if a == nil {
+		return nil
+	}
+	out := *a
+	out.BC = append([]float64(nil), a.BC...)
+	out.BG = append([]float64(nil), a.BG...)
+	out.I = a.I.clone(cache).(*XObjectForm)
+	out.RI = a.RI.clone(cache).(*XObjectForm)
+	out.IX = a.IX.clone(cache).(*XObjectForm)
+	out.IF = a.IF.Clone()
+	return &out
+}
+
+// IconFit specifies how to display the button’s icon
+// within the annotation rectangle of its widget annotation.
+// See Table 247 – Entries in an icon fit dictionary
+type IconFit struct {
+	SW Name        // optional
+	S  Name        // optional
+	A  *[2]float64 // optional
+	FB bool        // optional
+}
+
+// String return a PDF dictionary.
+func (i IconFit) String() string {
+	out := ""
+	if i.SW != "" {
+		out += "/SW " + i.SW.String()
+	}
+	if i.S != "" {
+		out += "/S " + i.S.String()
+	}
+	if i.A != nil {
+		out += "/A " + writeFloatArray((*i.A)[:])
+	}
+	if i.FB {
+		out += fmt.Sprintf("/FB %v", i.FB)
+	}
+	return "<<" + out + ">>"
+}
+
+// Clone returns a deep copy.
+func (i *IconFit) Clone() *IconFit {
+	if i == nil {
+		return nil
+	}
+	out := *i
+	if i.A != nil {
+		cp := *i.A
+		out.A = &cp
+	}
+	return &out
 }
