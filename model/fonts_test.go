@@ -5,6 +5,22 @@ import (
 	"testing"
 )
 
+func TestEncodingString(t *testing.T) {
+	diffs := Differences{
+		1:  "dsd",
+		2:  "mldsks",
+		3:  "mdsùldùs",
+		10: "ee",
+		11: "sd",
+		12: "ee",
+		7:  "88",
+	}
+	exp := "[ 1/dsd/mldsks/mdsùldùs 7/88 10/ee/sd/ee]"
+	if d := diffs.PDFString(); d != exp {
+		t.Errorf("expected %s, got %v", exp, d)
+	}
+}
+
 func TestCloneFont(t *testing.T) {
 	fonts := []Font{
 		FontType0{Encoding: CMapEncodingEmbedded{}},
