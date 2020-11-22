@@ -87,15 +87,15 @@ func (r resolver) processRange(range_ pdfcpu.Array) ([]model.Range, error) {
 }
 
 // do not impose a < b
-func (r resolver) processPoints(range_ pdfcpu.Array) ([][2]float64, error) {
+func (r resolver) processPoints(range_ pdfcpu.Array) ([][2]Fl, error) {
 	if len(range_)%2 != 0 {
 		return nil, fmt.Errorf("expected even length for array, got %v", range_)
 	}
-	out := make([][2]float64, len(range_)/2)
+	out := make([][2]Fl, len(range_)/2)
 	for i := range out {
 		a, _ := r.resolveNumber(range_[2*i])
 		b, _ := r.resolveNumber(range_[2*i+1])
-		out[i] = [2]float64{a, b}
+		out[i] = [2]Fl{a, b}
 	}
 	return out, nil
 }
@@ -137,7 +137,7 @@ func (r resolver) resolveStitchingFn(fn pdfcpu.Dict) (model.FunctionStitching, e
 	if len(encode) != 2*K {
 		return out, fmt.Errorf("expected 2 x k elements array for Bounds, got %v", encode)
 	}
-	out.Encode = make([][2]float64, K)
+	out.Encode = make([][2]Fl, K)
 	for i := range out.Encode {
 		out.Encode[i][0], _ = r.resolveNumber(encode[2*i])
 		out.Encode[i][1], _ = r.resolveNumber(encode[2*i+1])

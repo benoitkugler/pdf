@@ -397,7 +397,7 @@ func (r resolver) resolveDeviceNAttributes(obj pdfcpu.Object) (*model.ColorSpace
 		var m model.ColorSpaceDeviceNMixingHints
 
 		sold, _ := r.resolve(mix["Solidities"]).(pdfcpu.Dict)
-		m.Solidities = make(map[model.Name]float64, len(sold))
+		m.Solidities = make(map[model.Name]Fl, len(sold))
 		for i, s := range sold {
 			m.Solidities[model.Name(i)], _ = r.resolveNumber(s)
 		}

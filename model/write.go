@@ -81,7 +81,7 @@ func (w *output) writeFooter(trailer Trailer, root, info, encrypt Reference) {
 	if encrypt > 0 {
 		b.WriteString(fmt.Sprintf("/Encrypt %s\n", encrypt))
 		b.WriteString(fmt.Sprintf("/ID [%s %s]\n",
-			escapeFormatByteString(trailer.ID[0]), escapeFormatByteString(trailer.ID[1])))
+			EspaceByteString(trailer.ID[0]), EspaceByteString(trailer.ID[1])))
 	}
 	b.WriteString(">>\n")
 	b.WriteString("startxref\n")
@@ -140,10 +140,12 @@ type PDFStringEncoder interface {
 	EncodeString(s string, mode PDFStringEncoding, context Reference) string
 }
 
-// return a pdf compatible string
-// this function should't generaly be used (see EncodeString)
-// but is useful when strings must not be encrypted
-func escapeFormatByteString(s string) string {
+// EspaceByteString return a pdf compatible string, by
+// escaping special characters and adding parenthesis.
+//
+// PDFStringEncoder.EncodeString provides a more general
+// approach, and should be used when possible.
+func EspaceByteString(s string) string {
 	s = replacer.Replace(s)
 	return "(" + s + ")"
 }
@@ -171,7 +173,7 @@ func (p pdfWriter) EncodeString(s string, mode PDFStringEncoding, context Refere
 
 	switch mode {
 	case ByteString, TextString:
-		return escapeFormatByteString(s) // string litteral
+		return EspaceByteString(s) // string litteral
 	case HexString:
 		return "<" + hex.EncodeToString([]byte(s)) + ">" // hex string
 	default:

@@ -9,10 +9,7 @@ import (
 )
 
 func (r resolver) processAcroForm(acroForm pdfcpu.Object) (model.AcroForm, error) {
-	var (
-		out model.AcroForm
-		err error
-	)
+	var out model.AcroForm
 	acroForm = r.resolve(acroForm)
 	if acroForm == nil {
 		return out, nil
@@ -50,14 +47,17 @@ func (r resolver) processAcroForm(acroForm pdfcpu.Object) (model.AcroForm, error
 		}
 	}
 	if dr := form["DR"]; dr != nil {
-		out.DR, err = r.resolveOneResourceDict(dr)
+		drm, err := r.resolveOneResourceDict(dr)
 		if err != nil {
 			return out, err
+		}
+		if drm != nil {
+			out.DR = *drm
 		}
 	}
 	out.DA, _ = isString(r.resolve(form["DA"]))
 	if q, ok := r.resolveInt(form["Q"]); ok {
-		out.Q = int(q)
+		out.Q = uint8(q)
 	}
 	return out, nil
 }

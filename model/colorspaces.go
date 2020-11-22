@@ -75,14 +75,14 @@ func (n ColorSpaceName) cloneCS(cloneCache) ColorSpace { return n }
 
 // ---------------------- CIE-based ----------------------
 type ColorSpaceCalGray struct {
-	WhitePoint [3]float64
-	BlackPoint [3]float64 // optional, default to [0 0 0]
-	Gamma      float64    // optional, default to 1
+	WhitePoint [3]Fl
+	BlackPoint [3]Fl // optional, default to [0 0 0]
+	Gamma      Fl    // optional, default to 1
 }
 
 func (c ColorSpaceCalGray) colorSpacePDFString(pdf pdfWriter) string {
 	out := fmt.Sprintf("<</WhitePoint %s", writeFloatArray(c.WhitePoint[:]))
-	if c.BlackPoint != [3]float64{} {
+	if c.BlackPoint != [3]Fl{} {
 		out += fmt.Sprintf("/BlackPoint %s", writeFloatArray(c.BlackPoint[:]))
 	}
 	if c.Gamma != 0 {
@@ -95,21 +95,21 @@ func (c ColorSpaceCalGray) colorSpacePDFString(pdf pdfWriter) string {
 func (c ColorSpaceCalGray) cloneCS(cloneCache) ColorSpace { return c }
 
 type ColorSpaceCalRGB struct {
-	WhitePoint [3]float64
-	BlackPoint [3]float64 // optional, default to [0 0 0]
-	Gamma      [3]float64 // optional, default to [1 1 1]
-	Matrix     [9]float64 // [ X_A Y_A Z_A X_B Y_B Z_B X_C Y_C Z_C ], optional, default to identity
+	WhitePoint [3]Fl
+	BlackPoint [3]Fl // optional, default to [0 0 0]
+	Gamma      [3]Fl // optional, default to [1 1 1]
+	Matrix     [9]Fl // [ X_A Y_A Z_A X_B Y_B Z_B X_C Y_C Z_C ], optional, default to identity
 }
 
 func (c ColorSpaceCalRGB) colorSpacePDFString(pdf pdfWriter) string {
 	out := fmt.Sprintf("<</WhitePoint %s", writeFloatArray(c.WhitePoint[:]))
-	if c.BlackPoint != [3]float64{} {
+	if c.BlackPoint != [3]Fl{} {
 		out += fmt.Sprintf("/BlackPoint %s", writeFloatArray(c.BlackPoint[:]))
 	}
-	if c.Gamma != [3]float64{} {
+	if c.Gamma != [3]Fl{} {
 		out += fmt.Sprintf("/Gamma %s", writeFloatArray(c.Gamma[:]))
 	}
-	if c.Matrix != [9]float64{} {
+	if c.Matrix != [9]Fl{} {
 		out += fmt.Sprintf("/Matrix %s", writeFloatArray(c.Matrix[:]))
 	}
 	out += ">>"
@@ -119,17 +119,17 @@ func (c ColorSpaceCalRGB) colorSpacePDFString(pdf pdfWriter) string {
 func (c ColorSpaceCalRGB) cloneCS(cloneCache) ColorSpace { return c }
 
 type ColorSpaceLab struct {
-	WhitePoint [3]float64
-	BlackPoint [3]float64 // optional, default to [0 0 0]
-	Range      [4]float64 // [ a_min a_max b_min b_max ], optional, default to [−100 100 −100 100 ]
+	WhitePoint [3]Fl
+	BlackPoint [3]Fl // optional, default to [0 0 0]
+	Range      [4]Fl // [ a_min a_max b_min b_max ], optional, default to [−100 100 −100 100 ]
 }
 
 func (c ColorSpaceLab) colorSpacePDFString(pdf pdfWriter) string {
 	out := fmt.Sprintf("<</WhitePoint %s", writeFloatArray(c.WhitePoint[:]))
-	if c.BlackPoint != [3]float64{} {
+	if c.BlackPoint != [3]Fl{} {
 		out += fmt.Sprintf("/BlackPoint %s", writeFloatArray(c.BlackPoint[:]))
 	}
-	if c.Range != [4]float64{} {
+	if c.Range != [4]Fl{} {
 		out += fmt.Sprintf("/Range %s", writeFloatArray(c.Range[:]))
 	}
 	out += ">>"
@@ -141,9 +141,9 @@ func (c ColorSpaceLab) cloneCS(cloneCache) ColorSpace { return c }
 type ColorSpaceICCBased struct {
 	Stream
 
-	N         int          // 1, 3 or 4
-	Alternate ColorSpace   // optional
-	Range     [][2]float64 // optional, default to [{0, 1}, ...]
+	N         int        // 1, 3 or 4
+	Alternate ColorSpace // optional
+	Range     [][2]Fl    // optional, default to [{0, 1}, ...]
 }
 
 // returns the stream object. `pdf` is used
@@ -173,7 +173,7 @@ func (cs *ColorSpaceICCBased) clone(cache cloneCache) Referenceable {
 	}
 	out := *cs
 	out.Stream = cs.Stream.Clone()
-	out.Range = append([][2]float64(nil), cs.Range...)
+	out.Range = append([][2]Fl(nil), cs.Range...)
 	if cs.Alternate != nil {
 		out.Alternate = cloneColorSpace(cs.Alternate, cache)
 	}
@@ -358,7 +358,7 @@ func (c ColorSpaceDeviceNProcess) clone(cache cloneCache) ColorSpaceDeviceNProce
 
 // Table 73 – Entries in a DeviceN Mixing Hints Dictionary
 type ColorSpaceDeviceNMixingHints struct {
-	Solidities    map[Name]float64      // optional
+	Solidities    map[Name]Fl           // optional
 	PrintingOrder []Name                // optional
 	DotGain       map[Name]FunctionDict // optional
 }
@@ -392,7 +392,7 @@ func (c *ColorSpaceDeviceNMixingHints) Clone() *ColorSpaceDeviceNMixingHints {
 	}
 	out := *c
 	if c.Solidities != nil {
-		out.Solidities = make(map[Name]float64, len(c.Solidities))
+		out.Solidities = make(map[Name]Fl, len(c.Solidities))
 		for n, s := range c.Solidities {
 			out.Solidities[n] = s
 		}

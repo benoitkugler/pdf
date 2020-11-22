@@ -28,7 +28,7 @@ func (v String) PDFString(enc model.PDFStringEncoder, context model.Reference) s
 func (v String) Clone() model.UPValue { return v }
 
 // Float is a float
-type Float float64
+type Float model.Fl
 
 func (v Float) PDFString(model.PDFStringEncoder, model.Reference) string {
 	return fmt.Sprintf("%.3f", v)

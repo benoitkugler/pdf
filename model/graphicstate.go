@@ -3,10 +3,11 @@ package model
 import "fmt"
 
 type DashPattern struct {
-	Array []float64
-	Phase float64
+	Array []Fl
+	Phase Fl
 }
 
+// String returns a description as a PDF array.
 func (d DashPattern) String() string {
 	return fmt.Sprintf("[%s %.3f]", writeFloatArray(d.Array), d.Phase)
 }
@@ -17,13 +18,13 @@ func (d *DashPattern) Clone() *DashPattern {
 		return nil
 	}
 	out := *d
-	out.Array = append([]float64(nil), d.Array...)
+	out.Array = append([]Fl(nil), d.Array...)
 	return &out
 }
 
 type FontStyle struct {
 	Font *FontDict
-	Size float64
+	Size Fl
 }
 
 func (f FontStyle) pdfString(pdf pdfWriter) string {
@@ -38,10 +39,10 @@ func (f FontStyle) clone(cache cloneCache) FontStyle {
 }
 
 type GraphicState struct {
-	LW   float64
+	LW   Fl
 	LC   MaybeInt // optional, >= 0
 	LJ   MaybeInt // optional, >= 0
-	ML   float64
+	ML   Fl
 	D    *DashPattern // optional
 	RI   Name
 	Font FontStyle  // font and size
@@ -123,8 +124,8 @@ type PatternTiling struct {
 	PaintType  uint8 // 1 for coloured; 2 for uncoloured
 	TilingType uint8 // 1, 2, 3
 	BBox       Rectangle
-	XStep      float64
-	YStep      float64
+	XStep      Fl
+	YStep      Fl
 	Resources  ResourcesDict
 	Matrix     Matrix // optional, default to identity
 }
@@ -160,7 +161,7 @@ type Shading interface {
 }
 
 type ShadingFunctionBased struct {
-	Domain   [4]float64     // optional, default to [0 1 0 1]
+	Domain   [4]Fl          // optional, default to [0 1 0 1]
 	Matrix   Matrix         // optional, default to identity
 	Function []FunctionDict // either one 2 -> n function, or n 2 -> 1 functions
 }
@@ -169,7 +170,7 @@ func (s ShadingFunctionBased) shadingPDFContent(shadingFields string, pdf pdfWri
 	b := newBuffer()
 	fns := pdf.writeFunctions(s.Function)
 	b.fmt("<</ShadingType 1 %s/Function %s", shadingFields, writeRefArray(fns))
-	if s.Domain != [4]float64{} {
+	if s.Domain != [4]Fl{} {
 		b.fmt("/Domain %s", writeFloatArray(s.Domain[:]))
 	}
 	if (s.Matrix != Matrix{}) {
@@ -187,7 +188,7 @@ func (f ShadingFunctionBased) Clone() Shading {
 }
 
 type BaseGradient struct {
-	Domain   [2]float64     // optional, default to [0 1]
+	Domain   [2]Fl          // optional, default to [0 1]
 	Function []FunctionDict // either one 1 -> n function, or n 1->1 functions
 	Extend   [2]bool        // optional, default to [false, false]
 }
@@ -197,7 +198,7 @@ type BaseGradient struct {
 func (g BaseGradient) pdfString(pdf pdfWriter) string {
 	fns := pdf.writeFunctions(g.Function)
 	out := fmt.Sprintf("/Function %s", writeRefArray(fns))
-	if g.Domain != [2]float64{} {
+	if g.Domain != [2]Fl{} {
 		out += fmt.Sprintf("/Domain %s", writeFloatArray(g.Domain[:]))
 	}
 	if g.Extend != [2]bool{} {
@@ -220,7 +221,7 @@ func (b BaseGradient) Clone() BaseGradient {
 
 type ShadingAxial struct {
 	BaseGradient
-	Coords [4]float64 // x0, y0, x1, y1
+	Coords [4]Fl // x0, y0, x1, y1
 }
 
 func (s ShadingAxial) shadingPDFContent(shadingFields string, pdf pdfWriter) (string, []byte) {
@@ -239,7 +240,7 @@ func (f ShadingAxial) Clone() Shading {
 
 type ShadingRadial struct {
 	BaseGradient
-	Coords [6]float64 // x0, y0, r0, x1, y1, r1
+	Coords [6]Fl // x0, y0, r0, x1, y1, r1
 }
 
 func (s ShadingRadial) shadingPDFContent(shadingFields string, pdf pdfWriter) (string, []byte) {
@@ -262,7 +263,7 @@ type ShadingStream struct {
 
 	BitsPerCoordinate uint8 // 1, 2, 4, 8, 12, 16, 24, or 32
 	BitsPerComponent  uint8 // 1, 2, 4, 8, 12, or 16
-	Decode            [][2]float64
+	Decode            [][2]Fl
 	Function          []FunctionDict // optional, one 1->n function or n 1->1 functions (n is the number of colour components)
 
 }
@@ -271,7 +272,7 @@ type ShadingStream struct {
 func (ss ShadingStream) Clone() ShadingStream {
 	out := ss
 	out.Stream = ss.Stream.Clone()
-	out.Decode = append([][2]float64(nil), ss.Decode...)
+	out.Decode = append([][2]Fl(nil), ss.Decode...)
 	if ss.Function != nil { // to preserve reflect.DeepEqual
 		out.Function = make([]FunctionDict, len(ss.Function))
 	}
@@ -363,7 +364,7 @@ type ShadingDict struct {
 	ColorSpace  ColorSpace // required
 	// colour components appropriate to the colour space
 	// only applied when part of a (shading) pattern
-	Background []float64  // optional
+	Background []Fl       // optional
 	BBox       *Rectangle // optional in shading’s target coordinate space
 	AntiAlias  bool       // optional, default to false
 }
@@ -392,7 +393,7 @@ func (s *ShadingDict) clone(cache cloneCache) Referenceable {
 		out.ShadingType = s.ShadingType.Clone()
 	}
 	out.ColorSpace = cloneColorSpace(s.ColorSpace, cache)
-	out.Background = append([]float64(nil), s.Background...)
+	out.Background = append([]Fl(nil), s.Background...)
 	if s.BBox != nil {
 		bbox := *s.BBox
 		out.BBox = &bbox

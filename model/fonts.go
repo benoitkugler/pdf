@@ -11,6 +11,11 @@ type FontDict struct {
 	Subtype Font
 }
 
+// GetWidth return the size needed to display the character `c`
+// using the font size `size`.
+// TODO: implement this
+func (f *FontDict) GetWidth(c rune, size Fl) Fl
+
 func (f *FontDict) pdfContent(pdf pdfWriter, _ Reference) (string, []byte) {
 	return f.Subtype.fontPDFString(pdf), nil
 }
@@ -203,17 +208,17 @@ type FontDescriptor struct {
 	FontBBox   Rectangle // specify the font bounding box, expressed in the glyph coordinate system
 	// angle, expressed in degrees counterclockwise from
 	// the vertical, of the dominant vertical strokes of the font.
-	ItalicAngle  float64
-	Ascent       float64 // maximum height above the baseline reached by glyphs in this font
-	Descent      float64 // (negative number) maximum depth below the baseline reached by glyphs in this font
-	Leading      float64 // optional, default to 0. Spacing between baselines of consecutive lines of text
-	CapHeight    float64 // vertical coordinate of the top of flat capital letters, measured from the baseline
-	XHeight      float64 // optional, default to 0. Vertical coordinate of the top of flat nonascending lowercase letters
-	StemV        float64 // thickness, measured horizontally, of the dominant vertical stems of glyphs in the font
-	StemH        float64 // optional, default to 0. Thickness, measured vertically, of the dominant horizontal stems of glyphs in the font.
-	AvgWidth     float64 // optional, default to 0. Average width of glyphs in the font.
-	MaxWidth     float64 // optional, default to 0. Maximum width of glyphs in the font.
-	MissingWidth float64 // optional, default to 0. Width to use for character codes whose widths are not specified
+	ItalicAngle  Fl
+	Ascent       Fl // maximum height above the baseline reached by glyphs in this font
+	Descent      Fl // (negative number) maximum depth below the baseline reached by glyphs in this font
+	Leading      Fl // optional, default to 0. Spacing between baselines of consecutive lines of text
+	CapHeight    Fl // vertical coordinate of the top of flat capital letters, measured from the baseline
+	XHeight      Fl // optional, default to 0. Vertical coordinate of the top of flat nonascending lowercase letters
+	StemV        Fl // thickness, measured horizontally, of the dominant vertical stems of glyphs in the font
+	StemH        Fl // optional, default to 0. Thickness, measured vertically, of the dominant horizontal stems of glyphs in the font.
+	AvgWidth     Fl // optional, default to 0. Average width of glyphs in the font.
+	MaxWidth     Fl // optional, default to 0. Maximum width of glyphs in the font.
+	MissingWidth Fl // optional, default to 0. Width to use for character codes whose widths are not specified
 
 	FontFile *FontFile // optional, written in PDF under the key FontFile (for Type1), FontFile2 (for TrueType), FontFile3 (for Type 1 compact fonts, Type 0 compact CIDFonts or OpenType)
 	CharSet  string    // optional, ASCII string or byte string. Meaningful only in Type 1 font

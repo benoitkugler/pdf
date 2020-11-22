@@ -23,7 +23,7 @@ func writeIntArray(as []int) string {
 	return fmt.Sprintf("[%s]", strings.Join(b, " "))
 }
 
-func writeFloatArray(as []float64) string {
+func writeFloatArray(as []Fl) string {
 	b := make([]string, len(as))
 	for i, a := range as {
 		b[i] = fmt.Sprintf("%.3f", a)
@@ -39,7 +39,7 @@ func writeRefArray(as []Reference) string {
 	return fmt.Sprintf("[%s]", strings.Join(b, " "))
 }
 
-func writePointArray(rs [][2]float64) string {
+func writePointArray(rs [][2]Fl) string {
 	b := make([]string, len(rs))
 	for i, a := range rs {
 		b[i] = fmt.Sprintf("%.3f %.3f ", a[0], a[1])
@@ -55,7 +55,7 @@ func writeRangeArray(rs []Range) string {
 	return fmt.Sprintf("[%s]", strings.Join(b, " "))
 }
 
-func writePointsArray(rs [][2]float64) string {
+func writePointsArray(rs [][2]Fl) string {
 	b := make([]string, len(rs))
 	for i, a := range rs {
 		b[i] = fmt.Sprintf("%.3f %.3f ", a[0], a[1])

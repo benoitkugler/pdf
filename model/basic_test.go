@@ -12,10 +12,10 @@ func TestClone(t *testing.T) {
 		BitsPerSample: 12,
 		Order:         3,
 		Size:          []int{1, 2, 35},
-		Decode:        [][2]float64{{1, 2}, {0.45654, 0.65487}},
-		Encode:        [][2]float64{{1, 2}, {0.45654, 0.65487}},
+		Decode:        [][2]Fl{{1, 2}, {0.45654, 0.65487}},
+		Encode:        [][2]Fl{{1, 2}, {0.45654, 0.65487}},
 	}
-	f2 := FunctionExpInterpolation{N: 1, C0: make([]float64, 5), C1: nil}
+	f2 := FunctionExpInterpolation{N: 1, C0: make([]Fl, 5), C1: nil}
 	stitched := fn
 	stitched.FunctionType = f2
 	f3 := FunctionStitching{

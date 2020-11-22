@@ -9,6 +9,8 @@ import (
 	"github.com/benoitkugler/pdf/model"
 )
 
+type Fl = float32
+
 const spaces = " \t\n\r\f"
 
 var defautFontValues = Font{
@@ -34,14 +36,14 @@ type kernPair struct {
 // Font represents a type1 font as found in a .afm
 // file.
 type Font struct {
-	Ascender    float64
-	CapHeight   float64
-	Descender   float64
-	ItalicAngle float64 // the italic angle of the font, usually 0.0 or negative.
-	Llx         float64 // the llx of the FontBox
-	Lly         float64 // the lly of the FontBox
-	Urx         float64 // the urx of the FontBox
-	Ury         float64 // the ury of the FontBox
+	Ascender    Fl
+	CapHeight   Fl
+	Descender   Fl
+	ItalicAngle Fl // the italic angle of the font, usually 0.0 or negative.
+	Llx         Fl // the llx of the FontBox
+	Lly         Fl // the lly of the FontBox
+	Urx         Fl // the urx of the FontBox
+	Ury         Fl // the ury of the FontBox
 
 	// the Postscript font name.
 	fontName string
@@ -87,15 +89,15 @@ type Font struct {
 
 // WidthsStats collect the mean and the maximum values
 // of the glyphs width
-func (f Font) WidthsStats() (mean, max float64) {
+func (f Font) WidthsStats() (mean, max Fl) {
 	for _, c := range f.charMetrics {
-		w := float64(c.width)
+		w := Fl(c.width)
 		if w > max {
 			max = w
 		}
 		mean += w
 	}
-	mean /= float64(len(f.charMetrics))
+	mean /= Fl(len(f.charMetrics))
 	return mean, max
 }
 
@@ -149,14 +151,14 @@ func (f Font) FontDescriptor() model.FontDescriptor {
 		Descent:     f.Descender,
 		Leading:     0, // unknown
 		CapHeight:   f.CapHeight,
-		XHeight:     float64(f.xHeight),
-		StemV:       float64(f.stdVw),
-		StemH:       float64(f.stdHw),
+		XHeight:     Fl(f.xHeight),
+		StemV:       Fl(f.stdVw),
+		StemH:       Fl(f.stdHw),
 	}
 
 	// use its width as missing width
 	if notdef, ok := f.charMetrics[".notdef"]; ok {
-		out.MissingWidth = float64(notdef.width)
+		out.MissingWidth = Fl(notdef.width)
 	}
 
 	out.AvgWidth, out.MaxWidth = f.WidthsStats()

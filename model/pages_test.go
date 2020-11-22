@@ -10,7 +10,7 @@ func TestCloneResources(t *testing.T) {
 		ExtGState: map[Name]*GraphicState{
 			"lmdsm": {
 				D: &DashPattern{
-					Array: []float64{78, 9},
+					Array: []Fl{78, 9},
 				},
 			},
 		},

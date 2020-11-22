@@ -7,8 +7,12 @@ import (
 
 // implements basic types found in PDF files
 
+// Fl is the numeric type used for float values.
+type Fl = float32
+
 // MaybeInt is an Int or nothing
-// It'a an other way to specify *int, easier to clone
+// It'a an other way to specify *int,
+// safer and easier to clone
 type MaybeInt interface {
 	isMaybeInt()
 }
@@ -19,22 +23,40 @@ type Int int
 func (i Int) isMaybeInt() {}
 
 // MaybeFloat is a Float or nothing
-// It'a an other way to specify *float64, easier to clone
+// It'a an other way to specify *Fl, easier to clone
 type MaybeFloat interface {
 	isMaybeFloat()
 }
 
 // Float implements MaybeFloat
-type Float float64
+type Float Fl
 
 func (i Float) isMaybeFloat() {}
 
 type Rectangle struct {
-	Llx, Lly, Urx, Ury float64 // lower-left x, lower-left y, upper-right x, and upper-right y coordinates of the rectangle
+	Llx, Lly, Urx, Ury Fl // lower-left x, lower-left y, upper-right x, and upper-right y coordinates of the rectangle
 }
 
 func (r Rectangle) String() string {
-	return writeFloatArray([]float64{r.Llx, r.Lly, r.Urx, r.Ury})
+	return writeFloatArray([]Fl{r.Llx, r.Lly, r.Urx, r.Ury})
+}
+
+// Height returns the absolute value of the height of the rectangle.
+func (r Rectangle) Height() Fl {
+	h := r.Ury - r.Lly
+	if h < 0 {
+		return -h
+	}
+	return h
+}
+
+// Width returns the absolute value of the width of the rectangle.
+func (r Rectangle) Width() Fl {
+	w := r.Urx - r.Llx
+	if w < 0 {
+		return -w
+	}
+	return w
 }
 
 // Rotation encodes a clock-wise rotation
@@ -83,7 +105,7 @@ func (FunctionStitching) isFunction()            {}
 func (FunctionPostScriptCalculator) isFunction() {}
 
 // Range represents an interval [a,b] where a < b
-type Range [2]float64
+type Range [2]Fl
 
 // FunctionDict takes m arguments and return n values
 type FunctionDict struct {
@@ -138,11 +160,11 @@ func (pdf pdfWriter) writeFunctions(fns []FunctionDict) []Reference {
 type FunctionSampled struct {
 	Stream
 
-	Size          []int        // length m
-	BitsPerSample uint8        // 1, 2, 4, 8, 12, 16, 24 or 32
-	Order         uint8        // 1 (linear) or 3 (cubic), optional, default to 1
-	Encode        [][2]float64 // length m, optional, default to [ 0 (Size_0 − 1) 0 (Size_1 − 1) ... ]
-	Decode        [][2]float64 // length n, optionnal, default to Range
+	Size          []int   // length m
+	BitsPerSample uint8   // 1, 2, 4, 8, 12, 16, 24 or 32
+	Order         uint8   // 1 (linear) or 3 (cubic), optional, default to 1
+	Encode        [][2]Fl // length m, optional, default to [ 0 (Size_0 − 1) 0 (Size_1 − 1) ... ]
+	Decode        [][2]Fl // length n, optionnal, default to Range
 }
 
 // adds to the common arguments the specificities of a `SampledFunction`
@@ -173,17 +195,17 @@ func (f FunctionSampled) Clone() Function {
 	out := f
 	out.Stream = f.Stream.Clone()
 	out.Size = append([]int(nil), f.Size...)
-	out.Encode = append([][2]float64(nil), f.Encode...)
-	out.Decode = append([][2]float64(nil), f.Decode...)
+	out.Encode = append([][2]Fl(nil), f.Encode...)
+	out.Decode = append([][2]Fl(nil), f.Decode...)
 	return out
 }
 
 // FunctionExpInterpolation defines an exponential interpolation of one input
 // value and n output values
 type FunctionExpInterpolation struct {
-	C0 []float64 // length n, optional, default to 0
-	C1 []float64 // length n, optional, default to 1
-	N  int       // interpolation exponent (N=1 for linear interpolation)
+	C0 []Fl // length n, optional, default to 0
+	C1 []Fl // length n, optional, default to 1
+	N  int  // interpolation exponent (N=1 for linear interpolation)
 }
 
 // adds to the common arguments the specificities of a `ExpInterpolationFunction`
@@ -202,8 +224,8 @@ func (f FunctionExpInterpolation) pdfString(baseArgs string) string {
 // (with concrete type `ExpInterpolationFunction`)
 func (f FunctionExpInterpolation) Clone() Function {
 	out := f
-	out.C0 = append([]float64(nil), f.C0...)
-	out.C1 = append([]float64(nil), f.C1...)
+	out.C0 = append([]Fl(nil), f.C0...)
+	out.C1 = append([]Fl(nil), f.C1...)
 	return out
 }
 
@@ -211,8 +233,8 @@ func (f FunctionExpInterpolation) Clone() Function {
 // to produce a single new 1-input function
 type FunctionStitching struct {
 	Functions []FunctionDict // array of k 1-input functions
-	Bounds    []float64      // array of k − 1 numbers
-	Encode    [][2]float64   // length k
+	Bounds    []Fl           // array of k − 1 numbers
+	Encode    [][2]Fl        // length k
 }
 
 // adds to the common arguments the specificities of a `StitchingFunction`.
@@ -231,8 +253,8 @@ func (f FunctionStitching) Clone() Function {
 	for i, fu := range f.Functions {
 		out.Functions[i] = fu.Clone()
 	}
-	out.Bounds = append([]float64(nil), f.Bounds...)
-	out.Encode = append([][2]float64(nil), f.Encode...)
+	out.Bounds = append([]Fl(nil), f.Bounds...)
+	out.Encode = append([][2]Fl(nil), f.Encode...)
 	return out
 }
 
@@ -255,7 +277,7 @@ func (f FunctionPostScriptCalculator) Clone() Function {
 // Matrix maps an input (x,y) to an output (x',y') defined by
 // x′ = a × x + c × y + e
 // y′ = b × x + d × y + f
-type Matrix [6]float64 // [a,b,c,d,e,f]
+type Matrix [6]Fl // [a,b,c,d,e,f]
 
 // String return the PDF representation of the matrix
 func (m Matrix) String() string {

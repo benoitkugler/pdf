@@ -9,12 +9,12 @@ func TestCloneAcro(t *testing.T) {
 	a := &AcroForm{
 		Fields: []*FormFieldDict{
 			{
-				FT:      FormFieldText{},
-				Widgets: []FormFieldWidget{{}},
+				FormFieldInheritable: FormFieldInheritable{FT: FormFieldText{}},
+				Widgets:              []FormFieldWidget{{}},
 			},
 		},
 		NeedAppearances: true,
-		DR:              &ResourcesDict{ColorSpace: map[Name]ColorSpace{"eee": nil}},
+		DR:              ResourcesDict{ColorSpace: map[Name]ColorSpace{"eee": nil}},
 	}
 
 	cache := newCloneCache()
@@ -27,13 +27,13 @@ func TestCloneAcro(t *testing.T) {
 
 func TestCloneForm(t *testing.T) {
 	a := &FormFieldDict{
-		FT: FormFieldText{},
+		FormFieldInheritable: FormFieldInheritable{FT: FormFieldText{}},
 		Widgets: []FormFieldWidget{
 			{
 				AnnotationDict: &AnnotationDict{
 					BaseAnnotation: BaseAnnotation{
 						Contents: "sldml",
-						Border:   &Border{DashArray: []float64{4, 5, 6, 8}},
+						Border:   &Border{DashArray: []Fl{4, 5, 6, 8}},
 					},
 					Subtype: AnnotationWidget{
 						BS: &BorderStyle{

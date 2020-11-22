@@ -48,7 +48,7 @@ func readIntToken(tokens []string, index int) (int, error) {
 	return out, nil
 }
 
-func readFloatToken(tokens []string, index int) (float64, error) {
+func readFloatToken(tokens []string, index int) (Fl, error) {
 	s, err := readToken(tokens, index)
 	if err != nil {
 		return 0, err
@@ -57,7 +57,7 @@ func readFloatToken(tokens []string, index int) (float64, error) {
 	if err != nil {
 		return 0, fmt.Errorf("invalid float in line %s (%s)", strings.Join(tokens, " "), err)
 	}
-	return out, nil
+	return Fl(out), nil
 }
 
 func (f *Font) parse(source io.Reader) error {

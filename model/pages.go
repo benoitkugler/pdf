@@ -454,7 +454,7 @@ type OutlineItem struct {
 	Dest Destination       // optional
 	A    Action            // optional
 	SE   *StructureElement // optional
-	C    [3]float64        // optional, default to [0 0 0]
+	C    [3]Fl             // optional, default to [0 0 0]
 	F    OutlineFlag       // optional, default to 0
 }
 
@@ -546,7 +546,7 @@ func (o *OutlineItem) pdfString(pdf pdfWriter, ref, parent Reference) string {
 		b.fmt("/A %s", o.A.pdfString(pdf, ref))
 	}
 	// TODO: structure element
-	if o.C != [3]float64{} {
+	if o.C != [3]Fl{} {
 		b.fmt("/C %s", writeFloatArray(o.C[:]))
 	}
 	if o.F != 0 {

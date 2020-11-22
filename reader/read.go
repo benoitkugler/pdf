@@ -14,6 +14,8 @@ import (
 	"github.com/pdfcpu/pdfcpu/pkg/pdfcpu"
 )
 
+type Fl = model.Fl
+
 // maintain tables mapping PDF indirect object numbers
 // to model objects
 type resolver struct {
@@ -83,8 +85,8 @@ func isString(o pdfcpu.Object) (string, bool) {
 }
 
 // output as same length as input
-func (r resolver) processFloatArray(ar pdfcpu.Array) []float64 {
-	out := make([]float64, len(ar))
+func (r resolver) processFloatArray(ar pdfcpu.Array) []Fl {
+	out := make([]Fl, len(ar))
 	for i, v := range ar {
 		out[i], _ = r.resolveNumber(v)
 	}
@@ -373,12 +375,12 @@ func (r resolver) resolveInt(o pdfcpu.Object) (int, bool) {
 }
 
 // accepts both integer and float
-func (r resolver) resolveNumber(o pdfcpu.Object) (float64, bool) {
+func (r resolver) resolveNumber(o pdfcpu.Object) (Fl, bool) {
 	switch o := r.resolve(o).(type) {
 	case pdfcpu.Float:
-		return o.Value(), true
+		return Fl(o.Value()), true
 	case pdfcpu.Integer:
-		return float64(o.Value()), true
+		return Fl(o.Value()), true
 	default:
 		return 0, false
 	}

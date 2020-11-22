@@ -2,6 +2,7 @@ package model
 
 import (
 	"fmt"
+	"image/color"
 	"strings"
 	"time"
 )
@@ -37,8 +38,8 @@ import (
 
 // Border is written in PDF as an array of 3 or 4 elements
 type Border struct {
-	HCornerRadius, VCornerRadius, BorderWidth float64
-	DashArray                                 []float64 // optional (nil not to specify it)
+	HCornerRadius, VCornerRadius, BorderWidth Fl
+	DashArray                                 []Fl // optional (nil not to specify it)
 }
 
 func (b Border) pdfString() string {
@@ -55,7 +56,7 @@ func (b *Border) Clone() *Border {
 		return nil
 	}
 	out := *b
-	out.DashArray = append([]float64(nil), b.DashArray...)
+	out.DashArray = append([]Fl(nil), b.DashArray...)
 	return &out
 }
 
@@ -63,7 +64,7 @@ func (b *Border) Clone() *Border {
 type BorderStyle struct {
 	W MaybeFloat // optional, default to 1
 	S Name       // optional
-	D []float64  // optional, default to [3], nil not to specify it
+	D []Fl       // optional, default to [3], nil not to specify it
 }
 
 // String returns the PDF dictionary representing the border style.
@@ -89,15 +90,15 @@ func (b *BorderStyle) Clone() *BorderStyle {
 		return nil
 	}
 	out := *b
-	out.D = append([]float64(nil), b.D...)
+	out.D = append([]Fl(nil), b.D...)
 	return &out
 }
 
 // BorderEffect specifies an effect that shall be applied to the border of the annotations
 // See Table 167 – Entries in a border effect dictionary
 type BorderEffect struct {
-	S Name    // optional
-	I float64 // optional
+	S Name // optional
+	I Fl   // optional
 }
 
 // String returns the PDF dictionary .
@@ -160,7 +161,7 @@ type BaseAnnotation struct {
 	AS           Name
 	F            AnnotationFlag // optional
 	Border       *Border        // optional
-	C            []float64      // 0, 1, 3 or 4 numbers in the range 0.0 to 1.0
+	C            []Fl           // 0, 1, 3 or 4 numbers in the range 0.0 to 1.0
 	StructParent MaybeInt       // required if the annotation is a structural content item
 }
 
@@ -202,7 +203,7 @@ func (ba BaseAnnotation) clone(cache cloneCache) BaseAnnotation {
 	out.AP = ba.AP.clone(cache)
 	out.Border = ba.Border.Clone()
 	if ba.C != nil {
-		out.C = append([]float64(nil), ba.C...)
+		out.C = append([]Fl(nil), ba.C...)
 	}
 	return out
 }
@@ -437,7 +438,7 @@ type AnnotationLink struct {
 	Dest       Destination  // may only be present is A is nil
 	H          Highlighting // optional
 	PA         Action       // optional, of type ActionURI
-	QuadPoints []float64    // optional, length 8 x n
+	QuadPoints []Fl         // optional, length 8 x n
 	BS         *BorderStyle // optional
 }
 
@@ -472,7 +473,7 @@ func (l AnnotationLink) clone(cache cloneCache) Annotation {
 	if l.PA.ActionType != nil {
 		out.PA = l.PA.clone(cache)
 	}
-	out.QuadPoints = append([]float64(nil), l.QuadPoints...)
+	out.QuadPoints = append([]Fl(nil), l.QuadPoints...)
 	out.BS = l.BS.Clone()
 	return out
 }
@@ -487,7 +488,7 @@ type AnnotationFreeText struct {
 	Q  uint8         // optional
 	RC string        // optional, may be written in PDF as a text stream
 	DS string        // optional
-	CL []float64     // optional
+	CL []Fl          // optional
 	BE *BorderEffect // optional
 	RD Rectangle     // optional
 	BS *BorderStyle  // optional
@@ -528,7 +529,7 @@ func (f AnnotationFreeText) annotationFields(pdf pdfWriter, ref Reference) strin
 func (f AnnotationFreeText) clone(cache cloneCache) Annotation {
 	out := f
 	out.AnnotationMarkup = f.AnnotationMarkup.clone(cache)
-	out.CL = append([]float64(nil), f.CL...)
+	out.CL = append([]Fl(nil), f.CL...)
 	out.BE = f.BE.Clone()
 	out.BS = f.BS.Clone()
 	return out
@@ -540,16 +541,16 @@ func (f AnnotationFreeText) clone(cache cloneCache) Annotation {
 // See Table 175 – Additional entries specific to a line annotation
 type AnnotationLine struct {
 	AnnotationMarkup
-	L   [4]float64   // required
+	L   [4]Fl        // required
 	BS  *BorderStyle // optional
 	LE  [2]Name      // optional
-	IC  []float64    // optional
-	LL  float64      // optional
-	LLE float64      // optional
+	IC  []Fl         // optional
+	LL  Fl           // optional
+	LLE Fl           // optional
 	Cap bool         // optional
 	LLO MaybeFloat   // optional
 	CP  Name         // optional
-	CO  [2]float64   // optional
+	CO  [2]Fl        // optional
 	// TODO: support measure dictionary
 	// Measure *MeasureDict // optional
 }
@@ -580,7 +581,7 @@ func (f AnnotationLine) annotationFields(pdf pdfWriter, ref Reference) string {
 	if f.CP != "" {
 		b.fmt("/CP %s", f.CP)
 	}
-	if f.CO != ([2]float64{}) {
+	if f.CO != ([2]Fl{}) {
 		b.WriteString(fmt.Sprintf("/CO %s", writeFloatArray(f.CO[:])))
 	}
 	return b.String()
@@ -590,7 +591,7 @@ func (f AnnotationLine) clone(cache cloneCache) Annotation {
 	out := f
 	out.AnnotationMarkup = f.AnnotationMarkup.clone(cache)
 	out.BS = f.BS.Clone()
-	out.IC = append([]float64(nil), f.IC...)
+	out.IC = append([]Fl(nil), f.IC...)
 	return out
 }
 
@@ -601,7 +602,7 @@ func (f AnnotationLine) clone(cache cloneCache) Annotation {
 type AnnotationSquare struct {
 	AnnotationMarkup
 	BS *BorderStyle  // optional
-	IC []float64     // optional
+	IC []Fl          // optional
 	BE *BorderEffect // optional
 	RD Rectangle     // optional
 }
@@ -637,7 +638,7 @@ func (f AnnotationSquare) clone(cache cloneCache) Annotation {
 	out := f
 	out.AnnotationMarkup = f.AnnotationMarkup.clone(cache)
 	out.BS = f.BS.Clone()
-	out.IC = append([]float64(nil), f.IC...)
+	out.IC = append([]Fl(nil), f.IC...)
 	out.BE = f.BE.Clone()
 	return out
 }
@@ -720,7 +721,7 @@ func (w AnnotationWidget) clone(cache cloneCache) Annotation {
 // See Table 189 – Entries in an appearance characteristics dictionary
 type AppearanceCharacteristics struct {
 	R          Rotation     // optional
-	BC, BG     []float64    // optional
+	BC, BG     Color        // optional
 	CA, RC, AC string       // optional
 	I, RI, IX  *XObjectForm // optional
 	IF         *IconFit     // optional
@@ -775,8 +776,8 @@ func (a *AppearanceCharacteristics) clone(cache cloneCache) *AppearanceCharacter
 		return nil
 	}
 	out := *a
-	out.BC = append([]float64(nil), a.BC...)
-	out.BG = append([]float64(nil), a.BG...)
+	out.BC = append([]Fl(nil), a.BC...)
+	out.BG = append([]Fl(nil), a.BG...)
 	out.I = a.I.clone(cache).(*XObjectForm)
 	out.RI = a.RI.clone(cache).(*XObjectForm)
 	out.IX = a.IX.clone(cache).(*XObjectForm)
@@ -784,14 +785,32 @@ func (a *AppearanceCharacteristics) clone(cache cloneCache) *AppearanceCharacter
 	return &out
 }
 
+// Color is color, possibly invalid, defined by 1 (Gray), 3 (RGB) or 4 (CMYK) values,
+// between 0 and 1.
+type Color []Fl
+
+// Color returns the color defined by the array, if any.
+func (ar Color) Color() color.Color {
+	switch len(ar) {
+	case 1:
+		return color.Gray{Y: uint8(ar[0] * 255)}
+	case 3:
+		return color.NRGBA{R: uint8(ar[0] * 255), G: uint8(ar[1] * 255), B: uint8(ar[2] * 255), A: 255}
+	case 4:
+		return color.CMYK{C: uint8(ar[0] * 255), M: uint8(ar[1] * 255), Y: uint8(ar[2] * 255), K: uint8(ar[3] * 255)}
+	default:
+		return nil
+	}
+}
+
 // IconFit specifies how to display the button’s icon
 // within the annotation rectangle of its widget annotation.
 // See Table 247 – Entries in an icon fit dictionary
 type IconFit struct {
-	SW Name        // optional
-	S  Name        // optional
-	A  *[2]float64 // optional
-	FB bool        // optional
+	SW Name   // optional
+	S  Name   // optional
+	A  *[2]Fl // optional
+	FB bool   // optional
 }
 
 // String return a PDF dictionary.

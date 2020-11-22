@@ -602,7 +602,7 @@ func (r resolver) resolveIconFit(o pdfcpu.Object) *model.IconFit {
 	out.S, _ = r.resolveName(dict["S"])
 	if a, ok := r.resolveArray(dict["A"]); ok && len(a) == 2 {
 		a := r.processFloatArray(a)
-		out.A = &[2]float64{a[0], a[1]}
+		out.A = &[2]Fl{a[0], a[1]}
 	}
 	if fb, ok := r.resolveBool(dict["FB"]); ok {
 		out.FB = fb

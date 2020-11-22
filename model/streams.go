@@ -299,7 +299,7 @@ type XObjectImage struct {
 
 	// optional. Array of length : number of color component required by color space.
 	// Special case for Mask image where [1 0] is also allowed
-	Decode       [][2]float64
+	Decode       [][2]Fl
 	Interpolate  bool             // optional
 	Alternates   []AlternateImage // optional
 	SMask        *XObjectImage    // optional
@@ -358,7 +358,7 @@ func (img *XObjectImage) clone(cache cloneCache) Referenceable {
 	if img.Mask != nil {
 		out.Mask = img.Mask.Clone()
 	}
-	out.Decode = append([][2]float64(nil), img.Decode...)
+	out.Decode = append([][2]Fl(nil), img.Decode...)
 	if img.Alternates != nil {
 		out.Alternates = make([]AlternateImage, len(img.Alternates))
 	}

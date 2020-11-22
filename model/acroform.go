@@ -33,6 +33,30 @@ const (
 	CommitOnSelChange FormFlag = 1 << (27 - 1)
 )
 
+type FormFieldInheritable struct {
+	FT FormField // inheritable, so might be nil
+	Ff FormFlag  // optional
+	Q  uint8     // inheritable, optional, default to 0
+	DA string    // inheritable, required
+}
+
+// use `parent` field if f one is empty
+func (f FormFieldInheritable) merge(parent FormFieldInheritable) FormFieldInheritable {
+	if f.FT == nil {
+		f.FT = parent.FT
+	}
+	if f.Ff == 0 {
+		f.Ff = parent.Ff
+	}
+	if f.Q == 0 {
+		f.Q = parent.Q
+	}
+	if f.DA == "" {
+		f.DA = parent.DA
+	}
+	return f
+}
+
 // FormFields are organized hierarchically into one or more tree structures.
 // Many field attributes are inheritable, meaning that if they are not explicitly
 // specified for a given field, their values are taken from those of its parent in the field hierarchy.
@@ -45,8 +69,9 @@ const (
 // of a field (attribut FT) are inherited (or not) at the same time.
 // This should not be a problem in pratice, because if a parent
 // changes its type, the values related to it should change as well.
+// TODO: fix this
 type FormFieldDict struct {
-	FT FormField // inheritable, so might be nil
+	FormFieldInheritable
 
 	Parent *FormFieldDict   // nil for the top level fields
 	Kids   []*FormFieldDict // nil for a leaf node
@@ -62,15 +87,21 @@ type FormFieldDict struct {
 	T  string                    // optional, text string
 	TU string                    // optional, text string, alternate field name
 	TM string                    // optional, text string, mapping name
-	Ff FormFlag                  // optional
 	AA FormFielAdditionalActions // optional
 
 	// fields for variable text
 
-	Q  uint8  // optional, default to 0
-	DA string // optional
 	DS string // optional, text string
 	RV string // optional, text string, may be written in PDF as a stream
+}
+
+// resolveInheritance walk up the tree to use the parent values.
+func (f *FormFieldDict) resolveInheritance() FormFieldInheritable {
+	var parent FormFieldInheritable
+	if f.Parent != nil { // use parent values
+		parent = f.Parent.resolveInheritance()
+	}
+	return f.FormFieldInheritable.merge(parent)
 }
 
 // descendants returns all the (strict) descendants of `f`
@@ -80,12 +111,6 @@ func (f *FormFieldDict) descendants() []*FormFieldDict {
 		out = append(out, kid.descendants()...)
 	}
 	return out
-}
-
-// copy the annotation widget so that they are also included
-// in the annots entry
-func (f *FormFieldDict) addWidgetToAnnots(annots *[]*AnnotationDict) {
-
 }
 
 // FullFieldName returns the fully qualified field name, which is not explicitly defined
@@ -276,7 +301,7 @@ func (f FormFieldButton) clone(cloneCache) FormField {
 // array consisting of two text strings: the option’s export value and the text that
 // shall be displayed as the name of the option.
 type Option struct {
-	Export string
+	Export string // optional
 	Name   string
 }
 
@@ -634,7 +659,7 @@ type SeedDict struct {
 	Filter       Name      // optional
 	SubFilter    []Name    // optional
 	DigestMethod []Name    // optional, names among SHA1, SHA256, SHA384, SHA512 and RIPEMD160
-	V            float64   // optional
+	V            Fl        // optional
 	Cert         *CertDict // optional
 	Reasons      []string  // optional, text strings
 	// optional,  from 0 to 3
@@ -830,9 +855,9 @@ type AcroForm struct {
 	// the calculation order in which their values will be recalculated
 	// when the value of any field changes
 	CO []*FormFieldDict
-	DR *ResourcesDict // optional
-	DA string         // optional
-	Q  int            // optional, default to 0
+	DR ResourcesDict // optional
+	DA string        // optional
+	Q  uint8         // optional, default to 0
 
 	// TODO: support XFA forms
 }
@@ -896,9 +921,19 @@ func (a AcroForm) clone(cache cloneCache) AcroForm {
 			out.CO[i] = cache.fields[c]
 		}
 	}
-	if a.DR != nil {
-		dr := a.DR.clone(cache)
-		out.DR = &dr
+	out.DR = a.DR.clone(cache)
+	return out
+}
+
+// ResolveInheritance resolve the inheritable fields,
+// up to the global values defined in the AcroForm.
+func (a AcroForm) ResolveInheritance(field *FormFieldDict) FormFieldInheritable {
+	out := field.resolveInheritance()
+	if out.DA == "" {
+		out.DA = a.DA
+	}
+	if out.Q == 0 {
+		out.Q = a.Q
 	}
 	return out
 }

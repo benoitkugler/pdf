@@ -122,7 +122,7 @@ func (d DestinationLocationFitDim) locationElements() string {
 // DestinationLocationXYZ is /XYZ
 type DestinationLocationXYZ struct {
 	Left, Top MaybeFloat
-	Zoom      float64
+	Zoom      Fl
 }
 
 func (d DestinationLocationXYZ) locationElements() string {
@@ -132,7 +132,7 @@ func (d DestinationLocationXYZ) locationElements() string {
 
 // DestinationLocationFitR is /FitR
 type DestinationLocationFitR struct {
-	Left, Bottom, Right, Top float64
+	Left, Bottom, Right, Top Fl
 }
 
 func (d DestinationLocationFitR) locationElements() string {
