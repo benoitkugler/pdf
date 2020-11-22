@@ -94,6 +94,22 @@ func (d embFileNameTree) resolveLeafValueAppend(r resolver, name string, value p
 	return err
 }
 
+type appearanceNameTree struct {
+	out *model.AppearanceTree // target which will be filled
+}
+
+func (d appearanceNameTree) createKid() nameTree {
+	return appearanceNameTree{out: new(model.AppearanceTree)}
+}
+func (d appearanceNameTree) appendKid(kid nameTree) {
+	d.out.Kids = append(d.out.Kids, *kid.(appearanceNameTree).out)
+}
+func (d appearanceNameTree) resolveLeafValueAppend(r resolver, name string, value pdfcpu.Object) error {
+	form, err := r.resolveOneXObjectForm(value)
+	d.out.Names = append(d.out.Names, model.NameToAppearance{Name: name, Appearance: form})
+	return err
+}
+
 type idTree struct {
 	out *model.IDTree // target which will be filled
 }

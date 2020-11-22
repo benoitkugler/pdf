@@ -179,6 +179,117 @@ func (d DestTree) clone(cache cloneCache) DestTree {
 
 // ----------------------------------------------------------------------
 
+// NameToAppearance associate an appearance stream
+// to a name.
+type NameToAppearance struct {
+	Name       string
+	Appearance *XObjectForm
+}
+
+func (n NameToAppearance) clone(cache cloneCache) NameToAppearance {
+	out := n
+	if n.Appearance != nil {
+		out.Appearance = cache.checkOrClone(n.Appearance).(*XObjectForm)
+	}
+	return out
+}
+
+// AppearanceTree links a serie of arbitrary name
+// to appearance streams
+type AppearanceTree struct {
+	Kids  []AppearanceTree
+	Names []NameToAppearance
+}
+
+// IsEmpty returns true if the tree is empty
+// and should not be written in the PDF file.
+func (d AppearanceTree) IsEmpty() bool {
+	return len(d.Kids) == 0 && len(d.Names) == 0
+}
+
+func (d AppearanceTree) names() []string {
+	out := make([]string, len(d.Names))
+	for i, k := range d.Names {
+		out[i] = string(k.Name)
+	}
+	return out
+}
+
+func (d AppearanceTree) kids() []nameTree {
+	out := make([]nameTree, len(d.Kids))
+	for i, k := range d.Kids {
+		out[i] = k
+	}
+	return out
+}
+
+// Limits specify the (lexically) least and greatest keys included in the Names array of
+// a leaf node or in the Names arrays of any leaf nodes that are descendants of an
+// intermediate node.
+func (d AppearanceTree) Limits() [2]string {
+	return limitsName(d)
+}
+
+// LookupTable walks the name tree and
+// accumulates the result into one map
+func (d AppearanceTree) LookupTable() map[string]*XObjectForm {
+	out := make(map[string]*XObjectForm)
+	for _, v := range d.Names {
+		out[v.Name] = v.Appearance
+	}
+	for _, kid := range d.Kids {
+		for name, dest := range kid.LookupTable() {
+			out[name] = dest
+		}
+	}
+	return out
+}
+
+func (p AppearanceTree) pdfString(pdf pdfWriter, ref Reference) string {
+	b := newBuffer()
+	limits := p.Limits()
+	b.line("<</Limits [%s %s]",
+		pdf.EncodeString(limits[0], ByteString, ref), pdf.EncodeString(limits[1], ByteString, ref))
+	if len(p.Kids) != 0 {
+		b.fmt("/Kids [")
+		for _, kid := range p.Kids {
+			kidRef := pdf.createObject()
+			pdf.writeObject(kid.pdfString(pdf, kidRef), nil, kidRef)
+			b.fmt("%s ", kidRef)
+		}
+		b.line("]")
+	}
+	if len(p.Names) != 0 {
+		b.fmt("/Names [ ")
+		for _, name := range p.Names {
+			b.fmt("%s %s ", pdf.EncodeString(string(name.Name), ByteString, ref),
+				pdf.addItem(name.Appearance))
+		}
+		b.line("]")
+	}
+	b.fmt(">>")
+	return b.String()
+}
+
+func (d AppearanceTree) clone(cache cloneCache) AppearanceTree {
+	out := d
+	if d.Kids != nil { // preserve reflect.DeepEqual
+		out.Kids = make([]AppearanceTree, len(d.Kids))
+		for i, k := range d.Kids {
+			out.Kids[i] = k.clone(cache)
+		}
+	}
+	if d.Names != nil { // preserve reflect.DeepEqual
+		out.Names = make([]NameToAppearance, len(d.Names))
+		for i, k := range d.Names {
+			out.Names[i] = k.clone(cache)
+		}
+	}
+	return out
+}
+
+// ----------------------------------------------------------------------
+
 type NameToFile struct {
 	Name     string
 	FileSpec *FileSpec // indirect object

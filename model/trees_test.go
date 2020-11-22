@@ -6,7 +6,7 @@ import (
 	"testing"
 )
 
-func TestSlice(t *testing.T) {
+func TestChunks(t *testing.T) {
 	a := make([]int, 20)
 	for i := range a {
 		a[i] = i

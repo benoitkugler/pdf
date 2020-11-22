@@ -180,35 +180,26 @@ func (r resolver) processDictDests(entry pdfcpu.Object) (model.DestTree, error) 
 	return out, nil
 }
 
-func (r resolver) resolveDestTree(entry pdfcpu.Object) (model.DestTree, error) {
-	var out model.DestTree
-	err := r.resolveNameTree(entry, destNameTree{out: &out})
-	return out, err
-}
-
-func (r resolver) resolveEmbeddedFilesTree(files pdfcpu.Object) (model.EmbeddedFileTree, error) {
-	out := new(model.EmbeddedFileTree)
-	err := r.resolveNameTree(files, embFileNameTree{out: out})
-	return *out, err
-}
-
 func (r resolver) processNameDict(entry pdfcpu.Object) (model.NameDictionary, error) {
-	var (
-		out model.NameDictionary
-		err error
-	)
+	var out model.NameDictionary
 
 	dict, _ := r.resolve(entry).(pdfcpu.Dict)
-	if destsEntry := dict["Dests"]; destsEntry != nil {
-		dests, err := r.resolveDestTree(destsEntry)
+	if tree := dict["Dests"]; tree != nil {
+		err := r.resolveNameTree(tree, destNameTree{out: &out.Dests})
 		if err != nil {
 			return out, err
 		}
-		out.Dests = dests
 	}
 
-	if embeddedFiles := dict["EmbeddedFiles"]; embeddedFiles != nil {
-		out.EmbeddedFiles, err = r.resolveEmbeddedFilesTree(embeddedFiles)
+	if tree := dict["EmbeddedFiles"]; tree != nil {
+		err := r.resolveNameTree(tree, embFileNameTree{out: &out.EmbeddedFiles})
+		if err != nil {
+			return out, err
+		}
+	}
+
+	if tree := dict["AP"]; tree != nil {
+		err := r.resolveNameTree(tree, appearanceNameTree{out: &out.AP})
 		if err != nil {
 			return out, err
 		}

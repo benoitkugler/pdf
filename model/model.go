@@ -238,12 +238,13 @@ func (cat Catalog) Clone() Catalog {
 	return out
 }
 
-// NameDictionary establish the correspondence between names and objects
+// NameDictionary establish the correspondence between names and objects.
+// All fields are optional.
 // TODO: add more names
 type NameDictionary struct {
 	EmbeddedFiles EmbeddedFileTree
-	Dests         DestTree // optional
-	// AP
+	Dests         DestTree
+	AP            AppearanceTree
 }
 
 func (n NameDictionary) pdfString(pdf pdfWriter) string {
@@ -259,6 +260,11 @@ func (n NameDictionary) pdfString(pdf pdfWriter) string {
 		pdf.writeObject(emb.pdfString(pdf, ref), nil, ref)
 		b.fmt("/EmbeddedFiles %s", ref)
 	}
+	if aps := n.AP; !aps.IsEmpty() {
+		ref := pdf.createObject()
+		pdf.writeObject(aps.pdfString(pdf, ref), nil, ref)
+		b.fmt("/AP %s", ref)
+	}
 	b.WriteString(">>")
 	return b.String()
 }
@@ -267,6 +273,7 @@ func (n NameDictionary) clone(cache cloneCache) NameDictionary {
 	out := n
 	out.EmbeddedFiles = n.EmbeddedFiles.clone(cache)
 	out.Dests = n.Dests.clone(cache)
+	out.AP = n.AP.clone(cache)
 	return out
 }
 
