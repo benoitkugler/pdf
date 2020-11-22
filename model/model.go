@@ -82,7 +82,7 @@ type Catalog struct {
 	Extensions        Extensions
 	Names             NameDictionary               // optional
 	ViewerPreferences *ViewerPreferences           // optional
-	AcroForm          *AcroForm                    // optional
+	AcroForm          AcroForm                     // optional
 	Dests             map[Name]DestinationExplicit // optional
 	PageLabels        *PageLabelsTree              // optional
 	Outlines          *Outline                     // optional
@@ -137,7 +137,7 @@ func (cat *Catalog) pdfString(pdf pdfWriter, catalog Reference) string {
 	if p := cat.PageMode; p != "" {
 		b.line("/PageMode %s", p)
 	}
-	if ac := cat.AcroForm; ac != nil {
+	if ac := cat.AcroForm; len(ac.Fields) != 0 {
 		ref := pdf.createObject()
 		pdf.writeObject(ac.pdfString(pdf, catalog, ref), nil, ref)
 		b.line("/AcroForm %s", ref)

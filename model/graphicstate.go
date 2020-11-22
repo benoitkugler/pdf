@@ -82,11 +82,15 @@ func (g *GraphicState) pdfContent(pdf pdfWriter, _ Reference) (string, []byte) {
 	if g.Ca != nil {
 		b.fmt("/ca %.3f", g.Ca.(Float))
 	}
-	b.fmt("/AIS %v", g.AIS)
+	if g.AIS {
+		b.fmt("/AIS %v", g.AIS)
+	}
 	if g.SM != nil {
 		b.fmt("/SM %.3f", g.SM.(Float))
 	}
-	b.fmt("/SA %v", g.SA)
+	if g.SA {
+		b.fmt("/SA %v", g.SA)
+	}
 	b.WriteString(">>")
 	return b.String(), nil
 }

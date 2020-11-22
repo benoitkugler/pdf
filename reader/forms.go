@@ -8,32 +8,25 @@ import (
 	"github.com/pdfcpu/pdfcpu/pkg/pdfcpu"
 )
 
-const (
-	fieldBtn    = "Btn"
-	fieldText   = "Tx"
-	fieldChoice = "Ch"
-	fieldSig    = "Sig"
-)
-
-func (r resolver) processAcroForm(acroForm pdfcpu.Object) (*model.AcroForm, error) {
-	acroForm = r.resolve(acroForm)
-	if acroForm == nil {
-		return nil, nil
-	}
-	form, ok := acroForm.(pdfcpu.Dict)
-	if !ok {
-		return nil, errType("AcroForm", acroForm)
-	}
+func (r resolver) processAcroForm(acroForm pdfcpu.Object) (model.AcroForm, error) {
 	var (
 		out model.AcroForm
 		err error
 	)
+	acroForm = r.resolve(acroForm)
+	if acroForm == nil {
+		return out, nil
+	}
+	form, ok := acroForm.(pdfcpu.Dict)
+	if !ok {
+		return out, errType("AcroForm", acroForm)
+	}
 	fields, _ := r.resolveArray(form["Fields"])
 	out.Fields = make([]*model.FormFieldDict, len(fields))
 	for i, f := range fields {
 		ff, err := r.resolveFormField(f, nil)
 		if err != nil {
-			return nil, err
+			return out, err
 		}
 		out.Fields[i] = ff
 	}
@@ -48,7 +41,7 @@ func (r resolver) processAcroForm(acroForm pdfcpu.Object) (*model.AcroForm, erro
 		for _, c := range co {
 			ref, ok := c.(pdfcpu.IndirectRef)
 			if !ok {
-				return nil, errType("Field reference for CO", c)
+				return out, errType("Field reference for CO", c)
 			}
 			// we just ignore invalid reference
 			if field := r.formFields[ref]; field != nil {
@@ -59,14 +52,14 @@ func (r resolver) processAcroForm(acroForm pdfcpu.Object) (*model.AcroForm, erro
 	if dr := form["DR"]; dr != nil {
 		out.DR, err = r.resolveOneResourceDict(dr)
 		if err != nil {
-			return nil, err
+			return out, err
 		}
 	}
 	out.DA, _ = isString(r.resolve(form["DA"]))
 	if q, ok := r.resolveInt(form["Q"]); ok {
 		out.Q = int(q)
 	}
-	return &out, nil
+	return out, nil
 }
 
 // since a Widget dictionary may be merged into the Field dict
@@ -99,8 +92,10 @@ func (r resolver) isFormField(form pdfcpu.Dict) (field model.FormFieldDict, isFi
 		field.Ff = model.FormFlag(ff)
 	}
 	if aa := r.resolve(form["AA"]); aa != nil {
-		isField = true
-		field.AA = r.processAA(aa)
+		field.AA = r.processFormAA(aa)
+		if field.AA.IsEmpty() { // the AA entry may be the one of a widget
+			isField = true
+		}
 	}
 	if q, ok := r.resolveInt(form["Q"]); ok {
 		isField = true
@@ -121,33 +116,15 @@ func (r resolver) isFormField(form pdfcpu.Dict) (field model.FormFieldDict, isFi
 	return field, isField
 }
 
-func (r resolver) processAA(aa pdfcpu.Object) *model.FormFielAdditionalActions {
+func (r resolver) processFormAA(aa pdfcpu.Object) model.FormFielAdditionalActions {
 	aa = r.resolve(aa)
-	aaDict, ok := aa.(pdfcpu.Dict)
-	if !ok {
-		return nil
-	}
-	var (
-		out model.FormFielAdditionalActions
-		err error
-	)
-	out.K, err = r.processAction(aaDict["K"])
-	if err != nil {
-		return nil
-	}
-	out.F, err = r.processAction(aaDict["F"])
-	if err != nil {
-		return nil
-	}
-	out.V, err = r.processAction(aaDict["V"])
-	if err != nil {
-		return nil
-	}
-	out.C, err = r.processAction(aaDict["C"])
-	if err != nil {
-		return nil
-	}
-	return &out
+	aaDict, _ := aa.(pdfcpu.Dict)
+	var out model.FormFielAdditionalActions
+	out.K, _ = r.processAction(aaDict["K"])
+	out.F, _ = r.processAction(aaDict["F"])
+	out.V, _ = r.processAction(aaDict["V"])
+	out.C, _ = r.processAction(aaDict["C"])
+	return out
 }
 
 // extract a text string from either a string or a stream object,
@@ -175,18 +152,14 @@ func (r resolver) textOrStream(object pdfcpu.Object) string {
 func (r resolver) resolveFormField(o pdfcpu.Object, parent *model.FormFieldDict) (*model.FormFieldDict, error) {
 	var err error
 	ref, isRef := o.(pdfcpu.IndirectRef)
-	if isRef {
-		// did we already resolve this value ?
-		if ff := r.formFields[ref]; ff != nil {
-			return ff, nil
-		}
-		// we haven't resolved it yet: do it
-		o = r.resolve(ref)
+	if ff := r.formFields[ref]; isRef && ff != nil {
+		return ff, nil
 	}
-	if o == nil {
+	resolved := r.resolve(ref)
+	if resolved == nil {
 		return nil, nil
 	}
-	f, isDict := o.(pdfcpu.Dict)
+	f, isDict := resolved.(pdfcpu.Dict)
 	if !isDict {
 		return nil, errType("FormField", o)
 	}
@@ -212,7 +185,7 @@ func (r resolver) resolveFormField(o pdfcpu.Object, parent *model.FormFieldDict)
 			}
 			fi.Kids = append(fi.Kids, kidField)
 		} else {
-			widget, _, err := r.resolveWidget(kidDict)
+			widget, _, err := r.resolveWidget(kid)
 			if err != nil {
 				return nil, err
 			}
@@ -221,7 +194,8 @@ func (r resolver) resolveFormField(o pdfcpu.Object, parent *model.FormFieldDict)
 	}
 
 	// check for merged widget annotation
-	widget, isWidget, err := r.resolveWidget(f)
+	// we need to pass the indirect ref not to duplicate annotation dicts
+	widget, isWidget, err := r.resolveWidget(o)
 	if err != nil {
 		return nil, err
 	}
@@ -238,16 +212,18 @@ func (r resolver) resolveFormField(o pdfcpu.Object, parent *model.FormFieldDict)
 
 // resolveWidget return true if form is an annotation widget
 // (it will be false for form field which have no merged fields)
-func (r resolver) resolveWidget(form pdfcpu.Dict) (model.Widget, bool, error) {
-	annot, err := r.resolveAnnotationFields(form)
+func (r resolver) resolveWidget(obj pdfcpu.Object) (model.FormFieldWidget, bool, error) {
+	annot, err := r.resolveAnnotation(obj)
 	if err != nil {
-		return model.Widget{}, false, err
+		return model.FormFieldWidget{}, false, err
 	}
-	if widget, isWidget := annot.Subtype.(model.AnnotationWidget); isWidget {
-		// we found a merged widget
-		return model.Widget{BaseAnnotation: annot.BaseAnnotation, Subtype: widget}, true, nil
+	// check the dynamic type
+	if _, isWidget := annot.Subtype.(model.AnnotationWidget); isWidget {
+		// we found a widget
+		return model.FormFieldWidget{AnnotationDict: annot}, true, nil
 	}
-	return model.Widget{}, false, nil
+	// ignore the invalid form widget
+	return model.FormFieldWidget{}, false, nil
 }
 
 // ------------------- specialization of form fields -------------------
@@ -256,7 +232,7 @@ func (r resolver) resolveWidget(form pdfcpu.Dict) (model.Widget, bool, error) {
 func (r resolver) processFormFieldType(form pdfcpu.Dict) model.FormField {
 	ft, _ := r.resolveName(form["FT"])
 	switch ft {
-	case fieldBtn:
+	case "Btn":
 		var out model.FormFieldButton
 		v, _ := r.resolveName(form["V"])
 		out.V = model.Name(v)
@@ -267,7 +243,7 @@ func (r resolver) processFormFieldType(form pdfcpu.Dict) model.FormField {
 			out.Opt[i] = decodeTextString(os)
 		}
 		return out
-	case fieldChoice:
+	case "Ch":
 		var out model.FormFieldChoice
 		v := r.resolve(form["V"])
 		if str, is := isString(v); is {
@@ -301,9 +277,9 @@ func (r resolver) processFormFieldType(form pdfcpu.Dict) model.FormField {
 			out.I[i], _ = r.resolveInt(ii)
 		}
 		return out
-	case fieldSig:
+	case "Sig":
 		return r.processSignatureField(form)
-	case fieldText:
+	case "Tx":
 		var out model.FormFieldText
 		out.V = r.textOrStream(form["V"])
 		if ml, ok := r.resolveInt(form["MaxLen"]); ok {

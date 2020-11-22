@@ -3,10 +3,8 @@ package reader
 import (
 	"os"
 	"testing"
-	"time"
 
 	"github.com/benoitkugler/pdf/model"
-	"github.com/pdfcpu/pdfcpu/pkg/pdfcpu"
 	"golang.org/x/exp/errors/fmt"
 )
 
@@ -150,21 +148,9 @@ func TestWriteShadings(t *testing.T) {
 		}
 		f.Close()
 
-		out, err := os.Create(file + ".pdf")
+		err = reWrite(doc, file+".pdf")
 		if err != nil {
-			t.Fatal(err)
-		}
-		defer out.Close()
-
-		ti := time.Now()
-		err = doc.Write(out, nil)
-		if err != nil {
-			t.Fatal(err)
-		}
-		fmt.Println("	PDF wrote to disk in", time.Since(ti))
-		_, err = pdfcpu.ReadFile(file+".pdf", nil)
-		if err != nil {
-			t.Fatal(err)
+			t.Error(err)
 		}
 	}
 }

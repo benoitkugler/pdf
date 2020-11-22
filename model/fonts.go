@@ -139,7 +139,7 @@ func (f FontType3) fontPDFString(pdf pdfWriter) string {
 		pdf.writeObject(f.FontDescriptor.pdfString(pdf, f, fdRef), nil, fdRef)
 		b.fmt("/FontDescriptor %s", fdRef)
 	}
-	if f.Resources != nil {
+	if !f.Resources.IsEmpty() {
 		b.fmt("/Resources %s", f.Resources.pdfString(pdf))
 	}
 	if f.ToUnicode != nil {

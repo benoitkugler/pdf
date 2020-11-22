@@ -306,7 +306,7 @@ func (a *AnnotationDict) GetStructParent() MaybeInt {
 	return a.StructParent
 }
 
-// pdfContent impements is cachable
+// pdfContent implements IsReferenceable
 func (a *AnnotationDict) pdfContent(pdf pdfWriter, ref Reference) (string, []byte) {
 	base := a.BaseAnnotation.fields(pdf, ref)
 	subtype := a.Subtype.annotationFields(pdf, ref)
@@ -679,11 +679,11 @@ func (f AnnotationFileAttachment) clone(cache cloneCache) Annotation {
 // primarily for form fields
 // The Parent field is deduced from the containing form field.
 type AnnotationWidget struct {
-	H  Highlighting                 // optional
-	MK *AppearanceCharacteristics   // optional
-	A  Action                       // optional
-	BS *BorderStyle                 // optional
-	AA *AnnotationAdditionalActions // optional
+	H  Highlighting                // optional
+	MK *AppearanceCharacteristics  // optional
+	A  Action                      // optional
+	BS *BorderStyle                // optional
+	AA AnnotationAdditionalActions // optional
 }
 
 func (w AnnotationWidget) annotationFields(pdf pdfWriter, ref Reference) string {
@@ -700,7 +700,7 @@ func (w AnnotationWidget) annotationFields(pdf pdfWriter, ref Reference) string 
 	if w.BS != nil {
 		out += fmt.Sprintf("/BS %s", w.BS.String())
 	}
-	if w.AA != nil {
+	if !w.AA.IsEmpty() {
 		out += fmt.Sprintf("/AA %s", w.AA.pdfString(pdf, ref))
 	}
 	return out

@@ -573,7 +573,7 @@ func (r resolver) parseStateDict(state pdfcpu.Dict) (*model.GraphicState, error)
 	if ca, ok := r.resolveNumber(state["CA"]); ok { // 0 is not a default value
 		out.CA = model.Float(ca)
 	}
-	if ca, ok := r.resolveNumber(state["Ca"]); ok { // 0 is not a default value
+	if ca, ok := r.resolveNumber(state["ca"]); ok { // 0 is not a default value
 		out.Ca = model.Float(ca)
 	}
 	if sm, ok := r.resolveNumber(state["SM"]); ok { // 0 is not a default value

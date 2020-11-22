@@ -410,6 +410,12 @@ type FormFielAdditionalActions struct {
 	C Action // to recalculate
 }
 
+// IsEmpty returns `true` if it contains no action.
+func (f FormFielAdditionalActions) IsEmpty() bool {
+	return f.K.ActionType == nil && f.F.ActionType == nil &&
+		f.V.ActionType == nil && f.C.ActionType == nil
+}
+
 func (f FormFielAdditionalActions) pdfString(pdf pdfWriter, ref Reference) string {
 	b := newBuffer()
 	b.WriteString("<<")
@@ -429,16 +435,13 @@ func (f FormFielAdditionalActions) pdfString(pdf pdfWriter, ref Reference) strin
 	return b.String()
 }
 
-func (ff *FormFielAdditionalActions) clone(cache cloneCache) *FormFielAdditionalActions {
-	if ff == nil {
-		return nil
-	}
+func (ff FormFielAdditionalActions) clone(cache cloneCache) FormFielAdditionalActions {
 	var a FormFielAdditionalActions
 	a.K = ff.K.clone(cache)
 	a.F = ff.F.clone(cache)
 	a.V = ff.V.clone(cache)
 	a.C = ff.C.clone(cache)
-	return &a
+	return a
 }
 
 // All actions are optional
@@ -454,6 +457,15 @@ type AnnotationAdditionalActions struct {
 	PC Action // the page containing the annotation is closed.
 	PV Action // the page containing the annotation becomes visible.
 	PI Action // the page containing the annotation is no longer visible in the conforming reader’s user interface.
+}
+
+// IsEmpty return `true` if it contains no actions.
+func (a AnnotationAdditionalActions) IsEmpty() bool {
+	return a.E.ActionType == nil && a.X.ActionType == nil &&
+		a.D.ActionType == nil && a.U.ActionType == nil &&
+		a.Fo.ActionType == nil && a.Bl.ActionType == nil &&
+		a.PO.ActionType == nil && a.PC.ActionType == nil &&
+		a.PV.ActionType == nil && a.PI.ActionType == nil
 }
 
 func (ann AnnotationAdditionalActions) pdfString(pdf pdfWriter, ref Reference) string {
@@ -493,10 +505,7 @@ func (ann AnnotationAdditionalActions) pdfString(pdf pdfWriter, ref Reference) s
 	return b.String()
 }
 
-func (ann *AnnotationAdditionalActions) clone(cache cloneCache) *AnnotationAdditionalActions {
-	if ann == nil {
-		return nil
-	}
+func (ann AnnotationAdditionalActions) clone(cache cloneCache) AnnotationAdditionalActions {
 	var a AnnotationAdditionalActions
 	a.E = ann.E.clone(cache)
 	a.X = ann.X.clone(cache)
@@ -508,5 +517,5 @@ func (ann *AnnotationAdditionalActions) clone(cache cloneCache) *AnnotationAddit
 	a.PC = ann.PC.clone(cache)
 	a.PV = ann.PV.clone(cache)
 	a.PI = ann.PI.clone(cache)
-	return &a
+	return a
 }

@@ -10,7 +10,7 @@ func TestCloneAcro(t *testing.T) {
 		Fields: []*FormFieldDict{
 			{
 				FT:      FormFieldText{},
-				Widgets: []Widget{{}},
+				Widgets: []FormFieldWidget{{}},
 			},
 		},
 		NeedAppearances: true,
@@ -28,20 +28,24 @@ func TestCloneAcro(t *testing.T) {
 func TestCloneForm(t *testing.T) {
 	a := &FormFieldDict{
 		FT: FormFieldText{},
-		Widgets: []Widget{
+		Widgets: []FormFieldWidget{
 			{
-				BaseAnnotation: BaseAnnotation{
-					Contents: "sldml",
-					Border:   &Border{DashArray: []float64{4, 5, 6, 8}},
-				},
-				Subtype: AnnotationWidget{
-					BS: &BorderStyle{
-						S: "sd24",
+				AnnotationDict: &AnnotationDict{
+					BaseAnnotation: BaseAnnotation{
+						Contents: "sldml",
+						Border:   &Border{DashArray: []float64{4, 5, 6, 8}},
+					},
+					Subtype: AnnotationWidget{
+						BS: &BorderStyle{
+							S: "sd24",
+						},
 					},
 				},
 			},
 		},
-		AA: &FormFielAdditionalActions{},
+		AA: FormFielAdditionalActions{
+			K: Action{ActionType: ActionJavaScript{JS: "sdlmsmd"}},
+		},
 	}
 
 	cache := newCloneCache()

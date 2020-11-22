@@ -36,6 +36,11 @@ const (
 // FormFields are organized hierarchically into one or more tree structures.
 // Many field attributes are inheritable, meaning that if they are not explicitly
 // specified for a given field, their values are taken from those of its parent in the field hierarchy.
+//
+// This tree only defines the logic of the forms, not their appearance on the page.
+// This is the purpose of the AnnotationWidget, defined in the Annots list of a
+// page object. FormFields refer to them via the Widgets list.
+//
 // We depart from the SPEC in that all fields related to the specialisation
 // of a field (attribut FT) are inherited (or not) at the same time.
 // This should not be a problem in pratice, because if a parent
@@ -45,16 +50,20 @@ type FormFieldDict struct {
 
 	Parent *FormFieldDict   // nil for the top level fields
 	Kids   []*FormFieldDict // nil for a leaf node
-	// not nil only for a leaf node
-	// represented in PDF under the/Kids entry,
-	// or merged if their is only one widget
-	Widgets []Widget
 
-	T  string // optional, text string
-	TU string // optional, text string, alternate field name
-	TM string // optional, text string, mapping name
-	Ff FormFlag
-	AA *FormFielAdditionalActions // optional
+	// Widgets is not nil only for a leaf node,
+	// and is represented in PDF under the /Kids entry,
+	// or merged if their is only one widget.
+	// *AnnotationDict must also be registered in
+	// a PageObject.Annots list. See the PageObject.AddFormFieldWidget
+	// for a convenient way of doing so.
+	Widgets []FormFieldWidget
+
+	T  string                    // optional, text string
+	TU string                    // optional, text string, alternate field name
+	TM string                    // optional, text string, mapping name
+	Ff FormFlag                  // optional
+	AA FormFielAdditionalActions // optional
 
 	// fields for variable text
 
@@ -73,6 +82,12 @@ func (f *FormFieldDict) descendants() []*FormFieldDict {
 	return out
 }
 
+// copy the annotation widget so that they are also included
+// in the annots entry
+func (f *FormFieldDict) addWidgetToAnnots(annots *[]*AnnotationDict) {
+
+}
+
 // FullFieldName returns the fully qualified field name, which is not explicitly defined
 // but is constructed from the partial field names of the field
 // and all of its ancestors
@@ -84,6 +99,7 @@ func (f *FormFieldDict) FullFieldName() string {
 }
 
 // also allocate an object number for itself and stores it into pdf.fields
+// pages annotations must have been written
 func (f *FormFieldDict) pdfString(pdf pdfWriter, catalog Reference) string {
 	// before recursing, first register it's own ref
 	// so that it is accessible by the kids
@@ -110,12 +126,10 @@ func (f *FormFieldDict) pdfString(pdf pdfWriter, catalog Reference) string {
 		}
 		b.fmt("/Kids %s", writeRefArray(refs))
 	} else if len(f.Widgets) != 0 {
-		// we write annotation as indirect objects
+		// we use the annotations previously written
 		refs := make([]Reference, len(f.Widgets))
 		for i, w := range f.Widgets {
-			widgetRef := pdf.createObject()
-			pdf.writeObject(w.pdfString(pdf, widgetRef, ownRef), nil, widgetRef)
-			refs[i] = widgetRef
+			refs[i] = pdf.cache[w.AnnotationDict]
 		}
 		b.fmt("/Kids %s", writeRefArray(refs))
 	}
@@ -128,8 +142,10 @@ func (f *FormFieldDict) pdfString(pdf pdfWriter, catalog Reference) string {
 	if f.TM != "" {
 		b.fmt("/TM %s", pdf.EncodeString(f.TM, TextString, ownRef))
 	}
-	b.fmt("/Ff %d", f.Ff)
-	if f.AA != nil {
+	if f.Ff != 0 {
+		b.fmt("/Ff %d", f.Ff)
+	}
+	if !f.AA.IsEmpty() {
 		b.fmt("/AA %s", f.AA.pdfString(pdf, ownRef))
 	}
 	if f.Q != 0 {
@@ -161,7 +177,7 @@ func (f *FormFieldDict) clone(cache cloneCache) *FormFieldDict {
 		out.FT = f.FT.clone(cache)
 	}
 	if f.Widgets != nil { // preserve nil
-		out.Widgets = make([]Widget, len(f.Widgets))
+		out.Widgets = make([]FormFieldWidget, len(f.Widgets))
 		for i, w := range f.Widgets {
 			out.Widgets[i] = w.clone(cache)
 		}
@@ -188,24 +204,23 @@ const (
 	HToggle  Highlighting = "T" // Same as P (which is preferred).
 )
 
-// Widget is an annotation
-// with a static type of Widget.
-type Widget struct {
-	BaseAnnotation
-
-	Subtype AnnotationWidget
+// FormFieldWidget is an annotation
+// which must have a type of FormFieldWidget
+type FormFieldWidget struct {
+	*AnnotationDict
 }
 
-func (w Widget) pdfString(pdf pdfWriter, ownRef, parent Reference) string {
+func (w FormFieldWidget) pdfString(pdf pdfWriter, ownRef, parent Reference) string {
 	return fmt.Sprintf("<<%s %s/Parent %s>>",
 		w.BaseAnnotation.fields(pdf, ownRef), w.Subtype.annotationFields(pdf, ownRef), parent)
 }
 
-func (w Widget) clone(cache cloneCache) Widget {
-	out := w
-	out.Subtype = w.Subtype.clone(cache).(AnnotationWidget)
-	out.BaseAnnotation = w.BaseAnnotation.clone(cache)
-	return out
+func (w FormFieldWidget) clone(cache cloneCache) FormFieldWidget {
+	if w.AnnotationDict == nil {
+		return FormFieldWidget{}
+	}
+	out := cache.checkOrClone(w.AnnotationDict).(*AnnotationDict)
+	return FormFieldWidget{AnnotationDict: out}
 }
 
 // FormField provides additional form attributes,
@@ -853,7 +868,7 @@ func (a AcroForm) pdfString(pdf pdfWriter, catalog, acroRef Reference) string {
 		}
 		b.fmt("/CO %s", writeRefArray(refs))
 	}
-	if a.DR != nil {
+	if !a.DR.IsEmpty() {
 		ref := pdf.addObject(a.DR.pdfString(pdf), nil)
 		b.fmt("/DR %s", ref)
 	}
@@ -867,11 +882,8 @@ func (a AcroForm) pdfString(pdf pdfWriter, catalog, acroRef Reference) string {
 	return b.String()
 }
 
-func (a *AcroForm) clone(cache cloneCache) *AcroForm {
-	if a == nil {
-		return nil
-	}
-	out := *a
+func (a AcroForm) clone(cache cloneCache) AcroForm {
+	out := a
 	if a.Fields != nil { // preserve nil
 		out.Fields = make([]*FormFieldDict, len(a.Fields))
 		for i, f := range a.Fields {
@@ -888,5 +900,5 @@ func (a *AcroForm) clone(cache cloneCache) *AcroForm {
 		dr := a.DR.clone(cache)
 		out.DR = &dr
 	}
-	return &out
+	return out
 }

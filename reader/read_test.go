@@ -15,13 +15,17 @@ import (
 	"github.com/phpdave11/gofpdf"
 )
 
-// we use the spec as a good test candidate
+// the SPEC is a good test candidate
 var pdfSpec model.Document
 
 const password = "78eoln_-(_àç_-')"
 
 func init() {
-	loadPDFSpec()
+	// the PDF spec is used in several tests, but is heavy
+	// so, when working on isolated test, you may want to avoid loading it
+	// by commenting this line
+	// loadPDFSpec()
+
 	// generatePDFs()
 }
 
@@ -88,18 +92,9 @@ func TestOpen(t *testing.T) {
 	// if err != nil {
 	// 	t.Fatal(err)
 	// }
-	page := pdfSpec.Catalog.Pages.Flatten()[147]
-	for name, font := range page.Resources.Font {
-		if tt1, ok := font.Subtype.(model.FontType1); ok {
-			fmt.Println(tt1.BaseFont)
-		}
-		fmt.Printf("%s %T\n", name, font.Subtype)
+	if L := len(pdfSpec.Catalog.Pages.Flatten()); L != 756 {
+		t.Errorf("expected 756 pages, got %d", L)
 	}
-	for _, ct := range page.Contents {
-		decoded, _ := ct.Decode()
-		fmt.Println(string(decoded))
-	}
-
 }
 
 func BenchmarkProcess(b *testing.B) {
@@ -231,32 +226,37 @@ func TestWrite(t *testing.T) {
 	}
 }
 
-func TestReWrite(t *testing.T) {
-	out, err := os.Create("datatest/PDF_SPEC.pdf.pdf")
+func reWrite(doc model.Document, file string) error {
+	out, err := os.Create(file)
 	if err != nil {
-		t.Fatal(err)
+		return err
 	}
 	defer out.Close()
 
 	ti := time.Now()
-	err = pdfSpec.Write(out, nil)
+	err = doc.Write(out, nil)
 	if err != nil {
-		t.Fatal(err)
+		return err
 	}
 	fmt.Println("PDF wrote to disk in", time.Since(ti))
 
+	_, err = pdfcpu.ReadFile(file, nil)
+	return err
+}
+
+func TestReWrite(t *testing.T) {
+	err := reWrite(pdfSpec, "datatest/PDF_SPEC.pdf.pdf")
+	if err != nil {
+		t.Error(err)
+	}
+
 	out2 := bytes.Buffer{}
-	ti = time.Now()
+	ti := time.Now()
 	err = pdfSpec.Write(&out2, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 	fmt.Println("PDF wrote to memory in", time.Since(ti))
-
-	_, err = pdfcpu.ReadFile("datatest/PDF_SPEC.pdf.pdf", nil)
-	if err != nil {
-		t.Fatal(err)
-	}
 }
 
 func BenchmarkWrite(b *testing.B) {

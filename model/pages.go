@@ -100,7 +100,7 @@ func (pages *PageTree) pdfString(pdf pdfWriter) string {
 		parent = fmt.Sprintf("/Parent %s", pdf.pages[pages.parent])
 	}
 	res := ""
-	if pages.Resources != nil {
+	if !pages.Resources.IsEmpty() {
 		res = fmt.Sprintf("/Resources %s", pdf.addObject(pages.Resources.pdfString(pdf), nil))
 	}
 	content := fmt.Sprintf("<</Type/Pages/Count %d/Kids %s%s%s>>",
@@ -124,6 +124,11 @@ func (p *PageTree) clone(cache cloneCache) PageNode {
 	return out
 }
 
+// PageObject
+// Since Widget annotation are only used with form fields,
+// we choose to define them only in the AcroForm catalog entry.
+// Thus, no AnnotationWidget should be added to the Annots entry
+// (it will be done automatically when writing the PDF).
 type PageObject struct {
 	// TODO: complete fields
 	Resources                 *ResourcesDict    // if nil, will be inherited from the parent
@@ -131,11 +136,21 @@ type PageObject struct {
 	CropBox                   *Rectangle        // if nil, will be inherited. if still nil, default to MediaBox
 	BleedBox, TrimBox, ArtBox *Rectangle        // if nil, default to CropBox
 	Rotate                    *Rotation         // if nil, will be inherited from the parent. Only multiple of 90 are allowed
-	Annots                    []*AnnotationDict // optional
+	Annots                    []*AnnotationDict // optional, should not contain annotation widget
 	Contents                  []ContentStream   // array of stream (often of length 1)
 	StructParents             MaybeInt          // Required if the page contains structural content items
 	Tabs                      Name              // optional, one of R , C or S
-	parent                    *PageTree         // cache, set up during pre-allocation
+
+	parent *PageTree // cache, set up during pre-allocation
+}
+
+// AddFormFieldWidget creates a new form field widget
+// and adds it both on the page (via the PageObject.Annots list) and to the
+// form field tree (via the FormFieldDict.Widgets list)
+func (p *PageObject) AddFormFieldWidget(f *FormFieldDict, base BaseAnnotation, widget AnnotationWidget) {
+	annot := FormFieldWidget{AnnotationDict: &AnnotationDict{BaseAnnotation: base, Subtype: widget}}
+	p.Annots = append(p.Annots, annot.AnnotationDict)
+	f.Widgets = append(f.Widgets, annot)
 }
 
 // the pdf page map is used to fetch the object number
@@ -145,7 +160,7 @@ func (p *PageObject) pdfString(pdf pdfWriter) string {
 	b.line("<<")
 	b.line("/Type/Page")
 	b.line("/Parent %s", parentReference)
-	if p.Resources != nil {
+	if !p.Resources.IsEmpty() {
 		b.line("/Resources %s", pdf.addObject(p.Resources.pdfString(pdf), nil))
 	}
 	if p.MediaBox != nil {
@@ -166,11 +181,11 @@ func (p *PageObject) pdfString(pdf pdfWriter) string {
 	if p.Rotate != nil {
 		b.line("/Rotate %d", p.Rotate.Degrees())
 	}
-	annots := make([]Reference, len(p.Annots))
-	for i, a := range p.Annots {
-		annots[i] = pdf.addItem(a)
-	}
 	if len(p.Annots) != 0 {
+		annots := make([]Reference, len(p.Annots))
+		for i, a := range p.Annots {
+			annots[i] = pdf.addItem(a)
+		}
 		b.line("/Annots %s", writeRefArray(annots))
 	}
 	contents := make([]Reference, len(p.Contents))
@@ -249,6 +264,17 @@ type ResourcesDict struct {
 	Pattern    map[Name]Pattern       // optionnal
 	Font       map[Name]*FontDict     // optionnal
 	XObject    map[Name]XObject       // optionnal
+}
+
+// IsEmpty returns `true` is the resources pointer is either `nil`
+// or all the map are empty; in this case it should not be written in the PDF file.
+func (r *ResourcesDict) IsEmpty() bool {
+	if r == nil {
+		return true
+	}
+	return len(r.ExtGState) == 0 && len(r.ColorSpace) == 0 &&
+		len(r.Shading) == 0 && len(r.Pattern) == 0 &&
+		len(r.Font) == 0 && len(r.XObject) == 0
 }
 
 func (r *ResourcesDict) pdfString(pdf pdfWriter) string {

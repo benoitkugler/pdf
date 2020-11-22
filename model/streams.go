@@ -251,7 +251,7 @@ func (f *XObjectForm) pdfContent(pdf pdfWriter, _ Reference) (string, []byte) {
 	if f.Matrix != (Matrix{}) {
 		b.fmt("/Matrix %s", f.Matrix)
 	}
-	if f.Resources != nil {
+	if !f.Resources.IsEmpty() {
 		b.line("/Resources %s", f.Resources.pdfString(pdf))
 	}
 	if f.StructParent != nil {

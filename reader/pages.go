@@ -87,6 +87,7 @@ func (r resolver) resolveStream(content pdfcpu.Object) (*model.Stream, error) {
 
 // `page` has been previously allocated and must be filled
 func (r resolver) resolvePageObject(node pdfcpu.Dict, page *model.PageObject) error {
+	fmt.Printf("resolving page into %p\n", page)
 	resources, err := r.resolveOneResourceDict(node["Resources"])
 	if err != nil {
 		return err
@@ -106,13 +107,13 @@ func (r resolver) resolvePageObject(node pdfcpu.Dict, page *model.PageObject) er
 	contents := r.resolve(node["Contents"])
 	switch contents := contents.(type) {
 	case pdfcpu.Array: // array of streams
-		page.Contents = make([]model.ContentStream, len(contents))
+		page.Contents = make([]model.ContentStream, 0, len(contents))
 		for _, v := range contents {
 			ct, err := r.resolveStream(v)
 			if err != nil {
 				return err
 			}
-			if ct != nil {
+			if ct != nil { // invalid content stream are just ignored
 				page.Contents = append(page.Contents, model.ContentStream{Stream: *ct})
 			}
 		}
@@ -493,57 +494,59 @@ func (r resolver) resolveAnnotationPopup(o pdfcpu.Object) (*model.AnnotationPopu
 	return &out, nil
 }
 
-func (r resolver) resolveAnnotationAA(o pdfcpu.Object) (*model.AnnotationAdditionalActions, error) {
+func (r resolver) resolveAnnotationAA(o pdfcpu.Object) (out model.AnnotationAdditionalActions, err error) {
 	dict, _ := r.resolve(o).(pdfcpu.Dict)
-	var (
-		out model.AnnotationAdditionalActions
-		err error
-	)
+	if dict == nil {
+		return out, nil
+	}
 	out.E, err = r.processAction(dict["E"])
 	if err != nil {
-		return nil, err
+		return out, err
 	}
 	out.X, err = r.processAction(dict["X"])
 	if err != nil {
-		return nil, err
+		return out, err
 	}
 	out.D, err = r.processAction(dict["D"])
 	if err != nil {
-		return nil, err
+		return out, err
 	}
 	out.U, err = r.processAction(dict["U"])
 	if err != nil {
-		return nil, err
+		return out, err
 	}
 	out.Fo, err = r.processAction(dict["Fo"])
 	if err != nil {
-		return nil, err
+		return out, err
 	}
 	out.Bl, err = r.processAction(dict["Bl"])
 	if err != nil {
-		return nil, err
+		return out, err
 	}
 	out.PO, err = r.processAction(dict["PO"])
 	if err != nil {
-		return nil, err
+		return out, err
 	}
 	out.PC, err = r.processAction(dict["PC"])
 	if err != nil {
-		return nil, err
+		return out, err
 	}
 	out.PV, err = r.processAction(dict["PV"])
 	if err != nil {
-		return nil, err
+		return out, err
 	}
 	out.PI, err = r.processAction(dict["PI"])
 	if err != nil {
-		return nil, err
+		return out, err
 	}
-	return &out, nil
+	return out, nil
 }
 
 func (r resolver) resolveAnnotationMK(o pdfcpu.Object) (*model.AppearanceCharacteristics, error) {
 	dict, _ := r.resolve(o).(pdfcpu.Dict)
+	if dict == nil {
+		return nil, nil
+	}
 	var out model.AppearanceCharacteristics
 	rt, _ := r.resolveInt(dict["R"])
 	if r := model.NewRotation(rt); r != nil {
