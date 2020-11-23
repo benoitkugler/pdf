@@ -14,7 +14,7 @@ type FontDict struct {
 // GetWidth return the size needed to display the character `c`
 // using the font size `size`.
 // TODO: implement this
-func (f *FontDict) GetWidth(c rune, size Fl) Fl
+// func (f *FontDict) GetWidth(c rune, size Fl) Fl
 
 func (f *FontDict) pdfContent(pdf pdfWriter, _ Reference) (string, []byte) {
 	return f.Subtype.fontPDFString(pdf), nil
