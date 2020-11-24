@@ -24,7 +24,7 @@ type resolver struct {
 	// appearanceEntries map[pdfcpu.IndirectRef]*model.AppearanceEntry
 	formFields        map[pdfcpu.IndirectRef]*model.FormFieldDict
 	appearanceDicts   map[pdfcpu.IndirectRef]*model.AppearanceDict
-	resources         map[pdfcpu.IndirectRef]*model.ResourcesDict
+	resources         map[pdfcpu.IndirectRef]model.ResourcesDict
 	fonts             map[pdfcpu.IndirectRef]*model.FontDict
 	graphicsStates    map[pdfcpu.IndirectRef]*model.GraphicState
 	encodings         map[pdfcpu.IndirectRef]*model.SimpleEncodingDict
@@ -250,7 +250,7 @@ func ProcessContext(ctx *pdfcpu.Context) (model.Document, *model.Encrypt, error)
 		formFields:      make(map[pdfcpu.IndirectRef]*model.FormFieldDict),
 		appearanceDicts: make(map[pdfcpu.IndirectRef]*model.AppearanceDict),
 		// appearanceEntries: make(map[pdfcpu.IndirectRef]*model.AppearanceEntry),
-		resources:         make(map[pdfcpu.IndirectRef]*model.ResourcesDict),
+		resources:         make(map[pdfcpu.IndirectRef]model.ResourcesDict),
 		fonts:             make(map[pdfcpu.IndirectRef]*model.FontDict),
 		graphicsStates:    make(map[pdfcpu.IndirectRef]*model.GraphicState),
 		encodings:         make(map[pdfcpu.IndirectRef]*model.SimpleEncodingDict),

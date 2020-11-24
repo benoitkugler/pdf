@@ -5,14 +5,9 @@ import (
 	"strings"
 
 	"github.com/benoitkugler/pdf/contents"
+	"github.com/benoitkugler/pdf/fonts"
 	"github.com/benoitkugler/pdf/model"
 )
-
-// const (
-// 	alignLeft = iota
-// 	alignRight
-// 	alignCenter
-// )
 
 type BaseField struct {
 	box       model.Rectangle
@@ -26,14 +21,11 @@ type BaseField struct {
 	borderWidth Fl
 	borderColor color.Color
 
-	alignment uint8
+	alignment model.Quadding
 	rotation  int
 	options   model.FormFlag // options flag
 
 	maxCharacterLength model.MaybeInt // value of property maxCharacterLength
-
-	font     *model.FontDict
-	fontSize Fl
 }
 
 const brightScale = 0.7
@@ -43,102 +35,102 @@ func darker(c color.Color) color.RGBA {
 	return color.RGBA{R: uint8(Fl(r) * brightScale), G: uint8(Fl(g) * brightScale), B: uint8(Fl(b) * brightScale), A: uint8(a)}
 }
 
-func (b BaseField) drawTopFrame(app *Appearance) {
-	app.ops = append(app.ops, contents.OpMoveTo{X: b.borderWidth, Y: b.borderWidth})
-	app.ops = append(app.ops, contents.OpLineTo{X: b.borderWidth, Y: b.box.Height() - b.borderWidth})
-	app.ops = append(app.ops, contents.OpLineTo{X: b.box.Width() - b.borderWidth, Y: b.box.Height() - b.borderWidth})
-	app.ops = append(app.ops, contents.OpLineTo{X: b.box.Width() - 2*b.borderWidth, Y: b.box.Height() - 2*b.borderWidth})
-	app.ops = append(app.ops, contents.OpLineTo{X: 2 * b.borderWidth, Y: b.box.Height() - 2*b.borderWidth})
-	app.ops = append(app.ops, contents.OpLineTo{X: 2 * b.borderWidth, Y: 2 * b.borderWidth})
-	app.ops = append(app.ops, contents.OpLineTo{X: b.borderWidth, Y: b.borderWidth})
-	app.ops = append(app.ops, contents.OpFill{})
+func (b BaseField) drawTopFrame(app *contents.Appearance) {
+	app.Op(contents.OpMoveTo{X: b.borderWidth, Y: b.borderWidth})
+	app.Op(contents.OpLineTo{X: b.borderWidth, Y: b.box.Height() - b.borderWidth})
+	app.Op(contents.OpLineTo{X: b.box.Width() - b.borderWidth, Y: b.box.Height() - b.borderWidth})
+	app.Op(contents.OpLineTo{X: b.box.Width() - 2*b.borderWidth, Y: b.box.Height() - 2*b.borderWidth})
+	app.Op(contents.OpLineTo{X: 2 * b.borderWidth, Y: b.box.Height() - 2*b.borderWidth})
+	app.Op(contents.OpLineTo{X: 2 * b.borderWidth, Y: 2 * b.borderWidth})
+	app.Op(contents.OpLineTo{X: b.borderWidth, Y: b.borderWidth})
+	app.Op(contents.OpFill{})
 }
 
-func (b BaseField) drawBottomFrame(app *Appearance) {
-	app.ops = append(app.ops, contents.OpMoveTo{X: b.borderWidth, Y: b.borderWidth})
-	app.ops = append(app.ops, contents.OpLineTo{X: b.box.Width() - b.borderWidth, Y: b.borderWidth})
-	app.ops = append(app.ops, contents.OpLineTo{X: b.box.Width() - b.borderWidth, Y: b.box.Height() - b.borderWidth})
-	app.ops = append(app.ops, contents.OpLineTo{X: b.box.Width() - 2*b.borderWidth, Y: b.box.Height() - 2*b.borderWidth})
-	app.ops = append(app.ops, contents.OpLineTo{X: b.box.Width() - 2*b.borderWidth, Y: 2 * b.borderWidth})
-	app.ops = append(app.ops, contents.OpLineTo{X: 2 * b.borderWidth, Y: 2 * b.borderWidth})
-	app.ops = append(app.ops, contents.OpLineTo{X: b.borderWidth, Y: b.borderWidth})
-	app.ops = append(app.ops, contents.OpFill{})
+func (b BaseField) drawBottomFrame(app *contents.Appearance) {
+	app.Op(contents.OpMoveTo{X: b.borderWidth, Y: b.borderWidth})
+	app.Op(contents.OpLineTo{X: b.box.Width() - b.borderWidth, Y: b.borderWidth})
+	app.Op(contents.OpLineTo{X: b.box.Width() - b.borderWidth, Y: b.box.Height() - b.borderWidth})
+	app.Op(contents.OpLineTo{X: b.box.Width() - 2*b.borderWidth, Y: b.box.Height() - 2*b.borderWidth})
+	app.Op(contents.OpLineTo{X: b.box.Width() - 2*b.borderWidth, Y: 2 * b.borderWidth})
+	app.Op(contents.OpLineTo{X: 2 * b.borderWidth, Y: 2 * b.borderWidth})
+	app.Op(contents.OpLineTo{X: b.borderWidth, Y: b.borderWidth})
+	app.Op(contents.OpFill{})
 }
 
-func (b BaseField) getBorderAppearance() Appearance {
-	app := newAppearance(b.box.Width(), b.box.Height())
+func (b BaseField) getBorderAppearance() contents.Appearance {
+	app := contents.NewAppearance(b.box.Width(), b.box.Height())
 	switch b.rotation {
 	case 90:
-		app.ops = append(app.ops, contents.OpSetTextMatrix{Matrix: model.Matrix{0, 1, -1, 0, b.box.Height(), 0}})
+		app.SetTextMatrix(0, 1, -1, 0, b.box.Height(), 0)
 	case 180:
-		app.ops = append(app.ops, contents.OpSetTextMatrix{Matrix: model.Matrix{-1, 0, 0, -1, b.box.Width(), b.box.Height()}})
+		app.SetTextMatrix(-1, 0, 0, -1, b.box.Width(), b.box.Height())
 	case 270:
-		app.ops = append(app.ops, contents.OpSetTextMatrix{Matrix: model.Matrix{0, -1, 1, 0, 0, b.box.Width()}})
+		app.SetTextMatrix(0, -1, 1, 0, 0, b.box.Width())
 	}
 	// background
 	if b.backgroundColor != nil {
-		app.setColorFill(b.backgroundColor)
-		app.ops = append(app.ops, contents.OpRectangle{X: 0, Y: 0, W: b.box.Width(), H: b.box.Height()})
-		app.ops = append(app.ops, contents.OpFill{})
+		app.SetColorFill(b.backgroundColor)
+		app.Op(contents.OpRectangle{X: 0, Y: 0, W: b.box.Width(), H: b.box.Height()})
+		app.Op(contents.OpFill{})
 	}
 	// border
 	switch b.borderStyle {
 	case "U":
 		if b.borderWidth != 0 && b.borderColor != nil {
-			app.setColorStroke(b.borderColor)
-			app.ops = append(app.ops, contents.OpSetLineWidth{W: b.borderWidth})
-			app.ops = append(app.ops, contents.OpMoveTo{X: 0, Y: b.borderWidth / 2})
-			app.ops = append(app.ops, contents.OpLineTo{X: b.box.Width(), Y: b.borderWidth / 2})
-			app.ops = append(app.ops, contents.OpStroke{})
+			app.SetColorStroke(b.borderColor)
+			app.Op(contents.OpSetLineWidth{W: b.borderWidth})
+			app.Op(contents.OpMoveTo{X: 0, Y: b.borderWidth / 2})
+			app.Op(contents.OpLineTo{X: b.box.Width(), Y: b.borderWidth / 2})
+			app.Op(contents.OpStroke{})
 		}
 	case "B":
 		if b.borderWidth != 0 && b.borderColor != nil {
-			app.setColorStroke(b.borderColor)
-			app.ops = append(app.ops, contents.OpSetLineWidth{W: b.borderWidth})
-			app.ops = append(app.ops, contents.OpRectangle{X: b.borderWidth / 2, Y: b.borderWidth / 2, W: b.box.Width() - b.borderWidth, H: b.box.Height() - b.borderWidth})
-			app.ops = append(app.ops, contents.OpStroke{})
+			app.SetColorStroke(b.borderColor)
+			app.Op(contents.OpSetLineWidth{W: b.borderWidth})
+			app.Op(contents.OpRectangle{X: b.borderWidth / 2, Y: b.borderWidth / 2, W: b.box.Width() - b.borderWidth, H: b.box.Height() - b.borderWidth})
+			app.Op(contents.OpStroke{})
 		}
 		// beveled
 		var actual color.Color = color.White
 		if b.backgroundColor != nil {
 			actual = b.backgroundColor
 		}
-		app.ops = append(app.ops, contents.OpSetFillGray{G: 1})
+		app.Op(contents.OpSetFillGray{G: 1})
 		b.drawTopFrame(&app)
-		app.setColorFill(darker(actual))
+		app.SetColorFill(darker(actual))
 		b.drawBottomFrame(&app)
 	case "I":
 		if b.borderWidth != 0 && b.borderColor != nil {
-			app.setColorStroke(b.borderColor)
-			app.ops = append(app.ops, contents.OpSetLineWidth{W: b.borderWidth})
-			app.ops = append(app.ops, contents.OpRectangle{X: b.borderWidth / 2, Y: b.borderWidth / 2, W: b.box.Width() - b.borderWidth, H: b.box.Height() - b.borderWidth})
-			app.ops = append(app.ops, contents.OpStroke{})
+			app.SetColorStroke(b.borderColor)
+			app.Op(contents.OpSetLineWidth{W: b.borderWidth})
+			app.Op(contents.OpRectangle{X: b.borderWidth / 2, Y: b.borderWidth / 2, W: b.box.Width() - b.borderWidth, H: b.box.Height() - b.borderWidth})
+			app.Op(contents.OpStroke{})
 		}
 		// inset
-		app.ops = append(app.ops, contents.OpSetFillGray{G: 0.5})
+		app.Op(contents.OpSetFillGray{G: 0.5})
 		b.drawTopFrame(&app)
-		app.ops = append(app.ops, contents.OpSetFillGray{G: 0.75})
+		app.Op(contents.OpSetFillGray{G: 0.75})
 		b.drawBottomFrame(&app)
 	default:
 		if b.borderWidth != 0 && b.borderColor != nil {
 			if b.borderStyle == "D" {
-				app.ops = append(app.ops, contents.OpSetDash{Dash: model.DashPattern{Array: []Fl{3}, Phase: 0}})
+				app.Op(contents.OpSetDash{Dash: model.DashPattern{Array: []Fl{3}, Phase: 0}})
 			}
-			app.setColorStroke(b.borderColor)
-			app.ops = append(app.ops, contents.OpSetLineWidth{W: b.borderWidth})
-			app.ops = append(app.ops, contents.OpRectangle{X: b.borderWidth / 2, Y: b.borderWidth / 2,
+			app.SetColorStroke(b.borderColor)
+			app.Op(contents.OpSetLineWidth{W: b.borderWidth})
+			app.Op(contents.OpRectangle{X: b.borderWidth / 2, Y: b.borderWidth / 2,
 				W: b.box.Width() - b.borderWidth, H: b.box.Height() - b.borderWidth})
-			app.ops = append(app.ops, contents.OpStroke{})
+			app.Op(contents.OpStroke{})
 			if m, ok := b.maxCharacterLength.(model.Int); (b.options&model.Comb) != 0 && (ok && m > 1) {
 				step := b.box.Width() / Fl(m)
 				yb := b.borderWidth / 2
 				yt := b.box.Height() - b.borderWidth/2
 				for k := 1; k < int(m); k++ {
 					x := step * Fl(k)
-					app.ops = append(app.ops, contents.OpMoveTo{X: x, Y: yb})
-					app.ops = append(app.ops, contents.OpLineTo{X: x, Y: yt})
+					app.Op(contents.OpMoveTo{X: x, Y: yb})
+					app.Op(contents.OpLineTo{X: x, Y: yt})
 				}
-				app.ops = append(app.ops, contents.OpStroke{})
+				app.Op(contents.OpStroke{})
 			}
 		}
 	}
@@ -173,7 +165,7 @@ func getHardBreaks(text string) (arr []string) {
 	return arr
 }
 
-func breakLines(breaks []string, font *model.FontDict, fontSize, width Fl) (lines []string) {
+func breakLines(breaks []string, font fonts.Font, fontSize, width Fl) (lines []string) {
 	var buf []rune
 	for _, break_ := range breaks {
 		buf = buf[:0]

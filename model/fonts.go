@@ -7,14 +7,11 @@ import (
 )
 
 // FontDict is a PDF font Dictionary
+// Additional support for text processing is provided
+// in fonts package.
 type FontDict struct {
 	Subtype Font
 }
-
-// GetWidth return the size needed to display the character `c`
-// using the font size `size`.
-// TODO: implement this
-// func (f *FontDict) GetWidth(c rune, size Fl) Fl
 
 func (f *FontDict) pdfContent(pdf pdfWriter, _ Reference) (string, []byte) {
 	return f.Subtype.fontPDFString(pdf), nil
@@ -117,7 +114,7 @@ type FontType3 struct {
 	FirstChar      byte
 	Widths         []int           // length (LastChar − FirstChar + 1); index i is char code FirstChar + i
 	FontDescriptor *FontDescriptor // required in TaggedPDF
-	Resources      *ResourcesDict  // optional
+	Resources      ResourcesDict   // optional
 	ToUnicode      *Stream         // optional
 }
 
@@ -172,10 +169,7 @@ func (t FontType3) clone(cache cloneCache) Font {
 		tf := t.FontDescriptor.Clone()
 		out.FontDescriptor = &tf
 	}
-	if t.Resources != nil {
-		re := t.Resources.clone(cache)
-		out.Resources = &re
-	}
+	out.Resources = t.Resources.clone(cache)
 	if t.ToUnicode != nil {
 		toU := t.ToUnicode.Clone()
 		out.ToUnicode = &toU
@@ -352,14 +346,14 @@ func (d Differences) Clone() Differences {
 }
 
 type SimpleEncodingDict struct {
-	BaseEncoding Name        // optionnal
-	Differences  Differences // optionnal
+	BaseEncoding SimpleEncodingPredefined // optionnal
+	Differences  Differences              // optionnal
 }
 
 func (e *SimpleEncodingDict) pdfContent(pdfWriter pdfWriter, _ Reference) (string, []byte) {
 	out := "<<"
 	if e.BaseEncoding != "" {
-		out += "/BaseEncoding " + e.BaseEncoding.String()
+		out += "/BaseEncoding " + Name(e.BaseEncoding).String()
 	}
 	if len(e.Differences) != 0 {
 		out += "/Differences " + e.Differences.PDFString()

@@ -108,6 +108,7 @@ var _ = map[string]Operation{
 	// "y":   OpCurveTo{},
 }
 
+// rg
 type OpSetFillRGBColor struct {
 	R, G, B Fl
 }
@@ -116,6 +117,7 @@ func (o OpSetFillRGBColor) Add(out *bytes.Buffer) {
 	fmt.Fprintf(out, "%.3f %.3f %.3f rg", o.R, o.G, o.B)
 }
 
+// g
 type OpSetFillGray struct {
 	G Fl
 }
@@ -124,6 +126,7 @@ func (o OpSetFillGray) Add(out *bytes.Buffer) {
 	fmt.Fprintf(out, "%.3f  g", o.G)
 }
 
+// RG
 type OpSetStrokeRGBColor struct {
 	R, G, B Fl
 }
@@ -132,6 +135,7 @@ func (o OpSetStrokeRGBColor) Add(out *bytes.Buffer) {
 	fmt.Fprintf(out, "%.3f %.3f %.3f RG", o.R, o.G, o.B)
 }
 
+// w
 type OpSetLineWidth struct {
 	W Fl
 }
@@ -140,6 +144,7 @@ func (o OpSetLineWidth) Add(out *bytes.Buffer) {
 	fmt.Fprintf(out, "%.3f w", o.W)
 }
 
+// d
 type OpSetDash struct {
 	Dash model.DashPattern
 }
@@ -155,6 +160,7 @@ func floatArray(as []Fl) string {
 	return fmt.Sprintf("[%s]", strings.Join(b, " "))
 }
 
+// Tf
 type OpSetFont struct {
 	Font model.Name
 	Size Fl
@@ -164,6 +170,7 @@ func (o OpSetFont) Add(out *bytes.Buffer) {
 	fmt.Fprintf(out, "%s %.3f Tf", o.Font, o.Size)
 }
 
+// TL
 type OpSetTextLeading struct {
 	L Fl
 }
@@ -172,12 +179,15 @@ func (o OpSetTextLeading) Add(out *bytes.Buffer) {
 	fmt.Fprintf(out, "%.3f TL", o.L)
 }
 
+// n
+// OpEndPath is the same as new path.
 type OpEndPath struct{}
 
 func (o OpEndPath) Add(out *bytes.Buffer) {
 	out.WriteByte('n')
 }
 
+// m
 type OpMoveTo struct {
 	X, Y Fl
 }
@@ -186,6 +196,7 @@ func (o OpMoveTo) Add(out *bytes.Buffer) {
 	fmt.Fprintf(out, "%.3f %.3f m", o.X, o.Y)
 }
 
+// l
 type OpLineTo struct {
 	X, Y Fl
 }
@@ -194,6 +205,7 @@ func (o OpLineTo) Add(out *bytes.Buffer) {
 	fmt.Fprintf(out, "%.3f %.3f l", o.X, o.Y)
 }
 
+// re
 type OpRectangle struct {
 	X, Y, W, H Fl
 }
@@ -202,18 +214,21 @@ func (o OpRectangle) Add(out *bytes.Buffer) {
 	fmt.Fprintf(out, "%.3f %.3f %.3f %.3f re", o.X, o.Y, o.W, o.H)
 }
 
+// f
 type OpFill struct{}
 
 func (o OpFill) Add(out *bytes.Buffer) {
 	out.WriteByte('f')
 }
 
+// S
 type OpStroke struct{}
 
 func (o OpStroke) Add(out *bytes.Buffer) {
 	out.WriteByte('S')
 }
 
+// BMC
 type OpBeginMarkedContent struct {
 	Tag model.Name
 }
@@ -222,24 +237,28 @@ func (o OpBeginMarkedContent) Add(out *bytes.Buffer) {
 	fmt.Fprintf(out, "%s BMC", o.Tag)
 }
 
+// EMC
 type OpEndMarkedContent struct{}
 
 func (o OpEndMarkedContent) Add(out *bytes.Buffer) {
 	out.WriteString("EMC")
 }
 
+// BT
 type OpBeginText struct{}
 
 func (o OpBeginText) Add(out *bytes.Buffer) {
 	out.WriteString("BT")
 }
 
+// ET
 type OpEndText struct{}
 
 func (o OpEndText) Add(out *bytes.Buffer) {
 	out.WriteString("ET")
 }
 
+// Td
 type OpTextMove struct {
 	X, Y Fl
 }
@@ -248,6 +267,7 @@ func (o OpTextMove) Add(out *bytes.Buffer) {
 	fmt.Fprintf(out, "%.3f %.3f Td", o.X, o.Y)
 }
 
+// Tj
 type OpShowText struct {
 	Text string // unescaped
 }
@@ -256,6 +276,7 @@ func (o OpShowText) Add(out *bytes.Buffer) {
 	out.WriteString(model.EspaceByteString(o.Text) + "Tj")
 }
 
+// '
 type OpMoveShowText struct {
 	Text string // unescaped
 }
@@ -264,6 +285,7 @@ func (o OpMoveShowText) Add(out *bytes.Buffer) {
 	out.WriteString(model.EspaceByteString(o.Text) + "''")
 }
 
+// Tm
 type OpSetTextMatrix struct {
 	Matrix model.Matrix
 }
@@ -273,18 +295,21 @@ func (o OpSetTextMatrix) Add(out *bytes.Buffer) {
 		o.Matrix[0], o.Matrix[1], o.Matrix[2], o.Matrix[3], o.Matrix[4], o.Matrix[5])
 }
 
+// Q
 type OpRestore struct{}
 
 func (o OpRestore) Add(out *bytes.Buffer) {
 	out.WriteByte('Q')
 }
 
+// q
 type OpSave struct{}
 
 func (o OpSave) Add(out *bytes.Buffer) {
 	out.WriteByte('q')
 }
 
+// W
 type OpClip struct{}
 
 func (o OpClip) Add(out *bytes.Buffer) {

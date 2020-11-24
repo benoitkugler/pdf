@@ -46,18 +46,16 @@ func (r resolver) processAcroForm(acroForm pdfcpu.Object) (model.AcroForm, error
 			}
 		}
 	}
+	var err error
 	if dr := form["DR"]; dr != nil {
-		drm, err := r.resolveOneResourceDict(dr)
+		out.DR, err = r.resolveOneResourceDict(dr)
 		if err != nil {
 			return out, err
-		}
-		if drm != nil {
-			out.DR = *drm
 		}
 	}
 	out.DA, _ = isString(r.resolve(form["DA"]))
 	if q, ok := r.resolveInt(form["Q"]); ok {
-		out.Q = uint8(q)
+		out.Q = model.Quadding(q)
 	}
 	return out, nil
 }
@@ -99,7 +97,7 @@ func (r resolver) isFormField(form pdfcpu.Dict) (field model.FormFieldDict, isFi
 	}
 	if q, ok := r.resolveInt(form["Q"]); ok {
 		isField = true
-		field.Q = uint8(q)
+		field.Q = model.Quadding(q)
 	}
 	if da, ok := isString(r.resolve(form["DA"])); ok {
 		isField = true

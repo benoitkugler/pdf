@@ -20,7 +20,7 @@ type parser struct {
 // Encoding is either the standard encoding, or defined by the font
 type Encoding struct {
 	Standard bool
-	Custom   map[byte]string
+	Custom   [256]string
 }
 
 type Font struct {
@@ -47,17 +47,20 @@ type Font struct {
  See "Adobe Type 1 Font Format, Adobe Systems (1999)"
 
  Ported from the code from John Hewson
+
+ For now, only the parsing of the first segment is implemented.
 */
-func Parse(segment1, segment2 []byte) (Font, error) {
+func Parse(segment1 []byte) (Font, error) {
 
 	p := parser{}
 	err := p.parseASCII(segment1)
 	if err != nil {
 		return Font{}, err
 	}
-	if len(segment2) > 0 { // TODO:
-		// parser.parseBinary(segment2)
-	}
+	// TODO:
+	// if len(segment2) > 0 {
+	// parser.parseBinary(segment2)
+	// }
 	return p.font, nil
 }
 
@@ -245,7 +248,6 @@ func (p *parser) readEncoding() error {
 			}
 		}
 
-		codeToName := map[byte]string{}
 		for p.lexer.peekToken().kind == name &&
 			p.lexer.peekToken().value == "dup" {
 			if err := p.readWithName(name, "dup"); err != nil {
@@ -263,9 +265,8 @@ func (p *parser) readEncoding() error {
 			if err := p.readWithName(name, "put"); err != nil {
 				return err
 			}
-			codeToName[byte(code)] = nameT.value
+			p.font.Encoding.Custom[byte(code)] = nameT.value
 		}
-		p.font.Encoding.Custom = codeToName
 		if _, err := p.readMaybe(name, "readonly"); err != nil {
 			return err
 		}

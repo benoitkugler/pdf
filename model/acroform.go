@@ -33,10 +33,18 @@ const (
 	CommitOnSelChange FormFlag = 1 << (27 - 1)
 )
 
+type Quadding uint8
+
+const (
+	LeftJustified Quadding = iota
+	Centered
+	RightJustified
+)
+
 type FormFieldInheritable struct {
 	FT FormField // inheritable, so might be nil
 	Ff FormFlag  // optional
-	Q  uint8     // inheritable, optional, default to 0
+	Q  Quadding  // inheritable, optional, default to 0
 	DA string    // inheritable, required
 }
 
@@ -857,7 +865,7 @@ type AcroForm struct {
 	CO []*FormFieldDict
 	DR ResourcesDict // optional
 	DA string        // optional
-	Q  uint8         // optional, default to 0
+	Q  Quadding      // optional, default to 0
 
 	// TODO: support XFA forms
 }

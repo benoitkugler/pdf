@@ -227,8 +227,8 @@ type XObjectForm struct {
 	ContentStream
 
 	BBox      Rectangle
-	Matrix    Matrix         // optional, default to identity
-	Resources *ResourcesDict // optional
+	Matrix    Matrix        // optional, default to identity
+	Resources ResourcesDict // optional
 
 	// Integer key of the form XObject’s entry in the structural parent tree.
 	// At most one of the entries StructParent or StructParents shall be
@@ -271,10 +271,7 @@ func (f *XObjectForm) clone(cache cloneCache) Referenceable {
 	}
 	out := *f
 	out.ContentStream = f.ContentStream.Clone()
-	if f.Resources != nil {
-		res := f.Resources.clone(cache)
-		out.Resources = &res
-	}
+	out.Resources = f.Resources.clone(cache)
 	return &out
 }
 

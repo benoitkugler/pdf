@@ -662,12 +662,9 @@ func (r resolver) resolveTilingPattern(pat pdfcpu.StreamDict) (*model.PatternTil
 	}
 	out.XStep, _ = r.resolveNumber(pat.Dict["XStep"])
 	out.YStep, _ = r.resolveNumber(pat.Dict["YStep"])
-	rs, err := r.resolveOneResourceDict(pat.Dict["Resources"])
+	out.Resources, err = r.resolveOneResourceDict(pat.Dict["Resources"])
 	if err != nil {
 		return nil, err
-	}
-	if rs != nil {
-		out.Resources = *rs
 	}
 	if mat := r.matrixFromArray(pat.Dict["Matrix"]); mat != nil {
 		out.Matrix = *mat

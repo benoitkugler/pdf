@@ -6,13 +6,21 @@ import (
 	"image/color"
 	"strconv"
 
+	"github.com/benoitkugler/pdf/fonts"
 	"github.com/benoitkugler/pdf/formfill/pdftokenizer"
 	"github.com/benoitkugler/pdf/model"
+	"github.com/benoitkugler/pdf/standardfonts"
 )
+
+// port of pdftk library - BK 2020
 
 type Fl = model.Fl
 
-// port of pdftk library - BK 2020
+var defaultFont = &model.FontDict{Subtype: model.FontType1{
+	FirstChar:      standardfonts.Helvetica.FirstChar,
+	Widths:         standardfonts.Helvetica.Widths,
+	FontDescriptor: standardfonts.Helvetica.Descriptor,
+}}
 
 var stdFieldFontNames = map[string][]string{
 	"CoBO": {"Courier-BoldOblique"},
@@ -42,8 +50,13 @@ type acroFields struct {
 	extraMarginLeft Fl
 	extraMarginTop  Fl
 
-	// localFonts map[string]fonts.Font
 	topFirst int
+
+	fontCache map[model.Name]fonts.BuiltFont
+}
+
+func newAcroFields() acroFields {
+	return acroFields{fontCache: make(map[model.Name]fonts.BuiltFont)}
 }
 
 type daConfig struct {
@@ -141,39 +154,39 @@ func rotate(r model.Rectangle) model.Rectangle {
 	return model.Rectangle{Llx: r.Lly, Lly: r.Llx, Urx: r.Ury, Ury: r.Urx}
 }
 
-const (
-	comb = 1 << 8 // 256 // combo box flag.
-
-	// The field may contain multiple lines of text.
-	// This flag is only meaningful with text fields.
-	multiline = 1 << 2
-
-	// The field is intended for entering a secure password that should
-	// not be echoed visibly to the screen.
-	password = 1 << 4
-)
-
-func (ac acroFields) getAppearance(acro *model.AcroForm, field *model.FormFieldDict, widget model.FormFieldWidget, text, fieldName string) (Appearance, error) {
+func (ac *acroFields) buildAppearance(acro *model.AcroForm, fields model.FormFieldInheritable, widget model.FormFieldWidget, text string) (*model.XObjectForm, error) {
 	ac.topFirst = 0
 	tx := TextField{}
 	tx.extraMarginLeft = ac.extraMarginLeft
 	tx.extraMarginTop = ac.extraMarginTop
-	fields := acro.ResolveInheritance(field)
 
 	// the text size and color
+	var (
+		fontSize Fl
+		font     fonts.BuiltFont
+	)
 	if da := fields.DA; da != "" {
 		dab, err := splitDAelements(da)
 		if err != nil {
-			return Appearance{}, fmt.Errorf("invalid DA string: %s", err)
+			return nil, fmt.Errorf("invalid DA string: %s", err)
 		}
 		if dab.size != 0 {
-			tx.fontSize = dab.size
+			fontSize = dab.size
 		}
 		if dab.color != nil {
 			tx.textColor = dab.color
 		}
 		if dab.font != "" {
-			tx.font = acro.DR.Font[dab.font]
+			if bf, has := ac.fontCache[dab.font]; has {
+				font = bf
+			} else { // build and cache
+				fd := acro.DR.Font[dab.font]
+				if fd == nil { // safely default to a standard font
+					fd = defaultFont
+				}
+				font = fonts.BuildFont(fd)
+				ac.fontCache[dab.font] = font
+			}
 		}
 	}
 
@@ -193,19 +206,9 @@ func (ac acroFields) getAppearance(acro *model.AcroForm, field *model.FormFieldD
 	}
 
 	// multiline
-	flags := fields.Ff
 
-	// f1 := multiline
-	// if (flags & model.Multiline) == 0 {
-	// 	f1 = 0
-	// }
-	// f2 := comb
-	// if (flags & ffComb) == 0 {
-	// 	f2 = 0
-	// }
-	// tx.options = f1 | f2
-	tx.options = field.Ff
-	if (flags & model.Comb) != 0 {
+	tx.options = fields.Ff
+	if (fields.Ff & model.Comb) != 0 {
 		text, _ := fields.FT.(model.FormFieldText)
 		tx.maxCharacterLength = text.MaxLen
 	}
@@ -240,12 +243,12 @@ func (ac acroFields) getAppearance(acro *model.AcroForm, field *model.FormFieldD
 	switch fieldType := fields.FT.(type) {
 	case model.FormFieldText:
 		tx.text = text
-		return tx.getAppearance(), nil
+		return tx.buildAppearance(font, fontSize), nil
 	case model.FormFieldChoice:
 		opt := fieldType.Opt
-		if (flags&model.Combo) != 0 && len(opt) == 0 {
+		if (fields.Ff&model.Combo) != 0 && len(opt) == 0 {
 			tx.text = text
-			return tx.getAppearance(), nil
+			return tx.buildAppearance(font, fontSize), nil
 		}
 		choices := make([]string, len(opt))
 		choicesExp := make([]string, len(opt))
@@ -257,7 +260,7 @@ func (ac acroFields) getAppearance(acro *model.AcroForm, field *model.FormFieldD
 				choicesExp[k] = obj.Export
 			}
 		}
-		if (flags & model.Combo) != 0 {
+		if (fields.Ff & model.Combo) != 0 {
 			for k, choice := range choices {
 				if text == choicesExp[k] {
 					text = choice
@@ -265,7 +268,7 @@ func (ac acroFields) getAppearance(acro *model.AcroForm, field *model.FormFieldD
 				}
 			}
 			tx.text = text
-			return tx.getAppearance(), nil
+			return tx.buildAppearance(font, fontSize), nil
 		}
 		var idx int
 		for k, choiceExp := range choicesExp {
@@ -277,130 +280,99 @@ func (ac acroFields) getAppearance(acro *model.AcroForm, field *model.FormFieldD
 		tx.choices = choices
 		tx.choiceExports = choicesExp
 		tx.choiceSelection = idx
-		app := tx.getListAppearance()
+		app := tx.getListAppearance(font, fontSize)
 		ac.topFirst = tx.topFirst
 		return app, nil
 	default:
-		return Appearance{}, errors.New("an appearance was requested without a variable text field.")
+		return nil, errors.New("an appearance was requested without a variable text field.")
 	}
 }
 
-// func (ac acroFields) setField(item pdfcpu.Dict, value string) {
-// if len(item) == 0 {
-// 	return
-// }
-// type_, _ := item["FT"].(pdfcpu.Name)
-// if type_ == "Tx" {
-// 	len, _ := item["MaxLen"].(pdfcpu.Integer)
-// 	if (len > 0) {
-// 		asRunes := []rune(value)
-// 		value = string(asRunes[0:min(len, len(asRunes))])
-// 	}
-// }
-// switch type_ {
-// case "Tx", "Ch":
-// 	PdfString v = new PdfString(value, PdfObject.TEXT_UNICODE);
+func (ac acroFields) buildWidgets(acro *model.AcroForm, item *model.FormFieldDict, inherited model.FormFieldInheritable, display string) error {
+	for _, widget := range item.Widgets {
+		app, err := ac.buildAppearance(acro, inherited, widget, display) // check last arg
+		if err != nil {
+			return err
+		}
+		appDic := widget.AP
+		if appDic == nil {
+			appDic = new(model.AppearanceDict)
+		}
+		appDic.N = model.AppearanceEntry{"": app}
+		widget.AP = appDic // update the model
+	}
+	return nil
+}
 
-// 	item.Update("V", value)
-// 	// markUsed(item_value);
+func (ac acroFields) setField(acro *model.AcroForm, item *model.FormFieldDict, value, display, richValue string) error {
+	fields := acro.ResolveInheritance(item)
 
-// 	// ssteward; it might disagree w/ V in a Ch widget
-// 	// PDF spec this shouldn't matter, but Reader 9 gives I precedence over V
-// 	item.Remove("I")
+	item.RV = richValue
+	switch type_ := fields.FT.(type) {
+	case model.FormFieldText:
+		if ml, _ := type_.MaxLen.(model.Int); ml > 0 {
+			asRunes := []rune(value)
+			value = string(asRunes[0:min(int(ml), len(asRunes))])
+		}
+		type_.V = value
+		item.FT = type_
+		return ac.buildWidgets(acro, item, fields, display)
+	case model.FormFieldChoice:
+		type_.V = []string{value}
+		// ssteward; it might disagree w/ V in a Ch widget
+		// PDF spec this shouldn't matter, but Reader 9 gives I precedence over V
+		type_.I = nil
+		err := ac.buildWidgets(acro, item, fields, display)
+		type_.TI = ac.topFirst
+		item.FT = type_
+		return err
+	case model.FormFieldButton:
+		flags := fields.Ff
+		if (flags & model.Pushbutton) != 0 {
+			return nil
+		}
+		v := model.Name(value)
+		if (flags & model.Radio) == 0 {
+			type_.V = v
+			for _, widget := range item.Widgets {
+				widget.AS = v
+				if isInAP(widget, v) {
+					widget.AS = v
+				} else {
+					widget.AS = model.Name("Off")
+				}
+			}
+		} else {
+			vidx := -1
+			for idx, vv := range type_.Opt {
+				if vv == value {
+					vidx = idx
+				}
+			}
+			var vt model.Name
+			if vidx >= 0 {
+				vt = model.Name(strconv.Itoa(vidx))
+				type_.V = model.Name(value)
+			} else {
+				vt = v
+				type_.V = v
+			}
+			for _, widget := range item.Widgets {
+				if isInAP(widget, vt) {
+					widget.AS = vt
+				} else {
+					widget.AS = model.Name("Off")
+				}
+			}
+		}
+		item.FT = type_
+	}
+	return nil
+}
 
-// 		PdfDictionary widget = (PdfDictionary)item.widgets.get(idx);
-// 		if (generateAppearances) {
-// 			PdfAppearance app = getAppearance(merged, display, name);
-// 			if (PdfName.CH.equals(type)) {
-// 				PdfNumber n = new PdfNumber(topFirst);
-// 				widget.put(PdfName.TI, n);
-// 				merged.put(PdfName.TI, n);
-// 			}
-// 			PdfDictionary appDic = (PdfDictionary)PdfReader.getPdfObject(widget.get(PdfName.AP));
-// 			if (appDic == nil) {
-// 				appDic = new PdfDictionary();
-// 				widget.put(PdfName.AP, appDic);
-// 				merged.put(PdfName.AP, appDic);
-// 			}
-// 			appDic.put(PdfName.N, app.getIndirectReference());
-// 			writer.releaseTemplate(app);
-// 		}
-// 		// else {
-// 		// 	widget.remove(PdfName.AP);
-// 		// 	merged.remove(PdfName.AP);
-// 		// }
-// 		// markUsed(widget);
-// 	return true;
-// }
-// else if (PdfName.BTN.equals(type)) {
-// 	PdfNumber ff = (PdfNumber)PdfReader.getPdfObject(((PdfDictionary)item.merged.get(0)).get(PdfName.FF));
-// 	int flags = 0;
-// 	if (ff != nil)
-// 		flags = ff.intValue();
-// 	if ((flags & ffPushbutton) != 0)
-// 		return true;
-// 	PdfName v = new PdfName(value);
-// 	if ((flags & ffRadio) == 0) {
-// 		for (int idx = 0; idx < item.values.size(); ++idx) {
-// 			((PdfDictionary)item.values.get(idx)).put(PdfName.V, v);
-// 			markUsed((PdfDictionary)item.values.get(idx));
-// 			PdfDictionary merged = (PdfDictionary)item.merged.get(idx);
-// 			merged.put(PdfName.V, v);
-// 			merged.put(PdfName.AS, v);
-// 			PdfDictionary widget = (PdfDictionary)item.widgets.get(idx);
-// 			if (isInAP(widget,  v))
-// 				widget.put(PdfName.AS, v);
-// 			else
-// 				widget.put(PdfName.AS, PdfName.Off);
-// 			markUsed(widget);
-// 		}
-// 	}
-// 	else {
-// 		ArrayList lopt = new ArrayList();
-// 		PdfObject opts = PdfReader.getPdfObject(((PdfDictionary)item.values.get(0)).get(PdfName.OPT));
-// 		if (opts != nil && opts.isArray()) {
-// 			ArrayList list = ((PdfArray)opts).getArrayList();
-// 			for (int k = 0; k < list.size(); ++k) {
-// 				PdfObject vv = PdfReader.getPdfObject((PdfObject)list.get(k));
-// 				if (vv != nil && vv.isString())
-// 					lopt.add(((PdfString)vv).toUnicodeString());
-// 				else
-// 					lopt.add(nil);
-// 			}
-// 		}
-// 		int vidx = lopt.indexOf(value);
-// 		PdfName valt = nil;
-// 		PdfName vt;
-// 		if (vidx >= 0) {
-// 			vt = valt = new PdfName(String.valueOf(vidx));
-// 		}
-// 		else
-// 			vt = v;
-// 		for (int idx = 0; idx < item.values.size(); ++idx) {
-// 			PdfDictionary merged = (PdfDictionary)item.merged.get(idx);
-// 			PdfDictionary widget = (PdfDictionary)item.widgets.get(idx);
-// 			markUsed((PdfDictionary)item.values.get(idx));
-// 			if (valt != nil) {
-// 				PdfString ps = new PdfString(value, PdfObject.TEXT_UNICODE);
-// 				((PdfDictionary)item.values.get(idx)).put(PdfName.V, ps);
-// 				merged.put(PdfName.V, ps);
-// 			}
-// 			else {
-// 				((PdfDictionary)item.values.get(idx)).put(PdfName.V, v);
-// 				merged.put(PdfName.V, v);
-// 			}
-// 			markUsed(widget);
-// 			if (isInAP(widget,  vt)) {
-// 				merged.put(PdfName.AS, vt);
-// 				widget.put(PdfName.AS, vt);
-// 			}
-// 			else {
-// 				merged.put(PdfName.AS, PdfName.Off);
-// 				widget.put(PdfName.AS, PdfName.Off);
-// 			}
-// 		}
-// 	}
-// 	return true;
-// }
-// return false;
-// }
+func isInAP(widget model.FormFieldWidget, check model.Name) bool {
+	if widget.AP == nil {
+		return false
+	}
+	return widget.AP.N != nil && widget.AP.N[check] != nil
+}

@@ -11,61 +11,61 @@ import (
 	"github.com/pdfcpu/pdfcpu/pkg/pdfcpu"
 )
 
-func (r resolver) resolveOneResourceDict(o pdfcpu.Object) (*model.ResourcesDict, error) {
+func (r resolver) resolveOneResourceDict(o pdfcpu.Object) (model.ResourcesDict, error) {
 	ref, isRef := o.(pdfcpu.IndirectRef)
 	if isRef {
-		if res := r.resources[ref]; isRef && res != nil {
+		if res, ok := r.resources[ref]; isRef && ok {
 			return res, nil
 		}
 		o = r.resolve(ref)
 	}
 	if o == nil {
-		return nil, nil
-	}
-	resDict, isDict := o.(pdfcpu.Dict)
-	if !isDict {
-		return nil, errType("Resources Dict", o)
+		return model.ResourcesDict{}, nil
 	}
 	var (
 		out model.ResourcesDict
 		err error
 	)
+	resDict, isDict := o.(pdfcpu.Dict)
+	if !isDict {
+		return out, errType("Resources Dict", o)
+	}
 	// Graphic state
 	out.ExtGState, err = r.resolveExtGState(resDict["ExtGState"])
 	if err != nil {
-		return nil, err
+		return out, err
 	}
 	// Color spaces
 	out.ColorSpace, err = r.resolveColorSpace(resDict["ColorSpace"])
 	if err != nil {
-		return nil, err
+		return out, err
 	}
 	// Shadings
 	out.Shading, err = r.resolveShading(resDict["Shading"])
 	if err != nil {
-		return nil, err
+		return out, err
 	}
 	// Patterns
 	out.Pattern, err = r.resolvePattern(resDict["Pattern"])
 	if err != nil {
-		return nil, err
+		return out, err
 	}
 	// Fonts
 	out.Font, err = r.resolveFonts(resDict["Font"])
 	if err != nil {
-		return nil, err
+		return out, err
 	}
 	// XObjects
 	out.XObject, err = r.resolveXObjects(resDict["XObject"])
 	if err != nil {
-		return nil, err
+		return out, err
 	}
 
 	if isRef { // write back to the cache
-		r.resources[ref] = &out
+		r.resources[ref] = out
 	}
 
-	return &out, nil
+	return out, nil
 }
 
 func (r resolver) resolveOneFont(font pdfcpu.Object) (*model.FontDict, error) {
@@ -154,7 +154,9 @@ func (r resolver) resolveEncoding(encoding pdfcpu.Object) (model.SimpleEncoding,
 	}
 	var encModel model.SimpleEncodingDict
 	if name, ok := r.resolveName(encDict["BaseEncoding"]); ok {
-		encModel.BaseEncoding = name
+		if be := model.NewSimpleEncodingPredefined(string(name)); be != nil {
+			encModel.BaseEncoding = be.(model.SimpleEncodingPredefined)
+		}
 	}
 	if diff, ok := r.resolveArray(encDict["Differences"]); ok {
 		encModel.Differences = r.parseDiffArray(diff)

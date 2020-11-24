@@ -18,7 +18,7 @@ func TestOpen(t *testing.T) {
 	}
 	fmt.Println(len(s1), len(s2))
 
-	font, err := Parse(s1, s2)
+	font, err := Parse(s1)
 	if err != nil {
 		t.Error(err)
 	}

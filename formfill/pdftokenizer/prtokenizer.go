@@ -11,6 +11,7 @@ const (
 	EOF Kind = iota
 	Number
 	String
+	StringHex
 	Name
 	Comment
 	StartArray
@@ -52,7 +53,6 @@ var delims = [...]bool{
 type Token struct {
 	Kind  Kind
 	Value string // additional value found in the data
-	IsHex bool   // is value a hex string
 }
 
 type Tokenizer struct {
@@ -174,7 +174,7 @@ func (pr *Tokenizer) NextToken() (Token, error) {
 			outBuf = append(outBuf, ch)
 			v1, ok1 = pr.read()
 		}
-		return Token{Kind: String, IsHex: true, Value: string(outBuf)}, nil
+		return Token{Kind: StringHex, Value: string(outBuf)}, nil
 	case '%':
 		ch, ok = pr.read()
 		for ok && ch != '\r' && ch != '\n' {

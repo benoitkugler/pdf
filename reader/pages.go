@@ -88,11 +88,13 @@ func (r resolver) resolveStream(content pdfcpu.Object) (*model.Stream, error) {
 // `page` has been previously allocated and must be filled
 func (r resolver) resolvePageObject(node pdfcpu.Dict, page *model.PageObject) error {
 	fmt.Printf("resolving page into %p\n", page)
-	resources, err := r.resolveOneResourceDict(node["Resources"])
-	if err != nil {
-		return err
+	if node["Resources"] != nil {
+		resources, err := r.resolveOneResourceDict(node["Resources"])
+		if err != nil {
+			return err
+		}
+		page.Resources = &resources
 	}
-	page.Resources = resources
 	page.MediaBox = r.rectangleFromArray(node["MediaBox"])
 	page.CropBox = r.rectangleFromArray(node["CropBox"])
 	page.BleedBox = r.rectangleFromArray(node["BleedBox"])
@@ -255,11 +257,13 @@ func (r resolver) resolveBorderStyle(o pdfcpu.Object) *model.BorderStyle {
 // node, possibly root
 func (r resolver) resolvePageTree(node pdfcpu.Dict) (*model.PageTree, error) {
 	var page model.PageTree
-	resources, err := r.resolveOneResourceDict(node["Resources"])
-	if err != nil {
-		return nil, err
+	if node["Resources"] != nil { // else, inherited
+		resources, err := r.resolveOneResourceDict(node["Resources"])
+		if err != nil {
+			return nil, err
+		}
+		page.Resources = &resources
 	}
-	page.Resources = resources
 	kids, _ := r.resolveArray(node["Kids"])
 	for _, node := range kids {
 		kid, err := r.processPageNode(node)

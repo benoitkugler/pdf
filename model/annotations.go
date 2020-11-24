@@ -363,8 +363,14 @@ func (ap *AppearanceDict) clone(cache cloneCache) *AppearanceDict {
 type AppearanceEntry map[Name]*XObjectForm
 
 // pdfString returns the Dictionary for the appearance
+// or the reference to the only stream
 // `pdf` is used to write the form XObjects
 func (ap AppearanceEntry) pdfString(pdf pdfWriter) string {
+	// case of only one stream
+	if st := ap[""]; len(ap) == 1 && st != nil {
+		ref := pdf.addItem(st)
+		return ref.String()
+	}
 	chunks := make([]string, 0, len(ap))
 	for n, f := range ap {
 		ref := pdf.addItem(f)

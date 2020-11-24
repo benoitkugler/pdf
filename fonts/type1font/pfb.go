@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"errors"
 	"io"
+
+	"golang.org/x/exp/errors/fmt"
 )
 
 const (
@@ -70,4 +72,18 @@ func OpenPfb(pfb []byte) (segment1, segment2 []byte, err error) {
 	}
 
 	return pfbdata[0:lengths[0]], pfbdata[lengths[0] : lengths[0]+lengths[1]], nil
+}
+
+// ParsePfbContent is a convenience wrapper, reading and
+// parsing a .pfb font file.
+func ParsePfbContent(pfb []byte) (Font, error) {
+	seg1, _, err := OpenPfb(pfb)
+	if err != nil {
+		return Font{}, fmt.Errorf("invalid .pfb font file: %s", err)
+	}
+	info, err := Parse(seg1)
+	if err != nil {
+		return Font{}, fmt.Errorf("invalid .pfb font file: %s", err)
+	}
+	return info, nil
 }

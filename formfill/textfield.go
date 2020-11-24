@@ -1,5 +1,14 @@
 package formfill
 
+import (
+	"image/color"
+	"strings"
+
+	"github.com/benoitkugler/pdf/contents"
+	"github.com/benoitkugler/pdf/fonts"
+	"github.com/benoitkugler/pdf/model"
+)
+
 // Port from the code from Paulo Soares (psoares@consiste.pt)
 
 // Supports text, combo and list fields generating the correct appearances.
@@ -24,242 +33,256 @@ type TextField struct {
 	extraMarginTop  Fl
 }
 
-// func (t TextField) getAppearance() Appearance {
-// 	app := t.BaseField.getBorderAppearance()
-// 	app.beginVariableText()
-// 	if t.text == "" {
-// 		app.endVariableText()
-// 		return app
-// 	}
+func stringSize(s string, ft fonts.Font, size Fl) Fl {
+	var out Fl
+	for _, r := range s {
+		out += ft.GetWidth(r, size)
+	}
+	return out
+}
 
-// 	ufont := t.getRealFont()
+func (t TextField) buildAppearance(ufont fonts.BuiltFont, fontSize Fl) *model.XObjectForm {
+	app := t.BaseField.getBorderAppearance()
+	app.BeginVariableText()
+	if t.text == "" {
+		app.EndVariableText()
+		return app.ToXFormObject()
+	}
 
-// 	borderExtra := t.borderStyle == borderStyleBeveled || t.borderStyle == borderStyleInset
-// 	h := t.box.Height() - t.borderWidth*2
-// 	bw2 := t.borderWidth
-// 	if borderExtra {
-// 		h -= t.borderWidth * 2
-// 		bw2 *= 2
-// 	}
-// 	h -= t.extraMarginTop
-// 	offsetX := t.borderWidth
-// 	if borderExtra {
-// 		offsetX = 2 * t.borderWidth
-// 	}
-// 	offsetX = math.Max(offsetX, 1)
-// 	offX := math.Min(bw2, offsetX)
-// 	app.saveState()
-// 	app.rectangle(offX, offX, t.box.Width()-2*offX, t.box.Height()-2*offX)
-// 	app.clip()
-// 	app.newPath()
-// 	if t.textColor == nil {
-// 		app.setGrayFill(0)
-// 	} else {
-// 		app.setColorFill(t.textColor)
-// 	}
-// 	app.beginText()
-// 	ptext := t.text // fixed by Kazuya Ujihara (ujihara.jp)
-// 	ptextRunes := []rune(t.text)
-// 	if (t.options & password) != 0 {
-// 		ptext = strings.Repeat("*", len(ptextRunes))
-// 	}
-// 	if (t.options & multiline) != 0 {
-// 		usize := t.fontSize
-// 		width := t.box.Width() - 3*offsetX - t.extraMarginLeft
-// 		breaks := getHardBreaks(ptext)
-// 		lines := breaks
-// 		factor := ufont.GetFontDescriptor(fonts.BBOXURY, 1) - ufont.GetFontDescriptor(fonts.BBOXLLY, 1)
-// 		if usize == 0 {
-// 			usize = h / Fl(len(breaks)) / factor
-// 			if usize > 4 {
-// 				if usize > 12 {
-// 					usize = 12
-// 				}
-// 				step := math.Max((usize-4)/10, 0.2)
-// 				for ; usize > 4; usize -= step {
-// 					lines = breakLines(breaks, ufont, usize, width)
-// 					if Fl(len(lines))*usize*factor <= h {
-// 						break
-// 					}
-// 				}
-// 			}
-// 			if usize <= 4 {
-// 				usize = 4
-// 				lines = breakLines(breaks, ufont, usize, width)
-// 			}
-// 		} else {
-// 			lines = breakLines(breaks, ufont, usize, width)
-// 		}
-// 		app.setFontAndSize(ufont, usize)
-// 		app.setLeading(usize * factor)
-// 		offsetY := offsetX + h - ufont.GetFontDescriptor(fonts.BBOXURY, usize)
-// 		nt := lines[0]
-// 		switch t.alignment {
-// 		case alignRight:
-// 			wd := ufont.GetWidthPoint(nt, usize)
-// 			app.moveText(t.extraMarginLeft+t.box.Width()-2*offsetX-wd, offsetY)
-// 		case alignCenter:
-// 			nt = strings.TrimSpace(nt)
-// 			wd := ufont.GetWidthPoint(nt, usize)
-// 			app.moveText(t.extraMarginLeft+t.box.Width()/2-wd/2, offsetY)
-// 		default:
-// 			app.moveText(t.extraMarginLeft+2*offsetX, offsetY)
-// 		}
-// 		app.showText(nt)
-// 		maxline := (int)(h/usize/factor) + 1
-// 		if maxline > len(lines) {
-// 			maxline = len(lines)
-// 		}
-// 		for k := 1; k < maxline; k++ {
-// 			nt := lines[k]
-// 			if t.alignment == alignRight {
-// 				wd := ufont.GetWidthPoint(nt, usize)
-// 				app.moveText(t.extraMarginLeft+t.box.Width()-2*offsetX-wd-app.state.xTLM, 0)
-// 			} else if t.alignment == alignCenter {
-// 				nt = strings.TrimSpace(nt)
-// 				wd := ufont.GetWidthPoint(nt, usize)
-// 				app.moveText(t.extraMarginLeft+t.box.Width()/2-wd/2-app.state.xTLM, 0)
-// 			}
-// 			app.newlineShowText(nt)
-// 		}
-// 	} else {
-// 		usize := t.fontSize
-// 		if usize == 0 {
-// 			maxCalculatedSize := h / (ufont.GetFontDescriptor(fonts.BBOXURX, 1) - ufont.GetFontDescriptor(fonts.BBOXLLY, 1))
-// 			wd := ufont.GetWidthPoint(ptext, 1)
-// 			if wd == 0 {
-// 				usize = maxCalculatedSize
-// 			} else {
-// 				usize = (t.box.Width() - t.extraMarginLeft - 2*offsetX) / wd
-// 			}
-// 			if usize > maxCalculatedSize {
-// 				usize = maxCalculatedSize
-// 			}
-// 			if usize < 4 {
-// 				usize = 4
-// 			}
-// 		}
-// 		app.setFontAndSize(ufont, usize)
-// 		offsetY := offX + ((t.box.Height()-2*offX)-ufont.GetFontDescriptor(fonts.ASCENT, usize))/2
-// 		if offsetY < offX {
-// 			offsetY = offX
-// 		}
-// 		if offsetY-offX < -ufont.GetFontDescriptor(fonts.DESCENT, usize) {
-// 			ny := -ufont.GetFontDescriptor(fonts.DESCENT, usize) + offX
-// 			dy := t.box.Height() - offX - ufont.GetFontDescriptor(fonts.ASCENT, usize)
-// 			offsetY = math.Min(ny, math.Max(offsetY, dy))
-// 		}
-// 		if (t.options&comb) != 0 && t.maxCharacterLength > 0 {
-// 			textLen := min(t.maxCharacterLength, len(ptextRunes))
-// 			position := 0.
-// 			if t.alignment == alignRight {
-// 				position = Fl(t.maxCharacterLength - textLen)
-// 			} else if t.alignment == alignCenter {
-// 				position = Fl(t.maxCharacterLength-textLen) / 2
-// 			}
-// 			step := (t.box.Width() - t.extraMarginLeft) / Fl(t.maxCharacterLength)
-// 			start := step/2 + position*step
-// 			for k := 0; k < textLen; k++ {
-// 				c := string(ptextRunes[k : k+1])
-// 				wd := ufont.GetWidthPoint(c, usize)
-// 				app.setTextMatrix2(t.extraMarginLeft+start-wd/2, offsetY-t.extraMarginTop)
-// 				app.showText(c)
-// 				start += step
-// 			}
-// 		} else {
-// 			switch t.alignment {
-// 			case alignRight:
-// 				wd := ufont.GetWidthPoint(ptext, usize)
-// 				app.moveText(t.extraMarginLeft+t.box.Width()-2*offsetX-wd, offsetY-t.extraMarginTop)
-// 			case alignCenter:
-// 				wd := ufont.GetWidthPoint(ptext, usize)
-// 				app.moveText(t.extraMarginLeft+t.box.Width()/2-wd/2, offsetY-t.extraMarginTop)
-// 			default:
-// 				app.moveText(t.extraMarginLeft+2*offsetX, offsetY-t.extraMarginTop)
-// 			}
-// 			app.showText(ptext)
-// 		}
-// 	}
-// 	app.endText()
-// 	app.restoreState()
-// 	app.endVariableText()
-// 	return app
-// }
+	fd := ufont.Desc()
 
-// func (tx *TextField) getListAppearance() Appearance {
-// 	app := tx.getBorderAppearance()
-// 	app.beginVariableText()
-// 	if len(tx.choices) == 0 {
-// 		app.endVariableText()
-// 		return app
-// 	}
-// 	topChoice := tx.choiceSelection
-// 	if topChoice >= len(tx.choices) {
-// 		topChoice = len(tx.choices) - 1
-// 	}
-// 	if topChoice < 0 {
-// 		topChoice = 0
-// 	}
-// 	ufont := tx.getRealFont()
-// 	usize := tx.fontSize
-// 	if usize == 0 {
-// 		usize = 12
-// 	}
-// 	borderExtra := tx.borderStyle == borderStyleBeveled || tx.borderStyle == borderStyleInset
-// 	h := tx.box.Height() - tx.borderWidth*2
-// 	if borderExtra {
-// 		h -= tx.borderWidth * 2
-// 	}
-// 	offsetX := tx.borderWidth
-// 	if borderExtra {
-// 		offsetX *= 2
-// 	}
-// 	leading := ufont.GetFontDescriptor(fonts.BBOXURY, usize) - ufont.GetFontDescriptor(fonts.BBOXLLY, usize)
-// 	maxFit := int(h/leading) + 1
-// 	first := 0
-// 	last := 0
-// 	last = topChoice + maxFit/2 + 1
-// 	first = last - maxFit
-// 	if first < 0 {
-// 		last += first
-// 		first = 0
-// 	}
-// 	//        first = topChoice;
-// 	last = first + maxFit
-// 	if last > len(tx.choices) {
-// 		last = len(tx.choices)
-// 	}
-// 	tx.topFirst = first
-// 	app.saveState()
-// 	app.rectangle(offsetX, offsetX, tx.box.Width()-2*offsetX, tx.box.Height()-2*offsetX)
-// 	app.clip()
-// 	app.newPath()
-// 	mColor := tx.textColor
-// 	if mColor == nil {
-// 		mColor = color.Gray{}
-// 	}
-// 	app.setColorFill(color.NRGBA{R: 10, G: 36, B: 106, A: 255})
-// 	app.rectangle(offsetX, offsetX+h-Fl(topChoice-first+1)*leading, tx.box.Width()-2*offsetX, leading)
-// 	app.fill()
-// 	app.beginText()
-// 	app.setFontAndSize(ufont, usize)
-// 	app.setLeading(leading)
-// 	app.moveText(offsetX*2, offsetX+h-ufont.GetFontDescriptor(fonts.BBOXURY, usize)+leading)
-// 	app.setColorFill(mColor)
-// 	for idx := first; idx < last; idx++ {
-// 		if idx == topChoice {
-// 			app.setGrayFill(1)
-// 			app.newlineShowText(tx.choices[idx])
-// 			app.setColorFill(mColor)
-// 		} else {
-// 			app.newlineShowText(tx.choices[idx])
-// 		}
-// 	}
-// 	app.endText()
-// 	app.restoreState()
-// 	app.endVariableText()
-// 	return app
-// }
+	borderExtra := t.borderStyle == "B" || t.borderStyle == "I"
+	h := t.box.Height() - t.borderWidth*2
+	bw2 := t.borderWidth
+	if borderExtra {
+		h -= t.borderWidth * 2
+		bw2 *= 2
+	}
+	h -= t.extraMarginTop
+	offsetX := t.borderWidth
+	if borderExtra {
+		offsetX = 2 * t.borderWidth
+	}
+	offsetX = maxF(offsetX, 1)
+	offX := minF(bw2, offsetX)
+
+	app.SaveState()
+
+	app.Op(contents.OpRectangle{X: offX, Y: offX, W: t.box.Width() - 2*offX, H: t.box.Height() - 2*offX})
+	app.Op(contents.OpClip{})
+	app.Op(contents.OpEndPath{})
+	if t.textColor == nil {
+		app.Op(contents.OpSetFillGray{})
+	} else {
+		app.SetColorFill(t.textColor)
+	}
+	app.BeginVariableText()
+	ptext := t.text // fixed by Kazuya Ujihara (ujihara.jp)
+	ptextRunes := []rune(t.text)
+	if (t.options & model.Password) != 0 {
+		ptext = strings.Repeat("*", len(ptextRunes))
+	}
+	if (t.options & model.Multiline) != 0 {
+		usize := fontSize
+		width := t.box.Width() - 3*offsetX - t.extraMarginLeft
+		breaks := getHardBreaks(ptext)
+		lines := breaks
+		factor := (fd.FontBBox.Urx - fd.FontBBox.Lly) / 1000
+		if usize == 0 {
+			usize = h / Fl(len(breaks)) / factor
+			if usize > 4 {
+				if usize > 12 {
+					usize = 12
+				}
+				step := maxF((usize-4)/10, 0.2)
+				for ; usize > 4; usize -= step {
+					lines = breakLines(breaks, ufont, usize, width)
+					if Fl(len(lines))*usize*factor <= h {
+						break
+					}
+				}
+			}
+			if usize <= 4 {
+				usize = 4
+				lines = breakLines(breaks, ufont, usize, width)
+			}
+		} else {
+			lines = breakLines(breaks, ufont, usize, width)
+		}
+		app.SetFontAndSize(ufont, usize)
+		app.SetLeading(usize * factor)
+		offsetY := offsetX + h - fd.FontBBox.Ury*usize/1000
+		nt := lines[0]
+		switch t.alignment {
+		case model.RightJustified:
+			wd := stringSize(nt, ufont, usize)
+			app.MoveText(t.extraMarginLeft+t.box.Width()-2*offsetX-wd, offsetY)
+		case model.Centered:
+			nt = strings.TrimSpace(nt)
+			wd := stringSize(nt, ufont, usize)
+			app.MoveText(t.extraMarginLeft+t.box.Width()/2-wd/2, offsetY)
+		default:
+			app.MoveText(t.extraMarginLeft+2*offsetX, offsetY)
+		}
+		_ = app.ShowText(nt) // its clear font size was set
+		maxline := int(h/usize/factor) + 1
+		if maxline > len(lines) {
+			maxline = len(lines)
+		}
+		for k := 1; k < maxline; k++ {
+			nt := lines[k]
+			if t.alignment == model.RightJustified {
+				wd := stringSize(nt, ufont, usize)
+				app.MoveText(t.extraMarginLeft+t.box.Width()-2*offsetX-wd-app.State.XTLM, 0)
+			} else if t.alignment == model.Centered {
+				nt = strings.TrimSpace(nt)
+				wd := stringSize(nt, ufont, usize)
+				app.MoveText(t.extraMarginLeft+t.box.Width()/2-wd/2-app.State.XTLM, 0)
+			}
+			app.NewlineShowText(nt)
+		}
+	} else {
+		usize := fontSize
+		if usize == 0 {
+			maxCalculatedSize := h / ((fd.FontBBox.Urx - fd.FontBBox.Lly) / 1000)
+			wd := stringSize(ptext, ufont, 1)
+			if wd == 0 {
+				usize = maxCalculatedSize
+			} else {
+				usize = (t.box.Width() - t.extraMarginLeft - 2*offsetX) / wd
+			}
+			if usize > maxCalculatedSize {
+				usize = maxCalculatedSize
+			}
+			if usize < 4 {
+				usize = 4
+			}
+		}
+		app.SetFontAndSize(ufont, usize)
+		offsetY := offX + ((t.box.Height()-2*offX)-(fd.Ascent*usize/1000))/2
+		if offsetY < offX {
+			offsetY = offX
+		}
+		if offsetY-offX < -(fd.Descent * usize / 1000) {
+			ny := -(fd.Descent * usize / 1000) + offX
+			dy := t.box.Height() - offX - (fd.Ascent * usize / 1000)
+			offsetY = minF(ny, maxF(offsetY, dy))
+		}
+		if maxL, _ := t.maxCharacterLength.(model.Int); (t.options&model.Comb) != 0 && maxL > 0 {
+			textLen := min(int(maxL), len(ptextRunes))
+			var position Fl
+			if t.alignment == model.RightJustified {
+				position = Fl(int(maxL) - textLen)
+			} else if t.alignment == model.Centered {
+				position = Fl(int(maxL)-textLen) / 2
+			}
+			step := (t.box.Width() - t.extraMarginLeft) / Fl(int(maxL))
+			start := step/2 + position*step
+			for k := 0; k < textLen; k++ {
+				c := ptextRunes[k]
+				wd := ufont.GetWidth(c, usize)
+				app.SetTextMatrix(1, 0, 0, 1, t.extraMarginLeft+start-wd/2, offsetY-t.extraMarginTop)
+				_ = app.ShowText(string(c)) // its clear font size was set
+				start += step
+			}
+		} else {
+			switch t.alignment {
+			case model.RightJustified:
+				wd := stringSize(ptext, ufont, usize)
+				app.MoveText(t.extraMarginLeft+t.box.Width()-2*offsetX-wd, offsetY-t.extraMarginTop)
+			case model.Centered:
+				wd := stringSize(ptext, ufont, usize)
+				app.MoveText(t.extraMarginLeft+t.box.Width()/2-wd/2, offsetY-t.extraMarginTop)
+			default:
+				app.MoveText(t.extraMarginLeft+2*offsetX, offsetY-t.extraMarginTop)
+			}
+			_ = app.ShowText(ptext) // its clear font size was set
+		}
+	}
+	app.EndText()
+	_ = app.RestoreState() // it's clear the call are balanced
+	app.EndVariableText()
+	return app.ToXFormObject()
+}
+
+func (tx *TextField) getListAppearance(ufont fonts.BuiltFont, fontSize Fl) *model.XObjectForm {
+	app := tx.getBorderAppearance()
+	app.BeginVariableText()
+	if len(tx.choices) == 0 {
+		app.EndVariableText()
+		return app.ToXFormObject()
+	}
+	topChoice := tx.choiceSelection
+	if topChoice >= len(tx.choices) {
+		topChoice = len(tx.choices) - 1
+	}
+	if topChoice < 0 {
+		topChoice = 0
+	}
+
+	fd := ufont.Desc()
+
+	usize := fontSize
+	if usize == 0 {
+		usize = 12
+	}
+	borderExtra := tx.borderStyle == "B" || tx.borderStyle == "I"
+	h := tx.box.Height() - tx.borderWidth*2
+	if borderExtra {
+		h -= tx.borderWidth * 2
+	}
+	offsetX := tx.borderWidth
+	if borderExtra {
+		offsetX *= 2
+	}
+	leading := fd.FontBBox.Urx*usize/1000 - fd.FontBBox.Lly*usize/1000
+	maxFit := int(h/leading) + 1
+	first := 0
+	last := 0
+	last = topChoice + maxFit/2 + 1
+	first = last - maxFit
+	if first < 0 {
+		last += first
+		first = 0
+	}
+	//        first = topChoice;
+	last = first + maxFit
+	if last > len(tx.choices) {
+		last = len(tx.choices)
+	}
+	tx.topFirst = first
+
+	app.SaveState()
+
+	app.Op(contents.OpRectangle{X: offsetX, Y: offsetX, W: tx.box.Width() - 2*offsetX, H: tx.box.Height() - 2*offsetX})
+	app.Op(contents.OpClip{})
+	app.Op(contents.OpEndPath{})
+	mColor := tx.textColor
+	if mColor == nil {
+		mColor = color.Gray{}
+	}
+	app.SetColorFill(color.NRGBA{R: 10, G: 36, B: 106, A: 255})
+	app.Op(contents.OpRectangle{X: offsetX, Y: offsetX + h - Fl(topChoice-first+1)*leading, W: tx.box.Width() - 2*offsetX, H: leading})
+	app.Op(contents.OpFill{})
+	app.BeginText()
+	app.SetFontAndSize(ufont, usize)
+	app.SetLeading(leading)
+	app.MoveText(offsetX*2, offsetX+h-fd.FontBBox.Ury*usize/1000+leading)
+	app.SetColorFill(mColor)
+	for idx := first; idx < last; idx++ {
+		if idx == topChoice {
+			app.Op(contents.OpSetFillGray{G: 1})
+			_ = app.NewlineShowText(tx.choices[idx]) // font was setup
+			app.SetColorFill(mColor)
+		} else {
+			_ = app.NewlineShowText(tx.choices[idx]) // font was setup
+		}
+	}
+	app.EndText()
+	_ = app.RestoreState() // calls are balanced
+	app.EndVariableText()
+	return app.ToXFormObject()
+}
 
 //     /** Gets a new text field.
 //      * @throws IOException on error
@@ -306,7 +329,7 @@ type TextField struct {
 //                 field.setFieldFlags(PdfFormField.FF_COMB);
 //         }
 //         field.setBorderStyle(new PdfBorderDictionary(borderWidth, borderStyle, new PdfDashPattern(3)));
-//         PdfAppearance tp = getAppearance();
+//         PdfAppearance tp = buildAppearance();
 //         field.setAppearance(PdfAnnotation.APPEARANCE_NORMAL, tp);
 //         PdfAppearance da = (PdfAppearance)tp.getDuplicate();
 //         da.setFontAndSize(getRealFont(), fontSize);
@@ -378,7 +401,7 @@ type TextField struct {
 //             mix = new String[uchoices.length][2];
 //             for (int k = 0; k < mix.length; ++k)
 //                 mix[k][0] = mix[k][1] = uchoices[k];
-//             int top = math.Min(uchoices.length, choiceExports.length);
+//             int top = minF(uchoices.length, choiceExports.length);
 //             for (int k = 0; k < top; ++k) {
 //                 if (choiceExports[k] != nil)
 //                     mix[k][0] = choiceExports[k];
@@ -418,7 +441,7 @@ type TextField struct {
 //                 field.put(PdfName.TI, new PdfNumber(topFirst));
 //         }
 //         else
-//             tp = getAppearance();
+//             tp = buildAppearance();
 //         field.setAppearance(PdfAnnotation.APPEARANCE_NORMAL, tp);
 //         PdfAppearance da = (PdfAppearance)tp.getDuplicate();
 //         da.setFontAndSize(getRealFont(), fontSize);
