@@ -1,5 +1,7 @@
 package formfill
 
+// Port from the code from Paulo Soares (psoares@consiste.pt)
+
 import (
 	"image/color"
 	"strings"
@@ -9,10 +11,10 @@ import (
 	"github.com/benoitkugler/pdf/model"
 )
 
-type BaseField struct {
-	box       model.Rectangle
-	fieldName string
-	text      string
+// Supports text, combo and list fields generating the correct appearances.
+type fieldAppearanceBuilder struct {
+	box  model.Rectangle
+	text string
 
 	textColor       color.Color
 	backgroundColor color.Color
@@ -26,6 +28,14 @@ type BaseField struct {
 	options   model.FormFlag // options flag
 
 	maxCharacterLength model.MaybeInt // value of property maxCharacterLength
+
+	// Holds value of property choices.
+	choices []string
+
+	// Holds value of property choiceSelection.
+	choiceSelection int
+
+	topFirst int
 }
 
 const brightScale = 0.7
@@ -35,7 +45,7 @@ func darker(c color.Color) color.RGBA {
 	return color.RGBA{R: uint8(Fl(r) * brightScale), G: uint8(Fl(g) * brightScale), B: uint8(Fl(b) * brightScale), A: uint8(a)}
 }
 
-func (b BaseField) drawTopFrame(app *contents.Appearance) {
+func (b fieldAppearanceBuilder) drawTopFrame(app *contents.Appearance) {
 	app.Op(contents.OpMoveTo{X: b.borderWidth, Y: b.borderWidth})
 	app.Op(contents.OpLineTo{X: b.borderWidth, Y: b.box.Height() - b.borderWidth})
 	app.Op(contents.OpLineTo{X: b.box.Width() - b.borderWidth, Y: b.box.Height() - b.borderWidth})
@@ -46,7 +56,7 @@ func (b BaseField) drawTopFrame(app *contents.Appearance) {
 	app.Op(contents.OpFill{})
 }
 
-func (b BaseField) drawBottomFrame(app *contents.Appearance) {
+func (b fieldAppearanceBuilder) drawBottomFrame(app *contents.Appearance) {
 	app.Op(contents.OpMoveTo{X: b.borderWidth, Y: b.borderWidth})
 	app.Op(contents.OpLineTo{X: b.box.Width() - b.borderWidth, Y: b.borderWidth})
 	app.Op(contents.OpLineTo{X: b.box.Width() - b.borderWidth, Y: b.box.Height() - b.borderWidth})
@@ -57,7 +67,7 @@ func (b BaseField) drawBottomFrame(app *contents.Appearance) {
 	app.Op(contents.OpFill{})
 }
 
-func (b BaseField) getBorderAppearance() contents.Appearance {
+func (b fieldAppearanceBuilder) getBorderAppearance() contents.Appearance {
 	app := contents.NewAppearance(b.box.Width(), b.box.Height())
 	switch b.rotation {
 	case 90:
@@ -136,12 +146,6 @@ func (b BaseField) getBorderAppearance() contents.Appearance {
 	}
 	return app
 }
-
-// // TODO: support for more font ?
-// // for now Helvetica is always returned
-// func (b BaseField) getRealFont() fonts.Font {
-// 	return type1.Helvetica
-// }
 
 func getHardBreaks(text string) (arr []string) {
 	cs := []rune(text)
@@ -240,4 +244,261 @@ func breakLines(breaks []string, font fonts.Font, fontSize, width Fl) (lines []s
 		lines = append(lines, strings.TrimRight(string(buf), " "))
 	}
 	return lines
+}
+
+// extra margins could be use in text fields to better mimic the Acrobat layout.
+const (
+	extraMarginLeft = 0
+	extraMarginTop  = 0
+)
+
+func stringSize(s string, ft fonts.Font, size Fl) Fl {
+	var out Fl
+	for _, r := range s {
+		out += ft.GetWidth(r, size)
+	}
+	return out
+}
+
+func (t fieldAppearanceBuilder) buildAppearance(ufont fonts.BuiltFont, fontSize Fl) *model.XObjectForm {
+	app := t.getBorderAppearance()
+	app.BeginVariableText()
+	if t.text == "" {
+		app.EndVariableText()
+		return app.ToXFormObject()
+	}
+
+	fd := ufont.Desc()
+
+	borderExtra := t.borderStyle == "B" || t.borderStyle == "I"
+	h := t.box.Height() - t.borderWidth*2
+	bw2 := t.borderWidth
+	if borderExtra {
+		h -= t.borderWidth * 2
+		bw2 *= 2
+	}
+	h -= extraMarginTop
+	offsetX := t.borderWidth
+	if borderExtra {
+		offsetX = 2 * t.borderWidth
+	}
+	offsetX = maxF(offsetX, 1)
+	offX := minF(bw2, offsetX)
+
+	app.SaveState()
+
+	app.Op(contents.OpRectangle{X: offX, Y: offX, W: t.box.Width() - 2*offX, H: t.box.Height() - 2*offX})
+	app.Op(contents.OpClip{})
+	app.Op(contents.OpEndPath{})
+	if t.textColor == nil {
+		app.Op(contents.OpSetFillGray{})
+	} else {
+		app.SetColorFill(t.textColor)
+	}
+	app.BeginVariableText()
+	ptext := t.text // fixed by Kazuya Ujihara (ujihara.jp)
+	ptextRunes := []rune(t.text)
+	if (t.options & model.Password) != 0 {
+		ptext = strings.Repeat("*", len(ptextRunes))
+	}
+	if (t.options & model.Multiline) != 0 {
+		usize := fontSize
+		width := t.box.Width() - 3*offsetX - extraMarginLeft
+		breaks := getHardBreaks(ptext)
+		lines := breaks
+		factor := (fd.FontBBox.Urx - fd.FontBBox.Lly) / 1000
+		if usize == 0 {
+			usize = h / Fl(len(breaks)) / factor
+			if usize > 4 {
+				if usize > 12 {
+					usize = 12
+				}
+				step := maxF((usize-4)/10, 0.2)
+				for ; usize > 4; usize -= step {
+					lines = breakLines(breaks, ufont, usize, width)
+					if Fl(len(lines))*usize*factor <= h {
+						break
+					}
+				}
+			}
+			if usize <= 4 {
+				usize = 4
+				lines = breakLines(breaks, ufont, usize, width)
+			}
+		} else {
+			lines = breakLines(breaks, ufont, usize, width)
+		}
+		app.SetFontAndSize(ufont, usize)
+		app.SetLeading(usize * factor)
+		offsetY := offsetX + h - fd.FontBBox.Ury*usize/1000
+		nt := lines[0]
+		switch t.alignment {
+		case model.RightJustified:
+			wd := stringSize(nt, ufont, usize)
+			app.MoveText(extraMarginLeft+t.box.Width()-2*offsetX-wd, offsetY)
+		case model.Centered:
+			nt = strings.TrimSpace(nt)
+			wd := stringSize(nt, ufont, usize)
+			app.MoveText(extraMarginLeft+t.box.Width()/2-wd/2, offsetY)
+		default:
+			app.MoveText(extraMarginLeft+2*offsetX, offsetY)
+		}
+		_ = app.ShowText(nt) // its clear font size was set
+		maxline := int(h/usize/factor) + 1
+		if maxline > len(lines) {
+			maxline = len(lines)
+		}
+		for k := 1; k < maxline; k++ {
+			nt := lines[k]
+			if t.alignment == model.RightJustified {
+				wd := stringSize(nt, ufont, usize)
+				app.MoveText(extraMarginLeft+t.box.Width()-2*offsetX-wd-app.State.XTLM, 0)
+			} else if t.alignment == model.Centered {
+				nt = strings.TrimSpace(nt)
+				wd := stringSize(nt, ufont, usize)
+				app.MoveText(extraMarginLeft+t.box.Width()/2-wd/2-app.State.XTLM, 0)
+			}
+			app.NewlineShowText(nt)
+		}
+	} else {
+		usize := fontSize
+		if usize == 0 {
+			maxCalculatedSize := h / ((fd.FontBBox.Urx - fd.FontBBox.Lly) / 1000)
+			wd := stringSize(ptext, ufont, 1)
+			if wd == 0 {
+				usize = maxCalculatedSize
+			} else {
+				usize = (t.box.Width() - extraMarginLeft - 2*offsetX) / wd
+			}
+			if usize > maxCalculatedSize {
+				usize = maxCalculatedSize
+			}
+			if usize < 4 {
+				usize = 4
+			}
+		}
+		app.SetFontAndSize(ufont, usize)
+		offsetY := offX + ((t.box.Height()-2*offX)-(fd.Ascent*usize/1000))/2
+		if offsetY < offX {
+			offsetY = offX
+		}
+		if offsetY-offX < -(fd.Descent * usize / 1000) {
+			ny := -(fd.Descent * usize / 1000) + offX
+			dy := t.box.Height() - offX - (fd.Ascent * usize / 1000)
+			offsetY = minF(ny, maxF(offsetY, dy))
+		}
+		if maxL, _ := t.maxCharacterLength.(model.Int); (t.options&model.Comb) != 0 && maxL > 0 {
+			textLen := min(int(maxL), len(ptextRunes))
+			var position Fl
+			if t.alignment == model.RightJustified {
+				position = Fl(int(maxL) - textLen)
+			} else if t.alignment == model.Centered {
+				position = Fl(int(maxL)-textLen) / 2
+			}
+			step := (t.box.Width() - extraMarginLeft) / Fl(int(maxL))
+			start := step/2 + position*step
+			for k := 0; k < textLen; k++ {
+				c := ptextRunes[k]
+				wd := ufont.GetWidth(c, usize)
+				app.SetTextMatrix(1, 0, 0, 1, extraMarginLeft+start-wd/2, offsetY-extraMarginTop)
+				_ = app.ShowText(string(c)) // its clear font size was set
+				start += step
+			}
+		} else {
+			switch t.alignment {
+			case model.RightJustified:
+				wd := stringSize(ptext, ufont, usize)
+				app.MoveText(extraMarginLeft+t.box.Width()-2*offsetX-wd, offsetY-extraMarginTop)
+			case model.Centered:
+				wd := stringSize(ptext, ufont, usize)
+				app.MoveText(extraMarginLeft+t.box.Width()/2-wd/2, offsetY-extraMarginTop)
+			default:
+				app.MoveText(extraMarginLeft+2*offsetX, offsetY-extraMarginTop)
+			}
+			_ = app.ShowText(ptext) // its clear font size was set
+		}
+	}
+	app.EndText()
+	_ = app.RestoreState() // it's clear the call are balanced
+	app.EndVariableText()
+	return app.ToXFormObject()
+}
+
+func (tx *fieldAppearanceBuilder) getListAppearance(ufont fonts.BuiltFont, fontSize Fl) (*model.XObjectForm, int) {
+	app := tx.getBorderAppearance()
+	app.BeginVariableText()
+	if len(tx.choices) == 0 {
+		app.EndVariableText()
+		return app.ToXFormObject(), tx.topFirst
+	}
+	topChoice := tx.choiceSelection
+	if topChoice >= len(tx.choices) {
+		topChoice = len(tx.choices) - 1
+	}
+	if topChoice < 0 {
+		topChoice = 0
+	}
+
+	fd := ufont.Desc()
+
+	usize := fontSize
+	if usize == 0 {
+		usize = 12
+	}
+	borderExtra := tx.borderStyle == "B" || tx.borderStyle == "I"
+	h := tx.box.Height() - tx.borderWidth*2
+	if borderExtra {
+		h -= tx.borderWidth * 2
+	}
+	offsetX := tx.borderWidth
+	if borderExtra {
+		offsetX *= 2
+	}
+	leading := fd.FontBBox.Urx*usize/1000 - fd.FontBBox.Lly*usize/1000
+	maxFit := int(h/leading) + 1
+	first := 0
+	last := 0
+	last = topChoice + maxFit/2 + 1
+	first = last - maxFit
+	if first < 0 {
+		last += first
+		first = 0
+	}
+	//        first = topChoice;
+	last = first + maxFit
+	if last > len(tx.choices) {
+		last = len(tx.choices)
+	}
+	tx.topFirst = first
+
+	app.SaveState()
+
+	app.Op(contents.OpRectangle{X: offsetX, Y: offsetX, W: tx.box.Width() - 2*offsetX, H: tx.box.Height() - 2*offsetX})
+	app.Op(contents.OpClip{})
+	app.Op(contents.OpEndPath{})
+	mColor := tx.textColor
+	if mColor == nil {
+		mColor = color.Gray{}
+	}
+	app.SetColorFill(color.NRGBA{R: 10, G: 36, B: 106, A: 255})
+	app.Op(contents.OpRectangle{X: offsetX, Y: offsetX + h - Fl(topChoice-first+1)*leading, W: tx.box.Width() - 2*offsetX, H: leading})
+	app.Op(contents.OpFill{})
+	app.BeginText()
+	app.SetFontAndSize(ufont, usize)
+	app.SetLeading(leading)
+	app.MoveText(offsetX*2, offsetX+h-fd.FontBBox.Ury*usize/1000+leading)
+	app.SetColorFill(mColor)
+	for idx := first; idx < last; idx++ {
+		if idx == topChoice {
+			app.Op(contents.OpSetFillGray{G: 1})
+			_ = app.NewlineShowText(tx.choices[idx]) // font was setup
+			app.SetColorFill(mColor)
+		} else {
+			_ = app.NewlineShowText(tx.choices[idx]) // font was setup
+		}
+	}
+	app.EndText()
+	_ = app.RestoreState() // calls are balanced
+	app.EndVariableText()
+	return app.ToXFormObject(), tx.topFirst
 }

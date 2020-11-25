@@ -9,7 +9,7 @@ import (
 )
 
 func TestCS(t *testing.T) {
-	file := "datatest/CMYKSpot_OP.pdf"
+	file := "test/CMYKSpot_OP.pdf"
 	f, err := os.Open(file)
 	if err != nil {
 		t.Fatal(err)
@@ -94,7 +94,7 @@ func walkShadings(doc model.Document) (nbFreeForm, nbCoons int) {
 }
 
 func TestShading7(t *testing.T) {
-	file := "datatest/Shading7.pdf"
+	file := "test/Shading7.pdf"
 	f, err := os.Open(file)
 	if err != nil {
 		t.Fatal(err)
@@ -115,7 +115,7 @@ func TestShading6(t *testing.T) {
 }
 
 func TestShading4(t *testing.T) {
-	file := "datatest/Shading4.pdf"
+	file := "test/Shading4.pdf"
 	f, err := os.Open(file)
 	if err != nil {
 		t.Fatal(err)
@@ -134,8 +134,8 @@ func TestShading4(t *testing.T) {
 
 func TestWriteShadings(t *testing.T) {
 	for _, file := range []string{
-		"datatest/Shading4.pdf",
-		"datatest/Shading7.pdf",
+		"test/Shading4.pdf",
+		"test/Shading7.pdf",
 	} {
 
 		f, err := os.Open(file)

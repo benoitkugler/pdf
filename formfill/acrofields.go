@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"image/color"
 	"strconv"
+	"strings"
 
 	"github.com/benoitkugler/pdf/fonts"
 	"github.com/benoitkugler/pdf/formfill/pdftokenizer"
@@ -22,41 +23,12 @@ var defaultFont = &model.FontDict{Subtype: model.FontType1{
 	FontDescriptor: standardfonts.Helvetica.Descriptor,
 }}
 
-var stdFieldFontNames = map[string][]string{
-	"CoBO": {"Courier-BoldOblique"},
-	"CoBo": {"Courier-Bold"},
-	"CoOb": {"Courier-Oblique"},
-	"Cour": {"Courier"},
-	"HeBO": {"Helvetica-BoldOblique"},
-	"HeBo": {"Helvetica-Bold"},
-	"HeOb": {"Helvetica-Oblique"},
-	"Helv": {"Helvetica"},
-	"Symb": {"Symbol"},
-	"TiBI": {"Times-BoldItalic"},
-	"TiBo": {"Times-Bold"},
-	"TiIt": {"Times-Italic"},
-	"TiRo": {"Times-Roman"},
-	"ZaDb": {"ZapfDingbats"},
-	"HySm": {"HYSMyeongJo-Medium", "UniKS-UCS2-H"},
-	"HyGo": {"HYGoThic-Medium", "UniKS-UCS2-H"},
-	"KaGo": {"HeiseiKakuGo-W5", "UniKS-UCS2-H"},
-	"KaMi": {"HeiseiMin-W3", "UniJIS-UCS2-H"},
-	"MHei": {"MHei-Medium", "UniCNS-UCS2-H"},
-	"MSun": {"MSung-Light", "UniCNS-UCS2-H"},
-	"STSo": {"STSong-Light", "UniGB-UCS2-H"},
-}
-
-type acroFields struct {
-	extraMarginLeft Fl
-	extraMarginTop  Fl
-
-	topFirst int
-
+type filler struct {
 	fontCache map[model.Name]fonts.BuiltFont
 }
 
-func newAcroFields() acroFields {
-	return acroFields{fontCache: make(map[model.Name]fonts.BuiltFont)}
+func newFiller() filler {
+	return filler{fontCache: make(map[model.Name]fonts.BuiltFont)}
 }
 
 type daConfig struct {
@@ -154,11 +126,8 @@ func rotate(r model.Rectangle) model.Rectangle {
 	return model.Rectangle{Llx: r.Lly, Lly: r.Llx, Urx: r.Ury, Ury: r.Urx}
 }
 
-func (ac *acroFields) buildAppearance(acro *model.AcroForm, fields model.FormFieldInheritable, widget model.FormFieldWidget, text string) (*model.XObjectForm, error) {
-	ac.topFirst = 0
-	tx := TextField{}
-	tx.extraMarginLeft = ac.extraMarginLeft
-	tx.extraMarginTop = ac.extraMarginTop
+func (ac *filler) buildAppearance(formResources model.ResourcesDict, fields model.FormFieldInheritable, widget model.FormFieldWidget, text string) (*model.XObjectForm, int, error) {
+	appBuilder := fieldAppearanceBuilder{}
 
 	// the text size and color
 	var (
@@ -168,25 +137,29 @@ func (ac *acroFields) buildAppearance(acro *model.AcroForm, fields model.FormFie
 	if da := fields.DA; da != "" {
 		dab, err := splitDAelements(da)
 		if err != nil {
-			return nil, fmt.Errorf("invalid DA string: %s", err)
+			return nil, 0, fmt.Errorf("invalid DA string: %s", err)
 		}
 		if dab.size != 0 {
 			fontSize = dab.size
 		}
 		if dab.color != nil {
-			tx.textColor = dab.color
+			appBuilder.textColor = dab.color
 		}
 		if dab.font != "" {
 			if bf, has := ac.fontCache[dab.font]; has {
 				font = bf
 			} else { // build and cache
-				fd := acro.DR.Font[dab.font]
+				fd := formResources.Font[dab.font]
 				if fd == nil { // safely default to a standard font
 					fd = defaultFont
 				}
 				font = fonts.BuildFont(fd)
 				ac.fontCache[dab.font] = font
 			}
+		} else {
+			// use a default font
+			font = fonts.BuildFont(defaultFont)
+			ac.fontCache[dab.font] = font
 		}
 	}
 
@@ -197,35 +170,35 @@ func (ac *acroFields) buildAppearance(acro *model.AcroForm, fields model.FormFie
 
 	// rotation, border and backgound color
 	if annot.MK != nil {
-		tx.borderColor = annot.MK.BC.Color()
-		if tx.borderColor != nil {
-			tx.borderWidth = 1
+		appBuilder.borderColor = annot.MK.BC.Color()
+		if appBuilder.borderColor != nil {
+			appBuilder.borderWidth = 1
 		}
-		tx.backgroundColor = annot.MK.BG.Color()
-		tx.rotation = annot.MK.R.Degrees()
+		appBuilder.backgroundColor = annot.MK.BG.Color()
+		appBuilder.rotation = annot.MK.R.Degrees()
 	}
 
 	// multiline
 
-	tx.options = fields.Ff
+	appBuilder.options = fields.Ff
 	if (fields.Ff & model.Comb) != 0 {
 		text, _ := fields.FT.(model.FormFieldText)
-		tx.maxCharacterLength = text.MaxLen
+		appBuilder.maxCharacterLength = text.MaxLen
 	}
 	//alignment
-	tx.alignment = fields.Q
+	appBuilder.alignment = fields.Q
 
 	//border styles
 	if annot.BS != nil {
 		if bw, ok := annot.BS.W.(model.Float); ok {
-			tx.borderWidth = Fl(bw)
+			appBuilder.borderWidth = Fl(bw)
 		}
-		tx.borderStyle = annot.BS.S
+		appBuilder.borderStyle = annot.BS.S
 	} else if widget.AnnotationDict != nil {
 		if bd := widget.AnnotationDict.Border; bd != nil {
-			tx.borderWidth = bd.BorderWidth
+			appBuilder.borderWidth = bd.BorderWidth
 			if bd.DashArray != nil {
-				tx.borderStyle = "D"
+				appBuilder.borderStyle = "D"
 			}
 		}
 	}
@@ -235,20 +208,20 @@ func (ac *acroFields) buildAppearance(acro *model.AcroForm, fields model.FormFie
 		rect = widget.AnnotationDict.Rect
 	}
 	box := getNormalizedRectangle(rect)
-	if tx.rotation == 90 || tx.rotation == 270 {
+	if appBuilder.rotation == 90 || appBuilder.rotation == 270 {
 		box = rotate(box)
 	}
-	tx.box = box
+	appBuilder.box = box
 
 	switch fieldType := fields.FT.(type) {
 	case model.FormFieldText:
-		tx.text = text
-		return tx.buildAppearance(font, fontSize), nil
+		appBuilder.text = text
+		return appBuilder.buildAppearance(font, fontSize), 0, nil
 	case model.FormFieldChoice:
 		opt := fieldType.Opt
 		if (fields.Ff&model.Combo) != 0 && len(opt) == 0 {
-			tx.text = text
-			return tx.buildAppearance(font, fontSize), nil
+			appBuilder.text = text
+			return appBuilder.buildAppearance(font, fontSize), 0, nil
 		}
 		choices := make([]string, len(opt))
 		choicesExp := make([]string, len(opt))
@@ -267,8 +240,8 @@ func (ac *acroFields) buildAppearance(acro *model.AcroForm, fields model.FormFie
 					break
 				}
 			}
-			tx.text = text
-			return tx.buildAppearance(font, fontSize), nil
+			appBuilder.text = text
+			return appBuilder.buildAppearance(font, fontSize), 0, nil
 		}
 		var idx int
 		for k, choiceExp := range choicesExp {
@@ -277,22 +250,27 @@ func (ac *acroFields) buildAppearance(acro *model.AcroForm, fields model.FormFie
 				break
 			}
 		}
-		tx.choices = choices
-		tx.choiceExports = choicesExp
-		tx.choiceSelection = idx
-		app := tx.getListAppearance(font, fontSize)
-		ac.topFirst = tx.topFirst
-		return app, nil
+		appBuilder.choices = choices
+		// tx.choiceExports = choicesExp
+		appBuilder.choiceSelection = idx
+		app, topFirst := appBuilder.getListAppearance(font, fontSize)
+		return app, topFirst, nil
 	default:
-		return nil, errors.New("an appearance was requested without a variable text field.")
+		return nil, 0, errors.New("an appearance was requested without a variable text field.")
 	}
 }
 
-func (ac acroFields) buildWidgets(acro *model.AcroForm, item *model.FormFieldDict, inherited model.FormFieldInheritable, display string) error {
-	for _, widget := range item.Widgets {
-		app, err := ac.buildAppearance(acro, inherited, widget, display) // check last arg
+// buildWidgets update item
+func (ac filler) buildWidgets(formResources model.ResourcesDict, field model.FormFieldInherited, display string) (int, error) {
+	var topFirst int
+	for _, widget := range field.FormFieldDict.Widgets {
+		var (
+			app *model.XObjectForm
+			err error
+		)
+		app, topFirst, err = ac.buildAppearance(formResources, field.Merged, widget, display)
 		if err != nil {
-			return err
+			return 0, err
 		}
 		appDic := widget.AP
 		if appDic == nil {
@@ -301,73 +279,84 @@ func (ac acroFields) buildWidgets(acro *model.AcroForm, item *model.FormFieldDic
 		appDic.N = model.AppearanceEntry{"": app}
 		widget.AP = appDic // update the model
 	}
-	return nil
+	return topFirst, nil
 }
 
-func (ac acroFields) setField(acro *model.AcroForm, item *model.FormFieldDict, value, display, richValue string) error {
-	fields := acro.ResolveInheritance(item)
-
-	item.RV = richValue
-	switch type_ := fields.FT.(type) {
+// fields contains the inherited currentvalues, values are the values to write to the field
+func (ac filler) setField(formResources model.ResourcesDict, field model.FormFieldInherited, values Values) error {
+	field.FormFieldDict.RV = values.RV
+	switch type_ := field.Merged.FT.(type) {
 	case model.FormFieldText:
+		value, ok := values.V.(Text)
+		if !ok {
+			return fmt.Errorf("unexpected value type for text field: %T", values.V)
+		}
 		if ml, _ := type_.MaxLen.(model.Int); ml > 0 {
 			asRunes := []rune(value)
-			value = string(asRunes[0:min(int(ml), len(asRunes))])
+			value = Text(asRunes[0:min(int(ml), len(asRunes))])
 		}
-		type_.V = value
-		item.FT = type_
-		return ac.buildWidgets(acro, item, fields, display)
+		type_.V = string(value)
+		_, err := ac.buildWidgets(formResources, field, string(value))
+		if err != nil {
+			return err
+		}
+		field.FormFieldDict.FT = type_ // update
 	case model.FormFieldChoice:
-		type_.V = []string{value}
+		value, ok := values.V.(Choices)
+		if !ok {
+			return fmt.Errorf("unexpected value type for choices field: %T", values.V)
+		}
+		type_.V = []string(value)
 		// ssteward; it might disagree w/ V in a Ch widget
 		// PDF spec this shouldn't matter, but Reader 9 gives I precedence over V
 		type_.I = nil
-		err := ac.buildWidgets(acro, item, fields, display)
-		type_.TI = ac.topFirst
-		item.FT = type_
-		return err
+		display := strings.Join(type_.V, ", ")
+		topFirst, err := ac.buildWidgets(formResources, field, display)
+		if err != nil {
+			return err
+		}
+		type_.TI = topFirst
+		field.FormFieldDict.FT = type_ // update
 	case model.FormFieldButton:
-		flags := fields.Ff
+		value, ok := values.V.(ButtonAppearanceName)
+		if !ok {
+			return fmt.Errorf("unexpected value type for button field: %T", values.V)
+		}
+		flags := field.Merged.Ff
 		if (flags & model.Pushbutton) != 0 {
 			return nil
 		}
 		v := model.Name(value)
 		if (flags & model.Radio) == 0 {
 			type_.V = v
-			for _, widget := range item.Widgets {
-				widget.AS = v
-				if isInAP(widget, v) {
-					widget.AS = v
-				} else {
-					widget.AS = model.Name("Off")
-				}
-			}
+			setStateAS(field.FormFieldDict, v)
 		} else {
 			vidx := -1
 			for idx, vv := range type_.Opt {
-				if vv == value {
+				if vv == string(value) {
 					vidx = idx
 				}
 			}
-			var vt model.Name
+			vt := v
 			if vidx >= 0 {
 				vt = model.Name(strconv.Itoa(vidx))
-				type_.V = model.Name(value)
-			} else {
-				vt = v
-				type_.V = v
 			}
-			for _, widget := range item.Widgets {
-				if isInAP(widget, vt) {
-					widget.AS = vt
-				} else {
-					widget.AS = model.Name("Off")
-				}
-			}
+			type_.V = v
+			setStateAS(field.FormFieldDict, vt)
 		}
-		item.FT = type_
+		field.FormFieldDict.FT = type_ // update
 	}
 	return nil
+}
+
+func setStateAS(field *model.FormFieldDict, state model.Name) {
+	for _, widget := range field.Widgets {
+		if isInAP(widget, state) {
+			widget.AS = state
+		} else {
+			widget.AS = model.Name("Off")
+		}
+	}
 }
 
 func isInAP(widget model.FormFieldWidget, check model.Name) bool {
@@ -375,4 +364,26 @@ func isInAP(widget model.FormFieldWidget, check model.Name) bool {
 		return false
 	}
 	return widget.AP.N != nil && widget.AP.N[check] != nil
+}
+
+// update `acro` in place, accorcding to the value in `fdf`
+func (ac filler) fillForm(acro *model.AcroForm, fdf FDFDict) error {
+	// we first walk the fdf tree into a map
+	values := fdf.resolve()
+
+	// we also walk the current tree into a map
+	fields := acro.Flatten()
+	fmt.Println(len(values), len(fields))
+	for fullName, fdfValue := range values {
+		if acroValue, ok := fields[fullName]; ok {
+			// match with value, do fill the field
+			err := ac.setField(acro.DR, acroValue, fdfValue)
+			if err != nil {
+				return err
+			}
+		}
+	}
+	acro.NeedAppearances = true
+
+	return nil
 }

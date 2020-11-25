@@ -154,28 +154,36 @@ func (p pdfWriter) EncodeString(s string, mode PDFStringEncoding, context Refere
 	if p.err != nil {
 		return ""
 	}
-
+	sb := []byte(s)
+	var err error
 	if mode == TextString {
-		// TODO: choose between utf16 and pdfencoding
-		var err error
-		s, err = utf16Enc.NewEncoder().String(s)
-		if err != nil {
-			p.err = fmt.Errorf("invalid text string %s: %w", s, err)
-			return ""
+		// we try PDFEncoding to produce simpler PDF
+		var ok bool
+		s1, ok := stringToPDFDocEncoding(s)
+		if ok {
+			sb = s1
+		} else {
+			sb, err = utf16Enc.NewEncoder().Bytes(sb)
+			if err != nil {
+				p.err = fmt.Errorf("invalid text string %s: %w", s, err)
+				return ""
+			}
 		}
 	}
 
 	if p.encrypt != nil && p.encrypt.EncryptionHandler != nil {
-		sb := []byte(s)
-		p.encrypt.EncryptionHandler.crypt(context, sb)
-		s = string(sb)
+		sb, err = p.encrypt.EncryptionHandler.crypt(context, sb)
+		if err != nil {
+			p.err = fmt.Errorf("failed to encrypt content: %w", err)
+			return ""
+		}
 	}
 
 	switch mode {
 	case ByteString, TextString:
-		return EspaceByteString(s) // string litteral
+		return EspaceByteString(string(sb)) // string litteral
 	case HexString:
-		return "<" + hex.EncodeToString([]byte(s)) + ">" // hex string
+		return "<" + hex.EncodeToString(sb) + ">" // hex string
 	default:
 		panic("invalid encoding mode")
 	}

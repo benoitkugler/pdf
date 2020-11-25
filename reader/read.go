@@ -10,8 +10,8 @@ import (
 	"time"
 
 	"github.com/benoitkugler/pdf/model"
-	"github.com/benoitkugler/pdf/reader/encodings"
 	"github.com/pdfcpu/pdfcpu/pkg/pdfcpu"
+	"golang.org/x/text/encoding/unicode"
 )
 
 type Fl = model.Fl
@@ -47,6 +47,16 @@ type incompleteDest struct {
 	ref         pdfcpu.IndirectRef
 }
 
+func isUTF16(b []byte) bool {
+	if len(b) < 2 {
+		return false
+	}
+	// Check BOM
+	return b[0] == 0xFE && b[1] == 0xFF || b[0] == 0xff && b[1] == 0xfe
+}
+
+var utf16Dec = unicode.UTF16(unicode.BigEndian, unicode.UseBOM)
+
 // decodeTextString expects a "text string" as defined in PDF spec,
 // that is, either a PDFDocEncoded string or a UTF-16BE string
 func decodeTextString(s string) string {
@@ -56,16 +66,17 @@ func decodeTextString(s string) string {
 		return ""
 	}
 
-	// Check for Big Endian UTF-16.
-	if pdfcpu.IsUTF16BE(b) {
-		out, err := pdfcpu.DecodeUTF16String(string(b))
+	// Check for UTF-16: we also accept LE, since text/encoding handles it
+	if isUTF16(b) {
+		fmt.Println(b)
+		out, err := utf16Dec.NewDecoder().Bytes(b)
 		if err != nil {
 			log.Printf("error decoding UTF16 string literal %s \n", err)
 		}
-		return out
+		return string(out)
 	}
 
-	return encodings.PDFDocEncodingToString(b)
+	return model.PDFDocEncodingToString(b)
 }
 
 // var replacer = strings.NewReplacer("\\\\", "\\", "\\(", ")", "\\)", "(", "\\r", "\r")

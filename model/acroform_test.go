@@ -55,3 +55,33 @@ func TestCloneForm(t *testing.T) {
 		t.Errorf("expected %v, got %v", a, a2)
 	}
 }
+
+func TestResolve(t *testing.T) {
+	a1 := FormFieldDict{
+		T:                    "a1",
+		FormFieldInheritable: FormFieldInheritable{FT: FormFieldText{}},
+	}
+	a2 := a1
+	a2.T = "5"
+	b := &FormFieldDict{
+		Kids: []*FormFieldDict{&a1, &a2},
+		FormFieldInheritable: FormFieldInheritable{
+			DA: "564",
+		},
+	}
+	a1.Parent = b
+	a2.Parent = b
+
+	ac := AcroForm{
+		Fields: []*FormFieldDict{b},
+	}
+	m := ac.Flatten()
+	if L := len(m); L != 3 {
+		t.Errorf("expected 3 fields, got %d", L)
+	}
+	for _, f := range m {
+		if f.FormFieldInheritable.DA != "564" {
+			t.Error()
+		}
+	}
+}

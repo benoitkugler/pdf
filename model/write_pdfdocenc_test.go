@@ -1,4 +1,4 @@
-package encodings
+package model
 
 import (
 	"bytes"
@@ -20,7 +20,7 @@ func TestPDFDocEncodingDecode(t *testing.T) {
 			t.Fatalf("Mismatch %s != %s", str, testcase.Expected)
 		}
 
-		enc := StringToPDFDocEncoding(str)
+		enc, _ := stringToPDFDocEncoding(str)
 		if !bytes.Equal(enc, testcase.Encoded) {
 			t.Fatalf("Encode mismatch %s (%X) != %s (%X)", enc, enc, testcase.Encoded, testcase.Encoded)
 		}

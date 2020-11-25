@@ -1,4 +1,4 @@
-package encodings
+package model
 
 import "bytes"
 
@@ -282,16 +282,19 @@ func PDFDocEncodingToString(b []byte) string {
 	return string(runes)
 }
 
-// StringToPDFDocEncoding encode go string `s` to PdfDocEncoding.
-func StringToPDFDocEncoding(s string) []byte {
+// stringToPDFDocEncoding encode go string `s` to PdfDocEncoding,
+// and return true only if all the runes have been encoded
+func stringToPDFDocEncoding(s string) ([]byte, bool) {
 	var buf bytes.Buffer
+	ok := true
 	for _, r := range s {
 		b, has := pdfdocEncodingRuneMap[r]
 		if !has {
+			ok = false
 			continue
 		}
 		buf.WriteByte(b)
 	}
 
-	return buf.Bytes()
+	return buf.Bytes(), ok
 }

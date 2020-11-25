@@ -4,15 +4,71 @@ import (
 	"bytes"
 	"fmt"
 
+	"github.com/benoitkugler/pdf/model"
 	"github.com/pdfcpu/pdfcpu/pkg/pdfcpu"
 )
 
-type FieldValue interface {
+type FDFValue interface {
+	isFDFValue()
+}
+
+func (ButtonAppearanceName) isFDFValue() {}
+func (Text) isFDFValue()                 {}
+func (Choices) isFDFValue()              {}
+
+// ButtonAppearanceName is the value of a field with type `Btn`
+type ButtonAppearanceName model.Name
+
+// Text is the value of a field with type `Tx`
+type Text string
+
+// Choices is the value of field with type `Ch`
+type Choices []string
+
+type Values struct {
+	V  FDFValue
+	RV string
 }
 
 type FDFField struct {
-	T string // field name
-	V FieldValue
+	Values
+	Kids []FDFField
+	T    string // partial field name
+}
+
+// FDFDict is the FDF entry of an FDF file catalog.
+type FDFDict struct {
+	Fields []FDFField
+}
+
+// walk the tree and construct the full names
+func (f FDFDict) resolve() map[string]Values {
+	out := map[string]Values{}
+	var walk func(FDFField, string)
+	walk = func(fi FDFField, parentName string) {
+		fullName := parentName + "." + fi.T
+		if parentName == "" { // exception for the root elements
+			fullName = fi.T
+		}
+		if fi.V != nil || fi.RV != "" {
+			out[fullName] = fi.Values
+		}
+		for _, kid := range fi.Kids {
+			walk(kid, fullName)
+		}
+	}
+	for _, rootField := range f.Fields {
+		walk(rootField, "")
+	}
+	return out
+}
+
+// FillForm fill the AcroForm contained in the document
+// using the value in `fdf`.
+// TODO: See FillFormFromFDF to use a FDF file as value input.
+func FillForm(doc *model.Document, fdf FDFDict) error {
+	filler := newFiller()
+	return filler.fillForm(&doc.Catalog.AcroForm, fdf)
 }
 
 func ReadFDF(data []byte) error {

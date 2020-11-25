@@ -103,27 +103,31 @@ type FormFieldDict struct {
 	RV string // optional, text string, may be written in PDF as a stream
 }
 
-// resolveInheritance walk up the tree to use the parent values.
-func (f *FormFieldDict) resolveInheritance() FormFieldInheritable {
-	var parent FormFieldInheritable
-	if f.Parent != nil { // use parent values
-		parent = f.Parent.resolveInheritance()
-	}
-	return f.FormFieldInheritable.merge(parent)
+// FormFieldInherited associate to a field
+// the values resolved from its ancestors
+type FormFieldInherited struct {
+	*FormFieldDict
+	Merged FormFieldInheritable
 }
 
-// descendants returns all the (strict) descendants of `f`
-func (f *FormFieldDict) descendants() []*FormFieldDict {
-	out := f.Kids
-	for _, kid := range f.Kids {
-		out = append(out, kid.descendants()...)
+func (f *FormFieldDict) resolve(parentName string, parentFields FormFieldInheritable, currentMap map[string]FormFieldInherited) {
+	fullName := f.T
+	if f.Parent != nil {
+		fullName = parentName + "." + f.T
 	}
-	return out
+	merged := f.FormFieldInheritable.merge(parentFields)
+	currentMap[fullName] = FormFieldInherited{FormFieldDict: f, Merged: merged}
+	// recursion
+	for _, kid := range f.Kids {
+		kid.resolve(fullName, merged, currentMap)
+	}
 }
 
 // FullFieldName returns the fully qualified field name, which is not explicitly defined
 // but is constructed from the partial field names of the field
-// and all of its ancestors
+// and all of its ancestors.
+// This is a convenient function, but not efficient if all called
+// on all the fields of the tree.
 func (f *FormFieldDict) FullFieldName() string {
 	if f.Parent == nil {
 		return f.T
@@ -871,11 +875,12 @@ type AcroForm struct {
 }
 
 // Flatten walk the tree of form fields and accumulate them
-// in a flat list.
-func (a AcroForm) Flatten() []*FormFieldDict {
-	out := a.Fields
+// in a map, resolving the inheritance and forming the fully qualified names
+// used as keys of the returned map.
+func (a AcroForm) Flatten() map[string]FormFieldInherited {
+	out := make(map[string]FormFieldInherited)
 	for _, kid := range a.Fields {
-		out = append(out, kid.descendants()...)
+		kid.resolve("", FormFieldInheritable{DA: a.DA, Q: a.Q}, out)
 	}
 	return out
 }
@@ -930,18 +935,5 @@ func (a AcroForm) clone(cache cloneCache) AcroForm {
 		}
 	}
 	out.DR = a.DR.clone(cache)
-	return out
-}
-
-// ResolveInheritance resolve the inheritable fields,
-// up to the global values defined in the AcroForm.
-func (a AcroForm) ResolveInheritance(field *FormFieldDict) FormFieldInheritable {
-	out := field.resolveInheritance()
-	if out.DA == "" {
-		out.DA = a.DA
-	}
-	if out.Q == 0 {
-		out.Q = a.Q
-	}
 	return out
 }

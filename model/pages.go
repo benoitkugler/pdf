@@ -402,6 +402,11 @@ func (o *Outline) Count() int {
 	return c
 }
 
+// Flatten return all the leaf objects (open or not)
+func (o *Outline) Flatten() []*OutlineItem {
+	return o.First.flatten()
+}
+
 // ref should be the object number of the outline, need for the child
 // to reference their parent
 func (o *Outline) pdfString(pdf pdfWriter, ref Reference) string {
@@ -497,6 +502,17 @@ func (o *OutlineItem) Count() int {
 		}
 	}
 	return c
+}
+
+func (p *OutlineItem) flatten() []*OutlineItem {
+	out := []*OutlineItem{p}
+	if p.First != nil {
+		out = append(out, p.First.flatten()...)
+	}
+	if p.Next != nil {
+		out = append(out, p.Next.flatten()...)
+	}
+	return out
 }
 
 // convenience function to write an item only once, and return

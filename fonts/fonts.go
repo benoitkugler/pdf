@@ -78,7 +78,9 @@ func BuildFontWithCharMap(f *model.FontDict, userCharMap map[string]rune) BuiltF
 		out := type1{FontType1: ft}
 		out.charMap = out.resolveCharMap(userCharMap)
 		return BuiltFont{Meta: f, Font: out}
+	default:
 		//TODO: support the other type of font
+		panic("not implemented")
 	}
-	return BuiltFont{}
+	// return BuiltFont{}
 }

@@ -30,7 +30,7 @@ func init() {
 }
 
 func loadPDFSpec() {
-	f, err := os.Open("datatest/PDF_SPEC.pdf")
+	f, err := os.Open("test/PDF_SPEC.pdf")
 	if err != nil {
 		panic(err)
 	}
@@ -45,7 +45,7 @@ func loadPDFSpec() {
 func generatePDFs() {
 	f := gofpdf.New("", "", "", "")
 	f.SetProtection(0, password, "aaaa")
-	if err := f.OutputFileAndClose("datatest/Protected.pdf"); err != nil {
+	if err := f.OutputFileAndClose("test/Protected.pdf"); err != nil {
 		log.Fatal(err)
 	}
 
@@ -65,24 +65,24 @@ func generatePDFs() {
 	g.SetLink(l, 10, 1)
 	g.Link(20, 30, 40, 50, l)
 	g.Rect(20, 30, 40, 50, "D")
-	if err := g.OutputFileAndClose("datatest/Links.pdf"); err != nil {
+	if err := g.OutputFileAndClose("test/Links.pdf"); err != nil {
 		log.Fatal(err)
 	}
 
 	g = gofpdf.New("", "", "", "")
-	if err := g.OutputFileAndClose("datatest/Empty.pdf"); err != nil {
+	if err := g.OutputFileAndClose("test/Empty.pdf"); err != nil {
 		log.Fatal(err)
 	}
 }
 
 func TestOpen(t *testing.T) {
-	// f, err := os.Open("datatest/descriptif.pdf")
-	// f, err := os.Open("datatest/Links.pdf")
-	// f, err := os.Open("datatest/f1118s1.pdf")
-	// f, err := os.Open("datatest/transparents.pdf")
-	// f, err := os.Open("datatest/ModeleRecuFiscalEditable.pdf")
-	// f, err := os.Open("datatest/Protected.pdf")
-	// f, err := os.Open("datatest/PDF_SPEC.pdf")
+	// f, err := os.Open("test/descriptif.pdf")
+	// f, err := os.Open("test/Links.pdf")
+	// f, err := os.Open("test/f1118s1.pdf")
+	// f, err := os.Open("test/transparents.pdf")
+	// f, err := os.Open("test/ModeleRecuFiscalEditable.pdf")
+	// f, err := os.Open("test/Protected.pdf")
+	// f, err := os.Open("test/PDF_SPEC.pdf")
 	// if err != nil {
 	// 	t.Fatal(err)
 	// }
@@ -98,7 +98,7 @@ func TestOpen(t *testing.T) {
 }
 
 func BenchmarkProcess(b *testing.B) {
-	ctx, err := pdfcpu.ReadFile("datatest/PDF_SPEC.pdf", nil)
+	ctx, err := pdfcpu.ReadFile("test/PDF_SPEC.pdf", nil)
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -113,17 +113,17 @@ func BenchmarkProcess(b *testing.B) {
 
 func TestDataset(t *testing.T) {
 	files := [...]string{
-		"datatest/Links.pdf",
-		"datatest/Empty.pdf",
-		"datatest/descriptif.pdf",
-		"datatest/f1118s1.pdf",
-		"datatest/transparents.pdf",
-		"datatest/ModeleRecuFiscalEditable.pdf",
-		"datatest/CMYK_OP.pdf",
-		"datatest/CMYKSpot_OP.pdf",
-		"datatest/Shading.pdf",
-		"datatest/Shading4.pdf",
-		"datatest/Font_Substitution.pdf",
+		"test/Links.pdf",
+		"test/Empty.pdf",
+		"test/descriptif.pdf",
+		"test/f1118s1.pdf",
+		"test/transparents.pdf",
+		"test/ModeleRecuFiscalEditable.pdf",
+		"test/CMYK_OP.pdf",
+		"test/CMYKSpot_OP.pdf",
+		"test/Shading.pdf",
+		"test/Shading4.pdf",
+		"test/Font_Substitution.pdf",
 	}
 
 	for _, file := range files {
@@ -148,7 +148,7 @@ func TestDataset(t *testing.T) {
 }
 
 func TestProtected(t *testing.T) {
-	f, err := os.Open("datatest/Protected.pdf")
+	f, err := os.Open("test/Protected.pdf")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -167,7 +167,7 @@ func TestProtected(t *testing.T) {
 }
 
 func TestType3(t *testing.T) {
-	f, err := os.Open("datatest/type3.pdf")
+	f, err := os.Open("test/type3.pdf")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -245,7 +245,7 @@ func reWrite(doc model.Document, file string) error {
 }
 
 func TestReWrite(t *testing.T) {
-	err := reWrite(pdfSpec, "datatest/PDF_SPEC.pdf.pdf")
+	err := reWrite(pdfSpec, "test/PDF_SPEC.pdf.pdf")
 	if err != nil {
 		t.Error(err)
 	}
@@ -261,7 +261,7 @@ func TestReWrite(t *testing.T) {
 
 func BenchmarkWrite(b *testing.B) {
 	for i := 0; i < b.N; i++ {
-		out, err := os.Create("datatest/PDF_SPEC_bench.pdf")
+		out, err := os.Create("test/PDF_SPEC_bench.pdf")
 		if err != nil {
 			b.Fatal(err)
 		}

@@ -32,7 +32,7 @@ func checkAnnotsWidget(t *testing.T, doc model.Document, annots map[model.FormFi
 }
 
 func TestWidgets(t *testing.T) {
-	file := "datatest/ModeleRecuFiscalEditable.pdf"
+	file := "test/ModeleRecuFiscalEditable.pdf"
 	f, err := os.Open(file)
 	if err != nil {
 		t.Fatal(err)
@@ -56,11 +56,11 @@ func TestWidgets(t *testing.T) {
 
 func TestForms(t *testing.T) {
 	files := []string{
-		// "datatest/f990se.pdf",
-		// "datatest/f1041t.pdf",
-		// "datatest/f1118s1.pdf",
-		// "datatest/f4506c.pdf",
-		"datatest/ModeleRecuFiscalEditable.pdf",
+		// "test/f990se.pdf",
+		// "test/f1041t.pdf",
+		// "test/f1118s1.pdf",
+		// "test/f4506c.pdf",
+		"test/ModeleRecuFiscalEditable.pdf",
 	}
 	for _, file := range files {
 		f, err := os.Open(file)

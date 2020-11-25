@@ -87,7 +87,6 @@ func (r resolver) resolveStream(content pdfcpu.Object) (*model.Stream, error) {
 
 // `page` has been previously allocated and must be filled
 func (r resolver) resolvePageObject(node pdfcpu.Dict, page *model.PageObject) error {
-	fmt.Printf("resolving page into %p\n", page)
 	if node["Resources"] != nil {
 		resources, err := r.resolveOneResourceDict(node["Resources"])
 		if err != nil {

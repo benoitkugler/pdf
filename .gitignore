@@ -1,4 +1,5 @@
-reader/datatest/*
+reader/test/*
 model/test/*
 apidemo/test/*
 reader/profile/*
+formfill/test/*
