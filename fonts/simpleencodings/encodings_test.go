@@ -6,7 +6,7 @@ import (
 )
 
 func TestNames(t *testing.T) {
-	for _, e := range encsNameRunes {
-		fmt.Println(len(e))
+	for _, e := range encs {
+		fmt.Println(len(e.NamesToRune))
 	}
 }

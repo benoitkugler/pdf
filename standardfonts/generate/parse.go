@@ -15,7 +15,6 @@ func ParseFont(source io.Reader) (Font, error) {
 	f := defautFontValues
 	// deep copy to avoid state sharing
 	f.charMetrics = map[string]charMetric{}
-	f.charCodeToCharName = map[byte]string{}
 	f.kernPairs = map[string][]kernPair{}
 
 	err := f.parse(source)
@@ -163,13 +162,10 @@ func (f *Font) parse(source io.Reader) error {
 			switch ident {
 			case "C":
 				c, err = readIntToken(tokc, 1)
-				if c == -1 { // not encoded
-					goto endloop
+				if c >= 0 && c <= 255 { // encoded
+					by := byte(c)
+					met.code = &by
 				}
-				if c < 0 || c > 255 {
-					panic("byte overflow")
-				}
-				met.code = byte(c)
 			case "WX":
 				met.width, err = readIntToken(tokc, 1)
 			case "N":
@@ -194,9 +190,9 @@ func (f *Font) parse(source io.Reader) error {
 			}
 		}
 		f.charMetrics[met.name] = met
-		f.charCodeToCharName[met.code] = met.name
-
-	endloop:
+		if met.code != nil {
+			f.charCodeToCharName[*met.code] = met.name
+		}
 	}
 
 	if isMetrics {

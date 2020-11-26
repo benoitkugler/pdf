@@ -1,6 +1,10 @@
 package fonts
 
-import "github.com/benoitkugler/pdf/model"
+import (
+	"log"
+
+	"github.com/benoitkugler/pdf/model"
+)
 
 type Fl = model.Fl
 
@@ -47,11 +51,17 @@ func (ft type1) GetWidth(c rune, size Fl) Fl {
 func (ft type1) Encode(cs []rune) []byte {
 	out := make([]byte, len(cs))
 	for i, c := range cs {
-		b, ok := ft.charMap[c]
-		if !ok {
-			b = '.'
+		switch c {
+		case '\n', '\r', '\t': // the caracters are not encoded, write them and dont warn
+			out[i] = byte(c)
+		default:
+			b, ok := ft.charMap[c]
+			if !ok {
+				log.Printf("unsupported rune %s %d", string(c), c)
+				b = '.'
+			}
+			out[i] = b
 		}
-		out[i] = b
 	}
 	return out
 }

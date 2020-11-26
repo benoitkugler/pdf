@@ -4,6 +4,7 @@
 package type1
 
 import (
+	"log"
 	"strings"
 
 	"github.com/benoitkugler/pdf/model"
@@ -22,7 +23,7 @@ var defautFontValues = Font{
 }
 
 type charMetric struct {
-	code     byte
+	code     *byte // nil for not encoded glyphs
 	width    int
 	name     string
 	charBBox [4]int
@@ -75,9 +76,10 @@ type Font struct {
 	stdVw int
 
 	// Represents the section CharMetrics in the AFM file.
-	// The key is the name of the char and also an Integer with the char number.
+	// The key is the name of the char.
+	// Even not encoded chars are present
 	charMetrics        map[string]charMetric
-	charCodeToCharName map[byte]string
+	charCodeToCharName [256]string // encoded chars
 
 	// Represents the section KernPairs in the AFM file. The key is
 	// the name of the first character and the value is a <CODE>Object[]</CODE>
@@ -174,27 +176,38 @@ func (f Font) FontDescriptor() model.FontDescriptor {
 // element being the glyph width for the character code that equals
 // firstChar plus the array index.
 func (f Font) Widths() (firstChar byte, widths []int) {
+	return f.WidthsWithEncoding(f.charCodeToCharName)
+}
+
+// WidthsWithEncoding use the encoding (byte to name)
+// given to generate a compatible Widths array
+func (f Font) WidthsWithEncoding(encoding [256]string) (firstChar byte, widths []int) {
 	var lastChar byte
 	firstChar = 255
 	// we first need to find the first and last char
 	// var charcodes []byte
-	for _, cm := range f.charMetrics {
-		if cm.name != ".undef" {
-			if cm.code < firstChar {
-				firstChar = cm.code
-			}
-			if cm.code > lastChar {
-				lastChar = cm.code
-			}
-			// charcodes = append(charcodes, cm.code)
+	for code, name := range encoding {
+		if name == "" || name == ".undef" {
+			continue
+		}
+		if byte(code) < firstChar {
+			firstChar = byte(code)
+		}
+		if byte(code) > lastChar {
+			lastChar = byte(code)
 		}
 	}
 	widths = make([]int, lastChar-firstChar+1)
-	for _, cm := range f.charMetrics {
-		if cm.name != ".undef" {
-			index := cm.code - firstChar
-			widths[index] = cm.width
+	for code, name := range encoding {
+		if name == "" || name == ".undef" {
+			continue
 		}
+		metrics, ok := f.charMetrics[name]
+		if !ok {
+			log.Printf("unsupported glyph name : %s", name)
+		}
+		index := code - int(firstChar)
+		widths[index] = metrics.width
 	}
 	return firstChar, widths
 }

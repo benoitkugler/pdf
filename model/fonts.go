@@ -69,8 +69,11 @@ func t1orttPDFString(font Font, pdf pdfWriter) string {
 	fd := pdf.createObject()
 	pdf.writeObject(t.FontDescriptor.pdfString(pdf, font, fd), nil, fd) // FontDescriptor need the type of font
 	b := newBuffer()
-	b.line("<</Type/Font/Subtype %s/BaseFont %s/FirstChar %d/LastChar %d",
-		subtype, t.BaseFont, t.FirstChar, t.LastChar())
+	b.line("<</Type/Font/Subtype %s/FirstChar %d/LastChar %d",
+		subtype, t.FirstChar, t.LastChar())
+	if t.BaseFont != "" {
+		b.fmt("/BaseFont %s", t.BaseFont)
+	}
 	b.line("/FontDescriptor %s", fd)
 	b.line("/Widths %s", writeIntArray(t.Widths))
 	if t.Encoding != nil {

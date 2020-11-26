@@ -436,6 +436,16 @@ func (f AnnotationText) clone(cache cloneCache) Annotation {
 
 // ----------------------------------------------------------
 
+type Highlighting Name
+
+const (
+	HNone    Highlighting = "N" // No highlighting.
+	HInvert  Highlighting = "I" // Invert the contents of the annotation rectangle.
+	HOutline Highlighting = "O" // Invert the annotation’s border.
+	HPush    Highlighting = "P" // Display the annotation’s down appearance, if any
+	HToggle  Highlighting = "T" // Same as P (which is preferred).
+)
+
 // AnnotationLink either opens an URI (field A)
 // or an internal page (field Dest)
 // See Table 173 – Additional entries specific to a link annotation

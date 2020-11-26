@@ -21,3 +21,7 @@ func TestBreaks(t *testing.T) {
 
 	fmt.Println(font.GetWidth('i', 10), font.GetWidth('8', 10))
 }
+
+func TestEncoding(t *testing.T) {
+	fmt.Println(defaultFont.Subtype.(model.FontType1).Widths[160-32])
+}

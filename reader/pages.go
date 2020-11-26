@@ -201,12 +201,17 @@ func (r resolver) resolveBaseAnnotation(annotDict pdfcpu.Dict) (out model.BaseAn
 		}
 	}
 
+	out.AP, err = r.resolveAppearanceDict(annotDict["AP"])
+	if err != nil {
+		return out, err
+	}
+	if name, ok := r.resolveName(annotDict["AS"]); ok {
+		out.AS = name
+	}
 	if f, ok := r.resolveInt(annotDict["F"]); ok {
 		out.F = model.AnnotationFlag(f)
 	}
-	if name, ok := r.resolveName(annotDict["Name"]); ok {
-		out.AS = name
-	}
+
 	border, _ := r.resolveArray(annotDict["Border"])
 	var bo model.Border
 	if len(border) >= 3 {
@@ -226,10 +231,6 @@ func (r resolver) resolveBaseAnnotation(annotDict pdfcpu.Dict) (out model.BaseAn
 		out.C = r.processFloatArray(color)
 	}
 
-	out.AP, err = r.resolveAppearanceDict(annotDict["AP"])
-	if err != nil {
-		return out, err
-	}
 	if st, ok := r.resolveInt(annotDict["StructParent"]); ok {
 		out.StructParent = model.Int(st)
 	}

@@ -231,16 +231,6 @@ func (f *FormFieldDict) clone(cache cloneCache) *FormFieldDict {
 
 // ---------------------------------------------------
 
-type Highlighting Name
-
-const (
-	HNone    Highlighting = "N" // No highlighting.
-	HInvert  Highlighting = "I" // Invert the contents of the annotation rectangle.
-	HOutline Highlighting = "O" // Invert the annotation’s border.
-	HPush    Highlighting = "P" // Display the annotation’s down appearance, if any
-	HToggle  Highlighting = "T" // Same as P (which is preferred).
-)
-
 // FormFieldWidget is an annotation
 // which must have a type of FormFieldWidget
 type FormFieldWidget struct {
@@ -296,7 +286,10 @@ type FormFieldButton struct {
 }
 
 func (f FormFieldButton) formFieldAttrs(pdf pdfWriter, _, fieldRef Reference) string {
-	out := fmt.Sprintf("/FT/Btn/V %s", f.V)
+	out := "/FT/Btn"
+	if f.V != "" {
+		out += "/V " + f.V.String()
+	}
 	if len(f.Opt) != 0 {
 		out += fmt.Sprintf("/Opt [%s]", pdf.stringsArray(f.Opt, TextString, fieldRef))
 	}

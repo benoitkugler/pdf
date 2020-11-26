@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"image/color"
+	"log"
 	"strconv"
 	"strings"
 
@@ -17,11 +18,9 @@ import (
 
 type Fl = model.Fl
 
-var defaultFont = &model.FontDict{Subtype: model.FontType1{
-	FirstChar:      standardfonts.Helvetica.FirstChar,
-	Widths:         standardfonts.Helvetica.Widths,
-	FontDescriptor: standardfonts.Helvetica.Descriptor,
-}}
+var defaultFont = &model.FontDict{
+	Subtype: standardfonts.Helvetica.WesternType1Font(),
+}
 
 type filler struct {
 	fontCache map[model.Name]fonts.BuiltFont
@@ -151,6 +150,7 @@ func (ac *filler) buildAppearance(formResources model.ResourcesDict, fields mode
 			} else { // build and cache
 				fd := formResources.Font[dab.font]
 				if fd == nil { // safely default to a standard font
+					log.Printf("can't resolve font %s -> using default", dab.font)
 					fd = defaultFont
 				}
 				font = fonts.BuildFont(fd)
@@ -367,7 +367,7 @@ func isInAP(widget model.FormFieldWidget, check model.Name) bool {
 }
 
 // update `acro` in place, accorcding to the value in `fdf`
-func (ac filler) fillForm(acro *model.AcroForm, fdf FDFDict) error {
+func (ac filler) fillForm(acro *model.AcroForm, fdf FDFDict, lockForm bool) error {
 	// we first walk the fdf tree into a map
 	values := fdf.resolve()
 
@@ -383,7 +383,14 @@ func (ac filler) fillForm(acro *model.AcroForm, fdf FDFDict) error {
 			}
 		}
 	}
-	acro.NeedAppearances = true
+	acro.NeedAppearances = false
+
+	if lockForm {
+		// lock all the fields, not only the ones filled
+		for _, field := range fields {
+			field.Ff |= model.ReadOnly
+		}
+	}
 
 	return nil
 }

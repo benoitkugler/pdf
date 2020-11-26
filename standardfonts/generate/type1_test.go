@@ -1,13 +1,14 @@
 package type1
 
 import (
-	"fmt"
 	"os"
 	"testing"
+
+	"github.com/benoitkugler/pdf/fonts/simpleencodings"
 )
 
 func TestParse(t *testing.T) {
-	f, err := os.Open("afms/Symbol.afm")
+	f, err := os.Open("afms/Helvetica.afm")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -18,7 +19,10 @@ func TestParse(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	fmt.Println(font.charMetrics)
+	// _, wd := font.Widths()
+	// if !reflect.DeepEqual(wd, standardfonts.Helvetica.Widths) {
+	// 	t.Error()
+	// }
 
-	fmt.Println(font.Widths())
+	font.WidthsWithEncoding(simpleencodings.WinAnsi.Names)
 }

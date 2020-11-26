@@ -65,10 +65,11 @@ func (f FDFDict) resolve() map[string]Values {
 
 // FillForm fill the AcroForm contained in the document
 // using the value in `fdf`.
+// If `lockForm` is true, all the fields a set ReadOnly (even the ones not filled).
 // TODO: See FillFormFromFDF to use a FDF file as value input.
-func FillForm(doc *model.Document, fdf FDFDict) error {
+func FillForm(doc *model.Document, fdf FDFDict, lockForm bool) error {
 	filler := newFiller()
-	return filler.fillForm(&doc.Catalog.AcroForm, fdf)
+	return filler.fillForm(&doc.Catalog.AcroForm, fdf, lockForm)
 }
 
 func ReadFDF(data []byte) error {

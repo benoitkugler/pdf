@@ -55,7 +55,7 @@ func TestFDF(t *testing.T) {
 		t.Errorf("expected 65 fields, got %d", L)
 	}
 
-	err = FillForm(&doc, FDFDict{Fields: data})
+	err = FillForm(&doc, FDFDict{Fields: data}, true)
 	if err != nil {
 		t.Fatal(err)
 	}
