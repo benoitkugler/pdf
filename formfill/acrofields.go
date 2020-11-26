@@ -373,7 +373,7 @@ func (ac filler) fillForm(acro *model.AcroForm, fdf FDFDict, lockForm bool) erro
 
 	// we also walk the current tree into a map
 	fields := acro.Flatten()
-	fmt.Println(len(values), len(fields))
+
 	for fullName, fdfValue := range values {
 		if acroValue, ok := fields[fullName]; ok {
 			// match with value, do fill the field

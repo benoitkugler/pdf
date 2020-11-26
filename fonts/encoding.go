@@ -4,6 +4,7 @@ import (
 	"log"
 
 	"github.com/benoitkugler/pdf/fonts/glyphsnames"
+	"github.com/benoitkugler/pdf/fonts/sfnt"
 	"github.com/benoitkugler/pdf/fonts/simpleencodings"
 	"github.com/benoitkugler/pdf/fonts/type1font"
 	"github.com/benoitkugler/pdf/model"
@@ -11,7 +12,7 @@ import (
 
 // build the definitive font encoding, expressed in term
 // of Unicode codepoint to byte
-func (t type1) resolveCharMap(userCharMap map[string]rune) map[rune]byte {
+func resolveCharMapType1(t model.FontType1, userCharMap map[string]rune) map[rune]byte {
 	if enc, ok := t.Encoding.(model.SimpleEncodingPredefined); ok {
 		// the font dict overide the font builtin encoding
 		return baseEnc(enc).RuneToByte()
@@ -109,7 +110,24 @@ func builtinEncoding(desc model.FontDescriptor, fontType model.Font) simpleencod
 			return simpleencodings.Standard
 		}
 		return simpleencodings.Encoding{Names: info.Encoding.Custom, Runes: simpleencodings.Standard.Runes}
+	case model.FontTrueType:
+		font, err := sfnt.Parse(content)
+		if err != nil {
+			log.Printf("invalid embedded font file: %s\n", err)
+			return simpleencodings.Standard
+		}
+		fontChars := font.Chars()
+		out := make(map[rune]byte, len(fontChars))
+		for r, index := range font.Chars() {
+			out[r] = byte(index) // keep the lower order byte
+		}
+		return simpleencodings.Encoding{Runes: out}
 	default: // TODO:
 		return simpleencodings.Standard
 	}
+}
+
+func resolveCharMapTrueType(f model.FontTrueType, userCharMap map[string]rune) map[rune]byte {
+	// TODO:
+	return nil
 }

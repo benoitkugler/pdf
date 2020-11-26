@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"os"
 	"time"
 
 	"github.com/benoitkugler/pdf/model"
@@ -68,7 +69,6 @@ func decodeTextString(s string) string {
 
 	// Check for UTF-16: we also accept LE, since text/encoding handles it
 	if isUTF16(b) {
-		fmt.Println(b)
 		out, err := utf16Dec.NewDecoder().Bytes(b)
 		if err != nil {
 			log.Printf("error decoding UTF16 string literal %s \n", err)
@@ -229,6 +229,16 @@ func (r resolver) processCryptFilter(crypt pdfcpu.Object) model.CrypFilter {
 		out.DontEncryptMetadata = !enc
 	}
 	return out
+}
+
+func ParseFile(filename string, userPassword string) (model.Document, *model.Encrypt, error) {
+	f, err := os.Open(filename)
+	if err != nil {
+		return model.Document{}, nil, fmt.Errorf("can't open file: %w", err)
+	}
+	defer f.Close()
+
+	return ParsePDF(f, userPassword)
 }
 
 func ParsePDF(source io.ReadSeeker, userPassword string) (model.Document, *model.Encrypt, error) {

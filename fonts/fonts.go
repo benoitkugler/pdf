@@ -31,28 +31,29 @@ type Font interface {
 	Desc() model.FontDescriptor
 }
 
-type type1 struct {
-	model.FontType1
-
-	charMap map[rune]byte
+type simpleFont struct {
+	desc      model.FontDescriptor
+	firstChar byte
+	widths    []int
+	charMap   map[rune]byte
 }
 
-func (ft type1) GetWidth(c rune, size Fl) Fl {
+func (ft simpleFont) GetWidth(c rune, size Fl) Fl {
 	by := ft.charMap[c] // = FirstChar + i
-	if ft.FirstChar > by {
-		by = ft.FirstChar
+	if ft.firstChar > by {
+		by = ft.firstChar
 	}
-	index := by - ft.FirstChar
-	return Fl(ft.Widths[index]) * 0.001 * size
+	index := by - ft.firstChar
+	return Fl(ft.widths[index]) * 0.001 * size
 }
 
 // simple font: use a simple map algorithm
 // unsuported runes are mapped to the byte '.'
-func (ft type1) Encode(cs []rune) []byte {
+func (ft simpleFont) Encode(cs []rune) []byte {
 	out := make([]byte, len(cs))
 	for i, c := range cs {
 		switch c {
-		case '\n', '\r', '\t': // the caracters are not encoded, write them and dont warn
+		case '\n', '\r', '\t', '\f': // the caracters are not encoded, write them and dont warn
 			out[i] = byte(c)
 		default:
 			b, ok := ft.charMap[c]
@@ -66,8 +67,8 @@ func (ft type1) Encode(cs []rune) []byte {
 	return out
 }
 
-func (ft type1) Desc() model.FontDescriptor {
-	return ft.FontType1.FontDescriptor
+func (ft simpleFont) Desc() model.FontDescriptor {
+	return ft.desc
 }
 
 func BuildFont(f *model.FontDict) BuiltFont {
@@ -85,9 +86,21 @@ func BuildFont(f *model.FontDict) BuiltFont {
 func BuildFontWithCharMap(f *model.FontDict, userCharMap map[string]rune) BuiltFont {
 	switch ft := f.Subtype.(type) {
 	case model.FontType1:
-		out := type1{FontType1: ft}
-		out.charMap = out.resolveCharMap(userCharMap)
-		return BuiltFont{Meta: f, Font: out}
+		charMap := resolveCharMapType1(ft, userCharMap)
+		return BuiltFont{Meta: f, Font: simpleFont{
+			desc:      ft.FontDescriptor,
+			charMap:   charMap,
+			firstChar: ft.FirstChar,
+			widths:    ft.Widths,
+		}}
+	case model.FontTrueType:
+		charMap := resolveCharMapTrueType(ft, userCharMap)
+		return BuiltFont{Meta: f, Font: simpleFont{
+			desc:      ft.FontDescriptor,
+			charMap:   charMap,
+			firstChar: ft.FirstChar,
+			widths:    ft.Widths,
+		}}
 	default:
 		//TODO: support the other type of font
 		panic("not implemented")
