@@ -1,26 +1,23 @@
-package model
+package cidfonts
 
 import (
 	"errors"
 	"fmt"
+
+	"github.com/benoitkugler/pdf/model"
 )
 
 // CMap map character code to CIDs.
 // It is either predefined, or embedded in PDF as a stream.
 type CMap struct {
-	Name          Name
-	CIDSystemInfo CIDSystemInfo
+	Name          model.Name
+	CIDSystemInfo model.CIDSystemInfo
 	Type          int
 	Codespaces    []Codespace
 	CIDs          []CIDRange
 
 	simple *bool // cached value of Simple
 }
-
-// CID is a character code that correspond to one glyph
-// It will be obtained (from the bytes of a string) through a CMap, and will be use
-// as index in a CIDFont object
-type CID int
 
 // Codespace represents a single codespace range used in the CMap.
 type Codespace struct {
@@ -75,7 +72,7 @@ func hexToRune(shex []byte) rune {
 // associated from Low to High.
 type CIDRange struct {
 	Codespace
-	CIDStart CID // CID code for the first character code in range
+	CIDStart model.CID // CID code for the first character code in range
 }
 
 // Simple returns `true` if only one-byte character code are encoded
@@ -96,13 +93,39 @@ func (cm *CMap) Simple() bool {
 	return simple
 }
 
-// RuneToCID accumulate all the CID ranges to one map
-func (cm CMap) RuneToCID() map[rune]CID {
-	out := map[rune]CID{}
+// RuneToCID accumulate all the CID ranges into one map
+func (cm CMap) RuneToCID() map[rune]model.CID {
+	out := map[rune]model.CID{}
 	for _, v := range cm.CIDs {
 		for index := rune(0); index <= v.High-v.Low; index++ {
-			out[v.Low+index] = v.CIDStart + CID(index)
+			out[v.Low+index] = v.CIDStart + model.CID(index)
 		}
 	}
 	return out
 }
+
+// BytesToCharcodes attempts to convert the entire byte array `data` to a list
+// of character codes from the ranges specified by `cmap`'s codespaces.
+// Returns:
+//      character code sequence (if there is a match complete match)
+//      matched?
+// NOTE: A partial list of character codes will be returned if a complete match
+//       is not possible.
+// func (cmap CMap) BytesToCharcodes(data []byte) ([]CharCode, bool) {
+// 	var charcodes []CharCode
+// 	if cmap.CMap.Simple() {
+// 		for _, b := range data {
+// 			charcodes = append(charcodes, CharCode(b))
+// 		}
+// 		return charcodes, true
+// 	}
+// 	for i := 0; i < len(data); {
+// 		code, n, matched := cmap.matchCode(data[i:])
+// 		if !matched {
+// 			return charcodes, false
+// 		}
+// 		charcodes = append(charcodes, code)
+// 		i += n
+// 	}
+// 	return charcodes, true
+// }

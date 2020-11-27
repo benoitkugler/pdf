@@ -1,9 +1,9 @@
-package cmap
+package cmapparser
 
 import (
 	"testing"
 
-	"github.com/benoitkugler/pdf/model"
+	"github.com/benoitkugler/pdf/fonts/cidfonts"
 )
 
 // cmap1Data represents a basic CMap.
@@ -48,7 +48,7 @@ const cmap1Data = `
 
 // TestCMapParser tests basic loading of a simple CMap.
 func TestCMapParser1(t *testing.T) {
-	cmap, err := LoadCmapFromDataCID([]byte(cmap1Data))
+	cmap, err := LoadCmapFromData([]byte(cmap1Data))
 	if err != nil {
 		t.Error("Failed: ", err)
 		return
@@ -141,7 +141,7 @@ const cmap2Data = `
 // TestCMapParser2 tests a bug that came up when 2-byte character codes had the higher byte set to 0,
 // e.g. 0x0080, and the character map was not taking the number of bytes of the input codemap into account.
 func TestCMapParser2(t *testing.T) {
-	cmap, err := LoadCmapFromDataCID([]byte(cmap2Data))
+	cmap, err := LoadCmapFromData([]byte(cmap2Data))
 	if err != nil {
 		t.Error("Failed: ", err)
 		return
@@ -232,7 +232,7 @@ const cmapData3 = `
 
 // TestCMapParser3 test case of a CMap with mixed number of 1 and 2 bytes in the codespace range.
 func TestCMapParser3(t *testing.T) {
-	cmap, err := LoadCmapFromDataCID([]byte(cmapData3))
+	cmap, err := LoadCmapFromData([]byte(cmapData3))
 	if err != nil {
 		t.Error("Failed: ", err)
 		return
@@ -249,7 +249,7 @@ func TestCMapParser3(t *testing.T) {
 	}
 
 	// Check codespaces.
-	expectedCodespaces := []model.Codespace{
+	expectedCodespaces := []cidfonts.Codespace{
 		{NumBytes: 1, Low: 0x00, High: 0x80},
 		{NumBytes: 1, Low: 0xa0, High: 0xd0},
 		{NumBytes: 2, Low: 0x8100, High: 0x9fff},
@@ -358,7 +358,7 @@ const cmap4Data = `
 
 // TestCMapParser4 checks that ut16 encoded unicode strings are interpreted correctly.
 func TestCMapParser4(t *testing.T) {
-	cmap, err := LoadCmapFromDataCID([]byte(cmap4Data))
+	cmap, err := LoadCmapFromData([]byte(cmap4Data))
 	if err != nil {
 		t.Error("Failed to load CMap: ", err)
 		return
@@ -656,7 +656,7 @@ endbfrange
 // 	cmap0 := NewToUnicodeCMap(codeToUnicode)
 
 // 	data := cmap0.Bytes()
-// 	cmap, err := LoadCmapFromDataCID(data)
+// 	cmap, err := LoadCmapFromData(data)
 // 	if err != nil {
 // 		t.Error("Failed to load CMap: ", err)
 // 		return

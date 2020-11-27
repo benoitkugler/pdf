@@ -89,6 +89,10 @@ func (r resolver) resolveOneFont(font pdfcpu.Object) (*model.FontDict, error) {
 		return nil, err
 	}
 	fontModel := &model.FontDict{Subtype: fontType}
+	fontModel.ToUnicode, err = r.resolveToUnicode(fontDict["ToUnicode"])
+	if err != nil {
+		return nil, err
+	}
 	if isFontRef { //write back to the cache
 		r.fonts[fontRef] = fontModel
 	}
@@ -263,12 +267,31 @@ func (r resolver) resolveFontT3(font pdfcpu.Dict) (out model.FontType3, err erro
 		return out, err
 	}
 
-	out.ToUnicode, err = r.resolveStream(font["ToUnicode"])
-	if err != nil {
-		return out, err
-	}
-
 	return out, nil
+}
+
+func (r resolver) resolveToUnicode(obj pdfcpu.Object) (*model.UnicodeCMap, error) {
+	// keep track of the ref to avoid loops
+	ref, _ := obj.(pdfcpu.IndirectRef)
+	stream, err := r.resolveStream(obj)
+	if err != nil {
+		return nil, err
+	}
+	if stream == nil {
+		return nil, nil
+	}
+	dict, _ := r.resolve(obj).(pdfcpu.StreamDict)
+	var out model.UnicodeCMap
+	out.Stream = *stream
+	if kidRef, isRef := dict.Dict["UseCMap"].(pdfcpu.IndirectRef); isRef && kidRef == ref {
+		return &out, nil
+	} else {
+		out.UseCMap, err = r.resolveToUnicode(dict.Dict["UseCMap"])
+		if err != nil {
+			return nil, err
+		}
+	}
+	return &out, nil
 }
 
 // properies common to TrueType, Type1 and Type3
@@ -395,23 +418,54 @@ func (r resolver) processFontFile(object pdfcpu.Object) (*model.FontFile, error)
 	return &out, nil
 }
 
+func (r resolver) resolveCMapEncoding(enc pdfcpu.Object) (model.CMapEncoding, error) {
+	if enc, ok := r.resolveName(enc); ok {
+		return model.CMapEncodingPredefined(enc), nil
+	}
+	// keep the indirect to check for invalid loop
+	ref, isRef := enc.(pdfcpu.IndirectRef)
+
+	stream, err := r.resolveStream(enc)
+	if err != nil {
+		return nil, err
+	}
+	if enc == nil {
+		return nil, nil
+	}
+	encDict, _ := r.resolve(enc).(pdfcpu.StreamDict)
+	var cmap model.CMapEncodingEmbedded
+	cmap.Stream = *stream
+	cmap.CMapName, _ = r.resolveName(encDict.Dict["CMapName"])
+	cmap.CIDSystemInfo, err = r.resolveCIDSystemInfo(encDict.Dict["CIDSystemInfo"])
+	if err != nil {
+		return nil, err
+	}
+	if wmode, _ := r.resolveInt(encDict.Dict["WMode"]); wmode == 1 {
+		cmap.WMode = true
+	}
+	if otherRef, ok := encDict.Dict["UseCMap"]; isRef && ok && otherRef == ref {
+		// avoid circle
+	} else {
+		cmap.UseCMap, err = r.resolveCMapEncoding(encDict.Dict["UserCMap"])
+		if err != nil {
+			return nil, err
+		}
+	}
+	return cmap, nil
+}
+
 func (r resolver) resolveFontT0(font pdfcpu.Dict) (model.FontType0, error) {
 	var err error
 	out := model.FontType0{}
 
 	out.BaseFont, _ = r.resolveName(font["BaseFont"])
 
-	if enc, ok := r.resolveName(font["Encoding"]); ok {
-		out.Encoding = model.CMapEncodingPredefined(enc)
-	} else {
-		// should'nt be common, dont bother tracking ref
-		enc, err := r.resolveStream(font["Encoding"])
-		if err != nil {
-			return model.FontType0{}, err
-		}
-		if enc != nil {
-			out.Encoding = model.CMapEncodingEmbedded(*enc)
-		}
+	out.Encoding, err = r.resolveCMapEncoding(font["Encoding"])
+	if err != nil {
+		return out, err
+	}
+	if out.Encoding == nil {
+		return out, errors.New("encoding is required in Type0 font dictionary")
 	}
 
 	desc, _ := r.resolveArray(font["DescendantFonts"])
@@ -429,10 +483,18 @@ func (r resolver) resolveFontT0(font pdfcpu.Dict) (model.FontType0, error) {
 	if err != nil {
 		return out, err
 	}
-	out.ToUnicode, err = r.resolveStream(font["ToUnicode"])
-	if err != nil {
-		return out, err
+	return out, nil
+}
+
+func (r resolver) resolveCIDSystemInfo(object pdfcpu.Object) (out model.CIDSystemInfo, err error) {
+	cidSystem := r.resolve(object)
+	cidSystemDict, isDict := cidSystem.(pdfcpu.Dict)
+	if !isDict {
+		return model.CIDSystemInfo{}, errType("CIDSystemInfo", cidSystem)
 	}
+	out.Registry, _ = isString(r.resolve(cidSystemDict["Registry"]))
+	out.Ordering, _ = isString(r.resolve(cidSystemDict["Ordering"]))
+	out.Supplement, _ = r.resolveInt(cidSystemDict["Supplement"])
 	return out, nil
 }
 
@@ -444,14 +506,10 @@ func (r resolver) resolveCIDFontDict(cid pdfcpu.Dict) (model.CIDFontDictionary, 
 	out.Subtype, _ = r.resolveName(cid["Subtype"])
 	out.BaseFont, _ = r.resolveName(cid["BaseFont"])
 
-	cidSystem := r.resolve(cid["CIDSystemInfo"])
-	cidSystemDict, isDict := cidSystem.(pdfcpu.Dict)
-	if !isDict {
-		return model.CIDFontDictionary{}, errType("CIDSystemInfo", cidSystem)
+	out.CIDSystemInfo, err = r.resolveCIDSystemInfo(cid["CIDSystemInfo"])
+	if err != nil {
+		return out, err
 	}
-	out.CIDSystemInfo.Registry, _ = isString(r.resolve(cidSystemDict["Registry"]))
-	out.CIDSystemInfo.Ordering, _ = isString(r.resolve(cidSystemDict["Ordering"]))
-	out.CIDSystemInfo.Supplement, _ = r.resolveInt(cidSystemDict["Supplement"])
 
 	out.FontDescriptor, err = r.resolveFontDescriptor(cid["FontDescriptor"])
 	if err != nil {
@@ -466,6 +524,18 @@ func (r resolver) resolveCIDFontDict(cid pdfcpu.Dict) (model.CIDFontDictionary, 
 	}
 	out.W = r.processCIDWidths(cid["W"])
 	out.W2 = r.processCIDWidths(cid["W2"])
+
+	if id, _ := r.resolveName(cid["CIDToGIDMap"]); id == "Identity" {
+		out.CIDToGIDMap = model.CIDToGIDMapIdentity{}
+	} else {
+		stream, err := r.resolveStream(cid["CIDToGIDMap"])
+		if err != nil {
+			return out, err
+		}
+		if stream != nil {
+			out.CIDToGIDMap = model.CIDToGIDMapStream{Stream: *stream}
+		}
+	}
 	return out, nil
 }
 
@@ -487,13 +557,13 @@ func (r resolver) processCIDWidths(wds pdfcpu.Object) []model.CIDWidth {
 			}
 			w, _ := r.resolveInt(ar[i+2])
 			out = append(out, model.CIDWidthRange{
-				First: rune(first), Last: rune(last),
+				First: model.CID(first), Last: model.CID(last),
 				Width: w,
 			})
 			i += 3
 		case pdfcpu.Array:
 			cid := model.CIDWidthArray{
-				Start: rune(first),
+				Start: model.CID(first),
 				W:     make([]int, len(next)),
 			}
 			for j, w := range next {

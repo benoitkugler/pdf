@@ -1,4 +1,4 @@
-package cmap
+package cmapparser
 
 import (
 	"errors"

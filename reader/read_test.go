@@ -128,19 +128,12 @@ func TestDataset(t *testing.T) {
 	}
 
 	for _, file := range files {
-		f, err := os.Open(file)
-		if err != nil {
-			t.Fatal(err)
-		}
-
 		fmt.Println("Parsing", file)
 
-		doc, _, err := ParsePDF(f, "")
+		doc, _, err := ParseFile(file, "")
 		if err != nil {
 			t.Fatal(err)
 		}
-
-		f.Close()
 
 		fmt.Println("	Pages:", len(doc.Catalog.Pages.Flatten()))
 		fmt.Println("	Dests string:", len(doc.Catalog.Names.Dests.LookupTable()))

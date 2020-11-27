@@ -1,11 +1,12 @@
-// Code vastly copied from https://git.maze.io/go/unipdf/src/branch/master/internal/cmap
-package cmap
+// Code adapted from https://git.maze.io/go/unipdf/src/branch/master/internal/cmap
+package cmapparser
 
 import (
 	"fmt"
 	"sort"
 	"strings"
 
+	"github.com/benoitkugler/pdf/fonts/cidfonts"
 	"github.com/benoitkugler/pdf/model"
 )
 
@@ -37,76 +38,23 @@ type fbRange struct {
 type CMap struct {
 	*cMapParser
 
-	model.CMap
+	cidfonts.CMap
 
-	// Name       model.Name
-	// Nbits      int// 8 bits for simple fonts, 16 bits for CID fonts.
-	// Type       int
-	version string
-	usecmap model.Name // Base this cmap on `usecmap` if `usecmap` is not empty.
-	// systemInfo model.CIDSystemInfo
-
-	//// For regular cmaps.
-	// codespaces []Codespace
-
-	// Used by ctype 1 CMaps.
-	// codeToCID map[CharCode]CharCode// charcode -> CID
-	// cidToCode map[CharCode]CharCode// CID -> charcode
-
-	//// Used by ctype 2 CMaps.
+	version       string
+	usecmap       model.Name        // Base this cmap on `usecmap` if `usecmap` is not empty.
 	codeToUnicode map[CharCode]rune // CID -> Unicode
-	// unicodeToCode map[rune]CharCode// Unicode -> CID
 }
-
-//// NewToUnicodeCMap returns an identity CMap with codeToUnicode matching the `codeToUnicode` arg.
-// func NewToUnicodeCMap(codeToUnicode map[CharCode]rune) *CMap {
-// 	cmap := &CMap{
-// 		Name:  "Adobe-Identity-UCS",
-// 		Type:  2,
-// 		Nbits: 16,
-// 		systemInfo: model.CIDSystemInfo{
-// 			Registry:   "Adobe",
-// 			Ordering:   "UCS",
-// 			Supplement: 0,
-// 		},
-// 		codespaces:    []Codespace{{Low: 0, High: 0xffff}},
-// 		codeToCID:     make(map[CharCode]CharCode),
-// 		cidToCode:     make(map[CharCode]CharCode),
-// 		codeToUnicode: codeToUnicode,
-// 		unicodeToCode: make(map[rune]CharCode),
-// 	}
-
-// 	cmap.computeInverseMappings()
-// 	return cmap
-// }
 
 // newCMap returns an initialized CMap.
-func newCMap(isSimple bool) *CMap {
-	// nbits := 16
-	// if isSimple {
-	// 	nbits = 8
-	// }
-	return &CMap{
-		// Nbits:         nbits,
-		// codeToCID:     make(map[CharCode]CharCode),
-		// cidToCode:     make(map[CharCode]CharCode),
-		codeToUnicode: make(map[CharCode]rune),
-		// unicodeToCode: make(map[rune]CharCode),
-	}
-}
-
-// LoadCmapFromDataCID parses the in-memory cmap `data` and returns the resulting CMap.
-// It is a convenience function.
-func LoadCmapFromDataCID(data []byte) (*CMap, error) {
-	return LoadCmapFromData(data, false)
+func newCMap() *CMap {
+	return &CMap{codeToUnicode: make(map[CharCode]rune)}
 }
 
 // LoadCmapFromData parses the in-memory cmap `data` and returns the resulting CMap.
-// If `isSimple` is true, it uses 1-byte encodings, otherwise it uses the codespaces in the cmap.
 //
 // 9.10.3 ToUnicode CMaps (page 293).
-func LoadCmapFromData(data []byte, isSimple bool) (*CMap, error) {
-	cmap := newCMap(isSimple)
+func LoadCmapFromData(data []byte) (*CMap, error) {
+	cmap := newCMap()
 	cmap.cMapParser = newCMapParser(data)
 
 	err := cmap.parse()
@@ -124,71 +72,50 @@ func LoadCmapFromData(data []byte, isSimple bool) (*CMap, error) {
 	return cmap, nil
 }
 
-// IsPredefinedCMap returns true if the specified CMap name is a predefined
-// CJK CMap. The predefined CMaps are bundled with the package and can be loaded
-// using the LoadPredefinedCMap function.
-// See section 9.7.5.2 "Predefined CMaps" (page 273, Table 118).
-func IsPredefinedCMap(name string) bool {
-	return false
-	// return bcmaps.AssetExists(name)
-}
+// // LoadPredefinedCMap loads a predefined CJK CMap by name.
+// // See section 9.7.5.2 "Predefined CMaps" (page 273, Table 118).
+// func LoadPredefinedCMap(name model.Name) (*CMap, error) {
+// 	// Load cmap.
+// 	cmap, err := loadPredefinedCMap(name)
+// 	if err != nil {
+// 		return nil, err
+// 	}
+// 	if cmap.usecmap == "" {
+// 		cmap.computeInverseMappings()
+// 		return cmap, nil
+// 	}
 
-// LoadPredefinedCMap loads a predefined CJK CMap by name.
-// See section 9.7.5.2 "Predefined CMaps" (page 273, Table 118).
-func LoadPredefinedCMap(name model.Name) (*CMap, error) {
-	// Load cmap.
-	cmap, err := loadPredefinedCMap(name)
-	if err != nil {
-		return nil, err
-	}
-	if cmap.usecmap == "" {
-		cmap.computeInverseMappings()
-		return cmap, nil
-	}
+// 	// Load base cmap.
+// 	_, err = loadPredefinedCMap(cmap.usecmap)
+// 	if err != nil {
+// 		return nil, err
+// 	}
 
-	// Load base cmap.
-	_, err = loadPredefinedCMap(cmap.usecmap)
-	if err != nil {
-		return nil, err
-	}
+// 	// Add CID ranges.
+// 	// for charcode, cid := range base.codeToCID {
+// 	// 	if _, ok := cmap.codeToCID[charcode]; !ok {
+// 	// 		cmap.codeToCID[charcode] = cid
+// 	// 	}
+// 	// }
 
-	// Add CID ranges.
-	// for charcode, cid := range base.codeToCID {
-	// 	if _, ok := cmap.codeToCID[charcode]; !ok {
-	// 		cmap.codeToCID[charcode] = cid
-	// 	}
-	// }
+// 	// Add codespaces.
+// 	// for _, codespace := range base.codespaces {
+// 	// 	cmap.Codespaces = append(cmap.Codespaces, codespace)
+// 	// }
 
-	// Add codespaces.
-	// for _, codespace := range base.codespaces {
-	// 	cmap.Codespaces = append(cmap.Codespaces, codespace)
-	// }
-
-	cmap.computeInverseMappings()
-	return cmap, nil
-}
-
-// loadPredefinedCMap loads an embedded CMap from the bcmaps package, specified
-// by name.
-func loadPredefinedCMap(name model.Name) (*CMap, error) {
-	return nil, nil
-	// cmapData, err := bcmaps.Asset(name)
-	// if err != nil {
-	// 	return nil, err
-	// }
-
-	// return LoadCmapFromDataCID(cmapData)
-}
+// 	cmap.computeInverseMappings()
+// 	return cmap, nil
+// }
 
 func (cmap *CMap) computeInverseMappings() {
-	// Generate CID -> charcode map.
+	// // Generate CID -> charcode map.
 	// for code, cid := range cmap.codeToCID {
 	// 	if c, ok := cmap.cidToCode[cid]; !ok || (ok && c > code) {
 	// 		cmap.cidToCode[cid] = code
 	// 	}
 	// }
 
-	// Generate Unicode -> CID map.
+	// // Generate Unicode -> CID map.
 	// for cid, r := range cmap.codeToUnicode {
 	// 	if c, ok := cmap.unicodeToCode[r]; !ok || (ok && c > cid) {
 	// 		cmap.unicodeToCode[r] = cid

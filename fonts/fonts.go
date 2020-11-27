@@ -1,3 +1,20 @@
+// This package provides tooling for exploiting the
+// fonts defined (and embedded) in a PDF file and (TODO) to add new ones.
+//
+// PDF supports 4 kinds of fonts: the Simples (Type1, TrueType and Type3)
+// and the Composite (Type0) and divides the text representation
+// in 3 differents objects:
+//	1- Glyph: it is either a name (for Simples) or an integer called CID (for Composite)
+//	2- Chars (character code): it is a slice of bytes (1 byte for Simples, 1 to 4 bytes for Composite)
+//	3- Unicode (point): the Unicode point of a character, coded in Go as runes.
+//
+// The Glyphs are mapped to Chars (which are the bytes written in the PDF in content streams)
+// by an Encoding entry (and also the 'buitlin' encoding of a font).
+// Going from Chars to Glyphs is well-defined, but in general, there is no clear mapping
+// from Unicode to Glyph (or Chars). Thus, to be able to write an Unicode string (such as UTF-8 strings, which are
+// the default in Go), a writter need to build a mapping between Unicode and Glyph.
+// It is possible (and automatic) for many fonts (thanks to predifined encodings),
+// but some custom fonts may require user inputs.
 package fonts
 
 import (
@@ -86,7 +103,7 @@ func BuildFont(f *model.FontDict) BuiltFont {
 	return BuildFontWithCharMap(f, nil)
 }
 
-// Type1 fonts describe their character by name and not by Unicode point.
+// Type1, TrueType and Type3 fonts describe their character by name and not by Unicode point.
 // In several cases, we can use predefined encodings to establish this mapping.
 // In particular, all 14 Standard fonts are covered, as well as all the Nonsymbolic fonts
 // (described by the Flags field of the FontDescriptor).
@@ -112,9 +129,28 @@ func BuildFontWithCharMap(f *model.FontDict, userCharMap map[string]rune) BuiltF
 			firstChar: ft.FirstChar,
 			widths:    ft.Widths,
 		}}
+	case model.FontType3:
+		charMap := resolveCharMapType3(ft, userCharMap)
+		return BuiltFont{Meta: f, Font: simpleFont{
+			desc:      buildType3FontDesc(ft),
+			charMap:   charMap,
+			firstChar: ft.FirstChar,
+			widths:    ft.Widths,
+		}}
 	default:
 		//TODO: support the other type of font
 		panic("not implemented")
 	}
 	// return BuiltFont{}
+}
+
+// if no font desc is given, create one from the properties
+// of the font dict
+func buildType3FontDesc(tf model.FontType3) model.FontDescriptor {
+	if tf.FontDescriptor != nil {
+		return *tf.FontDescriptor
+	}
+	var out model.FontDescriptor
+	out.FontBBox = tf.FontBBox
+	return out
 }

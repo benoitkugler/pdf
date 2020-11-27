@@ -1,6 +1,7 @@
 package reader
 
 import (
+	"fmt"
 	"reflect"
 	"testing"
 
@@ -26,5 +27,22 @@ func TestDifferences(t *testing.T) {
 	diff := r.parseDiffArray(ar)
 	if !reflect.DeepEqual(diff, expected) {
 		t.Errorf("expected %v, got %v", expected, diff)
+	}
+}
+
+func TestToUnicode(t *testing.T) {
+	doc, _, err := ParseFile("test/transparents.pdf", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, p := range doc.Catalog.Pages.Flatten() {
+		for _, font := range p.Resources.Font {
+			if font.ToUnicode == nil {
+				continue
+			}
+			fmt.Println(font.ToUnicode.Length())
+			b, _ := font.ToUnicode.Decode()
+			fmt.Println(string(b))
+		}
 	}
 }

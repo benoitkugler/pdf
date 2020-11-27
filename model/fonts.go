@@ -6,196 +6,6 @@ import (
 	"strings"
 )
 
-// FontDict is a PDF font Dictionary
-// Additional support for text processing is provided
-// in fonts package.
-type FontDict struct {
-	Subtype Font
-}
-
-func (f *FontDict) pdfContent(pdf pdfWriter, _ Reference) (string, []byte) {
-	return f.Subtype.fontPDFString(pdf), nil
-}
-
-// clone returns a deep copy, with concrete type `*Font`
-func (f *FontDict) clone(cache cloneCache) Referenceable {
-	if f == nil {
-		return f
-	}
-	out := *f // shallow copy
-	if f.Subtype != nil {
-		out.Subtype = f.Subtype.clone(cache)
-	}
-	return &out
-}
-
-// Font is one of Type0, FontType1, TrueType or Type3
-type Font interface {
-	FontName() Name
-	fontPDFString(pdf pdfWriter) string
-	// returns a deep copy, preserving the concrete type
-	clone(cloneCache) Font
-}
-
-type FontType1 struct {
-	BaseFont  Name
-	FirstChar byte
-	// length (LastChar − FirstChar + 1) index i is char FirstChar + i
-	// width are measured in units in which 1000 units correspond to 1 unit in text space
-	Widths         []int
-	FontDescriptor FontDescriptor
-	Encoding       SimpleEncoding // optional
-}
-
-func (ft FontType1) FontName() Name {
-	return ft.BaseFont
-}
-
-// LastChar return the last caracter encoded by the font (see Widths)
-func (t FontType1) LastChar() byte {
-	return byte(len(t.Widths)) + t.FirstChar - 1
-}
-
-// font must be Type1 or TrueType,
-// and is needed for the FontDescriptor
-func t1orttPDFString(font Font, pdf pdfWriter) string {
-	var (
-		t       FontType1
-		subtype Name
-	)
-	switch font := font.(type) {
-	case FontType1:
-		t = font
-		subtype = "Type1"
-	case FontTrueType:
-		t = FontType1(font)
-		subtype = "TrueType"
-	}
-	fd := pdf.createObject()
-	pdf.writeObject(t.FontDescriptor.pdfString(pdf, font, fd), nil, fd) // FontDescriptor need the type of font
-	b := newBuffer()
-	b.line("<</Type/Font/Subtype %s/FirstChar %d/LastChar %d",
-		subtype, t.FirstChar, t.LastChar())
-	if t.BaseFont != "" {
-		b.fmt("/BaseFont %s", t.BaseFont)
-	}
-	b.line("/FontDescriptor %s", fd)
-	b.line("/Widths %s", writeIntArray(t.Widths))
-	if t.Encoding != nil {
-		b.line("/Encoding %s", t.Encoding.simpleEncodingPDFString(pdf))
-	}
-	b.WriteString(">>")
-	return b.String()
-}
-
-func (t FontType1) fontPDFString(pdf pdfWriter) string {
-	return t1orttPDFString(t, pdf)
-}
-
-// returns a deep copy with concrete type `Type1`
-func (t FontType1) clone(cache cloneCache) Font {
-	out := t                                     // shallow copy
-	out.Widths = append([]int(nil), t.Widths...) // preserve deep equal
-	out.FontDescriptor = t.FontDescriptor.Clone()
-	if t.Encoding != nil {
-		out.Encoding = t.Encoding.cloneSE(cache)
-	}
-	return out
-}
-
-type FontTrueType FontType1
-
-func (ft FontTrueType) FontName() Name {
-	return ft.BaseFont
-}
-
-func (t FontTrueType) fontPDFString(pdf pdfWriter) string {
-	return t1orttPDFString(t, pdf)
-}
-
-// returns a deep copy with concrete type `TrueType`
-func (t FontTrueType) clone(cache cloneCache) Font {
-	return FontTrueType(FontType1(t).clone(cache).(FontType1))
-}
-
-type FontType3 struct {
-	FontBBox       Rectangle
-	FontMatrix     Matrix
-	CharProcs      map[Name]ContentStream
-	Encoding       SimpleEncoding // required
-	FirstChar      byte
-	Widths         []int           // length (LastChar − FirstChar + 1); index i is char code FirstChar + i
-	FontDescriptor *FontDescriptor // required in TaggedPDF
-	Resources      ResourcesDict   // optional
-	ToUnicode      *Stream         // optional
-}
-
-func (ft FontType3) FontName() Name {
-	if ft.FontDescriptor != nil {
-		return ft.FontDescriptor.FontName
-	}
-	return ""
-}
-
-// LastChar return the last caracter encoded by the font (see Widths)
-func (t FontType3) LastChar() byte {
-	return byte(len(t.Widths)) + t.FirstChar - 1
-}
-
-func (f FontType3) fontPDFString(pdf pdfWriter) string {
-	b := newBuffer()
-	b.line("<</Type/Font/Subtype/Type3/FontBBox %s/FontMatrix %s",
-		f.FontBBox.String(), f.FontMatrix.String())
-	chunks := make([]string, 0, len(f.CharProcs))
-	for name, stream := range f.CharProcs {
-		ref := pdf.addObject(stream.PDFContent())
-		chunks = append(chunks, fmt.Sprintf("%s %s", name, ref))
-	}
-	b.line("/CharProcs <<%s>>", strings.Join(chunks, ""))
-	widthsRef := pdf.addObject(writeIntArray(f.Widths), nil)
-	b.line("/Encoding %s/FirstChar %d/LastChar %d/Widths %s",
-		f.Encoding.simpleEncodingPDFString(pdf), f.FirstChar, f.LastChar(), widthsRef)
-	if f.FontDescriptor != nil {
-		fdRef := pdf.createObject()
-		pdf.writeObject(f.FontDescriptor.pdfString(pdf, f, fdRef), nil, fdRef)
-		b.fmt("/FontDescriptor %s", fdRef)
-	}
-	if !f.Resources.IsEmpty() {
-		b.fmt("/Resources %s", f.Resources.pdfString(pdf))
-	}
-	if f.ToUnicode != nil {
-		ref := pdf.addObject(f.ToUnicode.PDFContent())
-		b.fmt("/ToUnicode %s", ref)
-	}
-	b.WriteString(">>")
-	return b.String()
-}
-
-// clone returns a deep copy, with concrete type `Type3`
-func (t FontType3) clone(cache cloneCache) Font {
-	out := t
-	if t.CharProcs != nil { // preserve reflect.DeepEqual
-		out.CharProcs = make(map[Name]ContentStream, len(t.CharProcs))
-	}
-	for n, cs := range t.CharProcs {
-		out.CharProcs[n] = cs.Clone()
-	}
-	if t.Encoding != nil {
-		out.Encoding = t.Encoding.cloneSE(cache)
-	}
-	out.Widths = append([]int(nil), t.Widths...)
-	if t.FontDescriptor != nil {
-		tf := t.FontDescriptor.Clone()
-		out.FontDescriptor = &tf
-	}
-	out.Resources = t.Resources.clone(cache)
-	if t.ToUnicode != nil {
-		toU := t.ToUnicode.Clone()
-		out.ToUnicode = &toU
-	}
-	return out
-}
-
 // FontFlag specify various characteristics of a font.
 // See Table 123 – Font flags of the PDF SPEC.
 type FontFlag uint32
@@ -213,15 +23,16 @@ const (
 )
 
 type FontDescriptor struct {
-	// PostScript name of the font: the value of BaseFont in the font or
+	// Required. PostScript name of the font: the value of BaseFont in the font or
 	// CIDFont dictionary that refers to this font descriptor
-	FontName   Name
-	FontFamily string // byte string, optional
-	Flags      FontFlag
+	FontName    Name
+	Flags       FontFlag // Required
+	ItalicAngle Fl       // Required
+
+	FontFamily string    // byte string, optional
 	FontBBox   Rectangle // specify the font bounding box, expressed in the glyph coordinate system
 	// angle, expressed in degrees counterclockwise from
 	// the vertical, of the dominant vertical strokes of the font.
-	ItalicAngle  Fl
 	Ascent       Fl  // maximum height above the baseline reached by glyphs in this font
 	Descent      Fl  // (negative number) maximum depth below the baseline reached by glyphs in this font
 	Leading      Fl  // optional, default to 0. Spacing between baselines of consecutive lines of text
@@ -288,6 +99,226 @@ func (f FontDescriptor) pdfString(pdf pdfWriter, font Font, context Reference) s
 func (f FontDescriptor) Clone() FontDescriptor {
 	out := f
 	out.FontFile = out.FontFile.Clone()
+	return out
+}
+
+// UnicodeCMap is stream object containing a special kind of CMap file
+// that maps character codes to Unicode values.
+type UnicodeCMap struct {
+	Stream
+
+	UseCMap *UnicodeCMap // optional
+}
+
+// Clone returns a deep copy
+func (p *UnicodeCMap) Clone() *UnicodeCMap {
+	if p == nil {
+		return p
+	}
+	out := *p
+	out.Stream = p.Stream.Clone()
+	out.UseCMap = p.UseCMap.Clone()
+	return &out
+}
+
+func (c UnicodeCMap) pdfString(pdf pdfWriter) string {
+	ref := pdf.createObject()
+	base := c.Stream.PDFCommonFields()
+	dict := "<</Type/CMap " + base
+	if c.UseCMap != nil {
+		dict += fmt.Sprintf("/UseCMap %s", c.UseCMap.pdfString(pdf))
+	}
+	dict += ">>"
+	pdf.writeObject(dict, c.Content, ref)
+	return ref.String()
+}
+
+// FontDict is a PDF font Dictionary.
+//
+// It exposes only the information written and read in PDF
+// files. Almost every text processing task will require
+// more informations, especially when dealing with Unicode strings.
+// See `pdf/fonts` for more information and tooling.
+type FontDict struct {
+	Subtype   Font
+	ToUnicode *UnicodeCMap
+}
+
+func (f *FontDict) pdfContent(pdf pdfWriter, _ Reference) (string, []byte) {
+	sub := f.Subtype.fontPDFFields(pdf)
+	if f.ToUnicode != nil {
+		sub += "/ToUnicode " + f.ToUnicode.pdfString(pdf)
+	}
+	return "<<" + sub + ">>", nil
+}
+
+// clone returns a deep copy, with concrete type `*Font`
+func (f *FontDict) clone(cache cloneCache) Referenceable {
+	if f == nil {
+		return f
+	}
+	out := *f // shallow copy
+	if f.Subtype != nil {
+		out.Subtype = f.Subtype.clone(cache)
+	}
+	out.ToUnicode = f.ToUnicode.Clone()
+	return &out
+}
+
+// Font is one of Type0, FontType1, TrueType or Type3
+type Font interface {
+	FontName() Name
+
+	fontPDFFields(pdf pdfWriter) string
+	// returns a deep copy, preserving the concrete type
+	clone(cloneCache) Font
+}
+
+type FontType1 struct {
+	BaseFont  Name
+	FirstChar byte
+	// length (LastChar − FirstChar + 1) index i is char FirstChar + i
+	// width are measured in units in which 1000 units correspond to 1 unit in text space
+	Widths         []int
+	FontDescriptor FontDescriptor
+	Encoding       SimpleEncoding // optional
+}
+
+func (ft FontType1) FontName() Name {
+	return ft.BaseFont
+}
+
+// LastChar return the last caracter encoded by the font (see Widths)
+func (t FontType1) LastChar() byte {
+	return byte(len(t.Widths)) + t.FirstChar - 1
+}
+
+// font must be Type1 or TrueType,
+// and is needed for the FontDescriptor
+func t1orttPDFString(font Font, pdf pdfWriter) string {
+	var (
+		t       FontType1
+		subtype Name
+	)
+	switch font := font.(type) {
+	case FontType1:
+		t = font
+		subtype = "Type1"
+	case FontTrueType:
+		t = FontType1(font)
+		subtype = "TrueType"
+	}
+	fd := pdf.createObject()
+	pdf.writeObject(t.FontDescriptor.pdfString(pdf, font, fd), nil, fd) // FontDescriptor need the type of font
+	b := newBuffer()
+	b.line("/Type/Font/Subtype %s/FirstChar %d/LastChar %d",
+		subtype, t.FirstChar, t.LastChar())
+	if t.BaseFont != "" {
+		b.fmt("/BaseFont %s", t.BaseFont)
+	}
+	b.line("/FontDescriptor %s", fd)
+	b.line("/Widths %s", writeIntArray(t.Widths))
+	if t.Encoding != nil {
+		b.line("/Encoding %s", t.Encoding.simpleEncodingPDFString(pdf))
+	}
+	return b.String()
+}
+
+func (t FontType1) fontPDFFields(pdf pdfWriter) string {
+	return t1orttPDFString(t, pdf)
+}
+
+// returns a deep copy with concrete type `Type1`
+func (t FontType1) clone(cache cloneCache) Font {
+	out := t                                     // shallow copy
+	out.Widths = append([]int(nil), t.Widths...) // preserve deep equal
+	out.FontDescriptor = t.FontDescriptor.Clone()
+	if t.Encoding != nil {
+		out.Encoding = t.Encoding.cloneSE(cache)
+	}
+	return out
+}
+
+type FontTrueType FontType1
+
+func (ft FontTrueType) FontName() Name {
+	return ft.BaseFont
+}
+
+func (t FontTrueType) fontPDFFields(pdf pdfWriter) string {
+	return t1orttPDFString(t, pdf)
+}
+
+// returns a deep copy with concrete type `TrueType`
+func (t FontTrueType) clone(cache cloneCache) Font {
+	return FontTrueType(FontType1(t).clone(cache).(FontType1))
+}
+
+type FontType3 struct {
+	FontBBox       Rectangle
+	FontMatrix     Matrix
+	CharProcs      map[Name]ContentStream
+	Encoding       SimpleEncoding // required
+	FirstChar      byte
+	Widths         []int           // length (LastChar − FirstChar + 1); index i is char code FirstChar + i
+	FontDescriptor *FontDescriptor // required in TaggedPDF
+	Resources      ResourcesDict   // optional
+}
+
+func (ft FontType3) FontName() Name {
+	if ft.FontDescriptor != nil {
+		return ft.FontDescriptor.FontName
+	}
+	return ""
+}
+
+// LastChar return the last caracter encoded by the font (see Widths)
+func (t FontType3) LastChar() byte {
+	return byte(len(t.Widths)) + t.FirstChar - 1
+}
+
+func (f FontType3) fontPDFFields(pdf pdfWriter) string {
+	b := newBuffer()
+	b.line("/Type/Font/Subtype/Type3/FontBBox %s/FontMatrix %s",
+		f.FontBBox.String(), f.FontMatrix.String())
+	chunks := make([]string, 0, len(f.CharProcs))
+	for name, stream := range f.CharProcs {
+		ref := pdf.addObject(stream.PDFContent())
+		chunks = append(chunks, fmt.Sprintf("%s %s", name, ref))
+	}
+	b.line("/CharProcs <<%s>>", strings.Join(chunks, ""))
+	widthsRef := pdf.addObject(writeIntArray(f.Widths), nil)
+	b.line("/Encoding %s/FirstChar %d/LastChar %d/Widths %s",
+		f.Encoding.simpleEncodingPDFString(pdf), f.FirstChar, f.LastChar(), widthsRef)
+	if f.FontDescriptor != nil {
+		fdRef := pdf.createObject()
+		pdf.writeObject(f.FontDescriptor.pdfString(pdf, f, fdRef), nil, fdRef)
+		b.fmt("/FontDescriptor %s", fdRef)
+	}
+	if !f.Resources.IsEmpty() {
+		b.fmt("/Resources %s", f.Resources.pdfString(pdf))
+	}
+	return b.String()
+}
+
+// clone returns a deep copy, with concrete type `Type3`
+func (t FontType3) clone(cache cloneCache) Font {
+	out := t
+	if t.CharProcs != nil { // preserve reflect.DeepEqual
+		out.CharProcs = make(map[Name]ContentStream, len(t.CharProcs))
+	}
+	for n, cs := range t.CharProcs {
+		out.CharProcs[n] = cs.Clone()
+	}
+	if t.Encoding != nil {
+		out.Encoding = t.Encoding.cloneSE(cache)
+	}
+	out.Widths = append([]int(nil), t.Widths...)
+	if t.FontDescriptor != nil {
+		tf := t.FontDescriptor.Clone()
+		out.FontDescriptor = &tf
+	}
+	out.Resources = t.Resources.clone(cache)
 	return out
 }
 
@@ -413,26 +444,22 @@ func (enc *SimpleEncodingDict) cloneSE(cache cloneCache) SimpleEncoding {
 
 type FontType0 struct {
 	BaseFont        Name
-	Encoding        CMapEncoding
+	Encoding        CMapEncoding      // required
 	DescendantFonts CIDFontDictionary // in PDF, array of one indirect object
-	ToUnicode       *Stream           // optionnal, as indirect object
 }
 
 func (f FontType0) FontName() Name {
 	return f.BaseFont
 }
 
-func (f FontType0) fontPDFString(pdf pdfWriter) string {
-	enc := writeCMapEncoding(f.Encoding, pdf)
+func (f FontType0) fontPDFFields(pdf pdfWriter) string {
 	desc := pdf.createObject()
 	pdf.writeObject(f.DescendantFonts.pdfString(pdf, desc), nil, desc)
-	out := fmt.Sprintf("<</Type/Font/Subtype/Type0/BaseFont %s/Encoding %s/DescendantFonts [%s]",
-		f.BaseFont, enc, desc)
-	if f.ToUnicode != nil {
-		toU := pdf.addObject(f.ToUnicode.PDFContent())
-		out += "/ToUnicode " + toU.String()
+	out := fmt.Sprintf("/Type/Font/Subtype/Type0/BaseFont %s/DescendantFonts [%s]",
+		f.BaseFont, desc)
+	if f.Encoding != nil {
+		out += "/Encoding " + f.Encoding.cMapEncodingPDFString(pdf)
 	}
-	out += ">>"
 	return out
 }
 
@@ -441,46 +468,86 @@ func (t FontType0) clone(cloneCache) Font {
 	out := t
 	out.Encoding = t.Encoding.Clone()
 	out.DescendantFonts = t.DescendantFonts.Clone()
-	if t.ToUnicode != nil {
-		toU := t.ToUnicode.Clone()
-		out.ToUnicode = &toU
-	}
 	return out
 }
 
 // CMapEncoding maps character codes to font numbers and CIDs
 type CMapEncoding interface {
-	isCMapEncoding()
+	cMapEncodingPDFString(pdf pdfWriter) string
 	// Clone returns a deep copy, preserving the concrete type
 	Clone() CMapEncoding
 }
 
-func (CMapEncodingPredefined) isCMapEncoding() {}
-func (CMapEncodingEmbedded) isCMapEncoding()   {}
-
 type CMapEncodingPredefined Name
+
+func (c CMapEncodingPredefined) cMapEncodingPDFString(pdf pdfWriter) string {
+	return Name(c).String()
+}
 
 // Clone returns a deep copy with concrete type `PredefinedCMapEncoding`
 func (p CMapEncodingPredefined) Clone() CMapEncoding { return p }
 
-type CMapEncodingEmbedded Stream
+type CMapEncodingEmbedded struct {
+	Stream
+
+	CMapName      Name
+	CIDSystemInfo CIDSystemInfo
+	WMode         bool         // optional, true for vertical
+	UseCMap       CMapEncoding // optional
+}
 
 // Clone returns a deep copy with concrete type `EmbeddedCMapEncoding`
 func (p CMapEncodingEmbedded) Clone() CMapEncoding {
-	return CMapEncodingEmbedded(Stream(p).Clone())
+	out := p
+	out.Stream = p.Stream.Clone()
+	if p.UseCMap != nil {
+		out.UseCMap = p.UseCMap.Clone()
+	}
+	return out
 }
 
-// return either a ref or a name
-func writeCMapEncoding(enc CMapEncoding, pdf pdfWriter) string {
-	switch enc := enc.(type) {
-	case CMapEncodingPredefined:
-		return Name(enc).String()
-	case CMapEncodingEmbedded:
-		ref := pdf.addObject(Stream(enc).PDFContent())
-		return ref.String()
-	default:
-		panic("exhaustive switch")
+func (c CMapEncodingEmbedded) cMapEncodingPDFString(pdf pdfWriter) string {
+	ref := pdf.createObject()
+	base := c.Stream.PDFCommonFields()
+	dict := fmt.Sprintf("<</Type/CMap /CMapName %s/CIDSystemInfo %s %s",
+		c.CMapName, c.CIDSystemInfo.pdfString(pdf, ref), base)
+	if c.WMode {
+		dict += "/WMode 1"
 	}
+	if c.UseCMap != nil {
+		dict += fmt.Sprintf("/UseCMap %s", c.UseCMap.cMapEncodingPDFString(pdf))
+	}
+	dict += ">>"
+	pdf.writeObject(dict, c.Content, ref)
+	return ref.String()
+}
+
+// CIDToGIDMap is either /Identity or a (binary) stream
+type CIDToGIDMap interface {
+	cidToGIDMapString(pdf pdfWriter) string
+	// Clone returns a deep copy, preserving the concrete type.
+	Clone() CIDToGIDMap
+}
+
+type CIDToGIDMapIdentity struct{}
+
+func (c CIDToGIDMapIdentity) cidToGIDMapString(pdfWriter) string {
+	return Name("Identity").String()
+}
+
+func (c CIDToGIDMapIdentity) Clone() CIDToGIDMap { return c }
+
+type CIDToGIDMapStream struct {
+	Stream
+}
+
+func (c CIDToGIDMapStream) cidToGIDMapString(pdf pdfWriter) string {
+	ref := pdf.addObject(c.Stream.PDFContent())
+	return ref.String()
+}
+
+func (c CIDToGIDMapStream) Clone() CIDToGIDMap {
+	return CIDToGIDMapStream{Stream: c.Stream.Clone()}
 }
 
 type CIDFontDictionary struct {
@@ -492,6 +559,7 @@ type CIDFontDictionary struct {
 	W              []CIDWidth     // optionnal
 	DW2            [2]int         // optionnal, default to [ 880 −1000 ]
 	W2             []CIDWidth     // optionnal
+	CIDToGIDMap    CIDToGIDMap    // optional
 }
 
 func (c CIDFontDictionary) pdfString(pdf pdfWriter, ref Reference) string {
@@ -520,6 +588,9 @@ func (c CIDFontDictionary) pdfString(pdf pdfWriter, ref Reference) string {
 		}
 		b.line("/W2 [%s]", strings.Join(chunks, " "))
 	}
+	if c.CIDToGIDMap != nil {
+		b.fmt("/CIDToGIDMap %s", c.CIDToGIDMap.cidToGIDMapString(pdf))
+	}
 	b.fmt(">>")
 	return b.String()
 }
@@ -540,6 +611,9 @@ func (c CIDFontDictionary) Clone() CIDFontDictionary {
 	for i, w := range c.W2 {
 		out.W2[i] = w.Clone()
 	}
+	if c.CIDToGIDMap != nil {
+		out.CIDToGIDMap = c.CIDToGIDMap.Clone()
+	}
 	return out
 }
 
@@ -556,10 +630,16 @@ func (c CIDSystemInfo) pdfString(pdf pdfWriter, ref Reference) string {
 		pdf.EncodeString(c.Ordering, ByteString, ref), c.Supplement)
 }
 
+// CID is a character code that correspond to one glyph
+// It will be obtained (from the bytes of a string) through a CMap, and will be use
+// as index in a CIDFont object.
+// It is not the same as an Unicode point.
+type CID int
+
 // CIDWidth groups the two ways of defining widths for CID
 type CIDWidth interface {
 	// Widths returns the widths for each character, defined in user units
-	Widths() map[rune]int
+	Widths() map[CID]int
 	// String returns a PDF representation of the width
 	String() string
 	// Clone returns a deepcopy, preserving the concrete type
@@ -569,12 +649,12 @@ type CIDWidth interface {
 // CIDWidthRange is written in PDF as
 //	c_first c_last w
 type CIDWidthRange struct {
-	First, Last rune
+	First, Last CID
 	Width       int
 }
 
-func (c CIDWidthRange) Widths() map[rune]int {
-	out := make(map[rune]int, c.Last-c.First)
+func (c CIDWidthRange) Widths() map[CID]int {
+	out := make(map[CID]int, c.Last-c.First)
 	for r := c.First; r <= c.Last; r++ {
 		out[r] = c.Width
 	}
@@ -591,14 +671,14 @@ func (c CIDWidthRange) Clone() CIDWidth { return c }
 // CIDWidthArray is written in PDF as
 //	c [ w_1 w_2 ... w_n ]
 type CIDWidthArray struct {
-	Start rune
+	Start CID
 	W     []int
 }
 
-func (c CIDWidthArray) Widths() map[rune]int {
-	out := make(map[rune]int, len(c.W))
+func (c CIDWidthArray) Widths() map[CID]int {
+	out := make(map[CID]int, len(c.W))
 	for i, w := range c.W {
-		out[c.Start+rune(i)] = w
+		out[c.Start+CID(i)] = w
 	}
 	return out
 }

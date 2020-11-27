@@ -1,10 +1,11 @@
-package cmap
+package cmapparser
 
 import (
 	"errors"
 	"fmt"
 	"io"
 
+	"github.com/benoitkugler/pdf/fonts/cidfonts"
 	"github.com/benoitkugler/pdf/model"
 )
 
@@ -298,7 +299,7 @@ func (cmap *CMap) parseCodespaceRange() error {
 			return errors.New("non-hex high")
 		}
 
-		cspace, err := model.NewCodespaceFromBytes(hexLow, hexHigh)
+		cspace, err := cidfonts.NewCodespaceFromBytes(hexLow, hexHigh)
 		if err != nil {
 			return err
 		}
@@ -365,12 +366,12 @@ func (cmap *CMap) parseCIDRange() error {
 			return errors.New("invalid cid start value")
 		}
 
-		codespace, err := model.NewCodespaceFromBytes(hexStart, hexEnd)
+		codespace, err := cidfonts.NewCodespaceFromBytes(hexStart, hexEnd)
 		if err != nil {
 			return err
 		}
 
-		cidRange := model.CIDRange{Codespace: codespace, CIDStart: model.CID(cidStart)}
+		cidRange := cidfonts.CIDRange{Codespace: codespace, CIDStart: model.CID(cidStart)}
 		cmap.CIDs = append(cmap.CIDs, cidRange)
 	}
 

@@ -1,4 +1,4 @@
-package cmap
+package cmapparser
 
 import "github.com/benoitkugler/pdf/model"
 

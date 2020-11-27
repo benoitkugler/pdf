@@ -7,9 +7,8 @@ package simpleencodings
 import "github.com/benoitkugler/pdf/model"
 
 type Encoding struct {
-	Names       [256]string
-	Runes       map[rune]byte
-	NamesToRune map[string]rune
+	Names [256]string
+	Runes map[rune]byte
 }
 
 // RuneToByte returns a copy of the rune to byte map
@@ -21,27 +20,14 @@ func (e Encoding) RuneToByte() map[rune]byte {
 	return out
 }
 
-// NameToRune returns a copy of the name to rune map
+// NameToRune combines the informations of `Names` and `Runes`
+// to return a name to rune map
 func (e Encoding) NameToRune() map[string]rune {
-	out := make(map[string]rune, len(e.NamesToRune))
-	for n, r := range e.NamesToRune {
-		out[n] = r
+	out := make(map[string]rune, len(e.Runes))
+	for r, b := range e.Runes {
+		out[e.Names[b]] = r
 	}
 	return out
-}
-
-var encs = [...]*Encoding{
-	&MacExpert, &MacRoman, &PdfDoc, &Standard, &Symbol, &WinAnsi, &ZapfDingbats,
-}
-
-func init() {
-	for _, enc := range encs {
-		enc.NamesToRune = make(map[string]rune)
-		for r, b := range enc.Runes {
-			name := enc.Names[b]
-			enc.NamesToRune[name] = r
-		}
-	}
 }
 
 var PredefinedEncodings = map[model.SimpleEncodingPredefined]*Encoding{
