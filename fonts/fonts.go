@@ -4,6 +4,7 @@ import (
 	"log"
 
 	"github.com/benoitkugler/pdf/model"
+	"golang.org/x/exp/errors/fmt"
 )
 
 type Fl = model.Fl
@@ -40,11 +41,14 @@ type simpleFont struct {
 
 func (ft simpleFont) GetWidth(c rune, size Fl) Fl {
 	by := ft.charMap[c] // = FirstChar + i
-	if ft.firstChar > by {
-		by = ft.firstChar
+	index := int(by) - int(ft.firstChar)
+	var w int
+	if index < 0 || index >= len(ft.widths) { // not encoded
+		w = ft.desc.MissingWidth
+	} else {
+		w = ft.widths[index]
 	}
-	index := by - ft.firstChar
-	return Fl(ft.widths[index]) * 0.001 * size
+	return Fl(w) * 0.001 * size
 }
 
 // simple font: use a simple map algorithm
@@ -64,6 +68,7 @@ func (ft simpleFont) Encode(cs []rune) []byte {
 			out[i] = b
 		}
 	}
+	fmt.Println(string(cs), out)
 	return out
 }
 

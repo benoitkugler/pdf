@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/benoitkugler/pdf/fonts/sfnt"
+	"github.com/benoitkugler/pdf/fonts"
 	"github.com/benoitkugler/pdf/model"
 	"github.com/pdfcpu/pdfcpu/pkg/pdfcpu"
 	"github.com/phpdave11/gofpdf"
@@ -276,29 +276,21 @@ func BenchmarkWrite(b *testing.B) {
 }
 
 func TestEmbeddedTTF(t *testing.T) {
-	doc, _, err := ParseFile("test/symbolic_ttf.pdf", "")
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, page := range doc.Catalog.Pages.Flatten() {
-		if r := page.Resources; r != nil {
-			for _, font := range r.Font {
-				if ttf, ok := font.Subtype.(model.FontTrueType); ok {
-					fmt.Println(ttf.FirstChar, ttf.Widths)
-					b, _ := ttf.FontDescriptor.FontFile.Decode()
-					font, err := sfnt.Parse(b)
-					if err != nil {
-						t.Fatal(err)
+	for _, file := range [...]string{
+		"test/symbolic_ttf.pdf",
+		"test/ModeleRecuFiscalEditable.pdf",
+	} {
+		doc, _, err := ParseFile(file, "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, page := range doc.Catalog.Pages.Flatten() {
+			if r := page.Resources; r != nil {
+				for _, font := range r.Font {
+					if _, ok := font.Subtype.(model.FontTrueType); ok {
+						_ = fonts.BuildFont(font)
+						fmt.Println(font.Subtype.FontName())
 					}
-					for ind := 0; ind < font.NumGlyphs(); ind++ {
-						fmt.Println(font.GlyphName(nil, sfnt.GlyphIndex(ind)))
-					}
-					// chars, err := font.Chars()
-					// if err != nil {
-					// 	t.Fatal(err)
-					// }
-
-					// fmt.Println(chars)
 				}
 			}
 		}

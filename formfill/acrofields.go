@@ -9,9 +9,9 @@ import (
 	"strings"
 
 	"github.com/benoitkugler/pdf/fonts"
+	"github.com/benoitkugler/pdf/fonts/standardfonts"
 	"github.com/benoitkugler/pdf/formfill/pdftokenizer"
 	"github.com/benoitkugler/pdf/model"
-	"github.com/benoitkugler/pdf/standardfonts"
 )
 
 // port of pdftk library - BK 2020
@@ -41,7 +41,7 @@ func splitDAelements(da string) (daConfig, error) {
 	var stack []string
 	var ret daConfig
 	token, err := tk.NextToken()
-	for ; token.Kind != pdftokenizer.EOF && err != nil; token, err = tk.NextToken() {
+	for ; token.Kind != pdftokenizer.EOF && err == nil; token, err = tk.NextToken() {
 		if token.Kind == pdftokenizer.Comment {
 			continue
 		}
@@ -157,6 +157,7 @@ func (ac *filler) buildAppearance(formResources model.ResourcesDict, fields mode
 				ac.fontCache[dab.font] = font
 			}
 		} else {
+			log.Println("no font specified in DA string -> using default")
 			// use a default font
 			font = fonts.BuildFont(defaultFont)
 			ac.fontCache[dab.font] = font

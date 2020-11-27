@@ -55,21 +55,17 @@ func TestFDF(t *testing.T) {
 		t.Errorf("expected 65 fields, got %d", L)
 	}
 
+	// ft := doc.Catalog.AcroForm.DR.Font["Helv"]
+	// fmt.Println(fonts.BuildFont(ft).Font.GetWidth('à', 10))
+	// t1 := ft.Subtype.(model.FontType1)
+	// fmt.Println(t1.Widths[224-t1.FirstChar])
+	// fmt.Println(enc.BaseEncoding)
+	// fmt.Println(enc.Differences)
+
 	err = FillForm(&doc, FDFDict{Fields: data}, true)
 	if err != nil {
 		t.Fatal(err)
 	}
-
-	// for _, f := range doc.Catalog.AcroForm.Flatten() {
-	// 	for _, w := range f.Widgets {
-	// 		fmt.Println(w.AP)
-	// 	}
-	// }
-	// for _, p := range doc.Catalog.Pages.Flatten() {
-	// 	for _, an := range p.Annots {
-	// 		fmt.Println(an.AP)
-	// 	}
-	// }
 
 	out, err := os.Create("test/filled.pdf")
 	if err != nil {

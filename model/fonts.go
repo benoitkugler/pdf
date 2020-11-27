@@ -31,6 +31,7 @@ func (f *FontDict) clone(cache cloneCache) Referenceable {
 
 // Font is one of Type0, FontType1, TrueType or Type3
 type Font interface {
+	FontName() Name
 	fontPDFString(pdf pdfWriter) string
 	// returns a deep copy, preserving the concrete type
 	clone(cloneCache) Font
@@ -44,6 +45,10 @@ type FontType1 struct {
 	Widths         []int
 	FontDescriptor FontDescriptor
 	Encoding       SimpleEncoding // optional
+}
+
+func (ft FontType1) FontName() Name {
+	return ft.BaseFont
 }
 
 // LastChar return the last caracter encoded by the font (see Widths)
@@ -100,6 +105,10 @@ func (t FontType1) clone(cache cloneCache) Font {
 
 type FontTrueType FontType1
 
+func (ft FontTrueType) FontName() Name {
+	return ft.BaseFont
+}
+
 func (t FontTrueType) fontPDFString(pdf pdfWriter) string {
 	return t1orttPDFString(t, pdf)
 }
@@ -119,6 +128,13 @@ type FontType3 struct {
 	FontDescriptor *FontDescriptor // required in TaggedPDF
 	Resources      ResourcesDict   // optional
 	ToUnicode      *Stream         // optional
+}
+
+func (ft FontType3) FontName() Name {
+	if ft.FontDescriptor != nil {
+		return ft.FontDescriptor.FontName
+	}
+	return ""
 }
 
 // LastChar return the last caracter encoded by the font (see Widths)
@@ -206,16 +222,16 @@ type FontDescriptor struct {
 	// angle, expressed in degrees counterclockwise from
 	// the vertical, of the dominant vertical strokes of the font.
 	ItalicAngle  Fl
-	Ascent       Fl // maximum height above the baseline reached by glyphs in this font
-	Descent      Fl // (negative number) maximum depth below the baseline reached by glyphs in this font
-	Leading      Fl // optional, default to 0. Spacing between baselines of consecutive lines of text
-	CapHeight    Fl // vertical coordinate of the top of flat capital letters, measured from the baseline
-	XHeight      Fl // optional, default to 0. Vertical coordinate of the top of flat nonascending lowercase letters
-	StemV        Fl // thickness, measured horizontally, of the dominant vertical stems of glyphs in the font
-	StemH        Fl // optional, default to 0. Thickness, measured vertically, of the dominant horizontal stems of glyphs in the font.
-	AvgWidth     Fl // optional, default to 0. Average width of glyphs in the font.
-	MaxWidth     Fl // optional, default to 0. Maximum width of glyphs in the font.
-	MissingWidth Fl // optional, default to 0. Width to use for character codes whose widths are not specified
+	Ascent       Fl  // maximum height above the baseline reached by glyphs in this font
+	Descent      Fl  // (negative number) maximum depth below the baseline reached by glyphs in this font
+	Leading      Fl  // optional, default to 0. Spacing between baselines of consecutive lines of text
+	CapHeight    Fl  // vertical coordinate of the top of flat capital letters, measured from the baseline
+	XHeight      Fl  // optional, default to 0. Vertical coordinate of the top of flat nonascending lowercase letters
+	StemV        Fl  // thickness, measured horizontally, of the dominant vertical stems of glyphs in the font
+	StemH        Fl  // optional, default to 0. Thickness, measured vertically, of the dominant horizontal stems of glyphs in the font.
+	AvgWidth     Fl  // optional, default to 0. Average width of glyphs in the font.
+	MaxWidth     Fl  // optional, default to 0. Maximum width of glyphs in the font.
+	MissingWidth int // optional, default to 0. Width to use for character codes whose widths are not specified
 
 	FontFile *FontFile // optional, written in PDF under the key FontFile (for Type1), FontFile2 (for TrueType), FontFile3 (for Type 1 compact fonts, Type 0 compact CIDFonts or OpenType)
 	CharSet  string    // optional, ASCII string or byte string. Meaningful only in Type 1 font
@@ -244,7 +260,7 @@ func (f FontDescriptor) pdfString(pdf pdfWriter, font Font, context Reference) s
 		b.fmt("/MaxWidth %.3f ", f.MaxWidth)
 	}
 	if f.MissingWidth != 0 {
-		b.fmt("/MissingWidth %.3f ", f.MissingWidth)
+		b.fmt("/MissingWidth %d ", f.MissingWidth)
 	}
 	if f.FontFile != nil {
 		var key Name
@@ -348,6 +364,15 @@ func (d Differences) Clone() Differences {
 	return out
 }
 
+// Apply applies the difference to a base encoding, represented by glyph names.
+func (d Differences) Apply(encoding [256]string) [256]string {
+	// encoding is copied, since it's an array
+	for b, n := range d {
+		encoding[b] = string(n)
+	}
+	return encoding
+}
+
 type SimpleEncodingDict struct {
 	BaseEncoding SimpleEncodingPredefined // optionnal
 	Differences  Differences              // optionnal
@@ -391,6 +416,10 @@ type FontType0 struct {
 	Encoding        CMapEncoding
 	DescendantFonts CIDFontDictionary // in PDF, array of one indirect object
 	ToUnicode       *Stream           // optionnal, as indirect object
+}
+
+func (f FontType0) FontName() Name {
+	return f.BaseFont
 }
 
 func (f FontType0) fontPDFString(pdf pdfWriter) string {

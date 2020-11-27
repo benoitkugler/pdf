@@ -4,6 +4,8 @@
 // PDF use some predefined encodings, defined in this package.
 package simpleencodings
 
+import "github.com/benoitkugler/pdf/model"
+
 type Encoding struct {
 	Names       [256]string
 	Runes       map[rune]byte
@@ -40,4 +42,10 @@ func init() {
 			enc.NamesToRune[name] = r
 		}
 	}
+}
+
+var PredefinedEncodings = map[model.SimpleEncodingPredefined]*Encoding{
+	model.MacExpertEncoding: &MacExpert,
+	model.MacRomanEncoding:  &MacRoman,
+	model.WinAnsiEncoding:   &WinAnsi,
 }

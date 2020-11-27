@@ -4,7 +4,6 @@
 package type1
 
 import (
-	"log"
 	"strings"
 
 	"github.com/benoitkugler/pdf/model"
@@ -160,7 +159,7 @@ func (f Font) FontDescriptor() model.FontDescriptor {
 
 	// use its width as missing width
 	if notdef, ok := f.charMetrics[".notdef"]; ok {
-		out.MissingWidth = Fl(notdef.width)
+		out.MissingWidth = notdef.width
 	}
 
 	out.AvgWidth, out.MaxWidth = f.WidthsStats()
@@ -171,43 +170,11 @@ func (f Font) FontDescriptor() model.FontDescriptor {
 	return out
 }
 
-// Widths returns the first and last character encoded, and
-// an array of (lastChar − firstChar + 1) widths, each
-// element being the glyph width for the character code that equals
-// firstChar plus the array index.
-func (f Font) Widths() (firstChar byte, widths []int) {
-	return f.WidthsWithEncoding(f.charCodeToCharName)
-}
-
-// WidthsWithEncoding use the encoding (byte to name)
-// given to generate a compatible Widths array
-func (f Font) WidthsWithEncoding(encoding [256]string) (firstChar byte, widths []int) {
-	var lastChar byte
-	firstChar = 255
-	// we first need to find the first and last char
-	// var charcodes []byte
-	for code, name := range encoding {
-		if name == "" || name == ".undef" {
-			continue
-		}
-		if byte(code) < firstChar {
-			firstChar = byte(code)
-		}
-		if byte(code) > lastChar {
-			lastChar = byte(code)
-		}
+// only widths
+func (f Font) simplifiedMetrics() map[string]int {
+	out := make(map[string]int, len(f.charMetrics))
+	for name, m := range f.charMetrics {
+		out[name] = m.width
 	}
-	widths = make([]int, lastChar-firstChar+1)
-	for code, name := range encoding {
-		if name == "" || name == ".undef" {
-			continue
-		}
-		metrics, ok := f.charMetrics[name]
-		if !ok {
-			log.Printf("unsupported glyph name : %s", name)
-		}
-		index := code - int(firstChar)
-		widths[index] = metrics.width
-	}
-	return firstChar, widths
+	return out
 }

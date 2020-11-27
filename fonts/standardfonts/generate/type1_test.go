@@ -3,8 +3,6 @@ package type1
 import (
 	"os"
 	"testing"
-
-	"github.com/benoitkugler/pdf/fonts/simpleencodings"
 )
 
 func TestParse(t *testing.T) {
@@ -14,7 +12,7 @@ func TestParse(t *testing.T) {
 	}
 	defer f.Close()
 
-	font, err := ParseFont(f)
+	_, err = ParseFont(f)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -24,5 +22,4 @@ func TestParse(t *testing.T) {
 	// 	t.Error()
 	// }
 
-	font.WidthsWithEncoding(simpleencodings.WinAnsi.Names)
 }

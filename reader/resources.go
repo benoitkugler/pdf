@@ -6,8 +6,9 @@ import (
 
 	"errors"
 
+	"github.com/benoitkugler/pdf/fonts/simpleencodings"
+	"github.com/benoitkugler/pdf/fonts/standardfonts"
 	"github.com/benoitkugler/pdf/model"
-	"github.com/benoitkugler/pdf/standardfonts"
 	"github.com/pdfcpu/pdfcpu/pkg/pdfcpu"
 )
 
@@ -176,9 +177,23 @@ func (r resolver) resolveFontTT1orTT(font pdfcpu.Dict) (out model.FontType1, err
 	}
 
 	// for the standard fonts, the font descriptor, first char and widths might be omited
+	// add it, taking into account the encoding
 	if standard, ok := standardfonts.Fonts[string(out.BaseFont)]; ok {
-		out.FirstChar = standard.FirstChar
-		out.Widths = standard.Widths
+		var names [256]string
+		switch enc := out.Encoding.(type) {
+		case model.SimpleEncodingPredefined: // enc is validated by resolveEncoding
+			names = simpleencodings.PredefinedEncodings[enc].Names
+		case *model.SimpleEncodingDict:
+			if enc.BaseEncoding != "" { // baseEncoding is validated by resolveEncoding
+				names = simpleencodings.PredefinedEncodings[enc.BaseEncoding].Names
+			} else {
+				names = standard.Builtin
+			}
+			names = enc.Differences.Apply(names)
+		}
+		f, w := standard.WidthsWithEncoding(names)
+		out.FirstChar = f
+		out.Widths = w
 		out.FontDescriptor = standard.Descriptor
 		return out, nil
 	}
@@ -323,7 +338,7 @@ func (r resolver) resolveFontDescriptor(entry pdfcpu.Object) (model.FontDescript
 		out.MaxWidth = f
 	}
 	if f, ok := r.resolveNumber(fontDescriptor["MissingWidth"]); ok {
-		out.MissingWidth = f
+		out.MissingWidth = int(f)
 	}
 	if it, ok := r.resolveNumber(fontDescriptor["ItalicAngle"]); ok {
 		out.ItalicAngle = it
