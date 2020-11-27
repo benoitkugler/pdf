@@ -71,6 +71,12 @@ func (ft simpleFont) Desc() model.FontDescriptor {
 	return ft.desc
 }
 
+// BuildFont compiles an existing FontDictionary, as found in a PDF,
+// to a usefull font metrics. When needed the font builtin encoding is parsed
+// and used.
+// For fonts who used glyph names which are not referenced, `BuildFontWithCharMap`
+// provides a way of specifying custom names.
+// TODO: New font should be created from a font file using `NewFont`
 func BuildFont(f *model.FontDict) BuiltFont {
 	return BuildFontWithCharMap(f, nil)
 }

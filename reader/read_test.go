@@ -290,14 +290,15 @@ func TestEmbeddedTTF(t *testing.T) {
 					if err != nil {
 						t.Fatal(err)
 					}
+					for ind := 0; ind < font.NumGlyphs(); ind++ {
+						fmt.Println(font.GlyphName(nil, sfnt.GlyphIndex(ind)))
+					}
+					// chars, err := font.Chars()
+					// if err != nil {
+					// 	t.Fatal(err)
+					// }
 
-					for r, index := range font.Chars() {
-						byte(index) 
-					}
-					for b := range ttf.Widths {
-						font.Chars()[b + ttf.]
-					}
-					fmt.Println(font.Chars())
+					// fmt.Println(chars)
 				}
 			}
 		}

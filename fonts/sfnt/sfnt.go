@@ -609,7 +609,7 @@ type Font struct {
 		capHeight        int32
 		glyphData        glyphData
 		glyphIndex       glyphIndexFunc
-		chars            Chars
+		chars            charsFunc
 		bounds           [4]int16
 		descent          int32
 		indexToLocFormat bool // false means short, true means long.
@@ -821,7 +821,7 @@ func (f *Font) initializeTables(offset int, isDfont bool) (buf1 []byte, isPostSc
 	return buf, isPostScript, nil
 }
 
-func (f *Font) parseCmap(buf []byte) (buf1 []byte, glyphIndex glyphIndexFunc, chars Chars, err error) {
+func (f *Font) parseCmap(buf []byte) (buf1 []byte, glyphIndex glyphIndexFunc, chars charsFunc, err error) {
 	// https://www.microsoft.com/typography/OTSPEC/cmap.htm
 
 	const headerSize, entrySize = 4, 8
@@ -1321,9 +1321,13 @@ func (f *Font) Bounds(b *Buffer, ppem fixed.Int26_6, h font.Hinting) (fixed.Rect
 // provide both slashed and dotted zero glyphs ('0'), or regular and 'old
 // style' numerals, and users can direct software to choose a variant.
 
+// charsFunc resolve all the rune encoded by a font.
+// it can be seen as global version of the GlyphIndex method.
+type charsFunc func() (map[rune]GlyphIndex, error)
+
 // Chars returns the full range of encoded rune.
-func (f *Font) Chars() Chars {
-	return f.cached.chars
+func (f *Font) Chars() (map[rune]GlyphIndex, error) {
+	return f.cached.chars()
 }
 
 type glyphIndexFunc func(f *Font, b *Buffer, r rune) (GlyphIndex, error)

@@ -116,9 +116,12 @@ func builtinEncoding(desc model.FontDescriptor, fontType model.Font) simpleencod
 			log.Printf("invalid embedded font file: %s\n", err)
 			return simpleencodings.Standard
 		}
-		fontChars := font.Chars()
+		fontChars, err := font.Chars()
+		if err != nil {
+			return simpleencodings.Standard
+		}
 		out := make(map[rune]byte, len(fontChars))
-		for r, index := range font.Chars() {
+		for r, index := range fontChars {
 			out[r] = byte(index) // keep the lower order byte
 		}
 		return simpleencodings.Encoding{Runes: out}

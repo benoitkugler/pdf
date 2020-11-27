@@ -18,7 +18,7 @@ func TestChars(t *testing.T) {
 			t.Errorf("Parse(%q): %v", name, err)
 			continue
 		}
-		assertCharIndex(t, name, f)
+		assertValidCharIndex(t, name, f)
 	}
 
 	data, err := ioutil.ReadFile(filepath.FromSlash("../../../../../golang.org/x/image/font/testdata/cmapTest.ttf"))
@@ -31,8 +31,12 @@ func TestChars(t *testing.T) {
 	}
 }
 
-func assertCharIndex(t *testing.T, name string, f *Font) {
-	for r, index := range f.Chars() {
+func assertValidCharIndex(t *testing.T, name string, f *Font) {
+	chars, err := f.Chars()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for r, index := range chars {
 		ind, err := f.GlyphIndex(nil, r)
 		if err != nil {
 			t.Errorf("GlyphIndex(%q): %v", name, err)
@@ -60,5 +64,5 @@ func testCharMap(t *testing.T, data []byte, cmapFormat int) {
 		t.Errorf("cmapFormat=%d: %v", cmapFormat, err)
 		return
 	}
-	assertCharIndex(t, fmt.Sprintf("cmapTest-format:%d", cmapFormat), f)
+	assertValidCharIndex(t, fmt.Sprintf("cmapTest-format:%d", cmapFormat), f)
 }
