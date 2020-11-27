@@ -1,0 +1,39 @@
+%!PS-Adobe-3.0 Resource-CMap
+%%DocumentNeededResources: procset CIDInit
+%%DocumentNeededResources: CMap Ext-RKSJ-H
+%%IncludeResource: procset CIDInit
+%%IncludeResource: CMap Ext-RKSJ-H
+%%BeginResource: CMap Ext-RKSJ-V
+%%Title: (Ext-RKSJ-V Adobe Japan1 0)
+%%Version: 1
+/CIDInit /ProcSet findresource begin
+12 dict begin
+begincmap
+/CIDSystemInfo 3 dict dup begin
+/Registry (Adobe) def
+/Ordering (Japan1) def
+/Supplement 0 def
+end def
+/Ext-RKSJ-H usecmap
+/CMapName /Ext-RKSJ-V def
+/CMapVersion 1 def
+/CMapType 0 def
+/UIDOffset 800 def
+/XUID [1 10 25316] def
+/WMode 1 def
+1 begincidrange
+<8141> <8142> 7887
+endcidrange
+35 begincidchar
+<8143> 8286
+<8144> 8274
+<814a> 8272
+<8387> 7936
+<838e> 7937
+endcidchar
+endcmap
+CMapName currentdict /CMap defineresource pop
+end
+end
+%%EndResource
+%%EOF

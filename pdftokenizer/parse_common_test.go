@@ -17,19 +17,24 @@ limitations under the License.
 package pdftokenizer
 
 import (
+	"fmt"
 	"testing"
 )
 
 func parseObject(s string) error {
-	tk := Tokenizer{data: []byte(s)}
+	tk := NewTokenizer([]byte(s))
+	next, _ := tk.PeekToken()
 	for token, err := tk.NextToken(); ; token, err = tk.NextToken() {
-		// fmt.Println(token)
 		if err != nil {
 			return err
 		}
 		if token.Kind == EOF {
 			break
 		}
+		if token != next {
+			return fmt.Errorf("expected %v got %v", next, token)
+		}
+		next, _ = tk.PeekToken()
 	}
 	return nil
 }
@@ -46,6 +51,16 @@ func doTestParseObjectFail(tokenValid bool, parseString string, t *testing.T) {
 	err := parseObject(parseString)
 	if !tokenValid && err == nil {
 		t.Errorf("parseObject should have returned an error for %s\n", parseString)
+	}
+}
+
+func TestTokenLength(t *testing.T) {
+	tks, err := Tokenize([]byte("/abc/def"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(tks) != 2 {
+		t.Errorf("expected 2 tokens, got %d", len(tks))
 	}
 }
 
@@ -116,4 +131,8 @@ func TestParseObject(t *testing.T) {
 	doTestParseObjectOK("(\r8)", t)
 	doTestParseObjectFail(false, "(\r", t)
 	doTestParseObjectFail(false, "(\\", t)
+
+	// we accept PS notation
+	doTestParseObjectOK("457e45", t)
+	doTestParseObjectOK("457E45", t)
 }

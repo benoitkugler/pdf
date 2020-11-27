@@ -68,7 +68,6 @@ type token struct {
 }
 
 func (t token) floatValue() float64 {
-	// some fonts have reals where integers should be, so we tolerate it
 	f, _ := strconv.ParseFloat(t.value, 64)
 	return f
 }

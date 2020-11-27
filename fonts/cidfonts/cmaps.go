@@ -16,7 +16,8 @@ type CMap struct {
 	Codespaces    []Codespace
 	CIDs          []CIDRange
 
-	simple *bool // cached value of Simple
+	UseCMap model.Name
+	simple  *bool // cached value of Simple
 }
 
 // Codespace represents a single codespace range used in the CMap.

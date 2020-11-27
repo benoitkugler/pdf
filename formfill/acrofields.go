@@ -10,8 +10,8 @@ import (
 
 	"github.com/benoitkugler/pdf/fonts"
 	"github.com/benoitkugler/pdf/fonts/standardfonts"
-	"github.com/benoitkugler/pdf/formfill/pdftokenizer"
 	"github.com/benoitkugler/pdf/model"
+	"github.com/benoitkugler/pdf/pdftokenizer"
 )
 
 // port of pdftk library - BK 2020
@@ -38,7 +38,7 @@ type daConfig struct {
 
 func splitDAelements(da string) (daConfig, error) {
 	tk := pdftokenizer.NewTokenizer([]byte(da))
-	var stack []string
+	var stack []pdftokenizer.Token
 	var ret daConfig
 	token, err := tk.NextToken()
 	for ; token.Kind != pdftokenizer.EOF && err == nil; token, err = tk.NextToken() {
@@ -49,8 +49,8 @@ func splitDAelements(da string) (daConfig, error) {
 			switch token.Value {
 			case "Tf":
 				if len(stack) >= 2 {
-					ret.font = model.Name(stack[len(stack)-2])
-					fl, err := strconv.ParseFloat(stack[len(stack)-1], 64)
+					ret.font = model.Name(stack[len(stack)-2].Value)
+					fl, err := stack[len(stack)-1].Float()
 					if err != nil {
 						return daConfig{}, err
 					}
@@ -58,7 +58,7 @@ func splitDAelements(da string) (daConfig, error) {
 				}
 			case "g":
 				if len(stack) >= 1 {
-					gray, err := strconv.ParseFloat(stack[len(stack)-1], 64)
+					gray, err := stack[len(stack)-1].Float()
 					if err != nil {
 						return daConfig{}, err
 					}
@@ -68,15 +68,15 @@ func splitDAelements(da string) (daConfig, error) {
 				}
 			case "rg":
 				if len(stack) >= 3 {
-					red, err := strconv.ParseFloat(stack[len(stack)-3], 64)
+					red, err := stack[len(stack)-3].Float()
 					if err != nil {
 						return daConfig{}, err
 					}
-					green, err := strconv.ParseFloat(stack[len(stack)-2], 64)
+					green, err := stack[len(stack)-2].Float()
 					if err != nil {
 						return daConfig{}, err
 					}
-					blue, err := strconv.ParseFloat(stack[len(stack)-1], 64)
+					blue, err := stack[len(stack)-1].Float()
 					if err != nil {
 						return daConfig{}, err
 					}
@@ -84,19 +84,19 @@ func splitDAelements(da string) (daConfig, error) {
 				}
 			case "k":
 				if len(stack) >= 4 {
-					cyan, err := strconv.ParseFloat(stack[len(stack)-4], 64)
+					cyan, err := stack[len(stack)-4].Float()
 					if err != nil {
 						return daConfig{}, err
 					}
-					magenta, err := strconv.ParseFloat(stack[len(stack)-3], 64)
+					magenta, err := stack[len(stack)-3].Float()
 					if err != nil {
 						return daConfig{}, err
 					}
-					yellow, err := strconv.ParseFloat(stack[len(stack)-2], 64)
+					yellow, err := stack[len(stack)-2].Float()
 					if err != nil {
 						return daConfig{}, err
 					}
-					black, err := strconv.ParseFloat(stack[len(stack)-1], 64)
+					black, err := stack[len(stack)-1].Float()
 					if err != nil {
 						return daConfig{}, err
 					}
@@ -105,7 +105,7 @@ func splitDAelements(da string) (daConfig, error) {
 			}
 			stack = stack[:0]
 		} else {
-			stack = append(stack, token.Value)
+			stack = append(stack, token)
 		}
 	}
 	return ret, err

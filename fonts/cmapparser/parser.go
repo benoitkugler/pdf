@@ -1,4 +1,7 @@
-package cmapparser
+package parser
+
+// the main parsing logic is taken
+// from https://git.maze.io/go/unipdf/src/branch/master/internal/cmap
 
 import (
 	"errors"
@@ -7,20 +10,43 @@ import (
 
 	"github.com/benoitkugler/pdf/fonts/cidfonts"
 	"github.com/benoitkugler/pdf/model"
+	"github.com/benoitkugler/pdf/pdftokenizer"
 )
 
+// parser parses CMap files, which represents either a character code to unicode mapping or
+// a character code to CID mapping, both used in PDF files
+// References:
+//  https://www.adobe.com/content/dam/acom/en/devnet/acrobat/pdfs/5411.ToUnicode.pdf
+//  https://github.com/adobe-type-tools/cmap-resources/releases
+type parser struct {
+	tokenizer pdftokenizer.Tokenizer
+
+	// a cmap may contain either CIDs or Unicodes
+	cids    cidfonts.CMap
+	unicode UnicodeCMap
+
+	version string
+}
+
+// parser creates a new instance of the PDF CMap parser from input data.
+func newparser(content []byte) *parser {
+	parser := parser{}
+	parser.tokenizer = pdftokenizer.NewTokenizer(content)
+	parser.unicode = NewUnicodeCMap()
+	return &parser
+}
+
 // parse parses the CMap file and loads into the CMap structure.
-func (cmap *CMap) parse() error {
+func (cmap *parser) parse() error {
 	var prev cmapObject
 	for {
 		o, err := cmap.parseObject()
 		if err != nil {
-			if err == io.EOF {
-				break
-			}
 			return err
 		}
 		switch t := o.(type) {
+		case nil: // means EOF
+			return nil
 		case cmapOperand:
 			switch t {
 			case begincodespacerange:
@@ -51,7 +77,8 @@ func (cmap *CMap) parse() error {
 				if !ok {
 					return ErrBadCMap
 				}
-				cmap.usecmap = name
+				cmap.cids.UseCMap = name
+				cmap.unicode.UseCMap = name
 			case cidSystemInfo:
 				// Some PDF generators leave the "/"" off CIDSystemInfo
 				// e.g. ~/testdata/459474_809.pdf
@@ -68,7 +95,7 @@ func (cmap *CMap) parse() error {
 					return err
 				}
 			case cmapname:
-				err := cmap.parseName()
+				err := cmap.addName()
 				if err != nil {
 					return err
 				}
@@ -86,13 +113,11 @@ func (cmap *CMap) parse() error {
 		}
 		prev = o
 	}
-
-	return nil
 }
 
 // parseName parses a cmap name and adds it to `cmap`.
 // cmap names are defined like this:/CMapName/83pv-RKSJ-H def
-func (cmap *CMap) parseName() error {
+func (cmap *parser) addName() error {
 	var name model.Name
 	done := false
 	for i := 0; i < 10 && !done; i++ {
@@ -121,13 +146,13 @@ func (cmap *CMap) parseName() error {
 	if !done {
 		return ErrBadCMap
 	}
-	cmap.Name = name
+	cmap.cids.Name = name
 	return nil
 }
 
 // parseType parses a cmap type and adds it to `cmap`.
 // cmap names are defined like this:/CMapType 1 def
-func (cmap *CMap) parseType() error {
+func (cmap *parser) parseType() error {
 
 	ctype := 0
 	done := false
@@ -148,7 +173,7 @@ func (cmap *CMap) parseType() error {
 			ctype = t
 		}
 	}
-	cmap.Type = ctype
+	cmap.cids.Type = ctype
 	return nil
 }
 
@@ -156,7 +181,7 @@ func (cmap *CMap) parseType() error {
 // cmap names are defined like this:/CMapType 1 def
 // We don't need the version. We do this to eat up the version code in the cmap definition
 // to reduce unhandled parse object warnings.
-func (cmap *CMap) parseVersion() error {
+func (cmap *parser) parseVersion() error {
 
 	version := ""
 	done := false
@@ -192,7 +217,7 @@ func (cmap *CMap) parseVersion() error {
 //  /Ordering (Japan1) def
 //  /Supplement 1 def
 // end def
-func (cmap *CMap) parseSystemInfo() error {
+func (cmap *parser) parseSystemInfo() error {
 	inDict := false
 	inDef := false
 	var name model.Name
@@ -262,12 +287,12 @@ func (cmap *CMap) parseSystemInfo() error {
 		return ErrBadCMap
 	}
 
-	cmap.CIDSystemInfo = systemInfo
+	cmap.cids.CIDSystemInfo = systemInfo
 	return nil
 }
 
 // parseCodespaceRange parses the codespace range section of a CMap.
-func (cmap *CMap) parseCodespaceRange() error {
+func (cmap *parser) parseCodespaceRange() error {
 	for {
 		o, err := cmap.parseObject()
 		if err != nil {
@@ -303,10 +328,10 @@ func (cmap *CMap) parseCodespaceRange() error {
 		if err != nil {
 			return err
 		}
-		cmap.Codespaces = append(cmap.Codespaces, cspace)
+		cmap.cids.Codespaces = append(cmap.cids.Codespaces, cspace)
 	}
 
-	if len(cmap.Codespaces) == 0 {
+	if len(cmap.cids.Codespaces) == 0 {
 		return ErrBadCMap
 	}
 
@@ -314,7 +339,7 @@ func (cmap *CMap) parseCodespaceRange() error {
 }
 
 // parseCIDRange parses the CID range section of a CMap.
-func (cmap *CMap) parseCIDRange() error {
+func (cmap *parser) parseCIDRange() error {
 	for {
 		// Parse character code interval start.
 		o, err := cmap.parseObject()
@@ -372,14 +397,14 @@ func (cmap *CMap) parseCIDRange() error {
 		}
 
 		cidRange := cidfonts.CIDRange{Codespace: codespace, CIDStart: model.CID(cidStart)}
-		cmap.CIDs = append(cmap.CIDs, cidRange)
+		cmap.cids.CIDs = append(cmap.cids.CIDs, cidRange)
 	}
 
 	return nil
 }
 
 // parseBfchar parses a bfchar section of a CMap file.
-func (cmap *CMap) parseBfchar() error {
+func (cmap *parser) parseBfchar() error {
 	for {
 		// Src code.
 		o, err := cmap.parseObject()
@@ -426,14 +451,14 @@ func (cmap *CMap) parseBfchar() error {
 			return ErrBadCMap
 		}
 
-		cmap.codeToUnicode[code] = target
+		cmap.unicode.CodeToUnicode[code] = target
 	}
 
 	return nil
 }
 
 // parseBfrange parses a bfrange section of a CMap file.
-func (cmap *CMap) parseBfrange() error {
+func (cmap *parser) parseBfrange() error {
 	for {
 		// The specifications are in triplets.
 		// <srcCodeFrom> <srcCodeTo> <target>
@@ -498,14 +523,14 @@ func (cmap *CMap) parseBfrange() error {
 					return errors.New("non-hex string in array")
 				}
 				r := hexToRune(hexs)
-				cmap.codeToUnicode[code] = r
+				cmap.unicode.CodeToUnicode[code] = r
 			}
 
 		case cmapHexString:
 			// <codeFrom> <codeTo> <dst>, maps [from,to] to [dst,dst+to-from].
 			r := hexToRune(v)
 			for code := srcCodeFrom; code <= srcCodeTo; code++ {
-				cmap.codeToUnicode[code] = r
+				cmap.unicode.CodeToUnicode[code] = r
 				r++
 			}
 		default:

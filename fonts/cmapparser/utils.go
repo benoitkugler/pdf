@@ -1,12 +1,30 @@
-/*
- * This file is subject to the terms and conditions defined in
- * file 'LICENSE.md', which is part of this source code package.
- */
-
-package cmapparser
+package parser
 
 import (
+	"errors"
 	"unicode/utf16"
+)
+
+// CMap parser errors.
+var ErrBadCMap = errors.New("bad cmap")
+
+const (
+	cidSystemInfo       = "CIDSystemInfo"
+	begincmap           = "begincmap"
+	endcmap             = "endcmap"
+	begincodespacerange = "begincodespacerange"
+	endcodespacerange   = "endcodespacerange"
+	beginbfchar         = "beginbfchar"
+	endbfchar           = "endbfchar"
+	beginbfrange        = "beginbfrange"
+	endbfrange          = "endbfrange"
+	begincidrange       = "begincidrange"
+	endcidrange         = "endcidrange"
+	usecmap             = "usecmap"
+
+	cmapname    = "CMapName"
+	cmaptype    = "CMapType"
+	cmapversion = "CMapVersion"
 )
 
 // hexToCharCode returns the integer that is encoded in `shex` as a big-endian hex value

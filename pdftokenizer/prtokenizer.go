@@ -1,15 +1,20 @@
+// Implements the lowest level of processing of PS/PDF files.
 package pdftokenizer
+
+// code ported from the Java PDFTK library - BK 2020
 
 import (
 	"encoding/hex"
 	"errors"
+	"strconv"
 )
 
 type Kind uint8
 
 const (
 	EOF Kind = iota
-	Number
+	Float
+	Integer
 	String
 	StringHex
 	Name
@@ -48,20 +53,79 @@ var delims = [...]bool{
 	false, false, false, false, false, false, false, false, false, false,
 	false, false, false, false, false, false, false, false, false, false,
 	false, false, false, false, false, false, false, false, false, false,
-	false, false, false, false, false, false, false}
+	false, false, false, false, false, false, false,
+}
 
+// Token represents a basic piece of information.
+// `Value` must be interpreted according to `Kind`,
+// which is left to parsing packages.
 type Token struct {
 	Kind  Kind
 	Value string // additional value found in the data
 }
 
+// Int returns the integer value of the token,
+// also accepting float values and rouding them.
+func (t Token) Int() (int, error) {
+	// also accepts floats and round
+	f, err := t.Float()
+	return int(f), err
+}
+
+// Float returns the float value of the token.
+func (t Token) Float() (float64, error) {
+	return strconv.ParseFloat(t.Value, 64)
+}
+
+// Tokenize consume all the input, splitting it
+// into tokens.
+// When performance matters, you should use
+// the iteration method `NextToken` of the Tokenizer type.
+func Tokenize(data []byte) ([]Token, error) {
+	tk := NewTokenizer(data)
+	var out []Token
+	t, err := tk.NextToken()
+	for ; t.Kind != EOF && err == nil; t, err = tk.NextToken() {
+		out = append(out, t)
+	}
+	return out, err
+}
+
 type Tokenizer struct {
 	data []byte
 	pos  int
+
+	// we store the next token to have a cheap
+	// PeekToken method
+	aheadToken Token
+	aheadError error
 }
 
-func NewTokenizer(data []byte) *Tokenizer {
-	return &Tokenizer{data: data}
+func NewTokenizer(data []byte) Tokenizer {
+	tk := Tokenizer{data: data}
+	tk.aheadToken, tk.aheadError = tk.nextToken()
+	return tk
+}
+
+// PeekToken reads a token but does not advance the position.
+func (pr Tokenizer) PeekToken() (Token, error) {
+	return pr.aheadToken, pr.aheadError
+}
+
+// NextToken reads a token and advances (consuming the token).
+// If EOF is reached, no error is returned, but a Endoffile token.
+//
+// Regarding exponential numbers: 7.3.3 Numeric Objects:
+// A conforming writer shall not use the PostScript syntax for numbers
+// with non-decimal radices (such as 16#FFFE) or in exponential format
+// (such as 6.02E23).
+// Nonetheless, we sometimes get numbers with exponential format, so
+// we will support it in the reader (no confusion with other types, so
+// no compromise).
+func (pr *Tokenizer) NextToken() (Token, error) {
+	tk, err := pr.PeekToken()
+	pr.aheadToken, pr.aheadError = pr.nextToken()
+	return tk, err
 }
 
 func isWhitespace(ch byte) bool {
@@ -92,9 +156,7 @@ func (pr *Tokenizer) read() (byte, bool) {
 	return ch, true
 }
 
-// NextToken read a token and advance.
-// If EOF is reached, no error is returned, but a Endoffile token.
-func (pr *Tokenizer) NextToken() (Token, error) {
+func (pr *Tokenizer) nextToken() (Token, error) {
 	ch, ok := pr.read()
 	for ok && isWhitespace(ch) {
 		ch, ok = pr.read()
@@ -266,10 +328,18 @@ func (pr *Tokenizer) NextToken() (Token, error) {
 	default:
 		var tokenType Kind
 		if ch == '-' || ch == '+' || ch == '.' || (ch >= '0' && ch <= '9') {
-			tokenType = Number
+			tokenType = Integer
 			outBuf = append(outBuf, ch)
 			ch, ok = pr.read()
-			for ok && ((ch >= '0' && ch <= '9') || ch == '.') {
+			for ok {
+				if ch >= '0' && ch <= '9' { // decimal
+				} else if ch == '.' { // float
+					tokenType = Float
+				} else if ch == 'e' || ch == 'E' { // we accept Postscript notation
+					tokenType = Float
+				} else {
+					break
+				}
 				outBuf = append(outBuf, ch)
 				ch, ok = pr.read()
 			}

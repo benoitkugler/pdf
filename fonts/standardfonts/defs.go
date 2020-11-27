@@ -42,7 +42,7 @@ func (f Metrics) WidthsWithEncoding(encoding [256]string) (firstChar byte, width
 	}
 	widths = make([]int, lastChar-firstChar+1)
 	for code, name := range encoding {
-		if name == "" || name == ".undef" {
+		if name == "" || name == ".notdef" {
 			continue
 		}
 		width, ok := f.CharsWidths[name]
