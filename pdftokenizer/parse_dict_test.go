@@ -49,8 +49,7 @@ func doTestParseDictStringLiteral(t *testing.T) {
 }
 
 func TestBug(t *testing.T) {
-	doTestParseObjectFail(false, "<</Key<>>", t)
-
+	doTestParseObjectOK("[/Name 123<</A 123 /B<c0ff>>>]", t)
 }
 
 func doTestParseDictHexLiteral(t *testing.T) {

@@ -9,7 +9,6 @@ import (
 )
 
 const (
-
 	// the pdf header length.
 	// (start-marker (1 byte), ascii-/binary-marker (1 byte), size (4 byte))
 	// 3*6 == 18
@@ -27,6 +26,28 @@ const (
 
 // The record types in the pfb-file.
 var pfbRecords = [...]int{asciiMarker, binaryMarker, asciiMarker}
+
+type Font struct {
+	FontName    string
+	PaintType   int
+	FontType    int
+	UniqueID    int
+	StrokeWidth float64
+	FontID      string
+	FontMatrix  []float64
+	FontBBox    []float64
+	Encoding    Encoding
+
+	Version            string
+	Notice             string
+	FullName           string
+	FamilyName         string
+	Weight             string
+	ItalicAngle        float64
+	UnderlinePosition  float64
+	UnderlineThickness float64
+	IsFixedPitch       bool
+}
 
 type stream struct {
 	*bytes.Reader

@@ -17,14 +17,23 @@ limitations under the License.
 package pdftokenizer
 
 import (
+	"errors"
 	"fmt"
 	"testing"
 )
 
+// avoid painfull freeze
+const stackOverflow = 10_000
+
 func parseObject(s string) error {
 	tk := NewTokenizer([]byte(s))
 	next, _ := tk.PeekToken()
+	i := 0
 	for token, err := tk.NextToken(); ; token, err = tk.NextToken() {
+		i++
+		if i > stackOverflow {
+			return errors.New("stack overflow")
+		}
 		if err != nil {
 			return err
 		}
@@ -131,8 +140,73 @@ func TestParseObject(t *testing.T) {
 	doTestParseObjectOK("(\r8)", t)
 	doTestParseObjectFail(false, "(\r", t)
 	doTestParseObjectFail(false, "(\\", t)
+}
 
+func TestPS(t *testing.T) {
 	// we accept PS notation
 	doTestParseObjectOK("457e45", t)
-	doTestParseObjectOK("457E45", t)
+	doTestParseObjectOK("-457E45", t)
+
+	tk, err := Tokenize([]byte("457e45"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(tk) != 1 {
+		t.Errorf("expected 1 token, got %v", tk)
+	}
+	if tk[0].Kind != Float {
+		t.Errorf("expected Float, got %s", tk[0].Kind)
+	}
+
+	doTestParseObjectOK("smùld { sqmùùs }", t)
+	doTestParseObjectOK("8#1777 +16#FFFE -2#1000", t)
+}
+
+func TestFloats(t *testing.T) {
+	fl := []float64{12e1, -124e7, 12e-7, 98.78, -45.4}
+	for i, st := range []string{
+		"+12e1", "-124e7", "12e-7", "98.78", "-45.4",
+	} {
+		tk, err := Tokenize([]byte(st))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(tk) != 1 {
+			t.Errorf("expected 1 token, got %v", tk)
+		}
+		if tk[0].Kind != Float {
+			t.Errorf("expected Float, got %s", tk[0].Kind)
+		}
+		if f, err := tk[0].Float(); err != nil || f != fl[i] {
+			t.Errorf("expected %v got %v", fl[i], f)
+		}
+	}
+}
+
+func TestConvert(t *testing.T) {
+	tk := Token{Value: "78.45"}
+	_, err := tk.Float()
+	if err != nil {
+		t.Error(err)
+	}
+	tk = Token{Value: "78."}
+	_, err = tk.Float()
+	if err != nil {
+		t.Error(err)
+	}
+	_, err = tk.Int()
+	if err != nil {
+		t.Error(err)
+	}
+}
+
+func TestStrings(t *testing.T) {
+	for i := range [Other + 1]int{} {
+		if Kind(i).String() == "<invalid token>" {
+			t.Error()
+		}
+	}
+	if Kind(Other+1).String() != "<invalid token>" {
+		t.Error()
+	}
 }
