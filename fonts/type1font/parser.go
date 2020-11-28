@@ -5,8 +5,8 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/benoitkugler/pdf/pdftokenizer"
-	pt "github.com/benoitkugler/pdf/pdftokenizer"
+	"github.com/benoitkugler/pdf/tokenizer"
+	pt "github.com/benoitkugler/pdf/tokenizer"
 )
 
 // constants for encryption
@@ -22,12 +22,12 @@ type parser struct {
 }
 
 type lexer struct {
-	pdftokenizer.Tokenizer
+	tokenizer.Tokenizer
 }
 
 // constructs a new lexer given a header-less .pfb segment
 func newLexer(data []byte) lexer {
-	return lexer{pdftokenizer.NewTokenizer(data)}
+	return lexer{tokenizer.NewTokenizer(data)}
 }
 
 func (l *lexer) nextToken() (pt.Token, error) {

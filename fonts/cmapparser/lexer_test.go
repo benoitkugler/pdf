@@ -4,7 +4,7 @@ import (
 	"math/rand"
 	"testing"
 
-	"github.com/benoitkugler/pdf/pdftokenizer"
+	"github.com/benoitkugler/pdf/tokenizer"
 )
 
 func TestTokenize(t *testing.T) {
@@ -14,7 +14,7 @@ func TestTokenize(t *testing.T) {
 		cmap3Data,
 		cmap4Data,
 	} {
-		_, err := pdftokenizer.Tokenize([]byte(cmap))
+		_, err := tokenizer.Tokenize([]byte(cmap))
 		if err != nil {
 			t.Error(err)
 		}

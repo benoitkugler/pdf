@@ -10,7 +10,7 @@ import (
 
 	"github.com/benoitkugler/pdf/fonts/cidfonts"
 	"github.com/benoitkugler/pdf/model"
-	"github.com/benoitkugler/pdf/pdftokenizer"
+	"github.com/benoitkugler/pdf/tokenizer"
 )
 
 // parser parses CMap files, which represents either a character code to unicode mapping or
@@ -19,7 +19,7 @@ import (
 //  https://www.adobe.com/content/dam/acom/en/devnet/acrobat/pdfs/5411.ToUnicode.pdf
 //  https://github.com/adobe-type-tools/cmap-resources/releases
 type parser struct {
-	tokenizer pdftokenizer.Tokenizer
+	tokenizer tokenizer.Tokenizer
 
 	// a cmap may contain either CIDs or Unicodes
 	cids    cidfonts.CMap
@@ -31,7 +31,7 @@ type parser struct {
 // parser creates a new instance of the PDF CMap parser from input data.
 func newparser(content []byte) *parser {
 	parser := parser{}
-	parser.tokenizer = pdftokenizer.NewTokenizer(content)
+	parser.tokenizer = tokenizer.NewTokenizer(content)
 	parser.unicode = NewUnicodeCMap()
 	return &parser
 }

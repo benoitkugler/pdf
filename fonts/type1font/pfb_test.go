@@ -5,7 +5,7 @@ import (
 	"io/ioutil"
 	"testing"
 
-	"github.com/benoitkugler/pdf/pdftokenizer"
+	"github.com/benoitkugler/pdf/tokenizer"
 )
 
 func TestOpen(t *testing.T) {
@@ -39,7 +39,7 @@ func TestTokenize(t *testing.T) {
 	}
 	fmt.Println(len(s1), len(s2))
 
-	tks, err := pdftokenizer.Tokenize(s1)
+	tks, err := tokenizer.Tokenize(s1)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -50,7 +50,7 @@ func TestTokenize(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	tks, err = pdftokenizer.Tokenize(s2)
+	tks, err = tokenizer.Tokenize(s2)
 	if err != nil {
 		t.Fatal(err)
 	}

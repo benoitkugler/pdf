@@ -1,7 +1,7 @@
 package type1font
 
 import (
-	pt "github.com/benoitkugler/pdf/pdftokenizer"
+	pt "github.com/benoitkugler/pdf/tokenizer"
 )
 
 var none = pt.Token{} // null token

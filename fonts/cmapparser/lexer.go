@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/benoitkugler/pdf/model"
-	"github.com/benoitkugler/pdf/pdftokenizer"
+	"github.com/benoitkugler/pdf/tokenizer"
 )
 
 type cmapObject interface {
@@ -24,33 +24,33 @@ type cmapDict = map[model.Name]cmapObject
 // a nil object with a nil error means EOF
 func (p *parser) parseObject() (cmapObject, error) {
 	token, err := p.tokenizer.NextToken()
-	for ; token.Kind != pdftokenizer.EOF && err == nil; token, err = p.tokenizer.NextToken() {
+	for ; token.Kind != tokenizer.EOF && err == nil; token, err = p.tokenizer.NextToken() {
 		switch token.Kind {
-		case pdftokenizer.Name:
+		case tokenizer.Name:
 			return model.Name(token.Value), nil
-		case pdftokenizer.String:
+		case tokenizer.String:
 			return token.Value, nil
-		case pdftokenizer.StringHex:
+		case tokenizer.StringHex:
 			return cmapHexString(token.Value), nil
-		case pdftokenizer.StartArray:
+		case tokenizer.StartArray:
 			return p.parseArray()
-		case pdftokenizer.StartDic:
+		case tokenizer.StartDic:
 			return p.parseDict()
-		case pdftokenizer.Integer:
+		case tokenizer.Integer:
 			v, err := token.Int()
 			if err != nil {
 				v = 0
 			}
 			return v, nil
-		case pdftokenizer.Float:
+		case tokenizer.Float:
 			v, err := token.Float()
 			if err != nil {
 				v = 0
 			}
 			return v, nil
-		case pdftokenizer.EndArray, pdftokenizer.EndDic: // should not happend here
+		case tokenizer.EndArray, tokenizer.EndDic: // should not happend here
 			return nil, errors.New("unexpected end of container")
-		case pdftokenizer.Other:
+		case tokenizer.Other:
 			return cmapOperand(token.Value), nil
 		}
 		// default: continue
@@ -63,9 +63,9 @@ func (p *parser) parseObject() (cmapObject, error) {
 func (p *parser) parseArray() (cmapArray, error) {
 	var arr cmapArray
 	token, err := p.tokenizer.PeekToken()
-	for ; token.Kind != pdftokenizer.EOF && err == nil; token, err = p.tokenizer.PeekToken() {
+	for ; token.Kind != tokenizer.EOF && err == nil; token, err = p.tokenizer.PeekToken() {
 		switch token.Kind {
-		case pdftokenizer.EndArray:
+		case tokenizer.EndArray:
 			// consume
 			_, _ = p.tokenizer.NextToken()
 			return arr, nil
@@ -84,9 +84,9 @@ func (p *parser) parseArray() (cmapArray, error) {
 func (p *parser) parseDict() (cmapDict, error) {
 	dict := cmapDict{}
 	token, err := p.tokenizer.NextToken()
-	for ; token.Kind != pdftokenizer.EOF && err == nil; token, err = p.tokenizer.NextToken() {
+	for ; token.Kind != tokenizer.EOF && err == nil; token, err = p.tokenizer.NextToken() {
 		switch token.Kind {
-		case pdftokenizer.Name: // key
+		case tokenizer.Name: // key
 			key := model.Name(token.Value)
 			value, err := p.parseObject()
 			if err != nil {
@@ -99,10 +99,10 @@ func (p *parser) parseDict() (cmapDict, error) {
 			if err != nil {
 				return nil, err
 			}
-			if token.Kind == pdftokenizer.Other && token.Value == "def" {
+			if token.Kind == tokenizer.Other && token.Value == "def" {
 				_, _ = p.tokenizer.NextToken() // consume it
 			}
-		case pdftokenizer.EndDic:
+		case tokenizer.EndDic:
 			return dict, nil
 		default:
 			return nil, fmt.Errorf("invalid token in dict %v", token)

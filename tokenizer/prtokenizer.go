@@ -1,5 +1,5 @@
 // Implements the lowest level of processing of PS/PDF files.
-package pdftokenizer
+package tokenizer
 
 // Code ported from the Java PDFTK library - BK 2020
 

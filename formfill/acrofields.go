@@ -11,7 +11,7 @@ import (
 	"github.com/benoitkugler/pdf/fonts"
 	"github.com/benoitkugler/pdf/fonts/standardfonts"
 	"github.com/benoitkugler/pdf/model"
-	"github.com/benoitkugler/pdf/pdftokenizer"
+	"github.com/benoitkugler/pdf/tokenizer"
 )
 
 // port of pdftk library - BK 2020
@@ -37,15 +37,15 @@ type daConfig struct {
 }
 
 func splitDAelements(da string) (daConfig, error) {
-	tk := pdftokenizer.NewTokenizer([]byte(da))
-	var stack []pdftokenizer.Token
+	tk := tokenizer.NewTokenizer([]byte(da))
+	var stack []tokenizer.Token
 	var ret daConfig
 	token, err := tk.NextToken()
-	for ; token.Kind != pdftokenizer.EOF && err == nil; token, err = tk.NextToken() {
-		if token.Kind == pdftokenizer.Comment {
+	for ; token.Kind != tokenizer.EOF && err == nil; token, err = tk.NextToken() {
+		if token.Kind == tokenizer.Comment {
 			continue
 		}
-		if token.Kind == pdftokenizer.Other {
+		if token.Kind == tokenizer.Other {
 			switch token.Value {
 			case "Tf":
 				if len(stack) >= 2 {
