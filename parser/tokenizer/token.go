@@ -1,4 +1,6 @@
 // Implements the lowest level of processing of PS/PDF files.
+// The tokenizer is also usable with Type1 font files.
+// See the higher level package parser to read PDF objects.
 package tokenizer
 
 // Code ported from the Java PDFTK library - BK 2020
@@ -20,7 +22,6 @@ const (
 	String
 	StringHex
 	Name
-	Comment
 	StartArray
 	EndArray
 	StartDic
@@ -47,8 +48,6 @@ func (k Kind) String() string {
 		return "StringHex"
 	case Name:
 		return "Name"
-	case Comment:
-		return "Comment"
 	case StartArray:
 		return "StartArray"
 	case EndArray:
@@ -133,6 +132,8 @@ func Tokenize(data []byte) ([]Token, error) {
 // It handles PS features like Procs and CharStrings:
 // strict parsers should check for such tokens and return an error if needed.
 //
+// Comments are ignored.
+//
 // Regarding exponential numbers: 7.3.3 Numeric Objects:
 // A conforming writer shall not use the PostScript syntax for numbers
 // with non-decimal radices (such as 16#FFFE) or in exponential format
@@ -144,30 +145,41 @@ type Tokenizer struct {
 	data []byte
 	pos  int
 
-	// we store the next token to have a cheap
-	// PeekToken method
-	// also, the previous token is needed to resolve Type1
-	// char strings
-	aheadToken Token
-	aheadError error
+	// since indirect reference require
+	// to read two more tokens
+	// we store the two next token
+	aToken Token // +1
+	aError error // +1
+
+	aaToken Token // +2
+	aaError error // +2
 }
 
 func NewTokenizer(data []byte) Tokenizer {
 	tk := Tokenizer{data: data}
-	tk.aheadToken, tk.aheadError = tk.nextToken()
+	tk.aToken, tk.aError = tk.nextToken(Token{})
+	tk.aaToken, tk.aaError = tk.nextToken(tk.aToken)
 	return tk
 }
 
 // PeekToken reads a token but does not advance the position.
+// It returns a cached value, meaning it is a very cheap call.
 func (pr Tokenizer) PeekToken() (Token, error) {
-	return pr.aheadToken, pr.aheadError
+	return pr.aToken, pr.aError
+}
+
+// PeekPeekToken reads the token after the next but does not advance the position.
+// It returns a cached value, meaning it is a very cheap call.
+func (pr Tokenizer) PeekPeekToken() (Token, error) {
+	return pr.aaToken, pr.aaError
 }
 
 // NextToken reads a token and advances (consuming the token).
 // If EOF is reached, no error is returned, but an `EOF` token.
 func (pr *Tokenizer) NextToken() (Token, error) {
 	tk, err := pr.PeekToken()
-	pr.aheadToken, pr.aheadError = pr.nextToken()
+	pr.aToken, pr.aError = pr.aaToken, pr.aaError
+	pr.aaToken, pr.aaError = pr.nextToken(pr.aaToken)
 	return tk, err
 }
 
@@ -195,7 +207,8 @@ func (pr *Tokenizer) read() (byte, bool) {
 	return ch, true
 }
 
-func (pr *Tokenizer) nextToken() (Token, error) {
+// reads and advances
+func (pr *Tokenizer) nextToken(previous Token) (Token, error) {
 	ch, ok := pr.read()
 	for ok && isWhitespace(ch) {
 		ch, ok = pr.read()
@@ -285,8 +298,8 @@ func (pr *Tokenizer) nextToken() (Token, error) {
 		for ok && ch != '\r' && ch != '\n' {
 			ch, ok = pr.read()
 		}
-		// ignore comments
-		return Token{Kind: Comment}, nil
+		// ignore comments: go to next token
+		return pr.nextToken(previous)
 	case '(':
 		nesting := 0
 		for {
@@ -386,9 +399,8 @@ func (pr *Tokenizer) nextToken() (Token, error) {
 		cmd := string(outBuf)
 		if cmd == "RD" || cmd == "-|" {
 			// return the next CharString instead
-			// we can use aheadToken, which is now the previous
-			if pr.aheadToken.Kind == Integer {
-				f, err := pr.aheadToken.Int()
+			if previous.Kind == Integer {
+				f, err := previous.Int()
 				if err != nil {
 					return Token{}, fmt.Errorf("invalid charstring length: %s", err)
 				}

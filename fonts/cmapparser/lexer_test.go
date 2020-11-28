@@ -4,7 +4,7 @@ import (
 	"math/rand"
 	"testing"
 
-	"github.com/benoitkugler/pdf/tokenizer"
+	"github.com/benoitkugler/pdf/parser/tokenizer"
 )
 
 func TestTokenize(t *testing.T) {

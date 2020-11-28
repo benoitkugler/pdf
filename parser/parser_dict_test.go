@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package tokenizer
+package parser
 
 import (
 	"testing"
@@ -23,8 +23,8 @@ import (
 func doTestParseDictGeneral(t *testing.T) {
 	doTestParseObjectOK("<</Type /Pages /Count 24 /Kids [6 0 R 16 0 R 21 0 R 27 0 R 30 0 R 32 0 R 34 0 R 36 0 R 38 0 R 40 0 R 42 0 R 44 0 R 46 0 R 48 0 R 50 0 R 52 0 R 54 0 R 56 0 R 58 0 R 60 0 R 62 0 R 64 0 R 69 0 R 71 0 R] /MediaBox [0 0 595.2756 841.8898]>>", t)
 	doTestParseObjectOK("<< /Key1 <abc> /Key2 <d> >>", t)
-	doTestParseObjectFail(true, "<<", t)
-	doTestParseObjectFail(false, "<<>", t)
+	doTestParseObjectFail("<<", t)
+	doTestParseObjectFail("<<>", t)
 	doTestParseObjectOK("<<>>", t)
 	doTestParseObjectOK("<<     >>", t)
 	doTestParseObjectOK("<</Key1/Value1/key1/Value2>>", t)
@@ -48,19 +48,15 @@ func doTestParseDictStringLiteral(t *testing.T) {
 	doTestParseObjectOK("<</Key1(abc(inner1<<>>inner2)def)    >>..", t)
 }
 
-func TestBug(t *testing.T) {
-	doTestParseObjectOK("[/Name 123<</A 123 /B<c0ff>>>]", t)
-}
-
 func doTestParseDictHexLiteral(t *testing.T) {
 	// Hex literals
-	doTestParseObjectFail(false, "<</Key<>>", t)
-	doTestParseObjectFail(false, "<</Key<a4>>", t)
-	doTestParseObjectFail(true, "<</Key<    >", t)
-	doTestParseObjectFail(true, "<</Key<ade>", t)
-	doTestParseObjectFail(false, "<</Key<ABG>>>", t)
-	doTestParseObjectFail(false, "<</Key<   ABG>>>", t)
-	doTestParseObjectFail(true, "<</Key<0ab><bcf098>", t)
+	doTestParseObjectFail("<</Key<>>", t)
+	doTestParseObjectFail("<</Key<a4>>", t)
+	doTestParseObjectFail("<</Key<    >", t)
+	doTestParseObjectFail("<</Key<ade>", t)
+	doTestParseObjectFail("<</Key<ABG>>>", t)
+	doTestParseObjectFail("<</Key<   ABG>>>", t)
+	doTestParseObjectFail("<</Key<0ab><bcf098>", t)
 	doTestParseObjectOK("<</Key1<abc>/Key2<def>>>", t)
 	doTestParseObjectOK("<< /Key1 <abc> /Key2 <def> >>", t)
 	doTestParseObjectOK("<</Key1<AB>>>", t)
@@ -100,14 +96,14 @@ func doTestParseDictBool(t *testing.T) {
 	doTestParseObjectOK("<</Key1 true>>", t)
 	doTestParseObjectOK("<</Key1 			false>>", t)
 	doTestParseObjectOK("<</Key1 null /Key2 true /Key3 false>>", t)
-	doTestParseObjectFail(true, "<</Key1 TRUE>>", t)
+	doTestParseObjectFail("<</Key1 TRUE>>", t)
 }
 
 func doTestParseDictNumerics(t *testing.T) {
 	// Numerics
 	doTestParseObjectOK("<</Key1 16>>", t)
 	doTestParseObjectOK("<</Key1 .034>>", t)
-	doTestParseObjectFail(true, "<</Key1 ,034>>", t)
+	doTestParseObjectFail("<</Key1 ,034>>", t)
 }
 
 func doTestParseDictIndirectRefs(t *testing.T) {
@@ -126,4 +122,8 @@ func TestParseDict(t *testing.T) {
 	doTestParseDictBool(t)
 	doTestParseDictNumerics(t)
 	doTestParseDictIndirectRefs(t)
+}
+
+func TestDupKeys(t *testing.T) {
+	doTestParseObjectFail("<</Key 1 /Key 2>>", t)
 }

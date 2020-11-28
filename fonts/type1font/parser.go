@@ -5,8 +5,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/benoitkugler/pdf/tokenizer"
-	pt "github.com/benoitkugler/pdf/tokenizer"
+	tk "github.com/benoitkugler/pdf/parser/tokenizer"
 )
 
 // constants for encryption
@@ -22,27 +21,20 @@ type parser struct {
 }
 
 type lexer struct {
-	tokenizer.Tokenizer
+	tk.Tokenizer
 }
 
 // constructs a new lexer given a header-less .pfb segment
 func newLexer(data []byte) lexer {
-	return lexer{tokenizer.NewTokenizer(data)}
+	return lexer{tk.NewTokenizer(data)}
 }
 
-func (l *lexer) nextToken() (pt.Token, error) {
-	t, err := l.Tokenizer.NextToken()
-	for ; t.Kind == pt.Comment && err == nil; t, err = l.Tokenizer.NextToken() {
-		// skip comments
-	}
-	return t, err
+func (l *lexer) nextToken() (tk.Token, error) {
+	return l.Tokenizer.NextToken()
 }
 
-func (l lexer) peekToken() pt.Token {
+func (l lexer) peekToken() tk.Token {
 	t, err := l.Tokenizer.PeekToken()
-	for ; t.Kind == pt.Comment && err == nil; t, err = l.Tokenizer.NextToken() {
-		// skip comments
-	}
 	if err != nil {
 		return none
 	}
@@ -100,47 +92,47 @@ func (p *parser) parseASCII(bytes []byte) error {
 
 	// (corrupt?) synthetic font
 	if p.lexer.peekToken().Value == "FontDirectory" {
-		if err := p.readWithName(pt.Other, "FontDirectory"); err != nil {
+		if err := p.readWithName(tk.Other, "FontDirectory"); err != nil {
 			return err
 		}
-		if _, err := p.read(pt.Name); err != nil { // font name;
+		if _, err := p.read(tk.Name); err != nil { // font name;
 			return err
 		}
-		if err := p.readWithName(pt.Other, "known"); err != nil {
+		if err := p.readWithName(tk.Other, "known"); err != nil {
 			return err
 		}
-		if _, err := p.read(pt.StartProc); err != nil {
-			return err
-		}
-		if _, err := p.readProc(); err != nil {
-			return err
-		}
-		if _, err := p.read(pt.StartProc); err != nil {
+		if _, err := p.read(tk.StartProc); err != nil {
 			return err
 		}
 		if _, err := p.readProc(); err != nil {
 			return err
 		}
-		if err := p.readWithName(pt.Other, "ifelse"); err != nil {
+		if _, err := p.read(tk.StartProc); err != nil {
+			return err
+		}
+		if _, err := p.readProc(); err != nil {
+			return err
+		}
+		if err := p.readWithName(tk.Other, "ifelse"); err != nil {
 			return err
 		}
 	}
 
 	// font dict
-	lengthT, err := p.read(pt.Integer)
+	lengthT, err := p.read(tk.Integer)
 	if err != nil {
 		return err
 	}
 	length, _ := lengthT.Int()
-	if err := p.readWithName(pt.Other, "dict"); err != nil {
+	if err := p.readWithName(tk.Other, "dict"); err != nil {
 		return err
 	}
 	// found in some TeX fonts
-	if _, err := p.readMaybe(pt.Other, "dup"); err != nil {
+	if _, err := p.readMaybe(tk.Other, "dup"); err != nil {
 		return err
 	}
 	// if present, the "currentdict" is not required
-	if err := p.readWithName(pt.Other, "begin"); err != nil {
+	if err := p.readWithName(tk.Other, "begin"); err != nil {
 		return err
 	}
 
@@ -150,12 +142,12 @@ func (p *parser) parseASCII(bytes []byte) error {
 		if token == none {
 			break
 		}
-		if token.Kind == pt.Other && ("currentdict" == token.Value || "end" == token.Value) {
+		if token.Kind == tk.Other && ("currentdict" == token.Value || "end" == token.Value) {
 			break
 		}
 
 		// key/value
-		keyT, err := p.read(pt.Name)
+		keyT, err := p.read(tk.Name)
 		if err != nil {
 			return err
 		}
@@ -178,16 +170,16 @@ func (p *parser) parseASCII(bytes []byte) error {
 		}
 	}
 
-	if _, err := p.readMaybe(pt.Other, "currentdict"); err != nil {
+	if _, err := p.readMaybe(tk.Other, "currentdict"); err != nil {
 		return err
 	}
-	if err := p.readWithName(pt.Other, "end"); err != nil {
+	if err := p.readWithName(tk.Other, "end"); err != nil {
 		return err
 	}
-	if err := p.readWithName(pt.Other, "currentfile"); err != nil {
+	if err := p.readWithName(tk.Other, "currentfile"); err != nil {
 		return err
 	}
-	if err := p.readWithName(pt.Other, "eexec"); err != nil {
+	if err := p.readWithName(tk.Other, "eexec"); err != nil {
 		return err
 	}
 	return nil
@@ -226,7 +218,7 @@ func (p *parser) readSimpleValue(key string) error {
 }
 
 func (p *parser) readEncoding() error {
-	if p.lexer.peekToken().Kind == pt.Other {
+	if p.lexer.peekToken().Kind == tk.Other {
 		nameT, err := p.lexer.nextToken()
 		if err != nil {
 			return err
@@ -237,24 +229,24 @@ func (p *parser) readEncoding() error {
 		} else {
 			return errors.New("Unknown encoding: " + name_)
 		}
-		if _, err := p.readMaybe(pt.Other, "readonly"); err != nil {
+		if _, err := p.readMaybe(tk.Other, "readonly"); err != nil {
 			return err
 		}
-		if err := p.readWithName(pt.Other, "def"); err != nil {
+		if err := p.readWithName(tk.Other, "def"); err != nil {
 			return err
 		}
 	} else {
-		if _, err := p.read(pt.Integer); err != nil {
+		if _, err := p.read(tk.Integer); err != nil {
 			return err
 		}
-		if _, err := p.readMaybe(pt.Other, "array"); err != nil {
+		if _, err := p.readMaybe(tk.Other, "array"); err != nil {
 			return err
 		}
 
 		// 0 1 255 {1 index exch /.notdef put } for
 		// we have to check "readonly" and "def" too
 		// as some fonts don't provide any dup-values, see PDFBOX-2134
-		for !(p.lexer.peekToken().Kind == pt.Other &&
+		for !(p.lexer.peekToken().Kind == tk.Other &&
 			(p.lexer.peekToken().Value == "dup" ||
 				p.lexer.peekToken().Value == "readonly" ||
 				p.lexer.peekToken().Value == "def")) {
@@ -264,29 +256,29 @@ func (p *parser) readEncoding() error {
 			}
 		}
 
-		for p.lexer.peekToken().Kind == pt.Other &&
+		for p.lexer.peekToken().Kind == tk.Other &&
 			p.lexer.peekToken().Value == "dup" {
-			if err := p.readWithName(pt.Other, "dup"); err != nil {
+			if err := p.readWithName(tk.Other, "dup"); err != nil {
 				return err
 			}
-			codeT, err := p.read(pt.Integer)
+			codeT, err := p.read(tk.Integer)
 			if err != nil {
 				return err
 			}
 			code, _ := codeT.Int()
-			nameT, err := p.read(pt.Name)
+			nameT, err := p.read(tk.Name)
 			if err != nil {
 				return err
 			}
-			if err := p.readWithName(pt.Other, "put"); err != nil {
+			if err := p.readWithName(tk.Other, "put"); err != nil {
 				return err
 			}
 			p.font.Encoding.Custom[byte(code)] = nameT.Value
 		}
-		if _, err := p.readMaybe(pt.Other, "readonly"); err != nil {
+		if _, err := p.readMaybe(tk.Other, "readonly"); err != nil {
 			return err
 		}
-		if err := p.readWithName(pt.Other, "def"); err != nil {
+		if err := p.readWithName(tk.Other, "def"); err != nil {
 			return err
 		}
 	}
@@ -294,11 +286,11 @@ func (p *parser) readEncoding() error {
 }
 
 // Extracts values from an array as numbers.
-func (p *parser) arrayToNumbers(value []pt.Token) ([]float64, error) {
+func (p *parser) arrayToNumbers(value []tk.Token) ([]float64, error) {
 	var numbers []float64
 	for i, size := 1, len(value)-1; i < size; i++ {
 		token := value[i]
-		if token.Kind == pt.Float || token.Kind == pt.Integer {
+		if token.Kind == tk.Float || token.Kind == tk.Integer {
 			f, _ := token.Float()
 			numbers = append(numbers, f)
 		} else {
@@ -309,7 +301,7 @@ func (p *parser) arrayToNumbers(value []pt.Token) ([]float64, error) {
 }
 
 // Extracts values from the /FontInfo dictionary.
-func (p *parser) readFontInfo(fontInfo map[string][]pt.Token) {
+func (p *parser) readFontInfo(fontInfo map[string][]tk.Token) {
 	for key, value := range fontInfo {
 		switch key {
 		case "version":
@@ -335,21 +327,21 @@ func (p *parser) readFontInfo(fontInfo map[string][]pt.Token) {
 }
 
 // Reads a dictionary whose values are simple, i.e., do not contain nested dictionaries.
-func (p *parser) readSimpleDict() (map[string][]pt.Token, error) {
-	dict := map[string][]pt.Token{}
+func (p *parser) readSimpleDict() (map[string][]tk.Token, error) {
+	dict := map[string][]tk.Token{}
 
-	lengthT, err := p.read(pt.Integer)
+	lengthT, err := p.read(tk.Integer)
 	if err != nil {
 		return nil, err
 	}
 	length, _ := lengthT.Int()
-	if err := p.readWithName(pt.Other, "dict"); err != nil {
+	if err := p.readWithName(tk.Other, "dict"); err != nil {
 		return nil, err
 	}
-	if _, err := p.readMaybe(pt.Other, "dup"); err != nil {
+	if _, err := p.readMaybe(tk.Other, "dup"); err != nil {
 		return nil, err
 	}
-	if err := p.readWithName(pt.Other, "begin"); err != nil {
+	if err := p.readWithName(tk.Other, "begin"); err != nil {
 		return nil, err
 	}
 
@@ -357,9 +349,9 @@ func (p *parser) readSimpleDict() (map[string][]pt.Token, error) {
 		if p.lexer.peekToken() == none {
 			break
 		}
-		if p.lexer.peekToken().Kind == pt.Other &&
+		if p.lexer.peekToken().Kind == tk.Other &&
 			!(p.lexer.peekToken().Value == "end") {
-			if _, err := p.read(pt.Other); err != nil {
+			if _, err := p.read(tk.Other); err != nil {
 				return nil, err
 			}
 		}
@@ -367,13 +359,13 @@ func (p *parser) readSimpleDict() (map[string][]pt.Token, error) {
 		if p.lexer.peekToken() == none {
 			break
 		}
-		if p.lexer.peekToken().Kind == pt.Other &&
+		if p.lexer.peekToken().Kind == tk.Other &&
 			p.lexer.peekToken().Value == "end" {
 			break
 		}
 
 		// simple value
-		keyT, err := p.read(pt.Name)
+		keyT, err := p.read(tk.Name)
 		if err != nil {
 			return nil, err
 		}
@@ -384,13 +376,13 @@ func (p *parser) readSimpleDict() (map[string][]pt.Token, error) {
 		dict[keyT.Value] = value
 	}
 
-	if err := p.readWithName(pt.Other, "end"); err != nil {
+	if err := p.readWithName(tk.Other, "end"); err != nil {
 		return nil, err
 	}
-	if _, err := p.readMaybe(pt.Other, "readonly"); err != nil {
+	if _, err := p.readMaybe(tk.Other, "readonly"); err != nil {
 		return nil, err
 	}
-	if err := p.readWithName(pt.Other, "def"); err != nil {
+	if err := p.readWithName(tk.Other, "def"); err != nil {
 		return nil, err
 	}
 
@@ -398,7 +390,7 @@ func (p *parser) readSimpleDict() (map[string][]pt.Token, error) {
 }
 
 // Reads a simple value from a dictionary.
-func (p *parser) readDictValue() ([]pt.Token, error) {
+func (p *parser) readDictValue() ([]tk.Token, error) {
 	value, err := p.readValue()
 	if err != nil {
 		return nil, err
@@ -410,8 +402,8 @@ func (p *parser) readDictValue() ([]pt.Token, error) {
 // Reads a simple value. This is either a number, a string,
 // a name, a literal name, an array, a procedure, or a charstring.
 // This method does not support reading nested dictionaries unless they're empty.
-func (p *parser) readValue() ([]pt.Token, error) {
-	var value []pt.Token
+func (p *parser) readValue() ([]tk.Token, error) {
+	var value []tk.Token
 	token, err := p.lexer.nextToken()
 	if err != nil {
 		return nil, err
@@ -422,13 +414,13 @@ func (p *parser) readValue() ([]pt.Token, error) {
 	value = append(value, token)
 
 	switch token.Kind {
-	case pt.StartArray:
+	case tk.StartArray:
 		openArray := 1
 		for {
 			if p.lexer.peekToken() == none {
 				return value, nil
 			}
-			if p.lexer.peekToken().Kind == pt.StartArray {
+			if p.lexer.peekToken().Kind == tk.StartArray {
 				openArray++
 			}
 
@@ -438,22 +430,22 @@ func (p *parser) readValue() ([]pt.Token, error) {
 			}
 			value = append(value, token)
 
-			if token.Kind == pt.EndArray {
+			if token.Kind == tk.EndArray {
 				openArray--
 				if openArray == 0 {
 					break
 				}
 			}
 		}
-	case pt.StartProc:
+	case tk.StartProc:
 		proc, err := p.readProc()
 		if err != nil {
 			return nil, err
 		}
 		value = append(value, proc...)
-	case pt.StartDic:
+	case tk.StartDic:
 		// skip "/GlyphNames2HostCode << >> def"
-		if _, err := p.read(pt.EndDic); err != nil {
+		if _, err := p.read(tk.EndDic); err != nil {
 			return nil, err
 		}
 		return value, nil
@@ -462,44 +454,44 @@ func (p *parser) readValue() ([]pt.Token, error) {
 	return value, err
 }
 
-func (p *parser) readPostScriptWrapper(value []pt.Token) error {
+func (p *parser) readPostScriptWrapper(value []tk.Token) error {
 	// postscript wrapper (not in the Type 1 spec)
 	if p.lexer.peekToken().Value != "systemdict" {
 		return nil
 	}
-	if err := p.readWithName(pt.Other, "systemdict"); err != nil {
+	if err := p.readWithName(tk.Other, "systemdict"); err != nil {
 		return err
 	}
-	if err := p.readWithName(pt.Name, "internaldict"); err != nil {
+	if err := p.readWithName(tk.Name, "internaldict"); err != nil {
 		return err
 	}
-	if err := p.readWithName(pt.Other, "known"); err != nil {
+	if err := p.readWithName(tk.Other, "known"); err != nil {
 		return err
 	}
 
-	if _, err := p.read(pt.StartProc); err != nil {
+	if _, err := p.read(tk.StartProc); err != nil {
 		return err
 	}
 	if _, err := p.readProc(); err != nil {
 		return err
 	}
 
-	if _, err := p.read(pt.StartProc); err != nil {
+	if _, err := p.read(tk.StartProc); err != nil {
 		return err
 	}
 	if _, err := p.readProc(); err != nil {
 		return err
 	}
 
-	if err := p.readWithName(pt.Other, "ifelse"); err != nil {
+	if err := p.readWithName(tk.Other, "ifelse"); err != nil {
 		return err
 	}
 
 	// replace value
-	if _, err := p.read(pt.StartProc); err != nil {
+	if _, err := p.read(tk.StartProc); err != nil {
 		return err
 	}
-	if err := p.readWithName(pt.Other, "pop"); err != nil {
+	if err := p.readWithName(tk.Other, "pop"); err != nil {
 		return err
 	}
 	value = nil
@@ -508,22 +500,22 @@ func (p *parser) readPostScriptWrapper(value []pt.Token) error {
 		return err
 	}
 	value = append(value, other...)
-	if _, err := p.read(pt.EndProc); err != nil {
+	if _, err := p.read(tk.EndProc); err != nil {
 		return err
 	}
 
-	if err := p.readWithName(pt.Other, "if"); err != nil {
+	if err := p.readWithName(tk.Other, "if"); err != nil {
 		return err
 	}
 	return nil
 }
 
 // Reads a procedure.
-func (p *parser) readProc() ([]pt.Token, error) {
-	var value []pt.Token
+func (p *parser) readProc() ([]tk.Token, error) {
+	var value []tk.Token
 	openProc := 1
 	for {
-		if p.lexer.peekToken().Kind == pt.StartProc {
+		if p.lexer.peekToken().Kind == tk.StartProc {
 			openProc++
 		}
 
@@ -533,14 +525,14 @@ func (p *parser) readProc() ([]pt.Token, error) {
 		}
 		value = append(value, token)
 
-		if token.Kind == pt.EndProc {
+		if token.Kind == tk.EndProc {
 			openProc--
 			if openProc == 0 {
 				break
 			}
 		}
 	}
-	executeonly, err := p.readMaybe(pt.Other, "executeonly")
+	executeonly, err := p.readMaybe(tk.Other, "executeonly")
 	if err != nil {
 		return nil, err
 	}
@@ -807,15 +799,15 @@ func (p *parser) readProc() ([]pt.Token, error) {
 
 // Reads the sequence "noaccess def" or equivalent.
 func (p *parser) readDef() error {
-	if _, err := p.readMaybe(pt.Other, "readonly"); err != nil {
+	if _, err := p.readMaybe(tk.Other, "readonly"); err != nil {
 		return err
 	}
 	// allows "noaccess ND" (not in the Type 1 spec)
-	if _, err := p.readMaybe(pt.Other, "noaccess"); err != nil {
+	if _, err := p.readMaybe(tk.Other, "noaccess"); err != nil {
 		return err
 	}
 
-	token, err := p.read(pt.Other)
+	token, err := p.read(tk.Other)
 	if err != nil {
 		return err
 	}
@@ -823,7 +815,7 @@ func (p *parser) readDef() error {
 	case "ND", "|-":
 		return nil
 	case "noaccess":
-		token, err = p.read(pt.Other)
+		token, err = p.read(tk.Other)
 		if err != nil {
 			return err
 		}
@@ -862,7 +854,7 @@ func (p *parser) readDef() error {
 // 	 }
 
 /// Reads the next token and throws an error if it is not of the given kind.
-func (p *parser) read(kind pt.Kind) (pt.Token, error) {
+func (p *parser) read(kind tk.Kind) (tk.Token, error) {
 	token, err := p.lexer.nextToken()
 	if err != nil {
 		return none, err
@@ -875,7 +867,7 @@ func (p *parser) read(kind pt.Kind) (pt.Token, error) {
 
 // Reads the next token and throws an error if it is not of the given kind
 // and does not have the given value.
-func (p *parser) readWithName(kind pt.Kind, name string) error {
+func (p *parser) readWithName(kind tk.Kind, name string) error {
 	token, err := p.read(kind)
 	if err != nil {
 		return err
@@ -888,7 +880,7 @@ func (p *parser) readWithName(kind pt.Kind, name string) error {
 
 // Reads the next token if and only if it is of the given kind and
 // has the given value.
-func (p *parser) readMaybe(kind pt.Kind, name string) (pt.Token, error) {
+func (p *parser) readMaybe(kind tk.Kind, name string) (tk.Token, error) {
 	token := p.lexer.peekToken()
 	if token.Kind == kind && token.Value == name {
 		return p.lexer.nextToken()
@@ -948,7 +940,7 @@ func isBinary(bytes []byte) bool {
 	for i := 0; i < 4; i++ {
 		by := bytes[i]
 
-		if _, isHex := pt.IsHexChar(by); by != 0x0a && by != 0x0d && by != 0x20 && by != '\t' && !isHex {
+		if _, isHex := tk.IsHexChar(by); by != 0x0a && by != 0x0d && by != 0x20 && by != '\t' && !isHex {
 			return true
 		}
 	}

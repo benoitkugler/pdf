@@ -10,7 +10,7 @@ import (
 
 	"github.com/benoitkugler/pdf/fonts/cidfonts"
 	"github.com/benoitkugler/pdf/model"
-	"github.com/benoitkugler/pdf/tokenizer"
+	"github.com/benoitkugler/pdf/parser/tokenizer"
 )
 
 // parser parses CMap files, which represents either a character code to unicode mapping or

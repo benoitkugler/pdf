@@ -26,7 +26,7 @@ import (
 // avoid painfull freeze
 const stackOverflow = 10_000
 
-func parseObject(s string) error {
+func tokenize(s string) error {
 	tk := NewTokenizer([]byte(s))
 	next, _ := tk.PeekToken()
 	i := 0
@@ -46,21 +46,22 @@ func parseObject(s string) error {
 		}
 		next, _ = tk.PeekToken()
 	}
+
 	return nil
 }
 
 func doTestParseObjectOK(parseString string, t *testing.T) {
-	err := parseObject(parseString)
+	err := tokenize(parseString)
 	if err != nil {
-		t.Errorf("parseObject failed: <%v>\n%s", err, parseString)
-		return
+		t.Errorf("tokenize failed <%v>\n%s", err, parseString)
 	}
 }
 
-func doTestParseObjectFail(tokenValid bool, parseString string, t *testing.T) {
-	err := parseObject(parseString)
-	if !tokenValid && err == nil {
-		t.Errorf("parseObject should have returned an error for %s\n", parseString)
+func doTestParseObjectFail(isTokensValid bool, parseString string, t *testing.T) {
+	// if isTokensValid is true, the input produce valid tokens
+	err := tokenize(parseString)
+	if !isTokensValid && err == nil {
+		t.Errorf("tokenize should have returned an error for %s\n", parseString)
 	}
 }
 
@@ -90,7 +91,11 @@ func TestParseObject(t *testing.T) {
 	doTestParseObjectOK("/Na#20me", t)
 	doTestParseObjectOK("[null]abc", t)
 
-	doTestParseObjectFail(true, "/", t)
+	// 7.3.5 - The token SOLIDUS (a slash followed by no regular characters) introduces a unique valid name defined by the
+	// empty sequence of characters.
+	doTestParseObjectOK("/", t)
+	// /( is valid as an object followed by arbitrary content
+	// but not as a list of tokens
 	doTestParseObjectFail(false, "/(", t)
 	doTestParseObjectOK("//", t)
 	doTestParseObjectOK("/abc/", t)
@@ -105,7 +110,8 @@ func TestParseObject(t *testing.T) {
 	doTestParseObjectOK("<</Key1<ABC>>>", t)
 	doTestParseObjectOK("<</Key1<0ab>>>", t)
 	doTestParseObjectOK("<</Key<>>>", t)
-	doTestParseObjectFail(true, "<>", t)
+	// 7.3.4.1 General - A string object shall consist of a series of zero or more bytes.
+	doTestParseObjectOK("<>", t)
 
 	doTestParseObjectOK("()", t)
 	doTestParseObjectOK("(gopher\\\x28go)", t)
@@ -124,7 +130,6 @@ func TestParseObject(t *testing.T) {
 	doTestParseObjectOK("1/", t)
 
 	doTestParseObjectOK("3.43", t)
-	doTestParseObjectFail(false, "3.43<", t)
 
 	doTestParseObjectOK("1.2", t)
 	doTestParseObjectOK("[<0ab>]", t)
@@ -141,6 +146,8 @@ func TestParseObject(t *testing.T) {
 	doTestParseObjectOK("(\r8)", t)
 	doTestParseObjectFail(false, "(\r", t)
 	doTestParseObjectFail(false, "(\\", t)
+
+	doTestParseObjectFail(true, " ", t)
 }
 
 func TestPS(t *testing.T) {
@@ -159,7 +166,7 @@ func TestPS(t *testing.T) {
 		t.Errorf("expected Float, got %s", tk[0].Kind)
 	}
 
-	doTestParseObjectOK("smùld { sqmùùs }", t)
+	doTestParseObjectFail(true, "smùld { sqmùùs }", t)
 	doTestParseObjectOK("8#1777 +16#FFFE -2#1000", t)
 
 	doTestParseObjectFail(false, "a RD ", t)
