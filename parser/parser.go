@@ -9,6 +9,7 @@ import (
 
 	tok "github.com/benoitkugler/pdf/parser/tokenizer"
 	"github.com/pdfcpu/pdfcpu/pkg/log"
+	"github.com/pdfcpu/pdfcpu/pkg/pdfcpu"
 )
 
 var (
@@ -18,6 +19,17 @@ var (
 	errDictionaryNotTerminated = errors.New("pdfcpu: parse: unterminated dictionary")
 	errBufNotAvailable         = errors.New("pdfcpu: parse: no buffer available")
 )
+
+type Object = pdfcpu.Object
+type Boolean = pdfcpu.Boolean
+type Float = pdfcpu.Float
+type Integer = pdfcpu.Integer
+type Name = pdfcpu.Name
+type StringLiteral = pdfcpu.StringLiteral
+type HexLiteral = pdfcpu.HexLiteral
+type IndirectRef = pdfcpu.IndirectRef
+type Dict = pdfcpu.Dict
+type Array = pdfcpu.Array
 
 // Standalone implementation of a PDF parser.
 // The parser only handles chunks of PDF files
@@ -139,7 +151,7 @@ func (p *Parser) parseArray() (Array, error) {
 }
 
 func (p *Parser) parseDict() (Dict, error) {
-	d := NewDict()
+	d := Dict{}
 
 	tk, err := p.tokens.PeekToken()
 	for ; err == nil; tk, err = p.tokens.PeekToken() {
