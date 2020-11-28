@@ -1,6 +1,7 @@
 package type1font
 
 import (
+	"encoding/hex"
 	"errors"
 	"fmt"
 
@@ -895,64 +896,64 @@ func (p *parser) readMaybe(kind pt.Kind, name string) (pt.Token, error) {
 	return none, nil
 }
 
-// 	 /**
-// 	  * Type 1 Decryption (eexec, charstring).
-// 	  *
-// 	  * @param cipherBytes cipher text
-// 	  * @param r key
-// 	  * @param n number of random bytes (lenIV)
-// 	  * @return plain text
-// 	  */
-//func (p *Parser) byte[] decrypt(byte[] cipherBytes, int r, int n)
-// 	 {
-// 		 // lenIV of -1 means no encryption (not documented)
-// 		 if (n == -1)
-// 		 {
-// 			 return cipherBytes;
-// 		 }
-// 		 // empty charstrings and charstrings of insufficient length
-// 		 if (len(cipherBytes) == 0 || n > cipherByteslen())
-// 		 {
-// 			 return new byte[] {};
-// 		 }
-// 		 // decrypt
-// 		 int c1 = 52845;
-// 		 int c2 = 22719;
-// 		 byte[] plainBytes = new byte[len(cipherBytes) - n];
-// 		 for (int i = 0; i < cipherByteslen(); i++)
-// 		 {
-// 			 int cipher = cipherBytes[i] & 0xFF;
-// 			 int plain = cipher ^ r >> 8;
-// 			 if (i >= n)
-// 			 {
-// 				 plainBytes[i - n] = (byte) plain;
-// 			 }
-// 			 r = (cipher + r) * c1 + c2 & 0xffff;
-// 		 }
-// 		 return plainBytes;
-// 	 }
+func decryptSegment(crypted []byte) ([]byte, error) {
+	// Sometimes, fonts use the hex format, so this needs to be converted before decryption
+	if isBinary(crypted) {
+		return decrypt(crypted, EEXEC_KEY, 4), nil
+	} else {
+		dl := hex.DecodedLen(len(crypted))
+		tmp := make([]byte, dl)
+		_, err := hex.Decode(tmp, crypted)
+		if err != nil {
+			return nil, err
+		}
+		return decrypt(tmp, EEXEC_KEY, 4), nil
+	}
+}
 
-// 	 // Check whether binary or hex encoded. See Adobe Type 1 Font Format specification
-// 	 // 7.2 eexec encryption
-//func (p *Parser) boolean isBinary(byte[] bytes)
-// 	 {
-// 		 if (len(bytes) < 4)
-// 		 {
-// 			 return true;
-// 		 }
-// 		 // "At least one of the first 4 ciphertext bytes must not be one of
-// 		 // the ASCII hexadecimal character codes (a code for 0-9, A-F, or a-f)."
-// 		 for (int i = 0; i < 4; ++i)
-// 		 {
-// 			 byte by = bytes[i];
-// 			 if (by != 0x0a && by != 0x0d && by != 0x20 && by != '\t' &&
-// 					 Character.digit((char) by, 16) == -1)
-// 			 {
-// 				 return true;
-// 			 }
-// 		 }
-// 		 return false;
-// 	 }
+// Type 1 Decryption (eexec, charstring).
+// `r` is the key and `n` the number of random bytes (lenIV)
+func decrypt(cipherBytes []byte, r, n int) []byte {
+	// lenIV of -1 means no encryption (not documented)
+	if n == -1 {
+		return cipherBytes
+	}
+	// empty charstrings and charstrings of insufficient length
+	if len(cipherBytes) == 0 || n > len(cipherBytes) {
+		return nil
+	}
+	// decrypt
+	c1 := 52845
+	c2 := 22719
+	plainBytes := make([]byte, len(cipherBytes)-n)
+	for i := 0; i < len(cipherBytes); i++ {
+		cipher := int(cipherBytes[i] & 0xFF)
+		plain := int(cipher ^ r>>8)
+		if i >= n {
+			plainBytes[i-n] = byte(plain)
+		}
+		r = (cipher+r)*c1 + c2&0xffff
+	}
+	return plainBytes
+}
+
+// Check whether binary or hex encoded. See Adobe Type 1 Font Format specification
+// 7.2 eexec encryption
+func isBinary(bytes []byte) bool {
+	if len(bytes) < 4 {
+		return true
+	}
+	// "At least one of the first 4 ciphertext bytes must not be one of
+	// the ASCII hexadecimal character codes (a code for 0-9, A-F, or a-f)."
+	for i := 0; i < 4; i++ {
+		by := bytes[i]
+
+		if _, isHex := pt.IsHexChar(by); by != 0x0a && by != 0x0d && by != 0x20 && by != '\t' && !isHex {
+			return true
+		}
+	}
+	return false
+}
 
 //func (p *Parser) byte[] hexToBinary(byte[] bytes)
 // 	 {

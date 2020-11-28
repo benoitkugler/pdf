@@ -1,7 +1,7 @@
 // Implements the lowest level of processing of PS/PDF files.
 package pdftokenizer
 
-// code ported from the Java PDFTK library - BK 2020
+// Code ported from the Java PDFTK library - BK 2020
 
 import (
 	"encoding/hex"
@@ -26,9 +26,11 @@ const (
 	StartDic
 	EndDic
 	// Ref
-	StartProc // only valid in PostScript files
-	EndProc   // idem
-	Other     // include commands in content stream
+	Other // include commands in content stream
+
+	StartProc  // only valid in PostScript files
+	EndProc    // idem
+	CharString // PS only: binary stream, introduce by and integer and a RD or -| command
 )
 
 func (k Kind) String() string {
@@ -55,12 +57,14 @@ func (k Kind) String() string {
 		return "StartDic"
 	case EndDic:
 		return "EndDic"
+	case Other:
+		return "Other"
 	case StartProc:
 		return "StartProc"
 	case EndProc:
 		return "EndProc"
-	case Other:
-		return "Other"
+	case CharString:
+		return "CharString"
 	default:
 		return "<invalid token>"
 	}
@@ -124,12 +128,26 @@ func Tokenize(data []byte) ([]Token, error) {
 	return out, err
 }
 
+// Tokenizer is a PS/PDF tokenizer.
+//
+// It handles PS features like Procs and CharStrings:
+// strict parsers should check for such tokens and return an error if needed.
+//
+// Regarding exponential numbers: 7.3.3 Numeric Objects:
+// A conforming writer shall not use the PostScript syntax for numbers
+// with non-decimal radices (such as 16#FFFE) or in exponential format
+// (such as 6.02E23).
+// Nonetheless, we sometimes get numbers with exponential format, so
+// we support it in the tokenizer (no confusion with other types, so
+// no compromise).
 type Tokenizer struct {
 	data []byte
 	pos  int
 
 	// we store the next token to have a cheap
 	// PeekToken method
+	// also, the previous token is needed to resolve Type1
+	// char strings
 	aheadToken Token
 	aheadError error
 }
@@ -146,24 +164,16 @@ func (pr Tokenizer) PeekToken() (Token, error) {
 }
 
 // NextToken reads a token and advances (consuming the token).
-// If EOF is reached, no error is returned, but a Endoffile token.
-//
-// Regarding exponential numbers: 7.3.3 Numeric Objects:
-// A conforming writer shall not use the PostScript syntax for numbers
-// with non-decimal radices (such as 16#FFFE) or in exponential format
-// (such as 6.02E23).
-// Nonetheless, we sometimes get numbers with exponential format, so
-// we will support it in the reader (no confusion with other types, so
-// no compromise).
+// If EOF is reached, no error is returned, but an `EOF` token.
 func (pr *Tokenizer) NextToken() (Token, error) {
 	tk, err := pr.PeekToken()
 	pr.aheadToken, pr.aheadError = pr.nextToken()
 	return tk, err
 }
 
-// fromHexChar converts a hex character into its value and a success flag.
-// see encoding/hex
-func fromHexChar(c byte) (byte, bool) {
+// IsHexChar converts a hex character into its value and a success flag
+// (see encoding/hex for details).
+func IsHexChar(c byte) (uint8, bool) {
 	switch {
 	case '0' <= c && c <= '9':
 		return c - '0', true
@@ -248,7 +258,7 @@ func (pr *Tokenizer) nextToken() (Token, error) {
 			if v1 == '>' {
 				break
 			}
-			v1, ok1 = fromHexChar(v1)
+			v1, ok1 = IsHexChar(v1)
 			if !ok1 {
 				return Token{}, fmt.Errorf("invalid hex char %d (%s)", v1, string(rune(v1)))
 			}
@@ -261,7 +271,7 @@ func (pr *Tokenizer) nextToken() (Token, error) {
 				outBuf = append(outBuf, ch)
 				break
 			}
-			v2, ok2 = fromHexChar(v2)
+			v2, ok2 = IsHexChar(v2)
 			if !ok2 {
 				return Token{}, fmt.Errorf("invalid hex char %d", v2)
 			}
@@ -359,42 +369,35 @@ func (pr *Tokenizer) nextToken() (Token, error) {
 		}
 		return Token{Kind: String, Value: string(outBuf)}, nil
 	default:
-		// fmt.Println("before", pr.pos)
 		pr.pos-- // we need the test char
 		if token, ok := pr.readNumber(); ok {
-			// fmt.Println(token, pr.pos)
 			return token, nil
 		}
-		// fmt.Println("after", pr.pos)
-		// if ch == '-' || ch == '+' || ch == '.' || (ch >= '0' && ch <= '9') {
-		// 	tokenType = Integer
-		// 	outBuf = append(outBuf, ch)
-		// 	ch, ok = pr.read()
-		// 	for ok {
-		// 		if ch >= '0' && ch <= '9' { // decimal
-		// 		} else if ch == '.' { // float
-		// 			tokenType = Float
-		// 		} else if ch == 'e' || ch == 'E' { // we accept Postscript notation
-		// 			tokenType = Float
-		// 		} else {
-		// 			break
-		// 		}
-		// 		outBuf = append(outBuf, ch)
-		// 		ch, ok = pr.read()
-		// 	}
-		// } else {
 		ch, ok = pr.read() // we went back before parsing a number
 		outBuf = append(outBuf, ch)
 		ch, ok = pr.read()
 		for !isDelimiter(ch) {
 			outBuf = append(outBuf, ch)
 			ch, ok = pr.read()
-			// }
 		}
 		if ok {
 			pr.pos--
 		}
-		return Token{Kind: Other, Value: string(outBuf)}, nil
+		cmd := string(outBuf)
+		if cmd == "RD" || cmd == "-|" {
+			// return the next CharString instead
+			// we can use aheadToken, which is now the previous
+			if pr.aheadToken.Kind == Integer {
+				f, err := pr.aheadToken.Int()
+				if err != nil {
+					return Token{}, fmt.Errorf("invalid charstring length: %s", err)
+				}
+				return pr.readCharString(f), nil
+			} else {
+				return Token{}, errors.New("expected INTEGER before -| or RD")
+			}
+		}
+		return Token{Kind: Other, Value: cmd}, nil
 	}
 }
 
@@ -473,6 +476,18 @@ func (pr *Tokenizer) readNumber() (Token, bool) {
 		return Token{Value: strconv.Itoa(int(valInt)), Kind: Integer}, true
 	}
 	return Token{Value: sb.String(), Kind: Float}, true
+}
+
+// reads a binary CharString.
+func (pr *Tokenizer) readCharString(length int) Token {
+	pr.pos++ // space
+	maxL := pr.pos + length
+	if maxL >= len(pr.data) {
+		maxL = len(pr.data)
+	}
+	out := Token{Value: string(pr.data[pr.pos:maxL]), Kind: CharString}
+	pr.pos += length
+	return out
 }
 
 //  public void nextValidToken() throws IOException {

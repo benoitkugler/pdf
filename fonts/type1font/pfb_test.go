@@ -46,4 +46,13 @@ func TestTokenize(t *testing.T) {
 	fmt.Println(len(tks))
 
 	// the tokenizer can't handle binary segment
+	s2, err = decryptSegment(s2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tks, err = pdftokenizer.Tokenize(s2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fmt.Println(len(tks))
 }

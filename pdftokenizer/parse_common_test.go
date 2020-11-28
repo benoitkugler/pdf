@@ -19,6 +19,7 @@ package pdftokenizer
 import (
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"testing"
 )
 
@@ -160,6 +161,29 @@ func TestPS(t *testing.T) {
 
 	doTestParseObjectOK("smùld { sqmùùs }", t)
 	doTestParseObjectOK("8#1777 +16#FFFE -2#1000", t)
+
+	doTestParseObjectFail(false, "a RD ", t)
+	doTestParseObjectOK("12 RD 88", t) // accept bigger length and truncate
+}
+
+func TestCharString(t *testing.T) {
+	b, err := ioutil.ReadFile("test/charstrings.ps")
+	if err != nil {
+		t.Fatal(err)
+	}
+	tks, err := Tokenize(b)
+	if err != nil {
+		t.Fatal(err)
+	}
+	nbCs := 0
+	for _, tk := range tks {
+		if tk.Kind == CharString {
+			nbCs++
+		}
+	}
+	if nbCs != 269 {
+		t.Fatalf("expected 269 CharStrings, got %d", nbCs)
+	}
 }
 
 func TestFloats(t *testing.T) {
@@ -201,12 +225,12 @@ func TestConvert(t *testing.T) {
 }
 
 func TestStrings(t *testing.T) {
-	for i := range [Other + 1]int{} {
+	for i := range [CharString + 1]int{} {
 		if Kind(i).String() == "<invalid token>" {
 			t.Error()
 		}
 	}
-	if Kind(Other+1).String() != "<invalid token>" {
+	if Kind(CharString+1).String() != "<invalid token>" {
 		t.Error()
 	}
 }
