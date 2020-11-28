@@ -8,7 +8,7 @@ import (
 // implements basic types found in PDF files
 
 // Fl is the numeric type used for float values.
-type Fl = float32
+type Fl = float64
 
 // MaybeInt is an Int or nothing
 // It'a an other way to specify *int,

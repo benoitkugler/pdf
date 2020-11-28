@@ -31,20 +31,24 @@ func WriteOperations(ops ...Operation) []byte {
 	return out.Bytes()
 }
 
+type PropertyList interface {
+	PDFString() string
+}
+
 // assert interface conformance
 var _ = map[string]Operation{
 	// "\"":  OpMoveSetShowText{},
 	"'": OpMoveShowText{},
 	// "B":   OpFillStroke{},
 	// "B*":  OpEOFillStroke{},
-	// "BDC": OpBeginMarkedContent{},
+	"BDC": OpBeginMarkedContent{},
 	// "BI":  OpBeginImage{},
 	"BMC": OpBeginMarkedContent{},
 	"BT":  OpBeginText{},
 	// "BX":  OpBeginIgnoreUndef{},
-	// "CS":  OpSetStrokeColorSpace{},
-	// "DP":  OpMarkPoint{},
-	// "Do":  OpXObject{},
+	"CS": OpSetStrokeColorSpace{},
+	"DP": OpMarkPoint{},
+	"Do": OpXObject{},
 	// "EI":  OpEndImage{},
 	"EMC": OpEndMarkedContent{},
 	"ET":  OpEndText{},
@@ -55,7 +59,7 @@ var _ = map[string]Operation{
 	// "J":   OpSetLineCap{},
 	// "K":   OpSetStrokeCMYKColor{},
 	// "M":   OpSetMiterLimit{},
-	// "MP":  OpMarkPoint{},
+	"MP": OpMarkPoint{},
 	"Q":  OpRestore{},
 	"RG": OpSetStrokeRGBColor{},
 	"S":  OpStroke{},
@@ -80,14 +84,14 @@ var _ = map[string]Operation{
 	// "b*":  OpCloseEOFillStroke{},
 	// "c":   OpCurveTo{},
 	// "cm":  OpConcat{},
-	// "cs":  OpSetFillColorSpace{},
-	"d": OpSetDash{},
+	"cs": OpSetFillColorSpace{},
+	"d":  OpSetDash{},
 	// "d0":  OpSetCharWidth{},
 	// "d1":  OpSetCacheDevice{},
 	"f": OpFill{},
 	// "f*":  OpEOFill{},
-	"g": OpSetFillGray{},
-	// "gs":  OpSetExtGState{},
+	"g":  OpSetFillGray{},
+	"gs": OpSetExtGState{},
 	// "h":   OpClosePath{},
 	// "i":   OpSetFlat{},
 	// "j":   OpSetLineJoin{},
@@ -98,11 +102,11 @@ var _ = map[string]Operation{
 	"q":  OpSave{},
 	"re": OpRectangle{},
 	"rg": OpSetFillRGBColor{},
-	// "ri":  OpSetRenderingIntent{},
+	"ri": OpSetRenderingIntent{},
 	// "s":   OpCloseStroke{},
-	// "sc":  OpSetFillColor{},
-	// "scn": OpSetFillColorN{},
-	// "sh":  OpShFill{},
+	"sc":  OpSetFillColor{},
+	"scn": OpSetFillColorN{},
+	"sh":  OpShFill{},
 	// "v":   OpCurveTo1{},
 	"w": OpSetLineWidth{},
 	// "y":   OpCurveTo{},
@@ -123,7 +127,7 @@ type OpSetFillGray struct {
 }
 
 func (o OpSetFillGray) Add(out *bytes.Buffer) {
-	fmt.Fprintf(out, "%.3f  g", o.G)
+	fmt.Fprintf(out, "%.3f g", o.G)
 }
 
 // RG
@@ -152,12 +156,14 @@ type OpSetDash struct {
 func (o OpSetDash) Add(out *bytes.Buffer) {
 	fmt.Fprintf(out, "[%s] %.3f d", floatArray(o.Dash.Array), o.Dash.Phase)
 }
+
+// without the enclosing []
 func floatArray(as []Fl) string {
 	b := make([]string, len(as))
 	for i, a := range as {
-		b[i] = fmt.Sprintf("%.3f", a)
+		b[i] = fmt.Sprintf("%f", a)
 	}
-	return fmt.Sprintf("[%s]", strings.Join(b, " "))
+	return strings.Join(b, " ")
 }
 
 // Tf
@@ -228,13 +234,18 @@ func (o OpStroke) Add(out *bytes.Buffer) {
 	out.WriteByte('S')
 }
 
-// BMC
+// BMC or BDC depending on Properties
 type OpBeginMarkedContent struct {
-	Tag model.Name
+	Tag        model.Name
+	Properties PropertyList
 }
 
 func (o OpBeginMarkedContent) Add(out *bytes.Buffer) {
-	fmt.Fprintf(out, "%s BMC", o.Tag)
+	if o.Properties == nil {
+		fmt.Fprintf(out, "%s BMC", o.Tag)
+	} else {
+		fmt.Fprintf(out, "%s %s BDC", o.Tag, o.Properties.PDFString())
+	}
 }
 
 // EMC
@@ -282,7 +293,7 @@ type OpMoveShowText struct {
 }
 
 func (o OpMoveShowText) Add(out *bytes.Buffer) {
-	out.WriteString(model.EspaceByteString(o.Text) + "''")
+	out.WriteString(model.EspaceByteString(o.Text) + "'")
 }
 
 // Tm
@@ -314,4 +325,95 @@ type OpClip struct{}
 
 func (o OpClip) Add(out *bytes.Buffer) {
 	out.WriteByte('W')
+}
+
+// CS
+type OpSetStrokeColorSpace struct {
+	ColorSpace model.Name
+}
+
+func (o OpSetStrokeColorSpace) Add(out *bytes.Buffer) {
+	out.WriteString(o.ColorSpace.String() + " CS")
+}
+
+// cs
+type OpSetFillColorSpace struct {
+	ColorSpace model.Name
+}
+
+func (o OpSetFillColorSpace) Add(out *bytes.Buffer) {
+	out.WriteString(o.ColorSpace.String() + " cs")
+}
+
+// gs
+type OpSetExtGState struct {
+	Dict model.Name
+}
+
+func (o OpSetExtGState) Add(out *bytes.Buffer) {
+	out.WriteString(o.Dict.String() + " gs")
+}
+
+// sh
+type OpShFill struct {
+	Shading model.Name
+}
+
+func (o OpShFill) Add(out *bytes.Buffer) {
+	out.WriteString(o.Shading.String() + " sh")
+}
+
+// sc
+type OpSetFillColor struct {
+	Color []Fl
+}
+
+func (o OpSetFillColor) Add(out *bytes.Buffer) {
+	out.WriteString(floatArray(o.Color) + " sc")
+}
+
+// scn
+type OpSetFillColorN struct {
+	Color   []Fl
+	Pattern model.Name // optional
+}
+
+func (o OpSetFillColorN) Add(out *bytes.Buffer) {
+	var n string
+	if o.Pattern != "" {
+		n = o.Pattern.String()
+	}
+	out.WriteString(floatArray(o.Color) + n + " scn")
+}
+
+// Do
+type OpXObject struct {
+	XObject model.Name
+}
+
+func (o OpXObject) Add(out *bytes.Buffer) {
+	out.WriteString(o.XObject.String() + " Do")
+}
+
+// ri
+type OpSetRenderingIntent struct {
+	Intent model.Name
+}
+
+func (o OpSetRenderingIntent) Add(out *bytes.Buffer) {
+	out.WriteString(o.Intent.String() + " ri")
+}
+
+// MP or DP depending on Properties
+type OpMarkPoint struct {
+	Tag        model.Name
+	Properties PropertyList // optional
+}
+
+func (o OpMarkPoint) Add(out *bytes.Buffer) {
+	if o.Properties == nil {
+		fmt.Fprintf(out, "%s MP", o.Tag)
+	} else {
+		fmt.Fprintf(out, "%s %s DP", o.Tag, o.Properties.PDFString())
+	}
 }

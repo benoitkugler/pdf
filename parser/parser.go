@@ -7,9 +7,10 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/benoitkugler/pdf/parser/tokenizer"
 	tok "github.com/benoitkugler/pdf/parser/tokenizer"
 	"github.com/pdfcpu/pdfcpu/pkg/log"
-	"github.com/pdfcpu/pdfcpu/pkg/pdfcpu"
+	"github.com/pdfcpu/pdfcpu/pkg/pdfcpu/basic"
 )
 
 var (
@@ -20,16 +21,17 @@ var (
 	errBufNotAvailable         = errors.New("pdfcpu: parse: no buffer available")
 )
 
-type Object = pdfcpu.Object
-type Boolean = pdfcpu.Boolean
-type Float = pdfcpu.Float
-type Integer = pdfcpu.Integer
-type Name = pdfcpu.Name
-type StringLiteral = pdfcpu.StringLiteral
-type HexLiteral = pdfcpu.HexLiteral
-type IndirectRef = pdfcpu.IndirectRef
-type Dict = pdfcpu.Dict
-type Array = pdfcpu.Array
+type Object = basic.Object
+type Boolean = basic.Boolean
+type Float = basic.Float
+type Integer = basic.Integer
+type Name = basic.Name
+type StringLiteral = basic.StringLiteral
+type HexLiteral = basic.HexLiteral
+type IndirectRef = basic.IndirectRef
+type Dict = basic.Dict
+type Array = basic.Array
+type Command = basic.Command
 
 // Standalone implementation of a PDF parser.
 // The parser only handles chunks of PDF files
@@ -70,7 +72,7 @@ func (p *Parser) ParseObject() (Object, error) {
 
 	switch tk.Kind {
 	case tok.EOF:
-		return nil, errBufNotAvailable
+		err = errBufNotAvailable
 	case tok.Name:
 		value = Name(tk.Value)
 		log.Parse.Printf("ParseObject: value = Name Object : %s\n", value)
@@ -102,29 +104,20 @@ func (p *Parser) ParseObject() (Object, error) {
 			return nil, err
 		}
 		log.Parse.Printf("ParseObject: value = Float: %f\n", f)
-		return Float(f), nil
+		value = Float(f)
+	case tok.Other:
+		value, err = p.parseOther(tk.Value)
+		log.Parse.Println("parseOther: returning: %v", value)
 	default:
-		var ok bool
-		value, ok = parseBooleanOrNull(tk.Value)
-		if ok {
-			log.Parse.Println("parseBooleanOrNull: returning: %v", value)
-			break
-		}
-		if p.ContentStreamMode {
-			// TODO: parse commands
-		}
 		// Must be numeric or indirect reference:
 		// int 0 r
 		// int
 		// float
 		value, err = p.parseNumericOrIndRef(tk)
-		if err != nil {
-			return nil, err
-		}
 	}
 
 	log.Parse.Printf("ParseObject returning %v\n", value)
-	return value, nil
+	return value, err
 }
 
 func (p *Parser) parseArray() (Array, error) {
@@ -187,16 +180,20 @@ func (p *Parser) parseDict() (Dict, error) {
 	return nil, err
 }
 
-func parseBooleanOrNull(l string) (val Object, ok bool) {
+func (p Parser) parseOther(l string) (Object, error) {
 	switch l {
 	case "null": // null, absent object
-		return nil, true
+		return nil, nil
 	case "true": // boolean true
-		return Boolean(true), true
+		return Boolean(true), nil
 	case "false": // boolean false
-		return Boolean(false), true
+		return Boolean(false), nil
 	default:
-		return nil, false
+		if p.ContentStreamMode {
+			return Command(l), nil
+		} else {
+			return nil, fmt.Errorf("unexpected command %s outside of Content Stream", l)
+		}
 	}
 }
 
@@ -251,4 +248,48 @@ func (p *Parser) parseNumericOrIndRef(currentToken tok.Token) (Object, error) {
 		ObjectNumber:     Integer(i),
 		GenerationNumber: Integer(gen),
 	}, nil
+}
+
+// ParseObjectDefinition parses an object definition.
+// If `headerOnly`, stops after the X X obj header and return a nil object.
+func ParseObjectDefinition(line []byte, headerOnly bool) (objectNumber int, generationNumber int, o Object, err error) {
+	log.Parse.Printf("ParseObjectDefinition: buf=<%s>\n", line)
+
+	tokens := tokenizer.NewTokenizer(line)
+
+	// object number
+	tok, err := tokens.NextToken()
+	if err != nil {
+		return 0, 0, nil, err
+	}
+	objNr, err := tok.Int()
+	if tok.Kind != tokenizer.Integer || err != nil {
+		return 0, 0, nil, errors.New("pdfcpu: ParseObjectDefinition: can't find object number")
+	}
+
+	// generation number
+	tok, err = tokens.NextToken()
+	if err != nil {
+		return 0, 0, nil, err
+	}
+	genNr, err := tok.Int()
+	if tok.Kind != tokenizer.Integer || err != nil {
+		return 0, 0, nil, errors.New("pdfcpu: ParseObjectDefinition: can't find generation number")
+	}
+
+	tok, err = tokens.NextToken()
+	if err != nil {
+		return 0, 0, nil, errors.New("pdfcpu: ParseObjectDefinition: can't find \"obj\"")
+	}
+	if tok != (tokenizer.Token{Kind: tokenizer.Other, Value: "obj"}) {
+		return 0, 0, nil, errors.New("pdfcpu: ParseObjectDefinition: can't find \"obj\"")
+	}
+
+	if headerOnly {
+		return objNr, genNr, nil, nil
+	}
+
+	pr := Parser{tokens: tokens}
+	obj, err := pr.ParseObject()
+	return objNr, genNr, obj, err
 }

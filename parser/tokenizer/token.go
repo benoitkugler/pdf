@@ -13,6 +13,8 @@ import (
 	"strings"
 )
 
+type Fl = float64
+
 type Kind uint8
 
 const (
@@ -109,8 +111,13 @@ func (t Token) Int() (int, error) {
 }
 
 // Float returns the float value of the token.
-func (t Token) Float() (float64, error) {
+func (t Token) Float() (Fl, error) {
 	return strconv.ParseFloat(t.Value, 64)
+}
+
+// IsNumber returns true for integers and floats.
+func (t Token) IsNumber() bool {
+	return t.Kind == Integer || t.Kind == Float
 }
 
 // Tokenize consume all the input, splitting it

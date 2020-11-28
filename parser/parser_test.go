@@ -1,9 +1,10 @@
 package parser
 
 import (
+	"reflect"
 	"testing"
 
-	"github.com/pdfcpu/pdfcpu/pkg/pdfcpu"
+	"github.com/pdfcpu/pdfcpu/pkg/pdfcpu/basic"
 )
 
 func doTestParseObjectOK(parseString string, t *testing.T) {
@@ -18,6 +19,42 @@ func doTestParseObjectFail(parseString string, t *testing.T) {
 	_, err := ParseObject([]byte(parseString))
 	if err == nil {
 		t.Errorf("ParseObjectshould have returned an error for %s", parseString)
+	}
+}
+
+func TestParseDef(t *testing.T) {
+	o, g, obj, err := ParseObjectDefinition([]byte("12 5 obj \n << /Type 3>>"), false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if o != 12 || g != 5 {
+		t.Errorf("expected 12 5, got %d %d", o, g)
+	}
+	if exp := (Dict{"Type": basic.Integer(3)}); !reflect.DeepEqual(obj, exp) {
+		t.Errorf("expected %v got %v", exp, obj)
+	}
+	_, _, obj, err = ParseObjectDefinition([]byte("12 5 obj \n << /Type 3>>"), true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if obj != nil {
+		t.Errorf("expected nil object, got %v", obj)
+	}
+
+	expectedError := [...]string{
+		"12 5 ",
+		"12  ",
+		"<<>>  ",
+		"12 5 obj <<  ",
+		"< 5 obj <<  ",
+		"5 < obj <<  ",
+		"5 12 < <<  ",
+	}
+	for _, data := range expectedError {
+		_, _, _, err = ParseObjectDefinition([]byte(data), false)
+		if err == nil {
+			t.Fatal("expected error")
+		}
 	}
 }
 
@@ -177,13 +214,13 @@ var datas = []string{
 	"[/CalRGB<</Matrix[0.41239 0.21264]/Gamma[2.22 2.22 2.22]/WhitePoint[0.95043 1 1.09]>>]",
 }
 
-func BenchmarkParseOnePass(b *testing.B) {
-	for i := 0; i < b.N; i++ {
-		for _, data := range datas {
-			_, _ = pdfcpu.ParseOneObject(data)
-		}
-	}
-}
+// func BenchmarkParseOnePass(b *testing.B) {
+// 	for i := 0; i < b.N; i++ {
+// 		for _, data := range datas {
+// 			_, _ = pdfcpu.ParseOneObject(data)
+// 		}
+// 	}
+// }
 
 func BenchmarkParseTokenizer(b *testing.B) {
 	for i := 0; i < b.N; i++ {
