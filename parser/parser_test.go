@@ -3,8 +3,6 @@ package parser
 import (
 	"reflect"
 	"testing"
-
-	"github.com/pdfcpu/pdfcpu/pkg/pdfcpu"
 )
 
 func doTestParseObjectOK(parseString string, t *testing.T) {
@@ -227,13 +225,13 @@ var datas = []string{
 	"[/CalRGB<</Matrix[0.41239 0.21264]/Gamma[2.22 2.22 2.22]/WhitePoint[0.95043 1 1.09]>>]",
 }
 
-func BenchmarkParseOnePass(b *testing.B) {
-	for i := 0; i < b.N; i++ {
-		for _, data := range datas {
-			_, _ = pdfcpu.ParseOneObject(data)
-		}
-	}
-}
+// func BenchmarkParseOnePass(b *testing.B) {
+// 	for i := 0; i < b.N; i++ {
+// 		for _, data := range datas {
+// 			_, _ = pdfcpu.ParseOneObject(data)
+// 		}
+// 	}
+// }
 
 func BenchmarkParseTokenizer(b *testing.B) {
 	for i := 0; i < b.N; i++ {

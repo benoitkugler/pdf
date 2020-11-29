@@ -127,3 +127,8 @@ func TestParseDict(t *testing.T) {
 func TestDupKeys(t *testing.T) {
 	doTestParseObjectFail("<</Key 1 /Key 2>>", t)
 }
+
+func TestCorrupted(t *testing.T) {
+	doTestParseObjectOK("<</Title \x0a/Type /Outline\x0a/Key /Value>>", t)
+	doTestParseObjectOK("<</Key1 /Value1\x0a/Title \x0a/Type /Outline\x0a/Key /Value>>", t)
+}

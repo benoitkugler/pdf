@@ -137,23 +137,6 @@ func TestResume(t *testing.T) {
 		t.Errorf("expected %s got %s", []byte(" 4"), chunk)
 	}
 }
-
-// func TestSkipUntil(t *testing.T) {
-// 	input := []byte("7 8 9 4 5 6 4")
-// 	tk := NewTokenizer(input)
-// 	chunk, err := tk.SkipUntil('4')
-// 	if err != nil {
-// 		t.Error(err)
-// 	}
-// 	if exp := []byte("7 8 9 4"); !bytes.Equal(chunk, exp) {
-// 		t.Errorf("expected %s, got %s", exp, chunk)
-// 	}
-// 	_, err = tk.SkipUntil('a')
-// 	if err == nil {
-// 		t.Error("expected error")
-// 	}
-// }
-
 func TestBytes(t *testing.T) {
 	input := []byte("7 8 9 4 5 6 4")
 	tk := NewTokenizer(input)
@@ -166,6 +149,25 @@ func TestBytes(t *testing.T) {
 	}
 	tk.NextToken()
 	if len(tk.Bytes()) != len(input)-3 {
+		t.Error()
+	}
+}
+
+func TestEOL(t *testing.T) {
+	input := []byte("a /Key \n 5 \r6 4")
+	tk := NewTokenizer(input)
+	_, err := tk.NextToken()
+	if tk.HasEOLBeforeToken() {
+		t.Error()
+	}
+	if err != nil {
+		t.Error(err)
+	}
+	_, err = tk.NextToken()
+	if err != nil {
+		t.Error(err)
+	}
+	if !tk.HasEOLBeforeToken() {
 		t.Error()
 	}
 }

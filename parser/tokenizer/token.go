@@ -71,6 +71,10 @@ func (k Kind) String() string {
 	}
 }
 
+func isEOL(ch byte) bool {
+	return ch == '\n' || ch == '\r'
+}
+
 func isWhitespace(ch byte) bool {
 	switch ch {
 	case 0, 9, 10, 12, 13, 32:
@@ -273,7 +277,20 @@ func (pr *Tokenizer) read() (byte, bool) {
 	return ch, true
 }
 
-// reads and advances, mutatinng `pos`
+// HasEOLBeforeToken checks if EOL happens before the next token.
+func (pr Tokenizer) HasEOLBeforeToken() bool {
+	for i := pr.currentPos; i < len(pr.data); i++ {
+		if !isWhitespace(pr.data[i]) {
+			break
+		}
+		if isEOL(pr.data[i]) {
+			return true
+		}
+	}
+	return false
+}
+
+// reads and advances, mutating `pos`
 func (pr *Tokenizer) nextToken(previous Token) (Token, error) {
 	ch, ok := pr.read()
 	for ok && isWhitespace(ch) {

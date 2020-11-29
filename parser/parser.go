@@ -148,10 +148,19 @@ func (p *Parser) parseDict() (Dict, error) {
 			log.Parse.Printf("ParseDict: key = %s\n", key)
 			_, _ = p.tokens.NextToken() // consume the key
 
-			obj, err := p.ParseObject()
-			if err != nil {
-				return nil, err
+			var obj Object
+			// A friendly 🤢 to the devs of the Kdan Pocket Scanner for the iPad.
+			// Hack for #252:
+			// For dicts with kv pairs terminated by eol we accept a missing value as an empty string.
+			if p.tokens.HasEOLBeforeToken() {
+				obj = StringLiteral("")
+			} else {
+				obj, err = p.ParseObject()
+				if err != nil {
+					return nil, err
+				}
 			}
+
 			// Specifying the null object as the value of a dictionary entry (7.3.7, "Dictionary Objects")
 			// shall be equivalent to omitting the entry entirely.
 			if obj != nil {
