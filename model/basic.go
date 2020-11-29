@@ -172,7 +172,7 @@ func (f FunctionSampled) pdfContent(baseArgs string) (string, []byte) {
 	var b bytes.Buffer
 	b.WriteString("<</FunctionType 0 ")
 	b.WriteString(baseArgs)
-	b.WriteString(f.Stream.PDFCommonFields())
+	b.WriteString(f.Stream.PDFCommonFields(true))
 	b.WriteString(fmt.Sprintf("/Size %s/BitsPerSample %d", writeIntArray(f.Size), f.BitsPerSample))
 	if f.Order != 0 {
 		b.WriteString(fmt.Sprintf("/Order %d", f.Order))
@@ -264,7 +264,7 @@ type FunctionPostScriptCalculator Stream
 
 // adds to the common arguments the specificities of a `PostScriptCalculatorFunction`.
 func (f FunctionPostScriptCalculator) pdfContent(baseArgs string) (string, []byte) {
-	s := Stream(f).PDFCommonFields()
+	s := Stream(f).PDFCommonFields(true)
 	return fmt.Sprintf("<</FunctionType 4 %s %s>>\n", baseArgs, s), f.Content
 }
 

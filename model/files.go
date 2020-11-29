@@ -84,7 +84,7 @@ type EmbeddedFileStream struct {
 }
 
 func (emb *EmbeddedFileStream) pdfContent(pdf pdfWriter, ref Reference) (string, []byte) {
-	args := emb.PDFCommonFields()
+	args := emb.PDFCommonFields(true)
 	out := fmt.Sprintf("<</Type/EmbeddedFile %s/Params %s>>", args, emb.Params.pdfString(pdf, ref))
 	return out, emb.Content
 }

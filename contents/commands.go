@@ -8,6 +8,7 @@ package contents
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -42,20 +43,18 @@ var _ = map[string]Operation{
 	// "B":   OpFillStroke{},
 	// "B*":  OpEOFillStroke{},
 	"BDC": OpBeginMarkedContent{},
-	// "BI":  OpBeginImage{},
+	"BI":  OpBeginImage{}, // ID and EI are processed together with BI
 	"BMC": OpBeginMarkedContent{},
 	"BT":  OpBeginText{},
 	// "BX":  OpBeginIgnoreUndef{},
-	"CS": OpSetStrokeColorSpace{},
-	"DP": OpMarkPoint{},
-	"Do": OpXObject{},
-	// "EI":  OpEndImage{},
+	"CS":  OpSetStrokeColorSpace{},
+	"DP":  OpMarkPoint{},
+	"Do":  OpXObject{},
 	"EMC": OpEndMarkedContent{},
 	"ET":  OpEndText{},
 	// "EX":  OpEndIgnoreUndef{},
 	// "F":   OpFill{},
 	// "G":   OpSetStrokeGray{},
-	// "ID":  OpImageData{},
 	// "J":   OpSetLineCap{},
 	// "K":   OpSetStrokeCMYKColor{},
 	// "M":   OpSetMiterLimit{},
@@ -415,5 +414,110 @@ func (o OpMarkPoint) Add(out *bytes.Buffer) {
 		fmt.Fprintf(out, "%s MP", o.Tag)
 	} else {
 		fmt.Fprintf(out, "%s %s DP", o.Tag, o.Properties.PDFString())
+	}
+}
+
+// ImageColorSpace is either:
+// 	- a device color space
+//	- a limited form of Indexed colour space whose base colour space is a device space
+// 		and whose colour table is specified by a byte string
+// 	- a name
+type ImageColorSpace interface {
+	isColorSpace()
+	PDFString() string
+}
+
+func (ImageColorSpaceName) isColorSpace()    {}
+func (ImageColorSpaceIndexed) isColorSpace() {}
+
+// ImageColorSpaceName is a custom name or a device
+type ImageColorSpaceName struct {
+	model.ColorSpaceName
+}
+
+func (c ImageColorSpaceName) PDFString() string {
+	return model.Name(c.ColorSpaceName).String()
+}
+
+// ImageColorSpaceIndexed is written in PDF as
+// [/Indexed base hival lookup ]
+type ImageColorSpaceIndexed struct {
+	Base   model.ColorSpaceName // required
+	Hival  uint8
+	Lookup model.ColorTableBytes
+}
+
+func (c ImageColorSpaceIndexed) PDFString() string {
+	return fmt.Sprintf("[/Indexed %s %d %s]",
+		model.Name(c.Base), c.Hival, c.Lookup)
+}
+
+func (c ImageColorSpaceIndexed) ToColorSpace() model.ColorSpace {
+	return model.ColorSpaceIndexed{Base: c.Base, Hival: c.Hival, Lookup: c.Lookup}
+}
+
+// BI ... ID ... EI
+type OpBeginImage struct {
+	Image      model.Image
+	ColorSpace ImageColorSpace
+}
+
+func (o OpBeginImage) Add(out *bytes.Buffer) {
+	out.WriteString("BI " + o.Image.PDFFields(true))
+	if o.ColorSpace != nil {
+		out.WriteString(" /CS " + o.ColorSpace.PDFString())
+	}
+	out.WriteString(" ID ") // one space
+	out.Write(o.Image.Content)
+	out.WriteString("EI")
+}
+
+// Metrics returns the number of color components and the number of bits for each.
+// An error is returned if the color space can't be resolved from the resources dictionary.
+func (img OpBeginImage) Metrics(res model.ResourcesDict) (comps, bits int, err error) {
+	bits = int(img.Image.BitsPerComponent)
+	if img.Image.ImageMask {
+		bits = 1
+	}
+	colorSpace, err := img.resolveColorSpace(res)
+	if err != nil {
+		return 0, 0, err
+	}
+	// get decode map
+	if len(img.Image.Decode) == 0 {
+		comps = colorSpace.NbColorComponents()
+	} else {
+		comps = len(img.Image.Decode) / 2
+	}
+	return comps, bits, nil
+}
+
+func (img OpBeginImage) resolveColorSpace(res model.ResourcesDict) (model.ColorSpace, error) {
+	switch cs := img.ColorSpace.(type) {
+	case ImageColorSpaceName:
+		// resolve the default color spaces
+		var defa model.ColorSpace
+		switch cs.ColorSpaceName {
+		case model.ColorSpaceGray:
+			defa = res.ColorSpace["DefaultGray"]
+		case model.ColorSpaceRGB:
+			defa = res.ColorSpace["DefaultRGB"]
+		case model.ColorSpaceCMYK:
+			defa = res.ColorSpace["DefaultCMYK"]
+		default:
+			c := res.ColorSpace[model.Name(cs.ColorSpaceName)]
+			if c == nil {
+				return nil, fmt.Errorf("missing color space for name %s", cs.ColorSpaceName)
+			}
+			return c, nil
+		}
+		if defa == nil { // use the "normal" Device CS
+			return cs.ColorSpaceName, nil
+		}
+		return defa, nil
+	case ImageColorSpaceIndexed:
+		return cs.ToColorSpace(), nil
+	default:
+		return nil, errors.New("missing color space")
 	}
 }

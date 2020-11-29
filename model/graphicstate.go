@@ -132,7 +132,7 @@ type PatternTiling struct {
 
 func (t *PatternTiling) pdfContent(pdf pdfWriter, _ Reference) (string, []byte) {
 	b := newBuffer()
-	common := t.ContentStream.PDFCommonFields()
+	common := t.ContentStream.PDFCommonFields(true)
 	b.line("<</PatternType 1 %s /PaintType %d/TilingType %d/BBox %s/XStep %.3f /YStep %.3f",
 		common, t.PaintType, t.TilingType, t.BBox, t.XStep, t.YStep)
 	b.line("/Resources %s", t.Resources.pdfString(pdf))
@@ -284,7 +284,7 @@ func (ss ShadingStream) Clone() ShadingStream {
 
 // return the shared dict attributes
 func (ss ShadingStream) pdfFields(shadingFields string, pdf pdfWriter, type_ uint8) (string, []byte) {
-	args := ss.PDFCommonFields()
+	args := ss.PDFCommonFields(true)
 	b := newBuffer()
 	b.fmt("/ShadingType %d %s %s/BitsPerCoordinate %d/BitsPerComponent %d/Decode %s",
 		type_, shadingFields, args, ss.BitsPerCoordinate,

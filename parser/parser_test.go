@@ -4,14 +4,17 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/pdfcpu/pdfcpu/pkg/pdfcpu/basic"
+	"github.com/pdfcpu/pdfcpu/pkg/pdfcpu"
 )
 
 func doTestParseObjectOK(parseString string, t *testing.T) {
-	_, err := ParseObject([]byte(parseString))
+	o, err := ParseObject([]byte(parseString))
 	if err != nil {
 		t.Errorf("ParseObject failed: <%v>\n%s", err, parseString)
 		return
+	}
+	if o != nil {
+		_ = o.PDFString()
 	}
 }
 
@@ -30,7 +33,7 @@ func TestParseDef(t *testing.T) {
 	if o != 12 || g != 5 {
 		t.Errorf("expected 12 5, got %d %d", o, g)
 	}
-	if exp := (Dict{"Type": basic.Integer(3)}); !reflect.DeepEqual(obj, exp) {
+	if exp := (Dict{"Type": Integer(3)}); !reflect.DeepEqual(obj, exp) {
 		t.Errorf("expected %v got %v", exp, obj)
 	}
 	_, _, obj, err = ParseObjectDefinition([]byte("12 5 obj \n << /Type 3>>"), true)
@@ -56,6 +59,16 @@ func TestParseDef(t *testing.T) {
 			t.Fatal("expected error")
 		}
 	}
+}
+
+func TestParseCommand(t *testing.T) {
+	p := NewParser([]byte("ID stream 4"))
+	p.ContentStreamMode = true
+	o, err := p.ParseObject()
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = o.PDFString()
 }
 
 var datas = []string{
@@ -214,13 +227,13 @@ var datas = []string{
 	"[/CalRGB<</Matrix[0.41239 0.21264]/Gamma[2.22 2.22 2.22]/WhitePoint[0.95043 1 1.09]>>]",
 }
 
-// func BenchmarkParseOnePass(b *testing.B) {
-// 	for i := 0; i < b.N; i++ {
-// 		for _, data := range datas {
-// 			_, _ = pdfcpu.ParseOneObject(data)
-// 		}
-// 	}
-// }
+func BenchmarkParseOnePass(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		for _, data := range datas {
+			_, _ = pdfcpu.ParseOneObject(data)
+		}
+	}
+}
 
 func BenchmarkParseTokenizer(b *testing.B) {
 	for i := 0; i < b.N; i++ {

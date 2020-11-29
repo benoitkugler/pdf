@@ -123,7 +123,7 @@ func (p *UnicodeCMap) Clone() *UnicodeCMap {
 
 func (c UnicodeCMap) pdfString(pdf pdfWriter) string {
 	ref := pdf.createObject()
-	base := c.Stream.PDFCommonFields()
+	base := c.Stream.PDFCommonFields(true)
 	dict := "<</Type/CMap " + base
 	if c.UseCMap != nil {
 		dict += fmt.Sprintf("/UseCMap %s", c.UseCMap.pdfString(pdf))
@@ -508,7 +508,7 @@ func (p CMapEncodingEmbedded) Clone() CMapEncoding {
 
 func (c CMapEncodingEmbedded) cMapEncodingPDFString(pdf pdfWriter) string {
 	ref := pdf.createObject()
-	base := c.Stream.PDFCommonFields()
+	base := c.Stream.PDFCommonFields(true)
 	dict := fmt.Sprintf("<</Type/CMap /CMapName %s/CIDSystemInfo %s %s",
 		c.CMapName, c.CIDSystemInfo.pdfString(pdf, ref), base)
 	if c.WMode {
@@ -704,7 +704,7 @@ type FontFile struct {
 }
 
 func (f *FontFile) pdfContent() (string, []byte) {
-	args := f.Stream.PDFCommonFields()
+	args := f.Stream.PDFCommonFields(true)
 	out := fmt.Sprintf("<<%s/Length1 %d/Length2 %d/Length3 %d",
 		args, f.Length1, f.Length2, f.Length3)
 	if f.Subtype != "" {

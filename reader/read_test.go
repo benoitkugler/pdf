@@ -25,7 +25,7 @@ func init() {
 	// the PDF spec is used in several tests, but is heavy
 	// so, when working on isolated test, you may want to avoid loading it
 	// by commenting this line
-	// loadPDFSpec()
+	loadPDFSpec()
 
 	// generatePDFs()
 }
@@ -285,6 +285,16 @@ func TestEmbeddedTTF(t *testing.T) {
 						fmt.Println(font.Subtype.FontName())
 					}
 				}
+			}
+		}
+	}
+}
+
+func TestFlate(t *testing.T) {
+	for _, page := range pdfSpec.Catalog.Pages.Flatten() {
+		for _, s := range page.Contents {
+			if len(s.Filter) == 1 && s.Filter[0].Name == model.Flate {
+				fmt.Println(s.Content[s.Length()-8:])
 			}
 		}
 	}

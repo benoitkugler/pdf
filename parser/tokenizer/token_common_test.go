@@ -19,7 +19,6 @@ package tokenizer
 import (
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"testing"
 )
 
@@ -171,73 +170,4 @@ func TestPS(t *testing.T) {
 
 	doTestParseObjectFail(false, "a RD ", t)
 	doTestParseObjectOK("12 RD 88", t) // accept bigger length and truncate
-}
-
-func TestCharString(t *testing.T) {
-	b, err := ioutil.ReadFile("test/charstrings.ps")
-	if err != nil {
-		t.Fatal(err)
-	}
-	tks, err := Tokenize(b)
-	if err != nil {
-		t.Fatal(err)
-	}
-	nbCs := 0
-	for _, tk := range tks {
-		if tk.Kind == CharString {
-			nbCs++
-		}
-	}
-	if nbCs != 269 {
-		t.Fatalf("expected 269 CharStrings, got %d", nbCs)
-	}
-}
-
-func TestFloats(t *testing.T) {
-	fl := []float64{12e1, -124e7, 12e-7, 98.78, -45.4}
-	for i, st := range []string{
-		"+12e1", "-124e7", "12e-7", "98.78", "-45.4",
-	} {
-		tk, err := Tokenize([]byte(st))
-		if err != nil {
-			t.Fatal(err)
-		}
-		if len(tk) != 1 {
-			t.Errorf("expected 1 token, got %v", tk)
-		}
-		if tk[0].Kind != Float {
-			t.Errorf("expected Float, got %s", tk[0].Kind)
-		}
-		if f, err := tk[0].Float(); err != nil || f != fl[i] {
-			t.Errorf("expected %v got %v", fl[i], f)
-		}
-	}
-}
-
-func TestConvert(t *testing.T) {
-	tk := Token{Value: "78.45"}
-	_, err := tk.Float()
-	if err != nil {
-		t.Error(err)
-	}
-	tk = Token{Value: "78."}
-	_, err = tk.Float()
-	if err != nil {
-		t.Error(err)
-	}
-	_, err = tk.Int()
-	if err != nil {
-		t.Error(err)
-	}
-}
-
-func TestStrings(t *testing.T) {
-	for i := range [CharString + 1]int{} {
-		if Kind(i).String() == "<invalid token>" {
-			t.Error()
-		}
-	}
-	if Kind(CharString+1).String() != "<invalid token>" {
-		t.Error()
-	}
 }

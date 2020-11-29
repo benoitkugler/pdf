@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/benoitkugler/pdf/contents"
+	"github.com/benoitkugler/pdf/model"
 )
 
 var ops = [...]contents.Operation{
@@ -101,7 +102,7 @@ func randOps(nops int) []contents.Operation {
 func TestParseContent(t *testing.T) {
 	exp := randOps(5000)
 	ct := contents.WriteOperations(exp...)
-	ops, err := ParseContent(ct)
+	ops, err := ParseContent(ct, model.ResourcesDict{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -132,9 +133,46 @@ func TestRandom(t *testing.T) {
 			in.WriteString(randOperands())
 			randOp().Add(&in)
 		}
-		_, err := ParseContent(in.Bytes())
+		_, err := ParseContent(in.Bytes(), model.ResourcesDict{})
 		if err == nil {
 			t.Fatal("expected error on random input")
+		}
+	}
+}
+
+func TestInlineData(t *testing.T) {
+	filtersName := []model.Name{
+		model.ASCII85,
+		model.Flate,
+		// model.ASCIIHex,
+		// model.LZW,
+		// model.RunLength,
+	}
+	for _, fi := range filtersName {
+		in := make([]byte, 20)
+		rand.Read(in)
+		st, err := model.NewStream(in, model.Filters{{Name: fi}})
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		contentStream := []byte("BI " + st.PDFCommonFields(false) + " ID ")
+		contentStream = append(contentStream, st.Content...)
+		contentStream = append(contentStream, "EI"...)
+
+		ops, err := ParseContent(contentStream, model.ResourcesDict{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(ops) != 1 {
+			t.Errorf("expected one operation, got %v", ops)
+		}
+		img, ok := ops[0].(contents.OpBeginImage)
+		if !ok {
+			t.Errorf("expected Image, got %v", ops[0])
+		}
+		if !bytes.Equal(img.Image.Content, st.Content) {
+			t.Error("failed to retrieve image data")
 		}
 	}
 }

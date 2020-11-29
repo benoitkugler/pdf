@@ -92,6 +92,7 @@ func TestParseObject(t *testing.T) {
 	doTestParseObjectFail("(\\", t)
 
 	doTestParseObjectFail(" ", t)
+	doTestParseObjectOK("<</Key null >>", t)
 }
 
 func TestPS(t *testing.T) {

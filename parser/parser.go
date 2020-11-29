@@ -10,7 +10,6 @@ import (
 	"github.com/benoitkugler/pdf/parser/tokenizer"
 	tok "github.com/benoitkugler/pdf/parser/tokenizer"
 	"github.com/pdfcpu/pdfcpu/pkg/log"
-	"github.com/pdfcpu/pdfcpu/pkg/pdfcpu/basic"
 )
 
 var (
@@ -21,17 +20,7 @@ var (
 	errBufNotAvailable         = errors.New("pdfcpu: parse: no buffer available")
 )
 
-type Object = basic.Object
-type Boolean = basic.Boolean
-type Float = basic.Float
-type Integer = basic.Integer
-type Name = basic.Name
-type StringLiteral = basic.StringLiteral
-type HexLiteral = basic.HexLiteral
-type IndirectRef = basic.IndirectRef
-type Dict = basic.Dict
-type Array = basic.Array
-type Command = basic.Command
+// type Command = pdfcpu.Command
 
 // Standalone implementation of a PDF parser.
 // The parser only handles chunks of PDF files
@@ -167,10 +156,10 @@ func (p *Parser) parseDict() (Dict, error) {
 			// shall be equivalent to omitting the entry entirely.
 			if obj != nil {
 				log.Parse.Printf("ParseDict: dict[%s]=%v\n", key, obj)
-				if _, has := d[key]; has {
+				if _, has := d[Name(key)]; has {
 					return nil, errDictionaryDuplicateKey
 				} else {
-					d[key] = obj
+					d[Name(key)] = obj
 				}
 			}
 		default:

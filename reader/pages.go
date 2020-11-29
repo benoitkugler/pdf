@@ -63,8 +63,9 @@ func (r resolver) resolveStream(content pdfcpu.Object) (*model.Stream, error) {
 	ar, _ := filters.(pdfcpu.Array)
 	for _, name := range ar {
 		if filterName, isName := r.resolveName(name); isName {
-			out.Filter = []model.Filter{{Name: model.Name(filterName)}}
+			out.Filter = append(out.Filter, model.Filter{Name: model.Name(filterName)})
 		}
+		// else: ignore invalid values
 	}
 	decode := r.resolve(stream.Dict["DecodeParms"])
 	switch decode := decode.(type) {

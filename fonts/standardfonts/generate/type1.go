@@ -9,7 +9,7 @@ import (
 	"github.com/benoitkugler/pdf/model"
 )
 
-type Fl = float32
+type Fl = model.Fl
 
 const spaces = " \t\n\r\f"
 

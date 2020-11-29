@@ -70,6 +70,24 @@ var booleanNames = map[Name]bool{
 
 // type DecodeParams []map[Name]int
 
+type Filters []Filter
+
+// DecodeReader accumulate the filters to produce a Reader,
+// decoding `r`.
+func (fs Filters) DecodeReader(r io.Reader) (io.Reader, error) {
+	for _, fi := range fs {
+		fil, err := filter.NewFilter(string(fi.Name), fi.params())
+		if err != nil {
+			return nil, err
+		}
+		r, err = fil.Decode(r)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return r, nil
+}
+
 // Stream is a PDF stream.
 // New Stream must be created
 // by applying the filters described
@@ -78,7 +96,7 @@ var booleanNames = map[Name]bool{
 // way to encode stream.
 type Stream struct {
 	// Length      int
-	Filter []Filter
+	Filter Filters
 
 	// DecodeParms DecodeParams
 
@@ -89,10 +107,10 @@ type Stream struct {
 // applying them in the given order, and storing them in the returned object
 // following the PDF order (that is, reversed).
 // Be aware that not all PDF filters are supported (see filters.List).
-func NewStream(content []byte, filters []Filter) (Stream, error) {
+func NewStream(content []byte, filters Filters) (Stream, error) {
 	var r io.Reader = bytes.NewReader(content)
 	L := len(filters)
-	reversed := make([]Filter, L)
+	reversed := make(Filters, L)
 	for i, fi := range filters {
 		fil, err := filter.NewFilter(string(fi.Name), fi.params())
 		if err != nil {
@@ -119,16 +137,9 @@ func NewStream(content []byte, filters []Filter) (Stream, error) {
 // Decode attemps to apply the Filters to decode its content.
 // Be aware that not all PDF filters are supported (see filters.List).
 func (s Stream) Decode() ([]byte, error) {
-	var r io.Reader = bytes.NewReader(s.Content)
-	for _, fi := range s.Filter {
-		fil, err := filter.NewFilter(string(fi.Name), fi.params())
-		if err != nil {
-			return nil, err
-		}
-		r, err = fil.Decode(r)
-		if err != nil {
-			return nil, err
-		}
+	r, err := s.Filter.DecodeReader(bytes.NewReader(s.Content))
+	if err != nil {
+		return nil, err
 	}
 	return ioutil.ReadAll(r)
 }
@@ -166,9 +177,11 @@ func (c Stream) Clone() Stream {
 // PDFCommonArgs returns the content of the Dictionary of `s`
 // without the enclosing << >>.
 // It will usually be used in combination with other fields.
-func (s Stream) PDFCommonFields() string {
+func (s Stream) PDFCommonFields(withLength bool) string {
 	b := newBuffer()
-	b.fmt("/Length %d", s.Length())
+	if withLength {
+		b.fmt("/Length %d", s.Length())
+	}
 	if len(s.Filter) != 0 {
 		fs := make([]string, len(s.Filter))
 		var st strings.Builder
@@ -197,7 +210,7 @@ func (s Stream) PDFCommonFields() string {
 // Often, additional arguments will be needed, so `PDFCommonFields`
 // should be used instead.
 func (s Stream) PDFContent() (string, []byte) {
-	arg := s.PDFCommonFields()
+	arg := s.PDFCommonFields(true)
 	return fmt.Sprintf("<<%s>>", arg), s.Content
 }
 
@@ -245,7 +258,7 @@ func (a *XObjectForm) GetStructParent() MaybeInt {
 }
 
 func (f *XObjectForm) pdfContent(pdf pdfWriter, _ Reference) (string, []byte) {
-	args := f.ContentStream.PDFCommonFields()
+	args := f.ContentStream.PDFCommonFields(true)
 	b := newBuffer()
 	b.fmt("<</Subtype/Form %s/BBox %s", args, f.BBox.String())
 	if f.Matrix != (Matrix{}) {
@@ -283,21 +296,46 @@ type Mask interface {
 	Clone() Mask
 }
 
-// XObjectImage represents a sampled visual image such as a photograph
-type XObjectImage struct {
+// Image are shared between inline images and XForm images
+type Image struct {
 	Stream
 
-	Width, Height    int
-	ColorSpace       ColorSpace // optional, any type of colour space except Pattern
-	BitsPerComponent uint8      // 1, 2, 4, 8, or  16.
-	Intent           Name       // optional
-	ImageMask        bool       // optional
-	Mask             Mask       // optional
+	BitsPerComponent uint8 // 1, 2, 4, 8, or  16.
 
+	Width, Height int
 	// optional. Array of length : number of color component required by color space.
 	// Special case for Mask image where [1 0] is also allowed
-	Decode       [][2]Fl
-	Interpolate  bool             // optional
+	Decode      [][2]Fl
+	ImageMask   bool // optional
+	Intent      Name // optional
+	Interpolate bool // optional
+}
+
+// PDFFields return a succession of key/value pairs,
+// describing the image characteristics.
+func (img Image) PDFFields(inline bool) string {
+	b := newBuffer()
+	base := img.PDFCommonFields(!inline)
+	b.line("%s /Width %d /Height %d /BitsPerComponent %d",
+		base, img.Width, img.Height, img.BitsPerComponent)
+	b.fmt("/ImageMask %v", img.ImageMask)
+	if img.Intent != "" {
+		b.fmt("/Intent %s", img.Intent)
+	}
+	if len(img.Decode) != 0 {
+		b.fmt("/Decode %s", writePointsArray(img.Decode))
+	}
+	b.line("/Interpolate %v", img.Interpolate)
+	return b.String()
+}
+
+// XObjectImage represents a sampled visual image such as a photograph
+type XObjectImage struct {
+	Image
+
+	ColorSpace ColorSpace // optional, any type of colour space except Pattern
+	Mask       Mask       // optional
+
 	Alternates   []AlternateImage // optional
 	SMask        *XObjectImage    // optional
 	SMaskInData  uint8            // optional, 0, 1 or 2
@@ -311,21 +349,15 @@ func (img *XObjectImage) GetStructParent() MaybeInt {
 
 func (f *XObjectImage) pdfContent(pdf pdfWriter, _ Reference) (string, []byte) {
 	b := newBuffer()
-	base := f.PDFCommonFields()
-	b.line("<</Subtype/Image %s/Width %d/Height %d/BitsPerComponent %d",
-		base, f.Width, f.Height, f.BitsPerComponent)
-	b.fmt("/ImageMask %v", f.ImageMask)
+	base := f.Image.PDFFields(false)
+	b.line("<</Subtype/Image" + base)
+
 	if f.ColorSpace != nil {
 		b.fmt("/ColorSpace %s", f.ColorSpace.colorSpacePDFString(pdf))
 	}
-	if f.Intent != "" {
-		b.fmt("/Intent %s", f.Intent)
-	}
+
 	//TODO: mask
-	if len(f.Decode) != 0 {
-		b.fmt("/Decode %s", writePointsArray(f.Decode))
-	}
-	b.line("/Interpolate %v", f.Interpolate)
+
 	if len(f.Alternates) != 0 {
 		chunks := make([]string, len(f.Alternates))
 		for i, alt := range f.Alternates {

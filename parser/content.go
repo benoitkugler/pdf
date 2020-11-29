@@ -20,6 +20,7 @@ import (
 	"fmt"
 
 	"github.com/benoitkugler/pdf/contents"
+	"github.com/benoitkugler/pdf/model"
 	"github.com/benoitkugler/pdf/parser/tokenizer"
 	"github.com/pkg/errors"
 )
@@ -314,7 +315,7 @@ var (
 // }
 
 // ParseContent parse a decrypted Content Stream
-func ParseContent(content []byte) ([]contents.Operation, error) {
+func ParseContent(content []byte, res model.ResourcesDict) ([]contents.Operation, error) {
 	var out []contents.Operation
 
 	stack := make([]Object, 0, 6)
@@ -338,15 +339,23 @@ func ParseContent(content []byte) ([]contents.Operation, error) {
 		}
 		switch obj := obj.(type) {
 		case Command:
-			// use the current stack to try and parse
-			// the command arguments
-			cmd, err := parseCommand(string(obj), stack)
-			if err != nil {
-				return nil, fmt.Errorf("invalid command %s with args %v", obj, stack)
+			var cmd contents.Operation
+			// special case
+			if obj == "BI" {
+				cmd, err = parseInlineImage(pr, stack, res)
+				if err != nil {
+					return nil, err
+				}
+			} else {
+				// use the current stack to try and parse
+				// the command arguments
+				cmd, err = parseCommand(string(obj), stack)
+				if err != nil {
+					return nil, fmt.Errorf("invalid command %s with args %v", obj, stack)
+				}
 			}
 			stack = stack[:0] // keep the capacity
 			out = append(out, cmd)
-			// TODO: special cases
 		default:
 			// store the object
 			stack = append(stack, obj)

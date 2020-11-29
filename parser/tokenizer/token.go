@@ -115,9 +115,14 @@ func (t Token) Float() (Fl, error) {
 	return strconv.ParseFloat(t.Value, 64)
 }
 
-// IsNumber returns true for integers and floats.
+// IsNumber returns `true` for integers and floats.
 func (t Token) IsNumber() bool {
 	return t.Kind == Integer || t.Kind == Float
+}
+
+// return true for binary stream or inline data
+func (t Token) startsBinary() bool {
+	return t.Kind == Other && (t.Value == "stream" || t.Value == "ID")
 }
 
 // Tokenize consume all the input, splitting it
@@ -141,6 +146,10 @@ func Tokenize(data []byte) ([]Token, error) {
 //
 // Comments are ignored.
 //
+// The tokenizer can't handle streams and inline image data on it's own:
+// it will stop (by returning EOF) when reached. Processing may be resumed
+// with `SetPos` method.
+//
 // Regarding exponential numbers: 7.3.3 Numeric Objects:
 // A conforming writer shall not use the PostScript syntax for numbers
 // with non-decimal radices (such as 16#FFFE) or in exponential format
@@ -150,11 +159,16 @@ func Tokenize(data []byte) ([]Token, error) {
 // no compromise).
 type Tokenizer struct {
 	data []byte
-	pos  int
 
 	// since indirect reference require
 	// to read two more tokens
 	// we store the two next token
+
+	pos int // main position (end of the aaToken)
+
+	currentPos int // end of the current token
+	nextPos    int // end of the +1 token
+
 	aToken Token // +1
 	aError error // +1
 
@@ -164,9 +178,21 @@ type Tokenizer struct {
 
 func NewTokenizer(data []byte) Tokenizer {
 	tk := Tokenizer{data: data}
-	tk.aToken, tk.aError = tk.nextToken(Token{})
-	tk.aaToken, tk.aaError = tk.nextToken(tk.aToken)
+	tk.initiateAt(0)
 	return tk
+}
+
+// there are two cases where NextToken() is not sufficient:
+// at the stat (aToken and aaToken are empty)
+// end after skipping over bytes (aToken and aaToken are invalid)
+// in this cases, `initiateAt` force the 2 next tokenizations
+// (in the contrary, NextToken only does 1).
+func (tk *Tokenizer) initiateAt(pos int) {
+	tk.currentPos = pos
+	tk.pos = pos
+	tk.aToken, tk.aError = tk.nextToken(Token{})
+	tk.nextPos = tk.pos
+	tk.aaToken, tk.aaError = tk.nextToken(tk.aToken)
 }
 
 // PeekToken reads a token but does not advance the position.
@@ -184,10 +210,43 @@ func (pr Tokenizer) PeekPeekToken() (Token, error) {
 // NextToken reads a token and advances (consuming the token).
 // If EOF is reached, no error is returned, but an `EOF` token.
 func (pr *Tokenizer) NextToken() (Token, error) {
-	tk, err := pr.PeekToken()
-	pr.aToken, pr.aError = pr.aaToken, pr.aaError
-	pr.aaToken, pr.aaError = pr.nextToken(pr.aaToken)
+	tk, err := pr.PeekToken()                     // n+1 to n
+	pr.aToken, pr.aError = pr.aaToken, pr.aaError // n+2 to n+1
+	pr.currentPos = pr.nextPos                    // n+1 to n
+	pr.nextPos = pr.pos                           // n+2 to n
+
+	// the tokenizer can't handle binary stream or inline data:
+	// such data will be handled with a parser
+	// thus, we simply stop the tokenization when we encounter them
+	// to avoid useless (and maybe costly) processing
+	if pr.aaToken.startsBinary() {
+		pr.aaToken, pr.aaError = Token{Kind: EOF}, nil
+	} else {
+		pr.aaToken, pr.aaError = pr.nextToken(pr.aaToken) // read the n+3 and store it in n+2
+	}
 	return tk, err
+}
+
+// SkipBytes skips the next `n` bytes and return them. This method is useful
+// to handle streams and inline data.
+func (pr *Tokenizer) SkipBytes(n int) []byte {
+	// use currentPos, which is the position 'expected' by the caller
+	target := pr.currentPos + n
+	if target > len(pr.data) { // truncate if needed
+		target = len(pr.data)
+	}
+	out := pr.data[pr.currentPos:target]
+	pr.initiateAt(target)
+	return out
+}
+
+// Bytes return a slice of the bytes, starting
+// from the current position.
+func (pr Tokenizer) Bytes() []byte {
+	if pr.currentPos >= len(pr.data) {
+		return nil
+	}
+	return pr.data[pr.currentPos:]
 }
 
 // IsHexChar converts a hex character into its value and a success flag
@@ -214,7 +273,7 @@ func (pr *Tokenizer) read() (byte, bool) {
 	return ch, true
 }
 
-// reads and advances
+// reads and advances, mutatinng `pos`
 func (pr *Tokenizer) nextToken(previous Token) (Token, error) {
 	ch, ok := pr.read()
 	for ok && isWhitespace(ch) {
