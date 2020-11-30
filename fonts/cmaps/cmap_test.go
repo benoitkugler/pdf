@@ -1,10 +1,10 @@
-package parser
+package cmaps
 
 import (
+	"fmt"
 	"io/ioutil"
 	"testing"
 
-	"github.com/benoitkugler/pdf/fonts/cidfonts"
 	"github.com/benoitkugler/pdf/model"
 )
 
@@ -97,14 +97,14 @@ func TestParser1(t *testing.T) {
 	}
 
 	for k, expected := range expectedMappings {
-		if v, ok := cmap.CharcodeToUnicode(k); !ok || v != expected {
+		if v, ok := cmap.unicode.ProperLookupTable()[k]; !ok || v != expected {
 			t.Errorf("incorrect mapping, expecting 0x%X ➞ 0x%X (%#v)", k, expected, v)
 			return
 		}
 	}
 
-	v, _ := cmap.CharcodeToUnicode(0x99)
-	if v != MissingCodeRune { //!= "notdef" {
+	_, ok := cmap.unicode.ProperLookupTable()[0x99]
+	if ok { //!= "notdef" {
 		t.Errorf("Unmapped code, expected to map to undefined")
 		return
 	}
@@ -184,7 +184,7 @@ func TestParser2(t *testing.T) {
 	}
 
 	for k, expected := range expectedMappings {
-		if v, ok := cmap.CharcodeToUnicode(k); !ok || v != expected {
+		if v, ok := cmap.unicode.ProperLookupTable()[k]; !ok || v != expected {
 			t.Errorf("incorrect mapping, expecting 0x%X ➞ 0x%X (got 0x%X)", k, expected, v)
 			return
 		}
@@ -257,7 +257,7 @@ func TestParser3(t *testing.T) {
 	}
 
 	// Check codespaces.
-	expectedCodespaces := []cidfonts.Codespace{
+	expectedCodespaces := []Codespace{
 		{NumBytes: 1, Low: 0x00, High: 0x80},
 		{NumBytes: 1, Low: 0xa0, High: 0xd0},
 		{NumBytes: 2, Low: 0x8100, High: 0x9fff},
@@ -295,7 +295,7 @@ func TestParser3(t *testing.T) {
 		0xd140: 0xa000,
 	}
 	for k, expected := range expectedMappings {
-		if v, ok := cmap.CharcodeToUnicode(k); !ok || v != expected {
+		if v, ok := cmap.unicode.ProperLookupTable()[k]; !ok || v != expected {
 			t.Errorf("incorrect mapping: expecting 0x%02X ➞ 0x%02X (got 0x%02X)", k, expected, v)
 			return
 		}
@@ -407,7 +407,7 @@ func TestParser4(t *testing.T) {
 	}
 
 	for k, expected := range expectedMappings {
-		if v, ok := cmap.CharcodeToUnicode(k); !ok || v != expected {
+		if v, ok := cmap.unicode.ProperLookupTable()[k]; !ok || v != expected {
 			t.Errorf("incorrect mapping, expecting 0x%04X ➞ %+q (got %+q)", k, expected, v)
 			return
 		}
@@ -434,7 +434,7 @@ func TestParser4(t *testing.T) {
 	}
 }
 
-func TestFullCMap(t *testing.T) {
+func TestFullCIDCMap(t *testing.T) {
 	names := [...]model.Name{"Adobe-CNS1-3", "KSCms-UHC-H", "Ext-RKSJ-V"}
 	nbCidRanges := [...]int{74, 675, 1}
 	for i, file := range [...]string{
@@ -456,5 +456,25 @@ func TestFullCMap(t *testing.T) {
 		if L := len(cmap.CIDs); L != nbCidRanges[i] {
 			t.Errorf("expected %d ranges, got %d", nbCidRanges[i], L)
 		}
+	}
+}
+
+func TestFullToUnicodeCMap(t *testing.T) {
+	for _, file := range [...]string{
+		"predefined/data/Adobe-CNS1-UCS2.txt",
+		"predefined/data/Adobe-GB1-UCS2.txt",
+		"predefined/data/Adobe-Japan1-UCS2.txt",
+		"predefined/data/Adobe-Korea1-UCS2.txt",
+		"predefined/data/Adobe-KR-UCS2.txt",
+	} {
+		b, err := ioutil.ReadFile(file)
+		if err != nil {
+			t.Fatal(err)
+		}
+		cmap, err := ParseUnicodeCMap(b)
+		if err != nil {
+			t.Fatal(err)
+		}
+		fmt.Println(len(cmap.ProperLookupTable()))
 	}
 }

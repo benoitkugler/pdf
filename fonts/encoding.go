@@ -3,9 +3,11 @@ package fonts
 import (
 	"log"
 
+	"github.com/benoitkugler/pdf/fonts/cmaps"
 	"github.com/benoitkugler/pdf/fonts/glyphsnames"
 	"github.com/benoitkugler/pdf/fonts/sfnt"
 	"github.com/benoitkugler/pdf/fonts/simpleencodings"
+	"github.com/benoitkugler/pdf/fonts/standardcmaps"
 	"github.com/benoitkugler/pdf/fonts/type1font"
 	"github.com/benoitkugler/pdf/model"
 )
@@ -182,4 +184,45 @@ func resolveCharMapType3(f model.FontType3, userCharMap map[string]rune) map[run
 	default: // should not happen according to the spec
 		return simpleencodings.Standard.Runes
 	}
+}
+
+// parse the CMap and resolve the chain of UseCMap if needed
+func resolveToUnicode(cmap model.UnicodeCMap) (map[cmaps.CharCode]rune, error) {
+	content, err := cmap.Decode()
+	if err != nil {
+		return nil, err
+	}
+	inner, err := cmaps.ParseUnicodeCMap(content)
+	if err != nil {
+		return nil, err
+	}
+	out := inner.ProperLookupTable()
+
+	var used map[cmaps.CharCode]rune
+	switch use := cmap.UseCMap.(type) {
+	case model.UnicodeCMap:
+		used, err = resolveToUnicode(use)
+		if err != nil {
+			return nil, err
+		}
+	case model.UnicodeCMapBasePredefined:
+		predef, ok := standardcmaps.ToUnicodeCMaps[model.Name(use)]
+		if !ok {
+			log.Printf("unknown predefined UnicodeCMap %s", use)
+		}
+		used = predef.ProperLookupTable()
+	}
+	for k, v := range used {
+		out[k] = v
+	}
+	return out, nil
+}
+
+// build the reverse mapping, assuming a simple font
+func toUnicodeCMapToCharMap(m map[cmaps.CharCode]rune) map[rune]byte {
+	out := make(map[rune]byte, len(m))
+	for k, v := range m {
+		out[v] = byte(k)
+	}
+	return out
 }

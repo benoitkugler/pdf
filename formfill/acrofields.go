@@ -150,13 +150,19 @@ func (ac *filler) buildAppearance(formResources model.ResourcesDict, fields mode
 					log.Printf("can't resolve font %s -> using default", dab.font)
 					fd = defaultFont
 				}
-				font = fonts.BuildFont(fd)
+				font, err = fonts.BuildFont(fd)
+				if err != nil {
+					return nil, 0, err
+				}
 				ac.fontCache[dab.font] = font
 			}
 		} else {
 			log.Println("no font specified in DA string -> using default")
 			// use a default font
-			font = fonts.BuildFont(defaultFont)
+			font, err = fonts.BuildFont(defaultFont)
+			if err != nil {
+				return nil, 0, err
+			}
 			ac.fontCache[dab.font] = font
 		}
 	}

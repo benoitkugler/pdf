@@ -25,7 +25,7 @@ func init() {
 	// the PDF spec is used in several tests, but is heavy
 	// so, when working on isolated test, you may want to avoid loading it
 	// by commenting this line
-	loadPDFSpec()
+	// loadPDFSpec()
 
 	// generatePDFs()
 }
@@ -281,7 +281,10 @@ func TestEmbeddedTTF(t *testing.T) {
 			if r := page.Resources; r != nil {
 				for _, font := range r.Font {
 					if _, ok := font.Subtype.(model.FontTrueType); ok {
-						_ = fonts.BuildFont(font)
+						_, err = fonts.BuildFont(font)
+						if err != nil {
+							t.Fatal(err)
+						}
 						fmt.Println(font.Subtype.FontName())
 					}
 				}

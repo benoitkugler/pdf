@@ -1,4 +1,4 @@
-package parser
+package cmaps
 
 // the main parsing logic is taken
 // from https://git.maze.io/go/unipdf/src/branch/master/internal/cmap
@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/benoitkugler/pdf/fonts/cidfonts"
 	"github.com/benoitkugler/pdf/model"
 	"github.com/benoitkugler/pdf/parser/tokenizer"
 )
@@ -22,7 +21,7 @@ type parser struct {
 	tokenizer tokenizer.Tokenizer
 
 	// a cmap may contain either CIDs or Unicodes
-	cids    cidfonts.CMap
+	cids    CMap
 	unicode UnicodeCMap
 
 	version string
@@ -32,7 +31,6 @@ type parser struct {
 func newparser(content []byte) *parser {
 	parser := parser{}
 	parser.tokenizer = tokenizer.NewTokenizer(content)
-	parser.unicode = NewUnicodeCMap()
 	return &parser
 }
 
@@ -324,7 +322,7 @@ func (cmap *parser) parseCodespaceRange() error {
 			return errors.New("non-hex high")
 		}
 
-		cspace, err := cidfonts.NewCodespaceFromBytes(hexLow, hexHigh)
+		cspace, err := newCodespaceFromBytes(hexLow, hexHigh)
 		if err != nil {
 			return err
 		}
@@ -391,12 +389,12 @@ func (cmap *parser) parseCIDRange() error {
 			return errors.New("invalid cid start value")
 		}
 
-		codespace, err := cidfonts.NewCodespaceFromBytes(hexStart, hexEnd)
+		codespace, err := newCodespaceFromBytes(hexStart, hexEnd)
 		if err != nil {
 			return err
 		}
 
-		cidRange := cidfonts.CIDRange{Codespace: codespace, CIDStart: model.CID(cidStart)}
+		cidRange := CIDRange{Codespace: codespace, CIDStart: model.CID(cidStart)}
 		cmap.cids.CIDs = append(cmap.cids.CIDs, cidRange)
 	}
 
@@ -451,7 +449,8 @@ func (cmap *parser) parseBfchar() error {
 			return ErrBadCMap
 		}
 
-		cmap.unicode.CodeToUnicode[code] = target
+		cmap.unicode.Mappings = append(cmap.unicode.Mappings, ToUnicodePair{
+			From: code, Dest: target})
 	}
 
 	return nil
@@ -516,6 +515,7 @@ func (cmap *parser) parseBfrange() error {
 			if len(v) != int(srcCodeTo-srcCodeFrom)+1 {
 				return ErrBadCMap
 			}
+			arr := ToUnicodeArray{From: srcCodeFrom, To: srcCodeTo, Runes: make([]rune, len(v))}
 			for code := srcCodeFrom; code <= srcCodeTo; code++ {
 				o := v[code-srcCodeFrom]
 				hexs, ok := o.(cmapHexString)
@@ -523,16 +523,14 @@ func (cmap *parser) parseBfrange() error {
 					return errors.New("non-hex string in array")
 				}
 				r := hexToRune(hexs)
-				cmap.unicode.CodeToUnicode[code] = r
+				arr.Runes[code-srcCodeFrom] = r
 			}
-
+			cmap.unicode.Mappings = append(cmap.unicode.Mappings, arr)
 		case cmapHexString:
 			// <codeFrom> <codeTo> <dst>, maps [from,to] to [dst,dst+to-from].
 			r := hexToRune(v)
-			for code := srcCodeFrom; code <= srcCodeTo; code++ {
-				cmap.unicode.CodeToUnicode[code] = r
-				r++
-			}
+			tr := ToUnicodeTranslation{From: srcCodeFrom, To: srcCodeTo, Dest: r}
+			cmap.unicode.Mappings = append(cmap.unicode.Mappings, tr)
 		default:
 			return ErrBadCMap
 		}

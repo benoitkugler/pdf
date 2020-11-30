@@ -27,7 +27,7 @@ package sfnt
 // Appendix A, in 5176.CFF.pdf referenced below. For example, 379 means
 // "001.000". String ID 392 is not predefined, and is mapped by a separate
 // structure, the "String INDEX", inside the CFF data. (String ID 391 is also
-// not predefined. Specifically for ../../../../../golang.org/x/image/font/testdata/CFFTest.otf, 391 means
+// not standardcmaps. Specifically for ../../../../../golang.org/x/image/font/testdata/CFFTest.otf, 391 means
 // "uni4E2D", as this font contains a glyph for U+4E2D).
 //
 // The actual glyph vectors are similarly encoded (in PostScript), in a format

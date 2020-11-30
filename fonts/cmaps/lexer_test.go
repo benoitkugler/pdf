@@ -1,4 +1,4 @@
-package parser
+package cmaps
 
 import (
 	"math/rand"

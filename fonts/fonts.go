@@ -18,8 +18,10 @@
 package fonts
 
 import (
+	"errors"
 	"log"
 
+	"github.com/benoitkugler/pdf/fonts/cmaps"
 	"github.com/benoitkugler/pdf/model"
 )
 
@@ -48,6 +50,7 @@ type Font interface {
 	Desc() model.FontDescriptor
 }
 
+// Type1, TrueType, Type3
 type simpleFont struct {
 	desc      model.FontDescriptor
 	firstChar byte
@@ -91,13 +94,48 @@ func (ft simpleFont) Desc() model.FontDescriptor {
 	return ft.desc
 }
 
+// type0
+type compositeFont struct {
+	desc        model.FontDescriptor
+	fromUnicode map[rune]cmaps.CharCode
+	cmap        map[cmaps.CharCode]model.CID
+	widths      map[model.CID]int
+}
+
+func (ft compositeFont) Encode(cs []rune) []byte {
+	out := make([]byte, 0, len(cs)) // at least
+	for _, r := range cs {
+		charCode, ok := ft.fromUnicode[r]
+		if !ok {
+			log.Printf("unsupported rune %s %d", string(r), r)
+			charCode = '.'
+		}
+		charCode.Append(&out)
+	}
+	return out
+}
+
+func (ft compositeFont) GetWidth(c rune, size Fl) Fl {
+	charCode := ft.fromUnicode[c]
+	cid := ft.cmap[charCode]
+	w, ok := ft.widths[cid]
+	if !ok {
+		w = ft.desc.MissingWidth
+	}
+	return Fl(w) * 0.001 * size
+}
+
+func (ct compositeFont) Desc() model.FontDescriptor {
+	return ct.desc
+}
+
 // BuildFont compiles an existing FontDictionary, as found in a PDF,
 // to a usefull font metrics. When needed the font builtin encoding is parsed
 // and used.
 // For fonts who used glyph names which are not referenced, `BuildFontWithCharMap`
 // provides a way of specifying custom names.
 // TODO: New font should be created from a font file using `NewFont`
-func BuildFont(f *model.FontDict) BuiltFont {
+func BuildFont(f *model.FontDict) (BuiltFont, error) {
 	return BuildFontWithCharMap(f, nil)
 }
 
@@ -109,7 +147,7 @@ func BuildFont(f *model.FontDict) BuiltFont {
 // to Unicode point. For this edge case, a user-defined map from the
 // character names to their Unicode value must used. This map will be merged to
 // a registry of common names.
-func BuildFontWithCharMap(f *model.FontDict, userCharMap map[string]rune) BuiltFont {
+func BuildFontWithCharMap(f *model.FontDict, userCharMap map[string]rune) (BuiltFont, error) {
 	switch ft := f.Subtype.(type) {
 	case model.FontType1:
 		charMap := resolveCharMapType1(ft, userCharMap)
@@ -118,7 +156,7 @@ func BuildFontWithCharMap(f *model.FontDict, userCharMap map[string]rune) BuiltF
 			charMap:   charMap,
 			firstChar: ft.FirstChar,
 			widths:    ft.Widths,
-		}}
+		}}, nil
 	case model.FontTrueType:
 		charMap := resolveCharMapTrueType(ft, userCharMap)
 		return BuiltFont{Meta: f, Font: simpleFont{
@@ -126,7 +164,7 @@ func BuildFontWithCharMap(f *model.FontDict, userCharMap map[string]rune) BuiltF
 			charMap:   charMap,
 			firstChar: ft.FirstChar,
 			widths:    ft.Widths,
-		}}
+		}}, nil
 	case model.FontType3:
 		charMap := resolveCharMapType3(ft, userCharMap)
 		return BuiltFont{Meta: f, Font: simpleFont{
@@ -134,12 +172,17 @@ func BuildFontWithCharMap(f *model.FontDict, userCharMap map[string]rune) BuiltF
 			charMap:   charMap,
 			firstChar: ft.FirstChar,
 			widths:    ft.Widths,
-		}}
+		}}, nil
+	case model.FontType0:
+		// TODO:
+		return BuiltFont{Meta: f, Font: compositeFont{
+			desc: buildType0FontDesc(ft),
+		}}, nil
+	case nil:
+		return BuiltFont{}, errors.New("missing font subtype")
 	default:
-		//TODO: support the other type of font
-		panic("not implemented")
+		panic("should be an exhaustive switch")
 	}
-	// return BuiltFont{}
 }
 
 // if no font desc is given, create one from the properties
@@ -150,5 +193,16 @@ func buildType3FontDesc(tf model.FontType3) model.FontDescriptor {
 	}
 	var out model.FontDescriptor
 	out.FontBBox = tf.FontBBox
+	return out
+}
+
+func buildType0FontDesc(tf model.FontType0) model.FontDescriptor {
+	out := tf.DescendantFonts.FontDescriptor
+	if tf.DescendantFonts.DW != 0 {
+		out.MissingWidth = tf.DescendantFonts.DW
+	}
+	if out.MissingWidth == 0 { // use the default from the SPEC
+		out.MissingWidth = 1000
+	}
 	return out
 }

@@ -11,7 +11,10 @@ import (
 func TestStandard(t *testing.T) {
 	for name, builtin := range standardfonts.Fonts {
 		f := builtin.WesternType1Font()
-		font := BuildFont(&model.FontDict{Subtype: f})
+		font, err := BuildFont(&model.FontDict{Subtype: f})
+		if err != nil {
+			t.Fatal(err)
+		}
 		fmt.Println(name, font.GetWidth('u', 12))
 	}
 }

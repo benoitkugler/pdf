@@ -284,8 +284,11 @@ func (r resolver) resolveToUnicode(obj pdfcpu.Object) (*model.UnicodeCMap, error
 	var out model.UnicodeCMap
 	out.Stream = *stream
 	if kidRef, isRef := dict.Dict["UseCMap"].(pdfcpu.IndirectRef); isRef && kidRef == ref {
+		// invalid loop, return early
 		return &out, nil
-	} else {
+	} else if name, ok := r.resolveName(dict.Dict["UseCMap"]); ok {
+		out.UseCMap = model.UnicodeCMapBasePredefined(name)
+	} else { // try another stream (maybe nil)
 		out.UseCMap, err = r.resolveToUnicode(dict.Dict["UseCMap"])
 		if err != nil {
 			return nil, err
@@ -523,7 +526,11 @@ func (r resolver) resolveCIDFontDict(cid pdfcpu.Dict) (model.CIDFontDictionary, 
 		out.DW2[1], _ = r.resolveInt(dw2[1])
 	}
 	out.W = r.processCIDWidths(cid["W"])
-	out.W2 = r.processCIDWidths(cid["W2"])
+
+	out.W2, err = r.processCIDVerticalMetrics(cid["W2"])
+	if err != nil {
+		return out, err
+	}
 
 	if id, _ := r.resolveName(cid["CIDToGIDMap"]); id == "Identity" {
 		out.CIDToGIDMap = model.CIDToGIDMapIdentity{}
@@ -577,6 +584,51 @@ func (r resolver) processCIDWidths(wds pdfcpu.Object) []model.CIDWidth {
 		}
 	}
 	return out
+}
+
+func (r resolver) processCIDVerticalMetrics(wds pdfcpu.Object) ([]model.CIDVerticalMetric, error) {
+	ar, _ := r.resolveArray(wds)
+	var out []model.CIDVerticalMetric
+	for i := 0; i < len(ar); {
+		first, _ := r.resolveInt(ar[i])
+		if i+1 >= len(ar) {
+			return out, errors.New("invalid W2 entry")
+		}
+		switch next := r.resolve(ar[i+1]).(type) {
+		case pdfcpu.Integer:
+			last := next
+			if i+4 >= len(ar) {
+				return out, errors.New("invalid W2 entry")
+			}
+			w, _ := r.resolveInt(ar[i+2])
+			vx, _ := r.resolveInt(ar[i+3])
+			vy, _ := r.resolveInt(ar[i+4])
+			out = append(out, model.CIDVerticalMetricRange{
+				First: model.CID(first), Last: model.CID(last),
+				VerticalMetric: model.VerticalMetric{Vertical: w, Position: [2]int{vx, vy}},
+			})
+			i += 5
+		case pdfcpu.Array:
+			if len(next)%3 != 0 {
+				return out, errors.New("invalid W2 entry")
+			}
+			cid := model.CIDVerticalMetricArray{
+				Start:     model.CID(first),
+				Verticals: make([]model.VerticalMetric, len(next)/3),
+			}
+			for j := range cid.Verticals {
+				cid.Verticals[j].Vertical, _ = r.resolveInt(next[3*j])
+				cid.Verticals[j].Position[0], _ = r.resolveInt(next[3*j+1])
+				cid.Verticals[j].Position[1], _ = r.resolveInt(next[3*j+2])
+			}
+			out = append(out, cid)
+			i += 2
+		default:
+			// invalid, return
+			return out, errType("vertical metric", next)
+		}
+	}
+	return out, nil
 }
 
 func (r resolver) parseFontDict(font pdfcpu.Dict) (model.Font, error) {

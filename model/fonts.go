@@ -102,24 +102,43 @@ func (f FontDescriptor) Clone() FontDescriptor {
 	return out
 }
 
+// UnicodeCMapBase is either the name of
+// a predifined CMap or an other UnicodeCMap stream
+type UnicodeCMapBase interface {
+	pdfString(pdf pdfWriter) string
+	clone() UnicodeCMapBase
+}
+
+type UnicodeCMapBasePredefined Name
+
+func (c UnicodeCMapBasePredefined) pdfString(pdf pdfWriter) string {
+	return Name(c).String()
+}
+
+func (p UnicodeCMapBasePredefined) clone() UnicodeCMapBase { return p }
+
 // UnicodeCMap is stream object containing a special kind of CMap file
 // that maps character codes to Unicode values.
 type UnicodeCMap struct {
 	Stream
 
-	UseCMap *UnicodeCMap // optional
+	UseCMap UnicodeCMapBase // optional
 }
 
 // Clone returns a deep copy
 func (p *UnicodeCMap) Clone() *UnicodeCMap {
 	if p == nil {
-		return p
+		return p // typed nil
 	}
 	out := *p
 	out.Stream = p.Stream.Clone()
-	out.UseCMap = p.UseCMap.Clone()
+	if p.UseCMap != nil {
+		out.UseCMap = p.UseCMap.clone()
+	}
 	return &out
 }
+
+func (p UnicodeCMap) clone() UnicodeCMapBase { return *p.Clone() }
 
 func (c UnicodeCMap) pdfString(pdf pdfWriter) string {
 	ref := pdf.createObject()
@@ -554,12 +573,22 @@ type CIDFontDictionary struct {
 	Subtype        Name // CIDFontType0 or CIDFontType2
 	BaseFont       Name
 	CIDSystemInfo  CIDSystemInfo
-	FontDescriptor FontDescriptor // indirect object
-	DW             int            // optionnal, default to 1000
-	W              []CIDWidth     // optionnal
-	DW2            [2]int         // optionnal, default to [ 880 −1000 ]
-	W2             []CIDWidth     // optionnal
-	CIDToGIDMap    CIDToGIDMap    // optional
+	FontDescriptor FontDescriptor      // indirect object
+	DW             int                 // optionnal, default to 1000
+	W              []CIDWidth          // optionnal
+	DW2            [2]int              // optionnal, default to [ 880 −1000 ]
+	W2             []CIDVerticalMetric // optionnal
+	CIDToGIDMap    CIDToGIDMap         // optional
+}
+
+// Widths resolve the mapping from CID to glypth widths
+// CID not found should be mapped to the default width
+func (c CIDFontDictionary) Widths() map[CID]int {
+	out := make(map[CID]int, len(c.W)) // at least
+	for _, w := range c.W {
+		w.Widths(out)
+	}
+	return out
 }
 
 func (c CIDFontDictionary) pdfString(pdf pdfWriter, ref Reference) string {
@@ -606,10 +635,10 @@ func (c CIDFontDictionary) Clone() CIDFontDictionary {
 		out.W[i] = w.Clone()
 	}
 	if c.W2 != nil { // preserve deep equal
-		out.W2 = make([]CIDWidth, len(c.W2))
-	}
-	for i, w := range c.W2 {
-		out.W2[i] = w.Clone()
+		out.W2 = make([]CIDVerticalMetric, len(c.W2))
+		for i, w := range c.W2 {
+			out.W2[i] = w.Clone()
+		}
 	}
 	if c.CIDToGIDMap != nil {
 		out.CIDToGIDMap = c.CIDToGIDMap.Clone()
@@ -638,8 +667,8 @@ type CID int
 
 // CIDWidth groups the two ways of defining widths for CID
 type CIDWidth interface {
-	// Widths returns the widths for each character, defined in user units
-	Widths() map[CID]int
+	// Widths accumulate the widths for each character, defined in user units
+	Widths(map[CID]int)
 	// String returns a PDF representation of the width
 	String() string
 	// Clone returns a deepcopy, preserving the concrete type
@@ -653,12 +682,10 @@ type CIDWidthRange struct {
 	Width       int
 }
 
-func (c CIDWidthRange) Widths() map[CID]int {
-	out := make(map[CID]int, c.Last-c.First)
+func (c CIDWidthRange) Widths(out map[CID]int) {
 	for r := c.First; r <= c.Last; r++ {
 		out[r] = c.Width
 	}
-	return out
 }
 
 func (c CIDWidthRange) String() string {
@@ -675,12 +702,10 @@ type CIDWidthArray struct {
 	W     []int
 }
 
-func (c CIDWidthArray) Widths() map[CID]int {
-	out := make(map[CID]int, len(c.W))
+func (c CIDWidthArray) Widths(out map[CID]int) {
 	for i, w := range c.W {
 		out[c.Start+CID(i)] = w
 	}
-	return out
 }
 
 func (c CIDWidthArray) String() string {
@@ -691,6 +716,74 @@ func (c CIDWidthArray) String() string {
 func (c CIDWidthArray) Clone() CIDWidth {
 	out := c
 	out.W = append([]int(nil), c.W...) // nil to preserve deep equal
+	return out
+}
+
+// VerticalMetric is found in PDF as 3 numbers
+type VerticalMetric struct {
+	Vertical int
+	Position [2]int // position vector v [v_x, v_y]
+}
+
+func (v VerticalMetric) String() string {
+	return fmt.Sprintf("%d %d %d", v.Vertical, v.Position[0], v.Position[1])
+}
+
+// CIDVerticalMetric groups the two ways of defining vertical displacement for CID
+type CIDVerticalMetric interface {
+	// VerticalMetrics accumulate the vertical metrics for each character, defined in user units
+	VerticalMetrics(map[CID]VerticalMetric)
+	// String returns a PDF representation of the width
+	String() string
+	// Clone returns a deepcopy, preserving the concrete type
+	Clone() CIDVerticalMetric
+}
+
+// CIDVerticalMetricRange is written in PDF as
+//	c_first c_last w v_w v_y
+type CIDVerticalMetricRange struct {
+	First, Last    CID
+	VerticalMetric VerticalMetric
+}
+
+func (c CIDVerticalMetricRange) VerticalMetrics(out map[CID]VerticalMetric) {
+	for r := c.First; r <= c.Last; r++ {
+		out[r] = c.VerticalMetric
+	}
+}
+
+func (c CIDVerticalMetricRange) String() string {
+	return fmt.Sprintf("%d %d %s", c.First, c.Last, c.VerticalMetric)
+}
+
+// Clone return a deep copy of `c`, with concrete type `CIDVerticalMetricRange`
+func (c CIDVerticalMetricRange) Clone() CIDVerticalMetric { return c }
+
+// CIDVerticalMetricArray is written in PDF as
+//	c [ w_1 w_2 ... w_n ]
+type CIDVerticalMetricArray struct {
+	Start     CID
+	Verticals []VerticalMetric
+}
+
+func (c CIDVerticalMetricArray) VerticalMetrics(out map[CID]VerticalMetric) {
+	for i, v := range c.Verticals {
+		out[c.Start+CID(i)] = v
+	}
+}
+
+func (c CIDVerticalMetricArray) String() string {
+	chunks := make([]string, len(c.Verticals))
+	for i, w := range c.Verticals {
+		chunks[i] = w.String()
+	}
+	return fmt.Sprintf("%d [%s]", c.Start, strings.Join(chunks, " "))
+}
+
+// Clone return a deep copy of `c`, with concrete type `CIDVerticalMetricArray`
+func (c CIDVerticalMetricArray) Clone() CIDVerticalMetric {
+	out := c
+	out.Verticals = append([]VerticalMetric(nil), c.Verticals...) // nil to preserve deep equal
 	return out
 }
 

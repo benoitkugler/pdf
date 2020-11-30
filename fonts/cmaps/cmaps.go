@@ -1,4 +1,4 @@
-package cidfonts
+package cmaps
 
 import (
 	"errors"
@@ -17,26 +17,27 @@ type CMap struct {
 	CIDs          []CIDRange
 
 	UseCMap model.Name
-	simple  *bool // cached value of Simple
+
+	simple *bool // cached value of Simple
 }
 
 // Codespace represents a single codespace range used in the CMap.
 type Codespace struct {
-	NumBytes  int  // how many bytes should be read to match this code (between 1 and 4)
-	Low, High rune // compact version of [4]byte
+	NumBytes  int      // how many bytes should be read to match this code (between 1 and 4)
+	Low, High CharCode // compact version of [4]byte
 }
 
-// NewCodespaceFromBytes convert the bytes to an int character code
+// newCodespaceFromBytes convert the bytes to an int character code
 // Invalid ranges will be rejected with an error
-func NewCodespaceFromBytes(low, high []byte) (Codespace, error) {
+func newCodespaceFromBytes(low, high []byte) (Codespace, error) {
 	if len(low) != len(high) {
 		return Codespace{}, errors.New("unequal number of bytes in range")
 	}
 	if L := len(low); L > 4 {
 		return Codespace{}, fmt.Errorf("unsupported number of bytes: %d", L)
 	}
-	lowR := hexToRune(low)
-	highR := hexToRune(high)
+	lowR := CharCode(hexToRune(low))
+	highR := CharCode(hexToRune(high))
 	if highR < lowR {
 		return Codespace{}, errors.New("invalid caracter code range")
 	}
@@ -57,16 +58,6 @@ func numBytes(c Codespace) int {
 	} else {
 		return 4
 	}
-}
-
-// hexToRune returns the integer that is encoded in `shex` as a big-endian hex value
-func hexToRune(shex []byte) rune {
-	var code rune
-	for _, v := range shex {
-		code <<= 8
-		code |= rune(v)
-	}
-	return code
 }
 
 // CIDRange is an increasing number of CIDs,
@@ -94,11 +85,11 @@ func (cm *CMap) Simple() bool {
 	return simple
 }
 
-// RuneToCID accumulate all the CID ranges into one map
-func (cm CMap) RuneToCID() map[rune]model.CID {
-	out := map[rune]model.CID{}
+// CharCodeToCID accumulate all the CID ranges into one map
+func (cm CMap) CharCodeToCID() map[CharCode]model.CID {
+	out := map[CharCode]model.CID{}
 	for _, v := range cm.CIDs {
-		for index := rune(0); index <= v.High-v.Low; index++ {
+		for index := CharCode(0); index <= v.High-v.Low; index++ {
 			out[v.Low+index] = v.CIDStart + model.CID(index)
 		}
 	}
