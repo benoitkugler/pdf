@@ -182,16 +182,20 @@ type Tokenizer struct {
 
 func NewTokenizer(data []byte) Tokenizer {
 	tk := Tokenizer{data: data}
-	tk.initiateAt(0)
+	tk.SetPosition(0)
 	return tk
 }
 
-// there are two cases where NextToken() is not sufficient:
-// at the stat (aToken and aaToken are empty)
-// end after skipping over bytes (aToken and aaToken are invalid)
-// in this cases, `initiateAt` force the 2 next tokenizations
-// (in the contrary, NextToken only does 1).
-func (tk *Tokenizer) initiateAt(pos int) {
+// SetPosition set the position of the tokenizer in the input data.
+//
+// Most of the time, `NextToken` should be preferred, but this method may be used
+// for example to go back to a saved position.
+func (tk *Tokenizer) SetPosition(pos int) {
+	// Internally, there are two cases where NextToken() is not sufficient:
+	// at the start (aToken and aaToken are empty)
+	// end after skipping over bytes (aToken and aaToken are invalid)
+	// in this cases, `SetPosition` force the 2 next tokenizations
+	// (in the contrary, NextToken only does 1).
 	tk.currentPos = pos
 	tk.pos = pos
 	tk.aToken, tk.aError = tk.nextToken(Token{})
@@ -240,7 +244,7 @@ func (pr *Tokenizer) SkipBytes(n int) []byte {
 		target = len(pr.data)
 	}
 	out := pr.data[pr.currentPos:target]
-	pr.initiateAt(target)
+	pr.SetPosition(target)
 	return out
 }
 
@@ -289,6 +293,10 @@ func (pr Tokenizer) HasEOLBeforeToken() bool {
 	}
 	return false
 }
+
+// CurrentPosition return the position in the input.
+// It may be used to go back if needed, using `SetPosition`.
+func (pr Tokenizer) CurrentPosition() int { return pr.currentPos }
 
 // reads and advances, mutating `pos`
 func (pr *Tokenizer) nextToken(previous Token) (Token, error) {

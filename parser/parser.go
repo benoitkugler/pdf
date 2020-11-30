@@ -80,7 +80,15 @@ func (p *Parser) ParseObject() (Object, error) {
 		log.Parse.Printf("ParseArray: returning array (len=%d): %v\n", len(arr), arr)
 		value = arr
 	case tok.StartDic:
-		dict, err := p.parseDict()
+		// Hack for #252: we start by parsing according to the SPEC
+		// which will be almost always successful
+		save := p.tokens.CurrentPosition()
+		dict, err := p.parseDict(false)
+		if err != nil {
+			// try relaxed
+			p.tokens.SetPosition(save)
+			dict, err = p.parseDict(true)
+		}
 		if err != nil {
 			return nil, err
 		}
@@ -132,7 +140,7 @@ func (p *Parser) parseArray() (Array, error) {
 	return nil, err
 }
 
-func (p *Parser) parseDict() (Dict, error) {
+func (p *Parser) parseDict(relaxed bool) (Dict, error) {
 	d := Dict{}
 
 	tk, err := p.tokens.PeekToken()
@@ -149,10 +157,11 @@ func (p *Parser) parseDict() (Dict, error) {
 			_, _ = p.tokens.NextToken() // consume the key
 
 			var obj Object
+
 			// A friendly 🤢 to the devs of the Kdan Pocket Scanner for the iPad.
 			// Hack for #252:
 			// For dicts with kv pairs terminated by eol we accept a missing value as an empty string.
-			if p.tokens.HasEOLBeforeToken() {
+			if relaxed && p.tokens.HasEOLBeforeToken() {
 				obj = StringLiteral("")
 			} else {
 				obj, err = p.ParseObject()

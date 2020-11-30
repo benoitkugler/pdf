@@ -126,10 +126,10 @@ func randOperands() string {
 }
 
 func TestRandom(t *testing.T) {
-	for range [1000]int{} {
+	for range [500]int{} {
 		// alternate valid OPS and garbage input
 		var in bytes.Buffer
-		for range [300]int{} {
+		for range [200]int{} {
 			in.WriteString(randOperands())
 			randOp().Add(&in)
 		}

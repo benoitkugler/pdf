@@ -121,6 +121,10 @@ func TestResume(t *testing.T) {
 	if next != (Token{Kind: Integer, Value: "9"}) {
 		t.Errorf("expected %v, got %v", Token{Kind: Integer, Value: "9"}, next)
 	}
+	if p := tk.CurrentPosition(); p != 5 {
+		t.Errorf("expected %d, got %d", 5, p)
+	}
+
 	chunk = tk.SkipBytes(5)
 	if !bytes.Equal(chunk, []byte(" 4 5 ")) {
 		t.Errorf("expected %v got %v", []byte(" 4 5 "), chunk)
@@ -138,7 +142,7 @@ func TestResume(t *testing.T) {
 	}
 }
 func TestBytes(t *testing.T) {
-	input := []byte("7 8 9 4 5 6 4")
+	input := []byte("7 8 9")
 	tk := NewTokenizer(input)
 	if len(tk.Bytes()) != len(input) {
 		t.Error()
@@ -149,6 +153,10 @@ func TestBytes(t *testing.T) {
 	}
 	tk.NextToken()
 	if len(tk.Bytes()) != len(input)-3 {
+		t.Error()
+	}
+	tk.NextToken()
+	if tk.Bytes() != nil {
 		t.Error()
 	}
 }
