@@ -349,9 +349,16 @@ func (r resolver) catalog() (model.Catalog, error) {
 	}
 
 	// may need pages
+	// HACK for #252
 	out.Outlines, err = r.resolveOutline(d["Outlines"])
 	if err != nil {
 		return out, err
+	}
+	if out.Outlines == nil {
+		out.Outlines, err = r.resolveOutline(d["Outline"])
+		if err != nil {
+			return out, err
+		}
 	}
 
 	out.ViewerPreferences, err = r.resolveViewerPreferences(d["ViewerPreferences"])
