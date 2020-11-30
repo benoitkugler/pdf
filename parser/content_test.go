@@ -143,13 +143,13 @@ func TestRandom(t *testing.T) {
 func TestInlineData(t *testing.T) {
 	filtersName := []model.Name{
 		model.ASCII85,
+		model.ASCIIHex,
 		model.Flate,
-		// model.ASCIIHex,
-		// model.LZW,
-		// model.RunLength,
+		model.LZW,
+		model.RunLength,
 	}
 	for _, fi := range filtersName {
-		in := make([]byte, 20)
+		in := make([]byte, 2000)
 		rand.Read(in)
 		st, err := model.NewStream(in, model.Filters{{Name: fi}})
 		if err != nil {

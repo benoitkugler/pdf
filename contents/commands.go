@@ -3,7 +3,7 @@
 // They can be chained to build an arbitrary content
 // (see WriteOperations).
 // Reciprocally, they can be obtained from a content
-// by parsing it.
+// by parsing it, using for instance the 'parser' package.
 package contents
 
 import (
