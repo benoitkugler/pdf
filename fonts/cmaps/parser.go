@@ -47,27 +47,27 @@ func (cmap *parser) parse() error {
 			return nil
 		case cmapOperand:
 			switch t {
-			case begincodespacerange:
+			case "begincodespacerange":
 				err := cmap.parseCodespaceRange()
 				if err != nil {
 					return err
 				}
-			case begincidrange:
+			case "begincidrange":
 				err := cmap.parseCIDRange()
 				if err != nil {
 					return err
 				}
-			case beginbfchar:
+			case "beginbfchar":
 				err := cmap.parseBfchar()
 				if err != nil {
 					return err
 				}
-			case beginbfrange:
+			case "beginbfrange":
 				err := cmap.parseBfrange()
 				if err != nil {
 					return err
 				}
-			case usecmap:
+			case "usecmap":
 				if prev == nil {
 					return ErrBadCMap
 				}
@@ -77,7 +77,7 @@ func (cmap *parser) parse() error {
 				}
 				cmap.cids.UseCMap = name
 				cmap.unicode.UseCMap = name
-			case cidSystemInfo:
+			case "CIDSystemInfo":
 				// Some PDF generators leave the "/"" off CIDSystemInfo
 				// e.g. ~/testdata/459474_809.pdf
 				err := cmap.parseSystemInfo()
@@ -87,22 +87,22 @@ func (cmap *parser) parse() error {
 			}
 		case model.Name:
 			switch t {
-			case cidSystemInfo:
+			case "CIDSystemInfo":
 				err := cmap.parseSystemInfo()
 				if err != nil {
 					return err
 				}
-			case cmapname:
+			case "CMapName":
 				err := cmap.addName()
 				if err != nil {
 					return err
 				}
-			case cmaptype:
+			case "CMapType":
 				err := cmap.parseType()
 				if err != nil {
 					return err
 				}
-			case cmapversion:
+			case "CMapVersion":
 				err := cmap.parseVersion()
 				if err != nil {
 					return err
@@ -303,7 +303,7 @@ func (cmap *parser) parseCodespaceRange() error {
 		hexLow, ok := o.(cmapHexString)
 		if !ok {
 			if op, isOperand := o.(cmapOperand); isOperand {
-				if op == endcodespacerange {
+				if op == "endcodespacerange" {
 					return nil
 				}
 				return errors.New("unexpected operand")
@@ -351,7 +351,7 @@ func (cmap *parser) parseCIDRange() error {
 		hexStart, ok := o.(cmapHexString)
 		if !ok {
 			if op, isOperand := o.(cmapOperand); isOperand {
-				if op == endcidrange {
+				if op == "endcidrange" {
 					return nil
 				}
 				return errors.New("cid interval start must be a hex string")
@@ -393,7 +393,9 @@ func (cmap *parser) parseCIDRange() error {
 		if err != nil {
 			return err
 		}
-
+		if cidStart >= (1 << 16) {
+			return fmt.Errorf("%d overflow CID range", cidStart)
+		}
 		cidRange := CIDRange{Codespace: codespace, CIDStart: model.CID(cidStart)}
 		cmap.cids.CIDs = append(cmap.cids.CIDs, cidRange)
 	}
@@ -412,16 +414,19 @@ func (cmap *parser) parseBfchar() error {
 			}
 			return err
 		}
-		var code CharCode
+		var code model.CID
 
 		switch v := o.(type) {
 		case cmapOperand:
-			if v == endbfchar {
+			if v == "endbfchar" {
 				return nil
 			}
 			return errors.New("unexpected operand")
 		case cmapHexString:
-			code = hexToCharCode(v)
+			code, err = hexToCID(v)
+			if err != nil {
+				return err
+			}
 		default:
 			return errors.New("unexpected type")
 		}
@@ -437,7 +442,7 @@ func (cmap *parser) parseBfchar() error {
 		var target rune
 		switch v := o.(type) {
 		case cmapOperand:
-			if v == endbfchar {
+			if v == "endbfchar" {
 				return nil
 			}
 			return ErrBadCMap
@@ -464,7 +469,7 @@ func (cmap *parser) parseBfrange() error {
 		// where target can be either <destFrom> as a hex code, or a list.
 
 		// Src code from.
-		var srcCodeFrom CharCode
+		var srcCodeFrom model.CID
 		o, err := cmap.parseObject()
 		if err != nil {
 			if err == io.EOF {
@@ -474,18 +479,21 @@ func (cmap *parser) parseBfrange() error {
 		}
 		switch v := o.(type) {
 		case cmapOperand:
-			if v == endbfrange {
+			if v == "endbfrange" {
 				return nil
 			}
 			return errors.New("unexpected operand")
 		case cmapHexString:
-			srcCodeFrom = hexToCharCode(v)
+			srcCodeFrom, err = hexToCID(v)
+			if err != nil {
+				return err
+			}
 		default:
 			return errors.New("unexpected type")
 		}
 
 		// Src code to.
-		var srcCodeTo CharCode
+		var srcCodeTo model.CID
 		o, err = cmap.parseObject()
 		if err != nil {
 			if err == io.EOF {
@@ -497,7 +505,10 @@ func (cmap *parser) parseBfrange() error {
 		case cmapOperand:
 			return ErrBadCMap
 		case cmapHexString:
-			srcCodeTo = hexToCharCode(v)
+			srcCodeTo, err = hexToCID(v)
+			if err != nil {
+				return err
+			}
 		default:
 			return ErrBadCMap
 		}
@@ -522,12 +533,14 @@ func (cmap *parser) parseBfrange() error {
 				if !ok {
 					return errors.New("non-hex string in array")
 				}
+				// we only support one-rune string
 				r := hexToRune(hexs)
 				arr.Runes[code-srcCodeFrom] = r
 			}
 			cmap.unicode.Mappings = append(cmap.unicode.Mappings, arr)
 		case cmapHexString:
 			// <codeFrom> <codeTo> <dst>, maps [from,to] to [dst,dst+to-from].
+			// we only support one-rune string
 			r := hexToRune(v)
 			tr := ToUnicodeTranslation{From: srcCodeFrom, To: srcCodeTo, Dest: r}
 			cmap.unicode.Mappings = append(cmap.unicode.Mappings, tr)

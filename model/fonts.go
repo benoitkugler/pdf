@@ -652,6 +652,11 @@ type CIDSystemInfo struct {
 	Supplement int
 }
 
+// ToUnicodeCMapName construct a Unicode CMap name in the format `registry–ordering–UCS2`
+func (c CIDSystemInfo) ToUnicodeCMapName() Name {
+	return Name(fmt.Sprintf("%s-%s-UCS2", c.Registry, c.Ordering))
+}
+
 // returns a dictionary representation
 func (c CIDSystemInfo) pdfString(pdf pdfWriter, ref Reference) string {
 	return fmt.Sprintf("<</Registry %s/Ordering %s/Supplement %d>>",
@@ -663,7 +668,7 @@ func (c CIDSystemInfo) pdfString(pdf pdfWriter, ref Reference) string {
 // It will be obtained (from the bytes of a string) through a CMap, and will be use
 // as index in a CIDFont object.
 // It is not the same as an Unicode point.
-type CID int
+type CID uint16 // See Table C.1 – Architectural limits for the 2^16 limit.
 
 // CIDWidth groups the two ways of defining widths for CID
 type CIDWidth interface {

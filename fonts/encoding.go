@@ -187,7 +187,7 @@ func resolveCharMapType3(f model.FontType3, userCharMap map[string]rune) map[run
 }
 
 // parse the CMap and resolve the chain of UseCMap if needed
-func resolveToUnicode(cmap model.UnicodeCMap) (map[cmaps.CharCode]rune, error) {
+func resolveToUnicode(cmap model.UnicodeCMap) (map[model.CID]rune, error) {
 	content, err := cmap.Decode()
 	if err != nil {
 		return nil, err
@@ -198,7 +198,7 @@ func resolveToUnicode(cmap model.UnicodeCMap) (map[cmaps.CharCode]rune, error) {
 	}
 	out := inner.ProperLookupTable()
 
-	var used map[cmaps.CharCode]rune
+	var used map[model.CID]rune
 	switch use := cmap.UseCMap.(type) {
 	case model.UnicodeCMap:
 		used, err = resolveToUnicode(use)
@@ -212,17 +212,32 @@ func resolveToUnicode(cmap model.UnicodeCMap) (map[cmaps.CharCode]rune, error) {
 		}
 		used = predef.ProperLookupTable()
 	}
+	// merged the data from the UseCMap entry
 	for k, v := range used {
 		out[k] = v
 	}
 	return out, nil
 }
 
+func resolveCharMapType0(ft model.FontType0) {
+	// 9.10.2 - Mapping Character Codes to Unicode Values
+	ft.DescendantFonts.CIDSystemInfo.ToUnicodeCMapName()
+}
+
 // build the reverse mapping, assuming a simple font
-func toUnicodeCMapToCharMap(m map[cmaps.CharCode]rune) map[rune]byte {
+func reverseToUnicodeSimple(m map[model.CID]rune) map[rune]byte {
 	out := make(map[rune]byte, len(m))
 	for k, v := range m {
 		out[v] = byte(k)
+	}
+	return out
+}
+
+// build the reverse mapping
+func reverseToUnicode(m map[model.CID]rune) map[rune]model.CID {
+	out := make(map[rune]model.CID, len(m))
+	for k, v := range m {
+		out[v] = k
 	}
 	return out
 }

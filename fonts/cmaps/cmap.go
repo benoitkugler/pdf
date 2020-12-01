@@ -2,8 +2,11 @@
 package cmaps
 
 import (
+	"errors"
 	"fmt"
 	"sort"
+
+	"github.com/benoitkugler/pdf/model"
 )
 
 const (
@@ -14,7 +17,8 @@ const (
 	MissingCodeRune = '\ufffd' // �
 )
 
-// CharCode is a compact representation of 1 to 4 bytes.
+// CharCode is a compact representation of 1 to 4 bytes,
+// as found in PDF content streams.
 type CharCode int32
 
 // Append add 1 to 4 bytes to `bs`, in Big-Endian order.
@@ -30,6 +34,121 @@ func (c CharCode) Append(bs *[]byte) {
 	}
 }
 
+// CMap map character code to CIDs.
+// It is either predefined, or embedded in PDF as a stream.
+type CMap struct {
+	Name          model.Name
+	CIDSystemInfo model.CIDSystemInfo
+	Type          int
+	Codespaces    []Codespace
+	CIDs          []CIDRange
+
+	UseCMap model.Name
+
+	simple *bool // cached value of Simple
+}
+
+// Codespace represents a single codespace range used in the CMap.
+type Codespace struct {
+	NumBytes  int      // how many bytes should be read to match this code (between 1 and 4)
+	Low, High CharCode // compact version of [4]byte
+}
+
+// newCodespaceFromBytes convert the bytes to an int character code
+// Invalid ranges will be rejected with an error
+func newCodespaceFromBytes(low, high []byte) (Codespace, error) {
+	if len(low) != len(high) {
+		return Codespace{}, errors.New("unequal number of bytes in range")
+	}
+	if L := len(low); L > 4 {
+		return Codespace{}, fmt.Errorf("unsupported number of bytes: %d", L)
+	}
+	lowR := CharCode(hexToRune(low))
+	highR := CharCode(hexToRune(high))
+	if highR < lowR {
+		return Codespace{}, errors.New("invalid caracter code range")
+	}
+	c := Codespace{Low: lowR, High: highR}
+	c.NumBytes = numBytes(c)
+	return c, nil
+}
+
+// numBytes returns how many bytes should be read to match this code.
+// It will always be between 1 and 4.
+func numBytes(c Codespace) int {
+	if c.High < (1 << 8) {
+		return 1
+	} else if c.High < (1 << 16) {
+		return 2
+	} else if c.High < (1 << 24) {
+		return 3
+	} else {
+		return 4
+	}
+}
+
+// CIDRange is an increasing number of CIDs,
+// associated from Low to High.
+type CIDRange struct {
+	Codespace
+	CIDStart model.CID // CID code for the first character code in range
+}
+
+// Simple returns `true` if only one-byte character code are encoded
+// It is cached for performance reasons, so `Codespaces` shoudn't be mutated
+// after the call.
+func (cm *CMap) Simple() bool {
+	if cm.simple != nil {
+		return *cm.simple
+	}
+	simple := true
+	for _, space := range cm.Codespaces {
+		if space.NumBytes > 1 {
+			simple = false
+			break
+		}
+	}
+	cm.simple = &simple
+	return simple
+}
+
+// CharCodeToCID accumulate all the CID ranges into one map
+func (cm CMap) CharCodeToCID() map[CharCode]model.CID {
+	out := map[CharCode]model.CID{}
+	for _, v := range cm.CIDs {
+		for index := CharCode(0); index <= v.High-v.Low; index++ {
+			out[v.Low+index] = v.CIDStart + model.CID(index)
+		}
+	}
+	return out
+}
+
+// BytesToCharcodes attempts to convert the entire byte array `data` to a list
+// of character codes from the ranges specified by `cmap`'s codespaces.
+// Returns:
+//      character code sequence (if there is a match complete match)
+//      matched?
+// NOTE: A partial list of character codes will be returned if a complete match
+//       is not possible.
+// func (cmap CMap) BytesToCharcodes(data []byte) ([]CharCode, bool) {
+// 	var charcodes []CharCode
+// 	if cmap.CMap.Simple() {
+// 		for _, b := range data {
+// 			charcodes = append(charcodes, CharCode(b))
+// 		}
+// 		return charcodes, true
+// 	}
+// 	for i := 0; i < len(data); {
+// 		code, n, matched := cmap.matchCode(data[i:])
+// 		if !matched {
+// 			return charcodes, false
+// 		}
+// 		charcodes = append(charcodes, code)
+// 		i += n
+// 	}
+// 	return charcodes, true
+// }
+
 type charRange struct {
 	code0 CharCode
 	code1 CharCode
@@ -41,7 +160,7 @@ type fbRange struct {
 	r0    rune
 }
 
-// ParseUnicodeCMap parses the in-memory cmap `data` and returns the resulting CMap.
+// ParseUnicodeCMap parses the cmap `data` and returns the resulting CMap.
 // See 9.10.3 ToUnicode CMaps
 func ParseUnicodeCMap(data []byte) (UnicodeCMap, error) {
 	cmap := newparser(data)
@@ -131,31 +250,31 @@ func (cmap *parser) computeInverseMappings() {
 	})
 }
 
-// CharcodeBytesToUnicode converts a byte array of charcodes to a unicode string representation.
-// It also returns a bool flag to tell if the conversion was successful.
-// NOTE: This only works for ToUnicode cmaps.
-func (cmap *parser) CharcodeBytesToUnicode(data []byte) (string, int) {
-	charcodes, matched := cmap.BytesToCharcodes(data)
-	if !matched {
-		return "", 0
-	}
+// // CharcodeBytesToUnicode converts a byte array of charcodes to a unicode string representation.
+// // It also returns a bool flag to tell if the conversion was successful.
+// // NOTE: This only works for ToUnicode cmaps.
+// func (cmap *parser) CharcodeBytesToUnicode(data []byte) (string, int) {
+// 	charcodes, matched := cmap.BytesToCharcodes(data)
+// 	if !matched {
+// 		return "", 0
+// 	}
 
-	var (
-		parts   []rune
-		missing []CharCode
-	)
-	lt := cmap.unicode.ProperLookupTable()
-	for _, code := range charcodes {
-		s, ok := lt[code]
-		if !ok {
-			missing = append(missing, code)
-			s = MissingCodeRune
-		}
-		parts = append(parts, s)
-	}
-	unicode := string(parts)
-	return unicode, len(missing)
-}
+// 	var (
+// 		parts   []rune
+// 		missing []CharCode
+// 	)
+// 	lt := cmap.unicode.ProperLookupTable()
+// 	for _, code := range charcodes {
+// 		s, ok := lt[code]
+// 		if !ok {
+// 			missing = append(missing, code)
+// 			s = MissingCodeRune
+// 		}
+// 		parts = append(parts, s)
+// 	}
+// 	unicode := string(parts)
+// 	return unicode, len(missing)
+// }
 
 // RuneToCID maps the specified rune to a character identifier. If the provided
 // rune has no available mapping, the second return value is false.
@@ -187,9 +306,9 @@ func (cmap *parser) CharcodeBytesToUnicode(data []byte) (string, int) {
 //      matched?
 // NOTE: A partial list of character codes will be returned if a complete match
 //       is not possible.
-func (cmap *parser) BytesToCharcodes(data []byte) ([]CharCode, bool) {
+func (cmap *CMap) BytesToCharcodes(data []byte) ([]CharCode, bool) {
 	var charcodes []CharCode
-	if cmap.cids.Simple() {
+	if cmap.Simple() {
 		for _, b := range data {
 			charcodes = append(charcodes, CharCode(b))
 		}
@@ -218,7 +337,7 @@ func (cmap *parser) BytesToCharcodes(data []byte) ([]CharCode, bool) {
 //      character code (if there is a match) of
 //      number of bytes read (if there is a match)
 //      matched?
-func (cmap *parser) matchCode(data []byte) (code CharCode, n int, matched bool) {
+func (cmap CMap) matchCode(data []byte) (code CharCode, n int, matched bool) {
 	for j := 0; j < maxCodeLen; j++ {
 		if j < len(data) {
 			code = code<<8 | CharCode(data[j])
@@ -234,8 +353,8 @@ func (cmap *parser) matchCode(data []byte) (code CharCode, n int, matched bool) 
 }
 
 // inCodespace returns true if `code` is in the `numBytes` byte codespace.
-func (cmap *parser) inCodespace(code CharCode, numBytes int) bool {
-	for _, cs := range cmap.cids.Codespaces {
+func (cmap CMap) inCodespace(code CharCode, numBytes int) bool {
+	for _, cs := range cmap.Codespaces {
 		if cs.Low <= code && code <= cs.High && numBytes == cs.NumBytes {
 			return true
 		}

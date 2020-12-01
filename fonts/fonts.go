@@ -4,7 +4,7 @@
 // PDF supports 4 kinds of fonts: the Simples (Type1, TrueType and Type3)
 // and the Composite (Type0) and divides the text representation
 // in 3 differents objects:
-//	1- Glyph: it is either a name (for Simples) or an integer called CID (for Composite)
+//	1- Glyph (selector): it is either a name (for Simples) or an integer called CID (for Composite)
 //	2- Chars (character code): it is a slice of bytes (1 byte for Simples, 1 to 4 bytes for Composite)
 //	3- Unicode (point): the Unicode point of a character, coded in Go as runes.
 //
@@ -97,18 +97,29 @@ func (ft simpleFont) Desc() model.FontDescriptor {
 // type0
 type compositeFont struct {
 	desc        model.FontDescriptor
-	fromUnicode map[rune]cmaps.CharCode
-	cmap        map[cmaps.CharCode]model.CID
+	fromUnicode map[rune]model.CID
 	widths      map[model.CID]int
+
+	// the special case of the Identity CMap
+	// is handled by setting cmap to nil
+	reversedCMap map[model.CID]cmaps.CharCode
 }
 
 func (ft compositeFont) Encode(cs []rune) []byte {
 	out := make([]byte, 0, len(cs)) // at least
 	for _, r := range cs {
-		charCode, ok := ft.fromUnicode[r]
+		cid, ok := ft.fromUnicode[r]
 		if !ok {
 			log.Printf("unsupported rune %s %d", string(r), r)
-			charCode = '.'
+		}
+		var charCode cmaps.CharCode
+		if ft.reversedCMap == nil { // identity
+			charCode = cmaps.CharCode(cid)
+		} else {
+			charCode, ok = ft.reversedCMap[cid]
+			if !ok {
+				log.Printf("unsupported CID %d", cid)
+			}
 		}
 		charCode.Append(&out)
 	}
@@ -116,8 +127,7 @@ func (ft compositeFont) Encode(cs []rune) []byte {
 }
 
 func (ft compositeFont) GetWidth(c rune, size Fl) Fl {
-	charCode := ft.fromUnicode[c]
-	cid := ft.cmap[charCode]
+	cid := ft.fromUnicode[c]
 	w, ok := ft.widths[cid]
 	if !ok {
 		w = ft.desc.MissingWidth
@@ -148,35 +158,65 @@ func BuildFont(f *model.FontDict) (BuiltFont, error) {
 // character names to their Unicode value must used. This map will be merged to
 // a registry of common names.
 func BuildFontWithCharMap(f *model.FontDict, userCharMap map[string]rune) (BuiltFont, error) {
+	// 9.10.2 - Mapping Character Codes to Unicode Values
+	var (
+		toUnicode     map[model.CID]rune
+		simpleCharMap map[rune]byte
+	)
+	if f.ToUnicode != nil {
+		var err error
+		toUnicode, err = resolveToUnicode(*f.ToUnicode)
+		if err != nil {
+			return BuiltFont{}, err
+		}
+	}
 	switch ft := f.Subtype.(type) {
 	case model.FontType1:
-		charMap := resolveCharMapType1(ft, userCharMap)
+		if toUnicode != nil {
+			simpleCharMap = reverseToUnicodeSimple(toUnicode)
+		} else {
+			simpleCharMap = resolveCharMapType1(ft, userCharMap)
+		}
 		return BuiltFont{Meta: f, Font: simpleFont{
 			desc:      ft.FontDescriptor,
-			charMap:   charMap,
+			charMap:   simpleCharMap,
 			firstChar: ft.FirstChar,
 			widths:    ft.Widths,
 		}}, nil
 	case model.FontTrueType:
-		charMap := resolveCharMapTrueType(ft, userCharMap)
+		if toUnicode != nil {
+			simpleCharMap = reverseToUnicodeSimple(toUnicode)
+		} else {
+			simpleCharMap = resolveCharMapTrueType(ft, userCharMap)
+		}
 		return BuiltFont{Meta: f, Font: simpleFont{
 			desc:      ft.FontDescriptor,
-			charMap:   charMap,
+			charMap:   simpleCharMap,
 			firstChar: ft.FirstChar,
 			widths:    ft.Widths,
 		}}, nil
 	case model.FontType3:
-		charMap := resolveCharMapType3(ft, userCharMap)
+		if toUnicode != nil {
+			simpleCharMap = reverseToUnicodeSimple(toUnicode)
+		} else {
+			simpleCharMap = resolveCharMapType3(ft, userCharMap)
+		}
 		return BuiltFont{Meta: f, Font: simpleFont{
 			desc:      buildType3FontDesc(ft),
-			charMap:   charMap,
+			charMap:   simpleCharMap,
 			firstChar: ft.FirstChar,
 			widths:    ft.Widths,
 		}}, nil
 	case model.FontType0:
-		// TODO:
+		var fromUnicode map[rune]model.CID
+		if toUnicode != nil {
+			fromUnicode = reverseToUnicode(toUnicode)
+		} else {
+			resolveCharMapType0(ft)
+		}
 		return BuiltFont{Meta: f, Font: compositeFont{
-			desc: buildType0FontDesc(ft),
+			fromUnicode: fromUnicode,
+			desc:        buildType0FontDesc(ft),
 		}}, nil
 	case nil:
 		return BuiltFont{}, errors.New("missing font subtype")
