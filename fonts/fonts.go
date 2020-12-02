@@ -38,9 +38,13 @@ type BuiltFont struct {
 // and a way to encode utf-8 strings to a compatible byte string.
 // Since fetching such informations has a cost,
 // one font should be build once and reused as often as possible.
+// TODO: Support font kerning:
+//		- fetch the information from various files
+//		- modify the Encode method to (optionaly) return a slice of TextSpaced
 type Font interface {
 	// GetWidth return the size, in points, needed to display the character `c`
 	// using the font size `size`.
+	// Note that this method can't handle kerning.
 	GetWidth(c rune, size Fl) Fl
 	// Encode transform a slice of unicode points to a
 	// slice of bytes, conform to the font expectation.

@@ -3,9 +3,8 @@ package type1font
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"io"
-
-	"golang.org/x/exp/errors/fmt"
 )
 
 const (
@@ -27,25 +26,29 @@ const (
 // The record types in the pfb-file.
 var pfbRecords = [...]int{asciiMarker, binaryMarker, asciiMarker}
 
-type Font struct {
+// PFBFont exposes the content of a .pfb file.
+// The main field, regarding PDF processing, is the Encoding
+// entry, which defines the "builtin encoding" of the font.
+type PFBFont struct {
+	Encoding Encoding
+
 	FontName    string
 	PaintType   int
 	FontType    int
 	UniqueID    int
-	StrokeWidth float64
+	StrokeWidth Fl
 	FontID      string
-	FontMatrix  []float64
-	FontBBox    []float64
-	Encoding    Encoding
+	FontMatrix  []Fl
+	FontBBox    []Fl
 
 	Version            string
 	Notice             string
 	FullName           string
 	FamilyName         string
 	Weight             string
-	ItalicAngle        float64
-	UnderlinePosition  float64
-	UnderlineThickness float64
+	ItalicAngle        Fl
+	UnderlinePosition  Fl
+	UnderlineThickness Fl
 	IsFixedPitch       bool
 }
 
@@ -95,16 +98,16 @@ func OpenPfb(pfb []byte) (segment1, segment2 []byte, err error) {
 	return pfbdata[0:lengths[0]], pfbdata[lengths[0] : lengths[0]+lengths[1]], nil
 }
 
-// ParsePfbContent is a convenience wrapper, reading and
+// ParsePFBFile is a convenience wrapper, reading and
 // parsing a .pfb font file.
-func ParsePfbContent(pfb []byte) (Font, error) {
+func ParsePFBFile(pfb []byte) (PFBFont, error) {
 	seg1, _, err := OpenPfb(pfb)
 	if err != nil {
-		return Font{}, fmt.Errorf("invalid .pfb font file: %s", err)
+		return PFBFont{}, fmt.Errorf("invalid .pfb font file: %s", err)
 	}
 	info, err := Parse(seg1)
 	if err != nil {
-		return Font{}, fmt.Errorf("invalid .pfb font file: %s", err)
+		return PFBFont{}, fmt.Errorf("invalid .pfb font file: %s", err)
 	}
 	return info, nil
 }

@@ -1,10 +1,12 @@
-package type1
+package generatestandard
 
 import (
 	"io/ioutil"
 	"os"
 	"strings"
 	"testing"
+
+	"github.com/benoitkugler/pdf/fonts/type1font"
 )
 
 func TestEmbed(t *testing.T) {
@@ -12,7 +14,7 @@ func TestEmbed(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var fonts []Font
+	var fonts []type1font.AFMFont
 	for _, info := range files {
 		if !strings.HasSuffix(info.Name(), ".afm") {
 			continue // licence file
@@ -23,7 +25,7 @@ func TestEmbed(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		font, err := ParseFont(f)
+		font, err := type1font.ParseAFMFile(f)
 		if err != nil {
 			t.Fatalf("can't parse file %s : %s", info.Name(), err)
 		}

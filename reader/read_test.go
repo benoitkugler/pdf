@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ConradIrwin/font/sfnt"
 	"github.com/benoitkugler/pdf/fonts"
 	"github.com/benoitkugler/pdf/model"
 	"github.com/pdfcpu/pdfcpu/pkg/pdfcpu"
@@ -25,7 +26,7 @@ func init() {
 	// the PDF spec is used in several tests, but is heavy
 	// so, when working on isolated test, you may want to avoid loading it
 	// by commenting this line
-	loadPDFSpec()
+	// loadPDFSpec()
 
 	// generatePDFs()
 }
@@ -264,7 +265,8 @@ func BenchmarkWrite(b *testing.B) {
 func TestEmbeddedTTF(t *testing.T) {
 	for _, file := range [...]string{
 		"test/symbolic_ttf.pdf",
-		"test/ModeleRecuFiscalEditable.pdf",
+		// "test/ModeleRecuFiscalEditable.pdf",
+		"test/ttf.pdf",
 	} {
 		doc, _, err := ParseFile(file, "")
 		if err != nil {
@@ -273,12 +275,29 @@ func TestEmbeddedTTF(t *testing.T) {
 		for _, page := range doc.Catalog.Pages.Flatten() {
 			if r := page.Resources; r != nil {
 				for _, font := range r.Font {
-					if _, ok := font.Subtype.(model.FontTrueType); ok {
+					if ttf, ok := font.Subtype.(model.FontTrueType); ok {
 						_, err = fonts.BuildFont(font)
 						if err != nil {
 							t.Fatal(err)
 						}
 						fmt.Println(font.Subtype.FontName())
+						b, err := ttf.FontDescriptor.FontFile.Decode()
+						if err != nil {
+							t.Fatal(err)
+						}
+						ft, err := sfnt.Parse(bytes.NewReader(b))
+						// ft, err := sfnt.Parse(b)
+						if err != nil {
+							t.Fatal(err)
+						}
+						ft.HeadTable()
+
+						fmt.Println(ft.HheaTable())
+						fmt.Println(ft.OS2Table())
+						// fmt.Println(ft.GposTable())
+						// fmt.Println(ft.Chars())
+						// // ft.Kern(&b, sfnt.GlyphIndex(b1), sfnt.GlyphIndex(b2))
+
 					}
 				}
 			}

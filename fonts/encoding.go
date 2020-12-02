@@ -91,7 +91,7 @@ func builtinType1Encoding(desc model.FontDescriptor) *simpleencodings.Encoding {
 		return &simpleencodings.Standard
 	}
 
-	info, err := type1font.ParsePfbContent(content)
+	info, err := type1font.ParsePFBFile(content)
 	if err != nil {
 		log.Printf("invalid Type1 embedded font file: %s\n", err)
 		return &simpleencodings.Standard
@@ -160,7 +160,11 @@ func builtinTrueTypeEncoding(desc model.FontDescriptor) *simpleencodings.Encodin
 	var names [256]string
 	var b sfnt.Buffer
 	for r, index := range fontChars {
+		if index > 0xFF {
+			log.Printf("overflow for glyph index %d in TrueType font", index)
+		}
 		runes[r] = byte(index) // keep the lower order byte
+
 		name, err := font.GlyphName(&b, index)
 		if err != nil {
 			log.Printf("glyph index %d without name: %s\n", index, err)

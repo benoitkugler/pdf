@@ -14,10 +14,12 @@ const (
 	CHARSTRING_KEY = 4330
 )
 
+var none = tk.Token{} // null token
+
 type parser struct {
 	// state
 	lexer lexer
-	font  Font
+	font  PFBFont
 }
 
 type lexer struct {
@@ -62,12 +64,11 @@ type Encoding struct {
 
  For now, only the parsing of the first segment is implemented.
 */
-func Parse(segment1 []byte) (Font, error) {
-
+func Parse(segment1 []byte) (PFBFont, error) {
 	p := parser{}
 	err := p.parseASCII(segment1)
 	if err != nil {
-		return Font{}, err
+		return PFBFont{}, err
 	}
 	// TODO:
 	// if len(segment2) > 0 {

@@ -1,4 +1,4 @@
-package type1
+package type1font
 
 import (
 	"bufio"
@@ -9,19 +9,26 @@ import (
 	"strings"
 )
 
-// ParseFont read a .afm file and return the associated font
-// Some default values are also set
-func ParseFont(source io.Reader) (Font, error) {
+const spaces = " \t\n\r\f"
+
+var defautFontValues = AFMFont{
+	UnderlinePosition:  -100,
+	UnderlineThickness: 50,
+	encodingScheme:     "FontSpecific",
+	XHeight:            480,
+	StdVw:              80,
+}
+
+// ParseAFMFile read a .afm file and return the associated font.
+func ParseAFMFile(source io.Reader) (AFMFont, error) {
 	f := defautFontValues
 	// deep copy to avoid state sharing
 	f.charMetrics = map[string]charMetric{}
-	f.kernPairs = map[string][]kernPair{}
+	f.kernPairs = map[string][]KernPair{}
 
 	err := f.parse(source)
 
 	f.encodingScheme = strings.TrimSpace(f.encodingScheme)
-
-	// f.createEncoding()
 
 	return f, err
 }
@@ -59,7 +66,7 @@ func readFloatToken(tokens []string, index int) (Fl, error) {
 	return Fl(out), nil
 }
 
-func (f *Font) parse(source io.Reader) error {
+func (f *AFMFont) parse(source io.Reader) error {
 	scanner := bufio.NewScanner(source)
 	isMetrics := false
 	for scanner.Scan() {
@@ -73,21 +80,21 @@ func (f *Font) parse(source io.Reader) error {
 		var err error
 		switch ident {
 		case "FontName":
-			f.fontName, err = readToken(tok, 1)
+			f.FontName, err = readToken(tok, 1)
 		case "FullName":
-			f.fullName, err = readToken(tok, 1)
+			f.FullName, err = readToken(tok, 1)
 		case "FamilyName":
-			f.familyName, err = readToken(tok, 1)
+			f.FamilyName, err = readToken(tok, 1)
 		case "Weight":
-			f.weight, err = readToken(tok, 1)
+			f.Weight, err = readToken(tok, 1)
 		case "ItalicAngle":
 			f.ItalicAngle, err = readFloatToken(tok, 1)
 		case "IsFixedPitch":
 			var s string
 			s, err = readToken(tok, 1)
-			f.isFixedPitch = s == "true"
+			f.IsFixedPitch = s == "true"
 		case "CharacterSet":
-			f.characterSet, err = readToken(tok, 1)
+			f.CharacterSet, err = readToken(tok, 1)
 		case "FontBBox":
 			f.Llx, err = readFloatToken(tok, 1)
 			if err != nil {
@@ -103,23 +110,23 @@ func (f *Font) parse(source io.Reader) error {
 			}
 			f.Ury, err = readFloatToken(tok, 4)
 		case "UnderlinePosition":
-			f.underlinePosition, err = readIntToken(tok, 1)
+			f.UnderlinePosition, err = readIntToken(tok, 1)
 		case "UnderlineThickness":
-			f.underlineThickness, err = readIntToken(tok, 1)
+			f.UnderlineThickness, err = readIntToken(tok, 1)
 		case "EncodingScheme":
 			f.encodingScheme, err = readToken(tok, 1)
 		case "CapHeight":
 			f.CapHeight, err = readFloatToken(tok, 1)
 		case "XHeight":
-			f.xHeight, err = readIntToken(tok, 1)
+			f.XHeight, err = readIntToken(tok, 1)
 		case "Ascender":
 			f.Ascender, err = readFloatToken(tok, 1)
 		case "Descender":
 			f.Descender, err = readFloatToken(tok, 1)
 		case "StdHW":
-			f.stdHw, err = readIntToken(tok, 1)
+			f.StdHw, err = readIntToken(tok, 1)
 		case "StdVW":
-			f.stdVw, err = readIntToken(tok, 1)
+			f.StdVw, err = readIntToken(tok, 1)
 		}
 		if err != nil {
 			return err
@@ -237,7 +244,7 @@ func (f *Font) parse(source io.Reader) error {
 			if err != nil {
 				return err
 			}
-			f.kernPairs[first] = append(f.kernPairs[first], kernPair{sndChar: second, kerningDistance: width})
+			f.kernPairs[first] = append(f.kernPairs[first], KernPair{SndChar: second, KerningDistance: width})
 		} else if ident == "EndKernPairs" {
 			isMetrics = false
 			break
