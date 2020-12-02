@@ -23,6 +23,9 @@ func (v Name) Clone() model.UPValue { return v }
 type String string
 
 func (v String) PDFString(enc model.PDFStringEncoder, context model.Reference) string {
+	if enc == nil { // best effot, without encoding and encryption
+		return model.EspaceByteString(string(v))
+	}
 	return enc.EncodeString(string(v), model.TextString, context)
 }
 func (v String) Clone() model.UPValue { return v }

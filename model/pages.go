@@ -258,12 +258,26 @@ func (po *PageObject) clone(cache cloneCache) PageNode {
 
 // ResourcesDict maps name to (indirect) ressources
 type ResourcesDict struct {
-	ExtGState  map[Name]*GraphicState // optionnal
-	ColorSpace map[Name]ColorSpace    // optionnal
-	Shading    map[Name]*ShadingDict  // optionnal
-	Pattern    map[Name]Pattern       // optionnal
-	Font       map[Name]*FontDict     // optionnal
-	XObject    map[Name]XObject       // optionnal
+	ExtGState  map[Name]*GraphicState // optional
+	ColorSpace ResourcesColorSpace    // optional
+	Shading    map[Name]*ShadingDict  // optional
+	Pattern    map[Name]Pattern       // optional
+	Font       map[Name]*FontDict     // optional
+	XObject    map[Name]XObject       // optional
+	Properties map[Name]PropertyList  // optional
+}
+
+// NewResourcesDict initialize the maps
+func NewResourcesDict() ResourcesDict {
+	return ResourcesDict{
+		ExtGState:  make(map[Name]*GraphicState),
+		ColorSpace: make(map[Name]ColorSpace),
+		Shading:    make(map[Name]*ShadingDict),
+		Pattern:    make(map[Name]Pattern),
+		Font:       make(map[Name]*FontDict),
+		XObject:    make(map[Name]XObject),
+		Properties: make(map[Name]PropertyList),
+	}
 }
 
 // IsEmpty returns `true` is the resources pointer is either `nil`
@@ -274,7 +288,7 @@ func (r *ResourcesDict) IsEmpty() bool {
 	}
 	return len(r.ExtGState) == 0 && len(r.ColorSpace) == 0 &&
 		len(r.Shading) == 0 && len(r.Pattern) == 0 &&
-		len(r.Font) == 0 && len(r.XObject) == 0
+		len(r.Font) == 0 && len(r.XObject) == 0 && len(r.Properties) == 0
 }
 
 func (r *ResourcesDict) pdfString(pdf pdfWriter) string {
@@ -330,6 +344,15 @@ func (r *ResourcesDict) pdfString(pdf pdfWriter) string {
 		}
 		b.line(">>")
 	}
+	if r.Properties != nil {
+		b.fmt("/Properties <<")
+		for n, item := range r.Properties {
+			ref := pdf.createObject()
+			pdf.writeObject(item.pdfString(pdf, ref, false), nil, ref)
+			b.fmt("%s %s", n, ref)
+		}
+		b.line(">>")
+	}
 	b.fmt(">>")
 	return b.String()
 }
@@ -340,46 +363,50 @@ func (r ResourcesDict) clone(cache cloneCache) ResourcesDict {
 	// to preserve reflect.DeepEqual, we check for nil maps before allocating
 	if r.ExtGState != nil {
 		out.ExtGState = make(map[Name]*GraphicState, len(r.ExtGState))
-	}
-	for n, v := range r.ExtGState {
-		out.ExtGState[n] = cache.checkOrClone(v).(*GraphicState)
+		for n, v := range r.ExtGState {
+			out.ExtGState[n] = cache.checkOrClone(v).(*GraphicState)
+		}
 	}
 	if r.ColorSpace != nil {
 		out.ColorSpace = make(map[Name]ColorSpace, len(r.ColorSpace))
-	}
-	for n, v := range r.ColorSpace {
-		out.ColorSpace[n] = cloneColorSpace(v, cache)
+		for n, v := range r.ColorSpace {
+			out.ColorSpace[n] = cloneColorSpace(v, cache)
+		}
 	}
 	if r.Shading != nil {
 		out.Shading = make(map[Name]*ShadingDict, len(r.Shading))
-	}
-	for n, v := range r.Shading {
-		out.Shading[n] = cache.checkOrClone(v).(*ShadingDict)
+		for n, v := range r.Shading {
+			out.Shading[n] = cache.checkOrClone(v).(*ShadingDict)
+		}
 	}
 	if r.Pattern != nil {
 		out.Pattern = make(map[Name]Pattern, len(r.Pattern))
-	}
-	for n, v := range r.Pattern {
-		out.Pattern[n] = cache.checkOrClone(v).(Pattern)
+		for n, v := range r.Pattern {
+			out.Pattern[n] = cache.checkOrClone(v).(Pattern)
+		}
 	}
 	if r.Font != nil {
 		out.Font = make(map[Name]*FontDict, len(r.Font))
-	}
-	for n, v := range r.Font {
-		out.Font[n] = cache.checkOrClone(v).(*FontDict)
+		for n, v := range r.Font {
+			out.Font[n] = cache.checkOrClone(v).(*FontDict)
+		}
 	}
 	if r.XObject != nil {
 		out.XObject = make(map[Name]XObject, len(r.XObject))
+		for n, v := range r.XObject {
+			out.XObject[n] = cache.checkOrClone(v).(XObject)
+		}
 	}
-	for n, v := range r.XObject {
-		out.XObject[n] = cache.checkOrClone(v).(XObject)
+	if r.Properties != nil {
+		out.Properties = make(map[Name]PropertyList, len(r.Properties))
+		for n, v := range r.Properties {
+			out.Properties[n] = v.Clone()
+		}
 	}
 	return out
 }
 
 // ------------------------------- Bookmarks -------------------------------
-
-//TODO: read
 
 // Outline is the root of the ouline hierarchie
 type Outline struct {

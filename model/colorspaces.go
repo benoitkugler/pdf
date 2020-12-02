@@ -1,8 +1,37 @@
 package model
 
-import "fmt"
+import (
+	"fmt"
+)
 
 // ----------------------- colors spaces -----------------------
+
+type ResourcesColorSpace map[Name]ColorSpace
+
+// Resolve return the color space in the resource dictionary, taking care of default color spaces.
+// See 8.6.5.6 - Default Colour Spaces
+func (res ResourcesColorSpace) Resolve(cs Name) (ColorSpace, error) {
+	// resolve the default color spaces
+	var defa ColorSpace
+	switch ColorSpaceName(cs) {
+	case ColorSpaceGray:
+		defa = res["DefaultGray"]
+	case ColorSpaceRGB:
+		defa = res["DefaultRGB"]
+	case ColorSpaceCMYK:
+		defa = res["DefaultCMYK"]
+	default:
+		c := res[cs]
+		if c == nil {
+			return nil, fmt.Errorf("missing color space for name %s", cs)
+		}
+		return c, nil
+	}
+	if defa == nil { // use the "normal" Device CS
+		return ColorSpaceName(cs), nil
+	}
+	return defa, nil // return the specified Default CS
+}
 
 // check conformity with either Referenceable or directColorSpace
 

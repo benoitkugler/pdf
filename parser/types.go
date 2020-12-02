@@ -25,7 +25,7 @@ func (boolean Boolean) PDFString() string {
 }
 
 // Float represents a PDF float object.
-type Float float64
+type Float Fl
 
 func (f Float) PDFString() string {
 	// The max precision encountered so far has been 12 (fontType3 fontmatrix components).
@@ -109,4 +109,30 @@ func (d Dict) PDFString() string {
 		}
 	}
 	return "<<\n" + strings.Join(chunks, "\n") + "\n>>"
+}
+
+// IsString return `true` is `o` is either a StringLitteral
+// or an HexLitteral
+func IsString(o Object) (string, bool) {
+	switch s := o.(type) {
+	case StringLiteral:
+		return string(s), true
+	case HexLiteral:
+		return string(s), true
+	default:
+		return "", false
+	}
+}
+
+// IsNumber return `true` is `o` is either a Float
+// or an Int
+func IsNumber(o Object) (Fl, bool) {
+	switch t := o.(type) {
+	case Float:
+		return Fl(t), true
+	case Integer:
+		return Fl(t), true
+	default:
+		return 0, false
+	}
 }

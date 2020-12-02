@@ -61,6 +61,11 @@ func (r resolver) resolveOneResourceDict(o pdfcpu.Object) (model.ResourcesDict, 
 	if err != nil {
 		return out, err
 	}
+	// Properties
+	out.Properties, err = r.resolveProperties(resDict["Properties"])
+	if err != nil {
+		return out, err
+	}
 
 	if isRef { // write back to the cache
 		r.resources[ref] = out
@@ -289,10 +294,11 @@ func (r resolver) resolveToUnicode(obj pdfcpu.Object) (*model.UnicodeCMap, error
 	} else if name, ok := r.resolveName(dict.Dict["UseCMap"]); ok {
 		out.UseCMap = model.UnicodeCMapBasePredefined(name)
 	} else { // try another stream (maybe nil)
-		out.UseCMap, err = r.resolveToUnicode(dict.Dict["UseCMap"])
-		if err != nil {
+		u, err := r.resolveToUnicode(dict.Dict["UseCMap"])
+		if err != nil || u == nil {
 			return nil, err
 		}
+		out.UseCMap = *u
 	}
 	return &out, nil
 }
@@ -739,7 +745,7 @@ func (r resolver) parseStateDict(state pdfcpu.Dict) (*model.GraphicState, error)
 	return &out, nil
 }
 
-func (r resolver) resolveColorSpace(colorSpace pdfcpu.Object) (map[model.Name]model.ColorSpace, error) {
+func (r resolver) resolveColorSpace(colorSpace pdfcpu.Object) (model.ResourcesColorSpace, error) {
 	colorSpace = r.resolve(colorSpace)
 	if colorSpace == nil {
 		return nil, nil
@@ -758,6 +764,32 @@ func (r resolver) resolveColorSpace(colorSpace pdfcpu.Object) (map[model.Name]mo
 			continue
 		}
 		out[model.Name(name)] = gs
+	}
+	return out, nil
+}
+
+func (r resolver) resolveProperties(obj pdfcpu.Object) (map[model.Name]model.PropertyList, error) {
+	dict, _ := r.resolve(obj).(pdfcpu.Dict)
+	out := map[model.Name]model.PropertyList{}
+	var err error
+	for k, v := range dict {
+		vDict, _ := r.resolve(v).(pdfcpu.Dict)
+		propDict := model.PropertyList{Custom: make(map[model.Name]model.UPValue)}
+		for pName, pValue := range vDict {
+			if pName == "Metadata" {
+				cs, err := r.resolveStream(pValue)
+				if err != nil {
+					return nil, fmt.Errorf("invalid Metadata entry: %s", err)
+				}
+				propDict.Metadata = &model.MetadataStream{Stream: *cs}
+			} else {
+				propDict.Custom[model.Name(pName)], err = r.processCustomObject(pValue)
+				if err != nil {
+					return nil, fmt.Errorf("invalid property %s: %s", pName, err)
+				}
+			}
+		}
+		out[model.Name(k)] = propDict
 	}
 	return out, nil
 }

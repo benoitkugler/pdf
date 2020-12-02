@@ -25,7 +25,7 @@ func init() {
 	// the PDF spec is used in several tests, but is heavy
 	// so, when working on isolated test, you may want to avoid loading it
 	// by commenting this line
-	// loadPDFSpec()
+	loadPDFSpec()
 
 	// generatePDFs()
 }
@@ -77,25 +77,18 @@ func generatePDFs() {
 }
 
 func TestOpen(t *testing.T) {
-	// f, err := os.Open("test/descriptif.pdf")
-	// f, err := os.Open("test/Links.pdf")
-	// f, err := os.Open("test/f1118s1.pdf")
-	// f, err := os.Open("test/transparents.pdf")
-	// f, err := os.Open("test/ModeleRecuFiscalEditable.pdf")
-	// f, err := os.Open("test/Protected.pdf")
-	// f, err := os.Open("test/PDF_SPEC.pdf")
-	// if err != nil {
-	// 	t.Fatal(err)
-	// }
-	// defer f.Close()
-
-	// doc, enc, err := ParsePDF(f, "")
-	// if err != nil {
-	// 	t.Fatal(err)
-	// }
 	if L := len(pdfSpec.Catalog.Pages.Flatten()); L != 756 {
 		t.Errorf("expected 756 pages, got %d", L)
 	}
+
+	for _, p := range pdfSpec.Catalog.Pages.Flatten() {
+		for _, pr := range p.Resources.Properties {
+			if pr.Metadata != nil {
+				fmt.Println(pr.Metadata.Length())
+			}
+		}
+	}
+
 }
 
 func BenchmarkProcess(b *testing.B) {

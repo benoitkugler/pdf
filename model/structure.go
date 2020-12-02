@@ -5,6 +5,62 @@ import (
 	"strings"
 )
 
+// --------------------- Property list ---------------------
+
+// TODO:
+type MetadataStream struct {
+	Stream
+}
+
+func (m *MetadataStream) Clone() *MetadataStream {
+	if m == nil {
+		return nil
+	}
+	return &MetadataStream{Stream: m.Stream.Clone()}
+}
+
+func (m MetadataStream) PDFContent() (string, []byte) {
+	base := m.Stream.PDFCommonFields(true)
+	s := fmt.Sprintf("<</Type/Metadata/Subtype/XML %s>>", base)
+	return s, m.Content
+}
+
+// PropertyList is a dictionary of custom values.
+// When written in content stream, the PDFString method
+// will be invoked with invalid arguments.
+// We special case Metadata as it will be represented by a stream,
+// not handled for custom values.
+type PropertyList struct {
+	Metadata *MetadataStream // optional, ignored when used in content stream
+	Custom   map[Name]UPValue
+}
+
+// Clone returns a deep copy.
+func (p PropertyList) Clone() PropertyList {
+	out := p
+	if p.Custom != nil {
+		out.Custom = make(map[Name]UPValue, len(p.Custom))
+		for k, v := range p.Custom {
+			out.Custom[k] = v.Clone()
+		}
+	}
+	out.Metadata = p.Metadata.Clone()
+	return out
+}
+
+// pdfString return a PDF description of the properties.
+func (p PropertyList) pdfString(pdf pdfWriter, context Reference, inStream bool) string {
+	chunks := make([]string, 0, len(p.Custom)*2)
+	for k, v := range p.Custom {
+		chunks = append(chunks, k.String(), v.PDFString(pdf, context))
+	}
+	if !inStream && p.Metadata != nil {
+		ref := pdf.addObject(p.Metadata.PDFContent())
+		chunks = append(chunks, "/Metadata", ref.String())
+	}
+	return "<<" + strings.Join(chunks, " ") + ">>"
+}
+
 // MarkDict provides additional information relevant to
 // specialized uses of structured PDF documents.
 type MarkDict struct {

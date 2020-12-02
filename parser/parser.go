@@ -7,8 +7,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/benoitkugler/pdf/parser/tokenizer"
-	tok "github.com/benoitkugler/pdf/parser/tokenizer"
+	tkn "github.com/benoitkugler/pdf/parser/tokenizer"
 	"github.com/pdfcpu/pdfcpu/pkg/log"
 )
 
@@ -29,15 +28,17 @@ var (
 // An higher-level reader is needed to decode Streams and Inline Data,
 // which require knowledge on the filters used.
 type Parser struct {
-	tokens tok.Tokenizer
+	tokens tkn.Tokenizer
 
 	// If true, disallow Indirect Reference,
 	// but allow Commands
 	ContentStreamMode bool
+
+	opsStack []Object // only used in content stream
 }
 
 func NewParser(data []byte) *Parser {
-	p := &Parser{tokens: tok.NewTokenizer(data)}
+	p := &Parser{tokens: tkn.NewTokenizer(data)}
 	return p
 }
 
@@ -60,18 +61,18 @@ func (p *Parser) ParseObject() (Object, error) {
 	var value Object
 
 	switch tk.Kind {
-	case tok.EOF:
+	case tkn.EOF:
 		err = errBufNotAvailable
-	case tok.Name:
+	case tkn.Name:
 		value = Name(tk.Value)
 		log.Parse.Printf("ParseObject: value = Name Object : %s\n", value)
-	case tok.String:
+	case tkn.String:
 		value = StringLiteral(tk.Value)
 		log.Parse.Printf("ParseObject: value = String Literal: <%s>\n", value)
-	case tok.StringHex:
+	case tkn.StringHex:
 		value = HexLiteral(tk.Value)
 		log.Parse.Printf("ParseObject: value = Hex Literal: <%s>\n", value)
-	case tok.StartArray:
+	case tkn.StartArray:
 		log.Parse.Println("ParseObject: value = Array")
 		arr, err := p.parseArray()
 		if err != nil {
@@ -79,7 +80,7 @@ func (p *Parser) ParseObject() (Object, error) {
 		}
 		log.Parse.Printf("ParseArray: returning array (len=%d): %v\n", len(arr), arr)
 		value = arr
-	case tok.StartDic:
+	case tkn.StartDic:
 		// Hack for #252: we start by parsing according to the SPEC
 		// which will be almost always successful
 		save := p.tokens.CurrentPosition()
@@ -94,7 +95,7 @@ func (p *Parser) ParseObject() (Object, error) {
 		}
 		log.Parse.Printf("ParseDict: returning dict (len=%d): %v\n", len(dict), dict)
 		value = dict
-	case tok.Float:
+	case tkn.Float:
 		// We have a Float!
 		f, err := tk.Float()
 		if err != nil {
@@ -102,7 +103,7 @@ func (p *Parser) ParseObject() (Object, error) {
 		}
 		log.Parse.Printf("ParseObject: value = Float: %f\n", f)
 		value = Float(f)
-	case tok.Other:
+	case tkn.Other:
 		value, err = p.parseOther(tk.Value)
 		log.Parse.Println("parseOther: returning: %v", value)
 	default:
@@ -122,10 +123,10 @@ func (p *Parser) parseArray() (Array, error) {
 	tk, err := p.tokens.PeekToken()
 	for ; err == nil; tk, err = p.tokens.PeekToken() {
 		switch tk.Kind {
-		case tok.EndArray:
+		case tkn.EndArray:
 			_, _ = p.tokens.NextToken() // consume it
 			return a, nil
-		case tok.EOF:
+		case tkn.EOF:
 			return nil, errArrayNotTerminated
 		default:
 			obj, err := p.ParseObject()
@@ -146,12 +147,12 @@ func (p *Parser) parseDict(relaxed bool) (Dict, error) {
 	tk, err := p.tokens.PeekToken()
 	for ; err == nil; tk, err = p.tokens.PeekToken() {
 		switch tk.Kind {
-		case tok.EndDic:
+		case tkn.EndDic:
 			_, _ = p.tokens.NextToken() // consume it
 			return d, nil
-		case tok.EOF:
+		case tkn.EOF:
 			return nil, errDictionaryNotTerminated
-		case tok.Name:
+		case tkn.Name:
 			key := tk.Value
 			log.Parse.Printf("ParseDict: key = %s\n", key)
 			_, _ = p.tokens.NextToken() // consume the key
@@ -204,12 +205,12 @@ func (p Parser) parseOther(l string) (Object, error) {
 	}
 }
 
-var tokenReference = tok.Token{Kind: tok.Other, Value: "R"}
+var tokenReference = tkn.Token{Kind: tkn.Other, Value: "R"}
 
-func (p *Parser) parseNumericOrIndRef(currentToken tok.Token) (Object, error) {
+func (p *Parser) parseNumericOrIndRef(currentToken tkn.Token) (Object, error) {
 	// if this object is an integer we need to check for an indirect reference eg. 1 0 R
 
-	if currentToken.Kind != tok.Integer {
+	if currentToken.Kind != tkn.Integer {
 		return nil, fmt.Errorf("expected number got %v", currentToken)
 	}
 
@@ -232,7 +233,7 @@ func (p *Parser) parseNumericOrIndRef(currentToken tok.Token) (Object, error) {
 
 	// if not followed by whitespace return sole integer value.
 	gen, err := next.Int()
-	if next.Kind != tok.Integer || err != nil {
+	if next.Kind != tkn.Integer || err != nil {
 		log.Parse.Printf("parseNumericOrIndRef: value is numeric int: %d\n", i)
 		return Integer(i), nil
 	}
@@ -262,7 +263,7 @@ func (p *Parser) parseNumericOrIndRef(currentToken tok.Token) (Object, error) {
 func ParseObjectDefinition(line []byte, headerOnly bool) (objectNumber int, generationNumber int, o Object, err error) {
 	log.Parse.Printf("ParseObjectDefinition: buf=<%s>\n", line)
 
-	tokens := tokenizer.NewTokenizer(line)
+	tokens := tkn.NewTokenizer(line)
 
 	// object number
 	tok, err := tokens.NextToken()
@@ -270,7 +271,7 @@ func ParseObjectDefinition(line []byte, headerOnly bool) (objectNumber int, gene
 		return 0, 0, nil, err
 	}
 	objNr, err := tok.Int()
-	if tok.Kind != tokenizer.Integer || err != nil {
+	if tok.Kind != tkn.Integer || err != nil {
 		return 0, 0, nil, errors.New("pdfcpu: ParseObjectDefinition: can't find object number")
 	}
 
@@ -280,7 +281,7 @@ func ParseObjectDefinition(line []byte, headerOnly bool) (objectNumber int, gene
 		return 0, 0, nil, err
 	}
 	genNr, err := tok.Int()
-	if tok.Kind != tokenizer.Integer || err != nil {
+	if tok.Kind != tkn.Integer || err != nil {
 		return 0, 0, nil, errors.New("pdfcpu: ParseObjectDefinition: can't find generation number")
 	}
 
@@ -288,7 +289,7 @@ func ParseObjectDefinition(line []byte, headerOnly bool) (objectNumber int, gene
 	if err != nil {
 		return 0, 0, nil, errors.New("pdfcpu: ParseObjectDefinition: can't find \"obj\"")
 	}
-	if tok != (tokenizer.Token{Kind: tokenizer.Other, Value: "obj"}) {
+	if tok != (tkn.Token{Kind: tkn.Other, Value: "obj"}) {
 		return 0, 0, nil, errors.New("pdfcpu: ParseObjectDefinition: can't find \"obj\"")
 	}
 

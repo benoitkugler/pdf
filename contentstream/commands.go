@@ -32,8 +32,30 @@ func WriteOperations(ops ...Operation) []byte {
 	return out.Bytes()
 }
 
-type PropertyList interface {
+type PDFStringer interface {
 	PDFString() string
+}
+
+// PropertyList should be either a Name (refering to the resources dict)
+// or model.PropertyList object.
+type PropertyList interface {
+	contentStreamString() string
+}
+
+type PropertyListName model.Name
+
+func (n PropertyListName) contentStreamString() string {
+	return model.Name(n).String()
+}
+
+type PropertyListDict map[model.Name]PDFStringer
+
+func (p PropertyListDict) contentStreamString() string {
+	chunks := make([]string, 0, len(p)*2)
+	for k, v := range p {
+		chunks = append(chunks, k.String(), v.PDFString())
+	}
+	return "<<" + strings.Join(chunks, " ") + ">>"
 }
 
 // assert interface conformance
@@ -54,19 +76,19 @@ var _ = map[string]Operation{
 	"ET":  OpEndText{},
 	// "EX":  OpEndIgnoreUndef{},
 	// "F":   OpFill{},
-	// "G":   OpSetStrokeGray{},
+	"G": OpSetStrokeGray{},
 	// "J":   OpSetLineCap{},
 	// "K":   OpSetStrokeCMYKColor{},
 	// "M":   OpSetMiterLimit{},
-	"MP": OpMarkPoint{},
-	"Q":  OpRestore{},
-	"RG": OpSetStrokeRGBColor{},
-	"S":  OpStroke{},
-	// "SC":  OpSetStrokeColor{},
-	// "SCN": OpSetStrokeColorN{},
+	"MP":  OpMarkPoint{},
+	"Q":   OpRestore{},
+	"RG":  OpSetStrokeRGBColor{},
+	"S":   OpStroke{},
+	"SC":  OpSetStrokeColor{},
+	"SCN": OpSetStrokeColorN{},
 	// "T*":  OpTextNextLine{},
 	// "TD":  OpTextMoveSet{},
-	// "TJ":  OpShowSpaceText{},
+	"TJ": OpShowSpaceText{},
 	"TL": OpSetTextLeading{},
 	// "Tc":  OpSetCharSpacing{},
 	"Td": OpTextMove{},
@@ -112,9 +134,7 @@ var _ = map[string]Operation{
 }
 
 // rg
-type OpSetFillRGBColor struct {
-	R, G, B Fl
-}
+type OpSetFillRGBColor OpSetStrokeRGBColor
 
 func (o OpSetFillRGBColor) Add(out *bytes.Buffer) {
 	fmt.Fprintf(out, "%.3f %.3f %.3f rg", o.R, o.G, o.B)
@@ -127,6 +147,13 @@ type OpSetFillGray struct {
 
 func (o OpSetFillGray) Add(out *bytes.Buffer) {
 	fmt.Fprintf(out, "%.3f g", o.G)
+}
+
+// G
+type OpSetStrokeGray OpSetFillGray
+
+func (o OpSetStrokeGray) Add(out *bytes.Buffer) {
+	fmt.Fprintf(out, "%.3f G", o.G)
 }
 
 // RG
@@ -243,7 +270,7 @@ func (o OpBeginMarkedContent) Add(out *bytes.Buffer) {
 	if o.Properties == nil {
 		fmt.Fprintf(out, "%s BMC", o.Tag)
 	} else {
-		fmt.Fprintf(out, "%s %s BDC", o.Tag, o.Properties.PDFString())
+		fmt.Fprintf(out, "%s %s BDC", o.Tag, o.Properties.contentStreamString())
 	}
 }
 
@@ -284,6 +311,31 @@ type OpShowText struct {
 
 func (o OpShowText) Add(out *bytes.Buffer) {
 	out.WriteString(model.EspaceByteString(o.Text) + "Tj")
+}
+
+// TextSpaced subtracts space after showing the text
+// See 9.4.3 - Text-Showing Operators
+type TextSpaced struct {
+	Text                 string // unescaped
+	SpaceSubtractedAfter int
+}
+
+// TJ - OpShowSpaceText enables font kerning
+type OpShowSpaceText struct {
+	// Texts store a "normalized version" of texts and spaces
+	// SpaceSubtractedAfter fields of 0 are ignored.
+	Texts []TextSpaced
+}
+
+func (o OpShowSpaceText) Add(out *bytes.Buffer) {
+	out.WriteRune('[')
+	for _, ts := range o.Texts {
+		out.WriteString(model.EspaceByteString(ts.Text))
+		if ts.SpaceSubtractedAfter != 0 {
+			fmt.Fprintf(out, "%d", ts.SpaceSubtractedAfter)
+		}
+	}
+	out.WriteString("]TJ")
 }
 
 // '
@@ -336,9 +388,7 @@ func (o OpSetStrokeColorSpace) Add(out *bytes.Buffer) {
 }
 
 // cs
-type OpSetFillColorSpace struct {
-	ColorSpace model.Name
-}
+type OpSetFillColorSpace OpSetStrokeColorSpace
 
 func (o OpSetFillColorSpace) Add(out *bytes.Buffer) {
 	out.WriteString(o.ColorSpace.String() + " cs")
@@ -371,6 +421,13 @@ func (o OpSetFillColor) Add(out *bytes.Buffer) {
 	out.WriteString(floatArray(o.Color) + " sc")
 }
 
+// SC
+type OpSetStrokeColor OpSetFillColor
+
+func (o OpSetStrokeColor) Add(out *bytes.Buffer) {
+	out.WriteString(floatArray(o.Color) + " SC")
+}
+
 // scn
 type OpSetFillColorN struct {
 	Color   []Fl
@@ -383,6 +440,17 @@ func (o OpSetFillColorN) Add(out *bytes.Buffer) {
 		n = o.Pattern.String()
 	}
 	out.WriteString(floatArray(o.Color) + n + " scn")
+}
+
+// SCN
+type OpSetStrokeColorN OpSetFillColorN
+
+func (o OpSetStrokeColorN) Add(out *bytes.Buffer) {
+	var n string
+	if o.Pattern != "" {
+		n = o.Pattern.String()
+	}
+	out.WriteString(floatArray(o.Color) + n + " SCN")
 }
 
 // Do
@@ -413,7 +481,7 @@ func (o OpMarkPoint) Add(out *bytes.Buffer) {
 	if o.Properties == nil {
 		fmt.Fprintf(out, "%s MP", o.Tag)
 	} else {
-		fmt.Fprintf(out, "%s %s DP", o.Tag, o.Properties.PDFString())
+		fmt.Fprintf(out, "%s %s DP", o.Tag, o.Properties.contentStreamString())
 	}
 }
 
@@ -442,7 +510,7 @@ func (c ImageColorSpaceName) PDFString() string {
 // ImageColorSpaceIndexed is written in PDF as
 // [/Indexed base hival lookup ]
 type ImageColorSpaceIndexed struct {
-	Base   model.ColorSpaceName // required
+	Base   model.ColorSpaceName // required, must be a Device CS
 	Hival  uint8
 	Lookup model.ColorTableBytes
 }
@@ -474,7 +542,7 @@ func (o OpBeginImage) Add(out *bytes.Buffer) {
 
 // Metrics returns the number of color components and the number of bits for each.
 // An error is returned if the color space can't be resolved from the resources dictionary.
-func (img OpBeginImage) Metrics(res model.ResourcesDict) (comps, bits int, err error) {
+func (img OpBeginImage) Metrics(res model.ResourcesColorSpace) (comps, bits int, err error) {
 	bits = int(img.Image.BitsPerComponent)
 	if img.Image.ImageMask {
 		bits = 1
@@ -492,29 +560,10 @@ func (img OpBeginImage) Metrics(res model.ResourcesDict) (comps, bits int, err e
 	return comps, bits, nil
 }
 
-func (img OpBeginImage) resolveColorSpace(res model.ResourcesDict) (model.ColorSpace, error) {
+func (img OpBeginImage) resolveColorSpace(resources model.ResourcesColorSpace) (model.ColorSpace, error) {
 	switch cs := img.ColorSpace.(type) {
 	case ImageColorSpaceName:
-		// resolve the default color spaces
-		var defa model.ColorSpace
-		switch cs.ColorSpaceName {
-		case model.ColorSpaceGray:
-			defa = res.ColorSpace["DefaultGray"]
-		case model.ColorSpaceRGB:
-			defa = res.ColorSpace["DefaultRGB"]
-		case model.ColorSpaceCMYK:
-			defa = res.ColorSpace["DefaultCMYK"]
-		default:
-			c := res.ColorSpace[model.Name(cs.ColorSpaceName)]
-			if c == nil {
-				return nil, fmt.Errorf("missing color space for name %s", cs.ColorSpaceName)
-			}
-			return c, nil
-		}
-		if defa == nil { // use the "normal" Device CS
-			return cs.ColorSpaceName, nil
-		}
-		return defa, nil
+		return resources.Resolve(model.Name(cs.ColorSpaceName))
 	case ImageColorSpaceIndexed:
 		return cs.ToColorSpace(), nil
 	default:

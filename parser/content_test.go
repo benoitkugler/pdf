@@ -1,178 +1,66 @@
+/*
+Copyright 2020 The pdfcpu Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+	http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package parser
 
 import (
-	"bytes"
-	"math/rand"
 	"reflect"
 	"testing"
 
-	"github.com/benoitkugler/pdf/contentstream"
 	"github.com/benoitkugler/pdf/model"
 )
 
-var ops = [...]contentstream.Operation{
-	//   contentstream.OpMoveSetShowText{},
-	contentstream.OpMoveShowText{},
-	//    contentstream.OpFillStroke{},
-	// B  contentstream.OpEOFillStroke{},
-	contentstream.OpBeginMarkedContent{},
-	//   contentstream.OpBeginImage{},
-	contentstream.OpBeginMarkedContent{},
-	contentstream.OpBeginText{},
-	//   contentstream.OpBeginIgnoreUndef{},
-	contentstream.OpSetStrokeColorSpace{},
-	contentstream.OpMarkPoint{},
-	contentstream.OpXObject{},
-	//   contentstream.OpEndImage{},
-	contentstream.OpEndMarkedContent{},
-	contentstream.OpEndText{},
-	//   contentstream.OpEndIgnoreUndef{},
-	//    contentstream.OpFill{},
-	//    contentstream.OpSetStrokeGray{},
-	//   contentstream.OpImageData{},
-	//    contentstream.OpSetLineCap{},
-	//    contentstream.OpSetStrokeCMYKColor{},
-	//    contentstream.OpSetMiterLimit{},
-	contentstream.OpMarkPoint{},
-	contentstream.OpRestore{},
-	contentstream.OpSetStrokeRGBColor{},
-	contentstream.OpStroke{},
-	//   contentstream.OpSetStrokeColor{},
-	//  contentstream.OpSetStrokeColorN{},
-	// T  contentstream.OpTextNextLine{},
-	//   contentstream.OpTextMoveSet{},
-	//   contentstream.OpShowSpaceText{},
-	contentstream.OpSetTextLeading{},
-	//   contentstream.OpSetCharSpacing{},
-	contentstream.OpTextMove{},
-	contentstream.OpSetFont{},
-	contentstream.OpShowText{},
-	contentstream.OpSetTextMatrix{},
-	//   contentstream.OpSetTextRender{},
-	//   contentstream.OpSetTextRise{},
-	//   contentstream.OpSetWordSpacing{},
-	//   contentstream.OpSetHorizScaling{},
-	contentstream.OpClip{},
-	// W  contentstream.OpEOClip{},
-	//    contentstream.OpCloseFillStroke{},
-	// b  contentstream.OpCloseEOFillStroke{},
-	//    contentstream.OpCurveTo{},
-	//   contentstream.OpConcat{},
-	contentstream.OpSetFillColorSpace{},
-	contentstream.OpSetDash{},
-	//   contentstream.OpSetCharWidth{},
-	//   contentstream.OpSetCacheDevice{},
-	contentstream.OpFill{},
-	// f  contentstream.OpEOFill{},
-	contentstream.OpSetFillGray{},
-	contentstream.OpSetExtGState{},
-	//    contentstream.OpClosePath{},
-	//    contentstream.OpSetFlat{},
-	//    contentstream.OpSetLineJoin{},
-	//    contentstream.OpSetFillCMYKColor{},
-	contentstream.OpLineTo{},
-	contentstream.OpMoveTo{},
-	contentstream.OpEndPath{},
-	contentstream.OpSave{},
-	contentstream.OpRectangle{},
-	contentstream.OpSetFillRGBColor{},
-	contentstream.OpSetRenderingIntent{},
-	//    contentstream.OpCloseStroke{},
-	contentstream.OpSetFillColor{},
-	contentstream.OpSetFillColorN{Pattern: "sese"},
-	contentstream.OpShFill{},
-	//    contentstream.OpCurveTo1{},
-	contentstream.OpSetLineWidth{},
-	//    contentstream.OpCurveTo{},
-}
+func TestParseResources(t *testing.T) {
+	s := `/CS0 cs/DeviceGray CS/Span<</ActualText <FEFF000900090009>>> BDC
+	/a1 BMC/a2 MP /a3 /MC0 BDC/P0 scn/RelativeColorimetric ri/P1 SCN/GS0 gs[(Q[i,j]/2.)16.6(The/]maxi\)-)]TJ/CS1 CS/a4<</A<FEFF>>> BDC /a5 <</A<FEFF>>>
+	BDC (0.5*\(1/8\)*64 or +/4.\))Tj/T1_0 1 Tf <00150015> Tj /Im5 Do/a5 << /A <FEFF> >> BDC/a6/MC1 DP /a7<<>>DP
+	BI /IM true/W 1/CS/InlineCS/H 1/BPC 1 ID 7 EI 
+	BI /IM true/W 1/CS [/Indexed /DeviceGray 5 ()]  /H 1/BPC 1 ID 7 EI  Q /Pattern cs/Span<</ActualText<FEFF0009>>> BDC/SH1 sh`
 
-func randOp() contentstream.Operation {
-	j := rand.Intn(len(ops))
-	return ops[j]
-}
+	want := model.NewResourcesDict()
+	want.ColorSpace["CS0"] = nil
+	want.ColorSpace["CS1"] = nil
+	want.ColorSpace["InlineCS"] = nil
+	want.ExtGState["GS0"] = nil
+	want.Font["T1_0"] = nil
+	want.Pattern["P0"] = nil
+	want.Pattern["P1"] = nil
+	want.Properties["MC0"] = model.PropertyList{}
+	want.Properties["MC1"] = model.PropertyList{}
+	want.Shading["SH1"] = nil
+	want.XObject["Im5"] = nil
 
-func randOps(nops int) []contentstream.Operation {
-	l := make([]contentstream.Operation, nops)
-	for i := range l {
-		l[i] = randOp()
-	}
-	return l
-}
-
-func TestParseContent(t *testing.T) {
-	exp := randOps(5000)
-	ct := contentstream.WriteOperations(exp...)
-	ops, err := ParseContent(ct, model.ResourcesDict{})
+	got, err := ParseContentResources([]byte(s), model.ResourcesColorSpace{"InlineCS": model.ColorSpaceGray})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(exp) != len(ops) {
-		t.Errorf("expected %d ops, got %d", len(exp), len(ops))
-	}
-	for i := range exp {
-		if !reflect.DeepEqual(exp[i], ops[i]) {
-			t.Errorf("expected %v got %v", exp[i], ops[i])
-		}
+
+	if !reflect.DeepEqual(want, got) {
+		t.Fatalf("want:\n%v\ngot:\n%v\n", want, got)
 	}
 }
 
-func randOperands() string {
-	chars := []rune("////////<<<<<<>>>>>>>(((())))[[[]]789423azertyuiophjklmvbn,;:mùp$*")
-	out := make([]rune, 10)
-	for i := range out {
-		out[i] = chars[rand.Intn(len(chars))]
-	}
-	return string(out)
-}
-
-func TestRandom(t *testing.T) {
-	for range [500]int{} {
-		// alternate valid OPS and garbage input
-		var in bytes.Buffer
-		for range [200]int{} {
-			in.WriteString(randOperands())
-			randOp().Add(&in)
-		}
-		_, err := ParseContent(in.Bytes(), model.ResourcesDict{})
+func TestFail(t *testing.T) {
+	for _, bad := range []string{
+		"/Name BMC 4",
+		"BI ID 78 EI",
+	} {
+		_, err := ParseContentResources([]byte(bad), nil)
 		if err == nil {
-			t.Fatal("expected error on random input")
-		}
-	}
-}
-
-func TestInlineData(t *testing.T) {
-	filtersName := []model.Name{
-		model.ASCII85,
-		model.ASCIIHex,
-		model.Flate,
-		model.LZW,
-		model.RunLength,
-	}
-	for _, fi := range filtersName {
-		in := make([]byte, 2000)
-		rand.Read(in)
-		st, err := model.NewStream(in, model.Filters{{Name: fi}})
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		contentStream := []byte("BI " + st.PDFCommonFields(false) + " ID ")
-		contentStream = append(contentStream, st.Content...)
-		contentStream = append(contentStream, "EI"...)
-
-		ops, err := ParseContent(contentStream, model.ResourcesDict{})
-		if err != nil {
-			t.Fatal(err)
-		}
-		if len(ops) != 1 {
-			t.Errorf("expected one operation, got %v", ops)
-		}
-		img, ok := ops[0].(contentstream.OpBeginImage)
-		if !ok {
-			t.Errorf("expected Image, got %v", ops[0])
-		}
-		if !bytes.Equal(img.Image.Content, st.Content) {
-			t.Error("failed to retrieve image data")
+			t.Error("expected error on invalid input")
 		}
 	}
 }

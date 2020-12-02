@@ -27,9 +27,9 @@ func TestCharString(t *testing.T) {
 }
 
 func TestFloats(t *testing.T) {
-	fl := []float64{12e1, -124e7, 12e-7, 98.78, -45.4}
+	fl := []float64{12e1, -124e7, 12e-7, 98.78, -45.4, 45}
 	for i, st := range []string{
-		"+12e1", "-124e7", "12e-7", "98.78", "-45.4",
+		"+12e1", "-124e7", "12e-7", "98.78", "-45.4", "45.",
 	} {
 		tk, err := Tokenize([]byte(st))
 		if err != nil {

@@ -2,6 +2,7 @@ package parser
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -10,12 +11,14 @@ import (
 	"github.com/benoitkugler/pdf/model"
 )
 
-func parseInlineImage(pr *Parser, stack []Object, res model.ResourcesDict) (contentstream.OpBeginImage, error) {
+var errBIExpressionCorrupt = errors.New("pdfcpu: corrupt TJ expression")
+
+func (pr *Parser) parseInlineImage(res model.ResourcesColorSpace) (contentstream.OpBeginImage, error) {
 	var (
 		out          contentstream.OpBeginImage
 		decodeParams []map[model.Name]int
 	)
-	if err := assertLength(stack, 0); err != nil {
+	if err := assertLength(pr.opsStack, 0); err != nil {
 		return out, err
 	}
 	// process the image characteristics
@@ -217,7 +220,7 @@ func processOneDecodeParms(parms Object) map[model.Name]int {
 }
 
 // read the inline data, store its content in img, and skip EI command
-func (pr *Parser) parseImageData(img *contentstream.OpBeginImage, decodeParams []map[model.Name]int, res model.ResourcesDict) error {
+func (pr *Parser) parseImageData(img *contentstream.OpBeginImage, decodeParams []map[model.Name]int, res model.ResourcesColorSpace) error {
 	// first we check the length of decode params
 	// and update the filter list
 	if L := len(decodeParams); L > 0 && L != len(img.Image.Filter) {

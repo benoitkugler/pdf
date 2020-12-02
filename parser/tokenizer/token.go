@@ -215,6 +215,14 @@ func (pr Tokenizer) PeekPeekToken() (Token, error) {
 	return pr.aaToken, pr.aaError
 }
 
+func (pr Tokenizer) IsEOF() bool {
+	tk, err := pr.PeekToken()
+	if err != nil { // delay the error checking
+		return false
+	}
+	return tk.Kind == EOF
+}
+
 // NextToken reads a token and advances (consuming the token).
 // If EOF is reached, no error is returned, but an `EOF` token.
 func (pr *Tokenizer) NextToken() (Token, error) {
@@ -525,15 +533,18 @@ func (pr *Tokenizer) readNumber() (Token, bool) {
 		hasDigit = true
 	}
 
+	numberRequired := true
 	// optional .
 	if c == '.' {
 		sb.WriteByte(c)
-		c, _ = pr.read()
+		c, ok = pr.read()
+		// a float may terminate after . (like in 4.)
+		numberRequired = false
 	} else if c == '#' {
 		// PostScript radix number takes the form base#number
 		radix = sb
 		sb = &strings.Builder{}
-		c, _ = pr.read()
+		c, ok = pr.read()
 	} else if sb.Len() == 0 || !hasDigit {
 		// failure
 		pr.pos = markedPos
@@ -554,11 +565,8 @@ func (pr *Tokenizer) readNumber() (Token, bool) {
 		return Token{Value: sb.String(), Kind: Integer}, true
 	}
 
-	// required digit
-	if isDigit(c) {
-		sb.WriteByte(c)
-		c, ok = pr.read()
-	} else {
+	// check required digit
+	if numberRequired && !isDigit(c) {
 		// failure
 		pr.pos = markedPos
 		return Token{}, false

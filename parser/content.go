@@ -19,318 +19,19 @@ package parser
 import (
 	"fmt"
 
-	"github.com/benoitkugler/pdf/contentstream"
+	cs "github.com/benoitkugler/pdf/contentstream"
 	"github.com/benoitkugler/pdf/model"
-	"github.com/benoitkugler/pdf/parser/tokenizer"
-	"github.com/pkg/errors"
+	"github.com/pdfcpu/pdfcpu/pkg/log"
 )
 
-var (
-	errPageContentCorrupt  = errors.New("pdfcpu: corrupt page content")
-	errTJExpressionCorrupt = errors.New("pdfcpu: corrupt TJ expression")
-	errBIExpressionCorrupt = errors.New("pdfcpu: corrupt TJ expression")
-)
-
-// func whitespaceOrEOL(c rune) bool {
-// 	return unicode.IsSpace(c) || c == 0x0A || c == 0x0D
-// }
-
-// func skipDict(l *string) error {
-// 	s := *l
-// 	if !strings.HasPrefix(s, "<<") {
-// 		return errDictionaryCorrupt
-// 	}
-// 	s = s[2:]
-// 	j := 0
-// 	for {
-// 		i := strings.IndexAny(s, "<>")
-// 		if i < 0 {
-// 			return errDictionaryCorrupt
-// 		}
-// 		if s[i] == '<' {
-// 			j++
-// 			s = s[i+1:]
-// 			continue
-// 		}
-// 		if s[i] == '>' {
-// 			if j > 0 {
-// 				j--
-// 				s = s[i+1:]
-// 				continue
-// 			}
-// 			// >> ?
-// 			s = s[i:]
-// 			if !strings.HasPrefix(s, ">>") {
-// 				return errDictionaryCorrupt
-// 			}
-// 			*l = s[2:]
-// 			break
-// 		}
-// 	}
-// 	return nil
-// }
-
-// func skipStringLiteral(l *string) error {
-// 	s := *l
-// 	i := 0
-// 	for {
-// 		i = strings.IndexByte(s, byte(')'))
-// 		if i <= 0 || i > 0 && s[i-1] != '\\' || i > 1 && s[i-2] == '\\' {
-// 			break
-// 		}
-// 		s = s[i+1:]
-// 	}
-// 	if i < 0 {
-// 		return errStringLiteralCorrupt
-// 	}
-// 	s = s[i+1:]
-// 	*l = s
-// 	return nil
-// }
-
-// func skipHexStringLiteral(l *string) error {
-// 	s := *l
-// 	i := strings.Index(s, ">")
-// 	if i < 0 {
-// 		return errHexLiteralCorrupt
-// 	}
-// 	s = s[i+1:]
-// 	*l = s
-// 	return nil
-// }
-
-// func skipTJ(l *string) error {
-// 	// Each element shall be either a string or a number.
-// 	s := *l
-// 	for {
-// 		s = strings.TrimLeftFunc(s, whitespaceOrEOL)
-// 		if s[0] == ']' {
-// 			s = s[1:]
-// 			break
-// 		}
-// 		if s[0] == '(' {
-// 			if err := skipStringLiteral(&s); err != nil {
-// 				return err
-// 			}
-// 		}
-// 		if s[0] == '<' {
-// 			if err := skipHexStringLiteral(&s); err != nil {
-// 				return err
-// 			}
-// 		}
-// 		i, _ := positionToNextWhitespaceOrChar(s, "<(]")
-// 		if i < 0 {
-// 			return errTJExpressionCorrupt
-// 		}
-// 		s = s[i:]
-// 	}
-// 	*l = s
-// 	return nil
-// }
-
-// func skipBI(l *string, prn PageResourceNames) error {
-// 	s := *l
-// 	cs := false
-// 	for {
-// 		s = strings.TrimLeftFunc(s, whitespaceOrEOL)
-// 		if strings.HasPrefix(s, "EI") && whitespaceOrEOL(rune(s[2])) {
-// 			s = s[2:]
-// 			break
-// 		}
-// 		if s[0] == '/' {
-// 			s = s[1:]
-// 			i, _ := positionToNextWhitespaceOrChar(s, "/")
-// 			if i < 0 {
-// 				return errBIExpressionCorrupt
-// 			}
-// 			n := s[:i]
-// 			s = s[i:]
-// 			if cs {
-// 				if !MemberOf(n, []string{"RGB", "Gray", "CMYK", "DeviceRGB", "DeviceGray", "DeviceCMYK"}) {
-// 					prn["ColorSpace"][n] = true
-// 				}
-// 				cs = false
-// 				continue
-// 			}
-// 			if n == "CS" {
-// 				cs = true
-// 			}
-// 			continue
-// 		}
-// 		i, _ := positionToNextWhitespaceOrChar(s, "/")
-// 		if i < 0 {
-// 			return errBIExpressionCorrupt
-// 		}
-// 		cs = false
-// 		s = s[i:]
-// 	}
-// 	*l = s
-// 	return nil
-// }
-
-// func positionToNextContentToken(line *string, prn PageResourceNames) (bool, error) {
-// 	l := *line
-// 	for {
-// 		l = strings.TrimLeftFunc(l, whitespaceOrEOL)
-// 		if len(l) == 0 {
-// 			// whitespace or eol only
-// 			return true, nil
-// 		}
-// 		if l[0] == '[' {
-// 			// Skip TJ expression:
-// 			// [()...()] TJ
-// 			// [<>...<>] TJ
-// 			if err := skipTJ(&l); err != nil {
-// 				return true, err
-// 			}
-// 			continue
-// 		}
-// 		if l[0] == '(' {
-// 			// Skip text strings as in TJ, Tj, ', " expressions
-// 			if err := skipStringLiteral(&l); err != nil {
-// 				return true, err
-// 			}
-// 			continue
-// 		}
-// 		if l[0] == '<' {
-// 			// Skip hex strings as in TJ, Tj, ', " expressions
-// 			if err := skipHexStringLiteral(&l); err != nil {
-// 				return true, err
-// 			}
-// 			continue
-// 		}
-// 		if strings.HasPrefix(l, "BI") && (l[2] == '/' || whitespaceOrEOL(rune(l[2]))) {
-// 			// Handle inline image
-// 			l = l[2:]
-// 			if err := skipBI(&l, prn); err != nil {
-// 				return true, err
-// 			}
-// 			continue
-// 		}
-// 		*line = l
-// 		return false, nil
-// 	}
-// }
-
-// func nextContentToken(line *string, prn PageResourceNames) (string, error) {
-// 	// A token is either a name or some chunk terminated by white space or one of /, (, [
-// 	if noBuf(line) {
-// 		return "", nil
-// 	}
-// 	l := *line
-// 	t := ""
-
-// 	//log.Parse.Printf("nextContentToken: start buf= <%s>\n", *line)
-
-// 	// Skip Tj, TJ and inline images.
-// 	done, err := positionToNextContentToken(&l, prn)
-// 	if err != nil {
-// 		return t, err
-// 	}
-// 	if done {
-// 		return "", nil
-// 	}
-
-// 	if l[0] == '/' {
-// 		// Cut off at / [ ( < or white space.
-// 		l1 := l[1:]
-// 		i, _ := positionToNextWhitespaceOrChar(l1, "/[(<")
-// 		if i <= 0 {
-// 			*line = ""
-// 			return t, errPageContentCorrupt
-// 		}
-// 		t = l1[:i]
-// 		l1 = l1[i:]
-// 		l1 = strings.TrimLeftFunc(l1, whitespaceOrEOL)
-// 		if !strings.HasPrefix(l1, "<<") {
-// 			t = "/" + t
-// 			*line = l1
-// 			return t, nil
-// 		}
-// 		if err := skipDict(&l1); err != nil {
-// 			return t, err
-// 		}
-// 		*line = l1
-// 		return t, nil
-// 	}
-
-// 	i, _ := positionToNextWhitespaceOrChar(l, "/[(<")
-// 	if i <= 0 {
-// 		*line = ""
-// 		return l, nil
-// 	}
-// 	t = l[:i]
-// 	l = l[i:]
-// 	if strings.HasPrefix(l, "<<") {
-// 		if err := skipDict(&l); err != nil {
-// 			return t, err
-// 		}
-// 	}
-// 	*line = l
-// 	return t, nil
-// }
-
-// func resourceNameAtPos1(s, name string, prn PageResourceNames) bool {
-// 	switch s {
-// 	case "cs", "CS":
-// 		if !MemberOf(name, []string{"DeviceGray", "DeviceRGB", "DeviceCMYK", "Pattern"}) {
-// 			prn["ColorSpace"][name] = true
-// 			log.Parse.Printf("ColorSpace[%s]\n", name)
-// 		}
-// 		return true
-// 	case "gs":
-// 		prn["ExtGState"][name] = true
-// 		log.Parse.Printf("ExtGState[%s]\n", name)
-// 		return true
-// 	case "Do":
-// 		prn["XObject"][name] = true
-// 		log.Parse.Printf("XObject[%s]\n", name)
-// 		return true
-// 	case "sh":
-// 		prn["Shading"][name] = true
-// 		log.Parse.Printf("Shading[%s]\n", name)
-// 		return true
-// 	case "scn", "SCN":
-// 		prn["Pattern"][name] = true
-// 		log.Parse.Printf("Pattern[%s]\n", name)
-// 		return true
-// 	case "ri", "BMC", "MP":
-// 		return true
-// 	}
-// 	return false
-// }
-
-// func resourceNameAtPos2(s, name string, prn PageResourceNames) bool {
-// 	switch s {
-// 	case "Tf":
-// 		prn["Font"][name] = true
-// 		log.Parse.Printf("Font[%s]\n", name)
-// 		return true
-// 	case "BDC", "DP":
-// 		prn["Properties"][name] = true
-// 		log.Parse.Printf("Properties[%s]\n", name)
-// 		return true
-// 	}
-// 	return false
-// }
-
-// ParseContent parse a decrypted Content Stream
-func ParseContent(content []byte, res model.ResourcesDict) ([]contentstream.Operation, error) {
-	var out []contentstream.Operation
-
-	stack := make([]Object, 0, 6)
-
-	pr := NewParser(content)
-	pr.ContentStreamMode = true
-
+// ParseContentElement parse one operation and avances.
+// `ContentStreamMode` must have been set to true, and EOF
+// should be checked before calling with method.
+// See `ParseContent` for a convenient way of parsing a whole content stream.
+func (pr *Parser) ParseContentElement(res model.ResourcesColorSpace) (cs.Operation, error) {
 	for {
-		// we have to check for EOF
-		t, err := pr.tokens.PeekToken()
-		if err != nil {
-			return nil, err
-		}
-		if t.Kind == tokenizer.EOF {
-			break
+		if pr.tokens.IsEOF() {
+			return nil, fmt.Errorf("unexpected end of content stream")
 		}
 
 		obj, err := pr.ParseObject()
@@ -339,26 +40,125 @@ func ParseContent(content []byte, res model.ResourcesDict) ([]contentstream.Oper
 		}
 		switch obj := obj.(type) {
 		case Command:
-			var cmd contentstream.Operation
+			var cmd cs.Operation
 			// special case
 			if obj == "BI" {
-				cmd, err = parseInlineImage(pr, stack, res)
+				cmd, err = pr.parseInlineImage(res)
 				if err != nil {
 					return nil, err
 				}
 			} else {
 				// use the current stack to try and parse
 				// the command arguments
-				cmd, err = parseCommand(string(obj), stack)
+				cmd, err = parseCommand(string(obj), pr.opsStack)
 				if err != nil {
-					return nil, fmt.Errorf("invalid command %s with args %v", obj, stack)
+					return nil, fmt.Errorf("invalid command %s with args %v: %s", obj, pr.opsStack, err)
 				}
 			}
-			stack = stack[:0] // keep the capacity
-			out = append(out, cmd)
+			pr.opsStack = pr.opsStack[:0] // keep the capacity
+			return cmd, nil
 		default:
 			// store the object
-			stack = append(stack, obj)
+			pr.opsStack = append(pr.opsStack, obj)
+		}
+	}
+}
+
+// ParseContent parse a decrypted Content Stream.
+// A resource dictionary is needed to handle inline image data,
+// which can refer to a color space.
+func ParseContent(content []byte, res model.ResourcesColorSpace) ([]cs.Operation, error) {
+	var out []cs.Operation
+
+	pr := NewParser(content)
+	pr.ContentStreamMode = true
+	pr.opsStack = make([]Object, 0, 6)
+
+	for !pr.tokens.IsEOF() {
+		cmd, err := pr.ParseContentElement(res)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, cmd)
+	}
+	return out, nil
+}
+
+// ParseContentResources return the resources needed by content.
+// Note that only the names in the returned dicts are valid, all the values will be nil.
+func ParseContentResources(content []byte, res model.ResourcesColorSpace) (model.ResourcesDict, error) {
+	pr := NewParser(content)
+	pr.ContentStreamMode = true
+	pr.opsStack = make([]Object, 0, 6)
+
+	out := model.NewResourcesDict()
+
+	for !pr.tokens.IsEOF() {
+		cmd, err := pr.ParseContentElement(res)
+		if err != nil {
+			return out, err
+		}
+		switch cmd := cmd.(type) {
+		case cs.OpSetFillColorSpace:
+			switch cmd.ColorSpace {
+			case "DeviceGray", "DeviceRGB", "DeviceCMYK", "Pattern": // ignored
+			default:
+				out.ColorSpace[cmd.ColorSpace] = nil
+				log.Parse.Printf("ColorSpace[%s]\n", cmd.ColorSpace)
+			}
+		case cs.OpSetStrokeColorSpace:
+			switch cmd.ColorSpace {
+			case "DeviceGray", "DeviceRGB", "DeviceCMYK", "Pattern": // ignored
+			default:
+				out.ColorSpace[cmd.ColorSpace] = nil
+				log.Parse.Printf("ColorSpace[%s]\n", cmd.ColorSpace)
+			}
+		case cs.OpSetExtGState:
+			out.ExtGState[cmd.Dict] = nil
+			log.Parse.Printf("ExtGState[%s]\n", cmd.Dict)
+		case cs.OpXObject:
+			out.XObject[cmd.XObject] = nil
+			log.Parse.Printf("XObject[%s]\n", cmd.XObject)
+		case cs.OpShFill:
+			out.Shading[cmd.Shading] = nil
+			log.Parse.Printf("Shading[%s]\n", cmd.Shading)
+		case cs.OpSetFillColorN:
+			if cmd.Pattern != "" {
+				out.Pattern[cmd.Pattern] = nil
+			}
+			log.Parse.Printf("Pattern[%s]\n", cmd.Pattern)
+		case cs.OpSetStrokeColorN:
+			if cmd.Pattern != "" {
+				out.Pattern[cmd.Pattern] = nil
+			}
+			log.Parse.Printf("Pattern[%s]\n", cmd.Pattern)
+		case cs.OpSetFont:
+			out.Font[cmd.Font] = nil
+			log.Parse.Printf("Font[%s]\n", cmd.Font)
+		case cs.OpBeginMarkedContent:
+			if pn, ok := cmd.Properties.(cs.PropertyListName); ok {
+				out.Properties[model.Name(pn)] = model.PropertyList{}
+				log.Parse.Printf("Properties[%s]\n", pn)
+			}
+		case cs.OpMarkPoint:
+			if pn, ok := cmd.Properties.(cs.PropertyListName); ok {
+				out.Properties[model.Name(pn)] = model.PropertyList{}
+				log.Parse.Printf("Properties[%s]\n", pn)
+			}
+		case cs.OpBeginImage:
+			var csName model.ColorSpaceName
+			switch c := cmd.ColorSpace.(type) {
+			case cs.ImageColorSpaceIndexed:
+				csName = c.Base
+			case cs.ImageColorSpaceName:
+				csName = c.ColorSpaceName
+			}
+			switch csName {
+			case "", model.ColorSpaceRGB, model.ColorSpaceCMYK, model.ColorSpaceGray:
+				// ignored
+			default:
+				out.ColorSpace[model.Name(csName)] = nil
+			}
 		}
 	}
 	return out, nil
