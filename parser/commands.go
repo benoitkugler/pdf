@@ -4,11 +4,11 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/benoitkugler/pdf/contents"
+	"github.com/benoitkugler/pdf/contentstream"
 	"github.com/benoitkugler/pdf/model"
 )
 
-type Fl = contents.Fl
+type Fl = contentstream.Fl
 
 func assertLength(stack []Object, L int) error {
 	if L != len(stack) {
@@ -77,12 +77,12 @@ func assertNumbers(stack []Object, L int) ([]Fl, error) {
 // checkt the validity of the current tokens, with respect to
 // the command
 // stack does not contain the command
-func parseCommand(command string, stack []Object) (contents.Operation, error) {
+func parseCommand(command string, stack []Object) (contentstream.Operation, error) {
 	switch command {
 	// case "\"":  OpMoveSetShowText{},
 	case "'":
 		str, err := assertOneString(stack)
-		return contents.OpMoveShowText{Text: str}, err
+		return contentstream.OpMoveShowText{Text: str}, err
 	// case "B":   OpFillStroke{},
 	// case "B*":  OpEOFillStroke{},
 	case "BDC":
@@ -96,21 +96,21 @@ func parseCommand(command string, stack []Object) (contents.Operation, error) {
 		// property is either a name or a dict
 		switch p := stack[1].(type) {
 		case Dict, Name:
-			return contents.OpBeginMarkedContent{Tag: name, Properties: p}, nil
+			return contentstream.OpBeginMarkedContent{Tag: name, Properties: p}, nil
 		default:
 			return nil, fmt.Errorf("expected name or dictionary, got %v", p)
 		}
 	// case "BI":  OpBeginImage{},
 	case "BMC":
 		name, err := assertOneName(stack[0:1])
-		return contents.OpBeginMarkedContent{Tag: name}, err
+		return contentstream.OpBeginMarkedContent{Tag: name}, err
 	case "BT":
 		err := assertLength(stack, 0)
-		return contents.OpBeginText{}, err
+		return contentstream.OpBeginText{}, err
 	// case "BX":  OpBeginIgnoreUndef{},
 	case "CS":
 		name, err := assertOneName(stack)
-		return contents.OpSetStrokeColorSpace{ColorSpace: name}, err
+		return contentstream.OpSetStrokeColorSpace{ColorSpace: name}, err
 	case "DP":
 		if err := assertLength(stack, 2); err != nil {
 			return nil, err
@@ -122,20 +122,20 @@ func parseCommand(command string, stack []Object) (contents.Operation, error) {
 		// property is either a name or a dict
 		switch p := stack[1].(type) {
 		case Dict, Name:
-			return contents.OpMarkPoint{Tag: name, Properties: p}, nil
+			return contentstream.OpMarkPoint{Tag: name, Properties: p}, nil
 		default:
 			return nil, fmt.Errorf("expected name or dictionary, got %v", p)
 		}
 	case "Do":
 		name, err := assertOneName(stack)
-		return contents.OpXObject{XObject: name}, err
+		return contentstream.OpXObject{XObject: name}, err
 	// case "EI":  OpEndImage{},
 	case "EMC":
 		err := assertLength(stack, 0)
-		return contents.OpEndMarkedContent{}, err
+		return contentstream.OpEndMarkedContent{}, err
 	case "ET":
 		err := assertLength(stack, 0)
-		return contents.OpEndText{}, err
+		return contentstream.OpEndText{}, err
 		// case "EX":  OpEndIgnoreUndef{},
 		// case "F":   OpFill{},
 		// case "G":   OpSetStrokeGray{},
@@ -145,19 +145,19 @@ func parseCommand(command string, stack []Object) (contents.Operation, error) {
 		// case "M":   OpSetMiterLimit{},
 	case "MP":
 		name, err := assertOneName(stack)
-		return contents.OpMarkPoint{Tag: name}, err
+		return contentstream.OpMarkPoint{Tag: name}, err
 	case "Q":
 		err := assertLength(stack, 0)
-		return contents.OpRestore{}, err
+		return contentstream.OpRestore{}, err
 	case "RG":
 		nbs, err := assertNumbers(stack, 3)
 		if err != nil {
 			return nil, err
 		}
-		return contents.OpSetStrokeRGBColor{R: nbs[0], G: nbs[1], B: nbs[2]}, nil
+		return contentstream.OpSetStrokeRGBColor{R: nbs[0], G: nbs[1], B: nbs[2]}, nil
 	case "S":
 		err := assertLength(stack, 0)
-		return contents.OpStroke{}, err
+		return contentstream.OpStroke{}, err
 	// case "SC":  OpSetStrokeColor{},
 	// case "SCN": OpSetStrokeColorN{},
 	// case "T*":  OpTextNextLine{},
@@ -168,14 +168,14 @@ func parseCommand(command string, stack []Object) (contents.Operation, error) {
 		if err != nil {
 			return nil, err
 		}
-		return contents.OpSetTextLeading{L: nbs[0]}, nil
+		return contentstream.OpSetTextLeading{L: nbs[0]}, nil
 	// case "Tc":  OpSetCharSpacing{},
 	case "Td":
 		nbs, err := assertNumbers(stack, 2)
 		if err != nil {
 			return nil, err
 		}
-		return contents.OpTextMove{X: nbs[0], Y: nbs[1]}, nil
+		return contentstream.OpTextMove{X: nbs[0], Y: nbs[1]}, nil
 	case "Tf":
 		if err := assertLength(stack, 2); err != nil {
 			return nil, err
@@ -185,10 +185,10 @@ func parseCommand(command string, stack []Object) (contents.Operation, error) {
 			return nil, err
 		}
 		f, err := assertNumber(stack[1])
-		return contents.OpSetFont{Font: name, Size: f}, err
+		return contentstream.OpSetFont{Font: name, Size: f}, err
 	case "Tj":
 		str, err := assertOneString(stack)
-		return contents.OpShowText{Text: str}, err
+		return contentstream.OpShowText{Text: str}, err
 	case "Tm":
 		nbs, err := assertNumbers(stack, 6)
 		if err != nil {
@@ -196,14 +196,14 @@ func parseCommand(command string, stack []Object) (contents.Operation, error) {
 		}
 		var mat model.Matrix
 		copy(mat[:], nbs)
-		return contents.OpSetTextMatrix{Matrix: mat}, nil
+		return contentstream.OpSetTextMatrix{Matrix: mat}, nil
 	// case "Tr":  OpSetTextRender{},
 	// case "Ts":  OpSetTextRise{},
 	// case "Tw":  OpSetWordSpacing{},
 	// case "Tz":  OpSetHorizScaling{},
 	case "W":
 		err := assertLength(stack, 0)
-		return contents.OpClip{}, err
+		return contentstream.OpClip{}, err
 	// case "W*":  OpEOClip{},
 	// case "b":   OpCloseFillStroke{},
 	// case "b*":  OpCloseEOFillStroke{},
@@ -211,7 +211,7 @@ func parseCommand(command string, stack []Object) (contents.Operation, error) {
 	// case "cm":  OpConcat{},
 	case "cs":
 		name, err := assertOneName(stack)
-		return contents.OpSetFillColorSpace{ColorSpace: name}, err
+		return contentstream.OpSetFillColorSpace{ColorSpace: name}, err
 	case "d":
 		if err := assertLength(stack, 2); err != nil {
 			return nil, err
@@ -225,22 +225,22 @@ func parseCommand(command string, stack []Object) (contents.Operation, error) {
 			return nil, err
 		}
 		phase, err := assertNumber(stack[1])
-		return contents.OpSetDash{Dash: model.DashPattern{Array: dash, Phase: phase}}, err
+		return contentstream.OpSetDash{Dash: model.DashPattern{Array: dash, Phase: phase}}, err
 	// case "d0":  OpSetCharWidth{},
 	// case "d1":  OpSetCacheDevice{},
 	case "f":
 		err := assertLength(stack, 0)
-		return contents.OpFill{}, err
+		return contentstream.OpFill{}, err
 	// case "f*":  OpEOFill{},
 	case "g":
 		nbs, err := assertNumbers(stack, 1)
 		if err != nil {
 			return nil, err
 		}
-		return contents.OpSetFillGray{G: nbs[0]}, err
+		return contentstream.OpSetFillGray{G: nbs[0]}, err
 	case "gs":
 		name, err := assertOneName(stack)
-		return contents.OpSetExtGState{Dict: name}, err
+		return contentstream.OpSetExtGState{Dict: name}, err
 	// case "h":   OpClosePath{},
 	// case "i":   OpSetFlat{},
 	// case "j":   OpSetLineJoin{},
@@ -250,38 +250,38 @@ func parseCommand(command string, stack []Object) (contents.Operation, error) {
 		if err != nil {
 			return nil, err
 		}
-		return contents.OpLineTo{X: nbs[0], Y: nbs[1]}, err
+		return contentstream.OpLineTo{X: nbs[0], Y: nbs[1]}, err
 	case "m":
 		nbs, err := assertNumbers(stack, 2)
 		if err != nil {
 			return nil, err
 		}
-		return contents.OpMoveTo{X: nbs[0], Y: nbs[1]}, err
+		return contentstream.OpMoveTo{X: nbs[0], Y: nbs[1]}, err
 	case "n":
 		err := assertLength(stack, 0)
-		return contents.OpEndPath{}, err
+		return contentstream.OpEndPath{}, err
 	case "q":
 		err := assertLength(stack, 0)
-		return contents.OpSave{}, err
+		return contentstream.OpSave{}, err
 	case "re":
 		nbs, err := assertNumbers(stack, 4)
 		if err != nil {
 			return nil, err
 		}
-		return contents.OpRectangle{X: nbs[0], Y: nbs[1], W: nbs[2], H: nbs[3]}, err
+		return contentstream.OpRectangle{X: nbs[0], Y: nbs[1], W: nbs[2], H: nbs[3]}, err
 	case "rg":
 		nbs, err := assertNumbers(stack, 3)
 		if err != nil {
 			return nil, err
 		}
-		return contents.OpSetFillRGBColor{R: nbs[0], G: nbs[1], B: nbs[2]}, nil
+		return contentstream.OpSetFillRGBColor{R: nbs[0], G: nbs[1], B: nbs[2]}, nil
 	case "ri":
 		name, err := assertOneName(stack)
-		return contents.OpSetRenderingIntent{Intent: name}, err
+		return contentstream.OpSetRenderingIntent{Intent: name}, err
 	// case "s":   OpCloseStroke{},
 	case "sc":
 		nbs, err := assertNumbers(stack, -1)
-		return contents.OpSetFillColor{Color: nbs}, err
+		return contentstream.OpSetFillColor{Color: nbs}, err
 	case "scn":
 		// optional last name argument
 		if len(stack) == 0 {
@@ -295,17 +295,17 @@ func parseCommand(command string, stack []Object) (contents.Operation, error) {
 		if err != nil {
 			return nil, err
 		}
-		return contents.OpSetFillColorN{Color: nbs, Pattern: model.Name(name)}, nil
+		return contentstream.OpSetFillColorN{Color: nbs, Pattern: model.Name(name)}, nil
 	case "sh":
 		name, err := assertOneName(stack)
-		return contents.OpShFill{Shading: name}, err
+		return contentstream.OpShFill{Shading: name}, err
 	// case "v":   OpCurveTo1{},
 	case "w":
 		nbs, err := assertNumbers(stack, 1)
 		if err != nil {
 			return nil, err
 		}
-		return contents.OpSetLineWidth{W: nbs[0]}, nil
+		return contentstream.OpSetLineWidth{W: nbs[0]}, nil
 		// case "y":   OpCurveTo{},
 	default:
 		return nil, fmt.Errorf("invalid command name %s", command)

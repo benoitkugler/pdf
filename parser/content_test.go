@@ -6,93 +6,93 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/benoitkugler/pdf/contents"
+	"github.com/benoitkugler/pdf/contentstream"
 	"github.com/benoitkugler/pdf/model"
 )
 
-var ops = [...]contents.Operation{
-	//   contents.OpMoveSetShowText{},
-	contents.OpMoveShowText{},
-	//    contents.OpFillStroke{},
-	// B  contents.OpEOFillStroke{},
-	contents.OpBeginMarkedContent{},
-	//   contents.OpBeginImage{},
-	contents.OpBeginMarkedContent{},
-	contents.OpBeginText{},
-	//   contents.OpBeginIgnoreUndef{},
-	contents.OpSetStrokeColorSpace{},
-	contents.OpMarkPoint{},
-	contents.OpXObject{},
-	//   contents.OpEndImage{},
-	contents.OpEndMarkedContent{},
-	contents.OpEndText{},
-	//   contents.OpEndIgnoreUndef{},
-	//    contents.OpFill{},
-	//    contents.OpSetStrokeGray{},
-	//   contents.OpImageData{},
-	//    contents.OpSetLineCap{},
-	//    contents.OpSetStrokeCMYKColor{},
-	//    contents.OpSetMiterLimit{},
-	contents.OpMarkPoint{},
-	contents.OpRestore{},
-	contents.OpSetStrokeRGBColor{},
-	contents.OpStroke{},
-	//   contents.OpSetStrokeColor{},
-	//  contents.OpSetStrokeColorN{},
-	// T  contents.OpTextNextLine{},
-	//   contents.OpTextMoveSet{},
-	//   contents.OpShowSpaceText{},
-	contents.OpSetTextLeading{},
-	//   contents.OpSetCharSpacing{},
-	contents.OpTextMove{},
-	contents.OpSetFont{},
-	contents.OpShowText{},
-	contents.OpSetTextMatrix{},
-	//   contents.OpSetTextRender{},
-	//   contents.OpSetTextRise{},
-	//   contents.OpSetWordSpacing{},
-	//   contents.OpSetHorizScaling{},
-	contents.OpClip{},
-	// W  contents.OpEOClip{},
-	//    contents.OpCloseFillStroke{},
-	// b  contents.OpCloseEOFillStroke{},
-	//    contents.OpCurveTo{},
-	//   contents.OpConcat{},
-	contents.OpSetFillColorSpace{},
-	contents.OpSetDash{},
-	//   contents.OpSetCharWidth{},
-	//   contents.OpSetCacheDevice{},
-	contents.OpFill{},
-	// f  contents.OpEOFill{},
-	contents.OpSetFillGray{},
-	contents.OpSetExtGState{},
-	//    contents.OpClosePath{},
-	//    contents.OpSetFlat{},
-	//    contents.OpSetLineJoin{},
-	//    contents.OpSetFillCMYKColor{},
-	contents.OpLineTo{},
-	contents.OpMoveTo{},
-	contents.OpEndPath{},
-	contents.OpSave{},
-	contents.OpRectangle{},
-	contents.OpSetFillRGBColor{},
-	contents.OpSetRenderingIntent{},
-	//    contents.OpCloseStroke{},
-	contents.OpSetFillColor{},
-	contents.OpSetFillColorN{Pattern: "sese"},
-	contents.OpShFill{},
-	//    contents.OpCurveTo1{},
-	contents.OpSetLineWidth{},
-	//    contents.OpCurveTo{},
+var ops = [...]contentstream.Operation{
+	//   contentstream.OpMoveSetShowText{},
+	contentstream.OpMoveShowText{},
+	//    contentstream.OpFillStroke{},
+	// B  contentstream.OpEOFillStroke{},
+	contentstream.OpBeginMarkedContent{},
+	//   contentstream.OpBeginImage{},
+	contentstream.OpBeginMarkedContent{},
+	contentstream.OpBeginText{},
+	//   contentstream.OpBeginIgnoreUndef{},
+	contentstream.OpSetStrokeColorSpace{},
+	contentstream.OpMarkPoint{},
+	contentstream.OpXObject{},
+	//   contentstream.OpEndImage{},
+	contentstream.OpEndMarkedContent{},
+	contentstream.OpEndText{},
+	//   contentstream.OpEndIgnoreUndef{},
+	//    contentstream.OpFill{},
+	//    contentstream.OpSetStrokeGray{},
+	//   contentstream.OpImageData{},
+	//    contentstream.OpSetLineCap{},
+	//    contentstream.OpSetStrokeCMYKColor{},
+	//    contentstream.OpSetMiterLimit{},
+	contentstream.OpMarkPoint{},
+	contentstream.OpRestore{},
+	contentstream.OpSetStrokeRGBColor{},
+	contentstream.OpStroke{},
+	//   contentstream.OpSetStrokeColor{},
+	//  contentstream.OpSetStrokeColorN{},
+	// T  contentstream.OpTextNextLine{},
+	//   contentstream.OpTextMoveSet{},
+	//   contentstream.OpShowSpaceText{},
+	contentstream.OpSetTextLeading{},
+	//   contentstream.OpSetCharSpacing{},
+	contentstream.OpTextMove{},
+	contentstream.OpSetFont{},
+	contentstream.OpShowText{},
+	contentstream.OpSetTextMatrix{},
+	//   contentstream.OpSetTextRender{},
+	//   contentstream.OpSetTextRise{},
+	//   contentstream.OpSetWordSpacing{},
+	//   contentstream.OpSetHorizScaling{},
+	contentstream.OpClip{},
+	// W  contentstream.OpEOClip{},
+	//    contentstream.OpCloseFillStroke{},
+	// b  contentstream.OpCloseEOFillStroke{},
+	//    contentstream.OpCurveTo{},
+	//   contentstream.OpConcat{},
+	contentstream.OpSetFillColorSpace{},
+	contentstream.OpSetDash{},
+	//   contentstream.OpSetCharWidth{},
+	//   contentstream.OpSetCacheDevice{},
+	contentstream.OpFill{},
+	// f  contentstream.OpEOFill{},
+	contentstream.OpSetFillGray{},
+	contentstream.OpSetExtGState{},
+	//    contentstream.OpClosePath{},
+	//    contentstream.OpSetFlat{},
+	//    contentstream.OpSetLineJoin{},
+	//    contentstream.OpSetFillCMYKColor{},
+	contentstream.OpLineTo{},
+	contentstream.OpMoveTo{},
+	contentstream.OpEndPath{},
+	contentstream.OpSave{},
+	contentstream.OpRectangle{},
+	contentstream.OpSetFillRGBColor{},
+	contentstream.OpSetRenderingIntent{},
+	//    contentstream.OpCloseStroke{},
+	contentstream.OpSetFillColor{},
+	contentstream.OpSetFillColorN{Pattern: "sese"},
+	contentstream.OpShFill{},
+	//    contentstream.OpCurveTo1{},
+	contentstream.OpSetLineWidth{},
+	//    contentstream.OpCurveTo{},
 }
 
-func randOp() contents.Operation {
+func randOp() contentstream.Operation {
 	j := rand.Intn(len(ops))
 	return ops[j]
 }
 
-func randOps(nops int) []contents.Operation {
-	l := make([]contents.Operation, nops)
+func randOps(nops int) []contentstream.Operation {
+	l := make([]contentstream.Operation, nops)
 	for i := range l {
 		l[i] = randOp()
 	}
@@ -101,7 +101,7 @@ func randOps(nops int) []contents.Operation {
 
 func TestParseContent(t *testing.T) {
 	exp := randOps(5000)
-	ct := contents.WriteOperations(exp...)
+	ct := contentstream.WriteOperations(exp...)
 	ops, err := ParseContent(ct, model.ResourcesDict{})
 	if err != nil {
 		t.Fatal(err)
@@ -167,7 +167,7 @@ func TestInlineData(t *testing.T) {
 		if len(ops) != 1 {
 			t.Errorf("expected one operation, got %v", ops)
 		}
-		img, ok := ops[0].(contents.OpBeginImage)
+		img, ok := ops[0].(contentstream.OpBeginImage)
 		if !ok {
 			t.Errorf("expected Image, got %v", ops[0])
 		}

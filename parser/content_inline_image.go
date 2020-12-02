@@ -6,13 +6,13 @@ import (
 	"io"
 	"io/ioutil"
 
-	"github.com/benoitkugler/pdf/contents"
+	"github.com/benoitkugler/pdf/contentstream"
 	"github.com/benoitkugler/pdf/model"
 )
 
-func parseInlineImage(pr *Parser, stack []Object, res model.ResourcesDict) (contents.OpBeginImage, error) {
+func parseInlineImage(pr *Parser, stack []Object, res model.ResourcesDict) (contentstream.OpBeginImage, error) {
 	var (
-		out          contents.OpBeginImage
+		out          contentstream.OpBeginImage
 		decodeParams []map[model.Name]int
 	)
 	if err := assertLength(stack, 0); err != nil {
@@ -52,7 +52,7 @@ func parseInlineImage(pr *Parser, stack []Object, res model.ResourcesDict) (cont
 
 // since DecodeParams and Filter are a same object in the model
 // we have to return the DecodeParams separately, to be ignored unless name == "DecodeParams"
-func parseOneImgField(name Name, value Object, img *contents.OpBeginImage) ([]map[model.Name]int, error) {
+func parseOneImgField(name Name, value Object, img *contentstream.OpBeginImage) ([]map[model.Name]int, error) {
 	var err error
 	switch name {
 	case "BitsPerComponent", "BPC":
@@ -100,7 +100,7 @@ func parseOneImgField(name Name, value Object, img *contents.OpBeginImage) ([]ma
 	case "ColorSpace", "CS":
 		switch value := value.(type) {
 		case Name:
-			img.ColorSpace = contents.ImageColorSpaceName{ColorSpaceName: model.ColorSpaceName(value)}
+			img.ColorSpace = contentstream.ImageColorSpaceName{ColorSpaceName: model.ColorSpaceName(value)}
 		case Array:
 			img.ColorSpace, err = processIndexedCS(value)
 		}
@@ -132,8 +132,8 @@ func processPoints(arr Array) ([][2]Fl, error) {
 	return out, nil
 }
 
-func processIndexedCS(arr Array) (contents.ImageColorSpaceIndexed, error) {
-	var out contents.ImageColorSpaceIndexed
+func processIndexedCS(arr Array) (contentstream.ImageColorSpaceIndexed, error) {
+	var out contentstream.ImageColorSpaceIndexed
 	if len(arr) != 4 {
 		return out, errBIExpressionCorrupt
 	}
@@ -217,7 +217,7 @@ func processOneDecodeParms(parms Object) map[model.Name]int {
 }
 
 // read the inline data, store its content in img, and skip EI command
-func (pr *Parser) parseImageData(img *contents.OpBeginImage, decodeParams []map[model.Name]int, res model.ResourcesDict) error {
+func (pr *Parser) parseImageData(img *contentstream.OpBeginImage, decodeParams []map[model.Name]int, res model.ResourcesDict) error {
 	// first we check the length of decode params
 	// and update the filter list
 	if L := len(decodeParams); L > 0 && L != len(img.Image.Filter) {

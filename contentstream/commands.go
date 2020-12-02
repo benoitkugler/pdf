@@ -4,7 +4,7 @@
 // (see WriteOperations).
 // Reciprocally, they can be obtained from a content
 // by parsing it, using for instance the 'parser' package.
-package contents
+package contentstream
 
 import (
 	"bytes"

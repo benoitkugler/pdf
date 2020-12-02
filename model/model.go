@@ -34,7 +34,7 @@ type Document struct {
 
 	// // UserPassword, OwnerPassword are not directly part
 	// // of the PDF document, but are used to protect (encrypt)
-	// // the contents.
+	// // the contentstream.
 	// UserPassword, OwnerPassword string
 }
 

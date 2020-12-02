@@ -19,7 +19,7 @@ package parser
 import (
 	"fmt"
 
-	"github.com/benoitkugler/pdf/contents"
+	"github.com/benoitkugler/pdf/contentstream"
 	"github.com/benoitkugler/pdf/model"
 	"github.com/benoitkugler/pdf/parser/tokenizer"
 	"github.com/pkg/errors"
@@ -315,8 +315,8 @@ var (
 // }
 
 // ParseContent parse a decrypted Content Stream
-func ParseContent(content []byte, res model.ResourcesDict) ([]contents.Operation, error) {
-	var out []contents.Operation
+func ParseContent(content []byte, res model.ResourcesDict) ([]contentstream.Operation, error) {
+	var out []contentstream.Operation
 
 	stack := make([]Object, 0, 6)
 
@@ -339,7 +339,7 @@ func ParseContent(content []byte, res model.ResourcesDict) ([]contents.Operation
 		}
 		switch obj := obj.(type) {
 		case Command:
-			var cmd contents.Operation
+			var cmd contentstream.Operation
 			// special case
 			if obj == "BI" {
 				cmd, err = parseInlineImage(pr, stack, res)

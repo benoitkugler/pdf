@@ -366,7 +366,7 @@ func (f FormFieldChoice) clone(cloneCache) FormField {
 
 // FormFieldSignature represent digital signatures and
 // optional data for authenticating the name of the signer and
-// the document’s contents.
+// the document’s contentstream.
 type FormFieldSignature struct {
 	V    *SignatureDict // optional
 	Lock *LockDict      // optional
