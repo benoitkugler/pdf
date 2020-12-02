@@ -209,7 +209,7 @@ func (ft FontType1) FontName() Name {
 
 // LastChar return the last caracter encoded by the font (see Widths)
 func (t FontType1) LastChar() byte {
-	return byte(len(t.Widths)) + t.FirstChar - 1
+	return byte(len(t.Widths) + int(t.FirstChar) - 1)
 }
 
 // font must be Type1 or TrueType,
