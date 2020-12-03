@@ -43,10 +43,10 @@ func (w *output) bytes(b []byte) {
 	w.written += n
 }
 
-// createObject return a new reference
+// CreateObject return a new reference
 // and grow the `objOffsets` accordingly.
 // This is needed to write objects that must reference their "parent".
-func (w *output) createObject() Reference {
+func (w *output) CreateObject() Reference {
 	ref := Reference(len(w.objOffsets)) // last object is at len(objOffsets) - 1
 	w.objOffsets = append(w.objOffsets, 0)
 	return ref
@@ -81,7 +81,7 @@ func (w *output) writeFooter(trailer Trailer, root, info, encrypt Reference) {
 	if encrypt > 0 {
 		b.WriteString(fmt.Sprintf("/Encrypt %s\n", encrypt))
 		b.WriteString(fmt.Sprintf("/ID [%s %s]\n",
-			EspaceByteString(trailer.ID[0]), EspaceByteString(trailer.ID[1])))
+			EspaceByteString([]byte(trailer.ID[0])), EspaceByteString([]byte(trailer.ID[1]))))
 	}
 	b.WriteString(">>\n")
 	b.WriteString("startxref\n")
@@ -131,23 +131,48 @@ var (
 	utf16Enc = unicode.UTF16(unicode.BigEndian, unicode.UseBOM)
 )
 
-// EncodeString transforms an UTF-8 string `s` to satisfy the PDF
-// format required by `mode`.
-// It will also encrypt `s`, if needed, using
-// `context`, which is the object number of the containing object.
-type PDFStringEncoder interface {
+// PDFWritter abstracts away the complexity of writting PDF files.
+// It used internally by the package, but is also exposed
+// to ease the use of custom types implementing `Object`.
+// It will handle strings formatting and encryption, as well
+// as creating indirect objects.
+type PDFWritter interface {
+	// EncodeString transforms an UTF-8 string `s` to satisfy the PDF
+	// format required by `mode`.
+	// It will also encrypt `s`, if needed, using
+	// `context`, which is the object number of the containing object.
 	// EncodeString may panic if `mode` is not one of `ByteString`, `HexString`, `TextString`
 	EncodeString(s string, mode PDFStringEncoding, context Reference) string
+
+	// Allocate a new object (used then by `WriteObject`)
+	CreateObject() Reference
+
+	// WriteObject add the objects content to the output, under the
+	// `ref` object number.
+	// This method should be called at most once for each reference.
+	// For stream object, `content` will contain the dictionary,
+	// and `stream` the inner stream bytes. For other objects, `stream` will be nil.
+	// Stream content will be encrypted if needed.
+	WriteObject(content string, stream []byte, ref Reference)
 }
 
-// EspaceByteString return a pdf compatible string, by
+// EspaceByteString return a pdf compatible litteral string, by
 // escaping special characters and adding parenthesis.
 //
 // PDFStringEncoder.EncodeString provides a more general
-// approach, and should be used when possible.
-func EspaceByteString(s string) string {
-	s = replacer.Replace(s)
+// approach, and should be used when implementing custom types.
+func EspaceByteString(sb []byte) string {
+	s := replacer.Replace(string(sb))
 	return "(" + s + ")"
+}
+
+// EspaceHexString return a pdf compatible hex string, by
+// hex encoding it and adding brackets.
+//
+// PDFStringEncoder.EncodeString provides a more general
+// approach, and should be used when implementing custom types.
+func EspaceHexString(sb []byte) string {
+	return "<" + hex.EncodeToString(sb) + ">"
 }
 
 func (p pdfWriter) EncodeString(s string, mode PDFStringEncoding, context Reference) string {
@@ -181,20 +206,20 @@ func (p pdfWriter) EncodeString(s string, mode PDFStringEncoding, context Refere
 
 	switch mode {
 	case ByteString, TextString:
-		return EspaceByteString(string(sb)) // string litteral
+		return EspaceByteString(sb) // string litteral
 	case HexString:
-		return "<" + hex.EncodeToString(sb) + ">" // hex string
+		return EspaceHexString(sb) // hex string
 	default:
 		panic("invalid encoding mode")
 	}
 }
 
-// writeObject write the content of the object `ref`, and update the offsets.
+// WriteObject write the content of the object `ref`, and update the offsets.
 // This method will be called at most once for each reference.
 // For stream object, `content` will contain the dictionary,
 // and `stream` the inner stream bytes. For other objects, `stream` will be nil.
 // Stream content will be encrypted if needed.
-func (w pdfWriter) writeObject(content string, stream []byte, ref Reference) {
+func (w pdfWriter) WriteObject(content string, stream []byte, ref Reference) {
 	w.objOffsets[ref] = w.written
 	w.bytes([]byte(fmt.Sprintf("%d 0 obj\n", ref)))
 	w.bytes([]byte(content))
@@ -216,8 +241,8 @@ func (w pdfWriter) writeObject(content string, stream []byte, ref Reference) {
 // addObject is a convenience shortcut to write `content` into a new object
 // and return the created reference
 func (p pdfWriter) addObject(content string, stream []byte) Reference {
-	ref := p.createObject()
-	p.writeObject(content, stream, ref)
+	ref := p.CreateObject()
+	p.WriteObject(content, stream, ref)
 	return ref
 }
 
@@ -258,9 +283,9 @@ func (pdf pdfWriter) addItem(item Referenceable) Reference {
 	if ref, has := pdf.cache[item]; has {
 		return ref
 	}
-	ref := pdf.createObject()
+	ref := pdf.CreateObject()
 	pdf.cache[item] = ref
 	s, b := item.pdfContent(pdf, ref)
-	pdf.writeObject(s, b, ref)
+	pdf.WriteObject(s, b, ref)
 	return ref
 }

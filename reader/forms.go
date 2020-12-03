@@ -233,7 +233,7 @@ func (r resolver) processFormFieldType(form pdfcpu.Dict) model.FormField {
 	case "Btn":
 		var out model.FormFieldButton
 		v, _ := r.resolveName(form["V"])
-		out.V = model.Name(v)
+		out.V = model.ObjName(v)
 		opt, _ := r.resolveArray(form["Opt"])
 		out.Opt = make([]string, len(opt))
 		for i, o := range opt {
@@ -281,7 +281,7 @@ func (r resolver) processFormFieldType(form pdfcpu.Dict) model.FormField {
 		var out model.FormFieldText
 		out.V = r.textOrStream(form["V"])
 		if ml, ok := r.resolveInt(form["MaxLen"]); ok {
-			out.MaxLen = model.Int(ml)
+			out.MaxLen = model.ObjInt(ml)
 		}
 		return out
 	default: // nil or invalid

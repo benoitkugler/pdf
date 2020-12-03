@@ -17,7 +17,7 @@ func (Text) isFDFValue()                 {}
 func (Choices) isFDFValue()              {}
 
 // ButtonAppearanceName is the value of a field with type `Btn`
-type ButtonAppearanceName model.Name
+type ButtonAppearanceName model.ObjName
 
 // Text is the value of a field with type `Tx`
 type Text string

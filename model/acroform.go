@@ -106,7 +106,7 @@ type FormFieldDict struct {
 // FormFieldInherited associate to a field
 // the values resolved from its ancestors
 type FormFieldInherited struct {
-	*FormFieldDict
+	Field  *FormFieldDict
 	Merged FormFieldInheritable
 }
 
@@ -116,7 +116,7 @@ func (f *FormFieldDict) resolve(parentName string, parentFields FormFieldInherit
 		fullName = parentName + "." + f.T
 	}
 	merged := f.FormFieldInheritable.merge(parentFields)
-	currentMap[fullName] = FormFieldInherited{FormFieldDict: f, Merged: merged}
+	currentMap[fullName] = FormFieldInherited{Field: f, Merged: merged}
 	// recursion
 	for _, kid := range f.Kids {
 		kid.resolve(fullName, merged, currentMap)
@@ -140,7 +140,7 @@ func (f *FormFieldDict) FullFieldName() string {
 func (f *FormFieldDict) pdfString(pdf pdfWriter, catalog Reference) string {
 	// before recursing, first register it's own ref
 	// so that it is accessible by the kids
-	ownRef := pdf.createObject()
+	ownRef := pdf.CreateObject()
 	pdf.fields[f] = ownRef // register to the cache
 
 	b := newBuffer()
@@ -158,7 +158,7 @@ func (f *FormFieldDict) pdfString(pdf pdfWriter, catalog Reference) string {
 		for i, kid := range f.Kids {
 			kidS := kid.pdfString(pdf, catalog)
 			kidRef := pdf.fields[kid] // now valid
-			pdf.writeObject(kidS, nil, kidRef)
+			pdf.WriteObject(kidS, nil, kidRef)
 			refs[i] = kidRef
 		}
 		b.fmt("/Kids %s", writeRefArray(refs))
@@ -270,7 +270,7 @@ type FormFieldText struct {
 func (f FormFieldText) formFieldAttrs(pdf pdfWriter, _, fieldRef Reference) string {
 	out := fmt.Sprintf("/FT/Tx/V %s", pdf.EncodeString(f.V, TextString, fieldRef))
 	if f.MaxLen != nil {
-		out += fmt.Sprintf("/MaxLen %d", f.MaxLen.(Int))
+		out += fmt.Sprintf("/MaxLen %d", f.MaxLen.(ObjInt))
 	}
 	return out
 }
@@ -398,22 +398,26 @@ func (f FormFieldSignature) clone(cache cloneCache) FormField {
 }
 
 type SignatureDict struct {
-	Filter        Name                     // optional
-	SubFilter     Name                     // optional
-	Contents      string                   // byte string, written as hexadecimal in PDF
-	Cert          []string                 // optional, byte strings. One-element arrays may be written in PDF a a single byte string
-	ByteRange     [][2]int                 // optional. Written in PDF as an array of pairs
-	Reference     []SignatureRefDict       // optional
-	Changes       [3]int                   // optional
-	Name          string                   // optional, text string
-	M             time.Time                // optional
-	Location      string                   // optional, text string
-	Reason        string                   // optional, text string
-	ContactInfo   string                   // optional, text string
-	V             int                      // optional
-	Prop_Build    SignatureBuildDictionary // optional
-	Prop_AuthTime time.Time                // optional
-	Prop_AuthType Name                     // optional
+	Filter      Name               // optional
+	SubFilter   Name               // optional
+	Contents    string             // byte string, written as hexadecimal in PDF
+	Cert        []string           // optional, byte strings. One-element arrays may be written in PDF a a single byte string
+	ByteRange   [][2]int           // optional. Written in PDF as an array of pairs
+	Reference   []SignatureRefDict // optional
+	Changes     [3]int             // optional
+	Name        string             // optional, text string
+	M           time.Time          // optional
+	Location    string             // optional, text string
+	Reason      string             // optional, text string
+	ContactInfo string             // optional, text string
+	V           int                // optional
+
+	// Prop_Build is implementation-specific by design.
+	// It can be used to store audit information that is specific to the software application
+	// that was used to create the signature.
+	Prop_Build    Object    // optional
+	Prop_AuthTime time.Time // optional
+	Prop_AuthType Name      // optional
 }
 
 func (s SignatureDict) pdfString(pdf pdfWriter, catalog, fieldRef Reference) string {
@@ -465,7 +469,7 @@ func (s SignatureDict) pdfString(pdf pdfWriter, catalog, fieldRef Reference) str
 		b.fmt("/V %d", s.V)
 	}
 	if s.Prop_Build != nil {
-		b.fmt("/Prop_Build %s", s.Prop_Build.SignatureBuildPDFString(pdf, fieldRef))
+		b.fmt("/Prop_Build %s", s.Prop_Build.PDFString(pdf, fieldRef))
 	}
 	if !s.Prop_AuthTime.IsZero() {
 		b.fmt("/Prop_AuthTime %s", pdf.dateString(s.Prop_AuthTime, fieldRef))
@@ -495,23 +499,6 @@ func (s *SignatureDict) Clone() *SignatureDict {
 		out.Prop_Build = s.Prop_Build.Clone()
 	}
 	return &out
-}
-
-// SignatureBuildDictionary is implementation-specific by design.
-// It can be used to store audit information that is specific to the software application
-// that was used to create the signature.
-// The build properties dictionary and all of its contents are required to be direct objects.
-type SignatureBuildDictionary interface {
-	// SignatureBuildPDFString must return a PDF string representation
-	// of the dictionary.
-	// `encoder` shall be use to properly encode text strings,
-	// and crypt them if needed.
-	// `ref` is the object number of the object containing the dictionary,
-	// and should be forwarded to the `encoder.EncodeString` method.
-	SignatureBuildPDFString(encoder PDFStringEncoder, ref Reference) string
-
-	// Clone must return a deep copy of itself
-	Clone() SignatureBuildDictionary
 }
 
 // SignatureRefDict is a signature reference dictionary
@@ -700,7 +687,7 @@ func (s SeedDict) pdfString(pdf pdfWriter, ref Reference) string {
 		b.fmt("/Reasons %s", pdf.stringsArray(s.Reasons, TextString, ref))
 	}
 	if s.MDP != nil {
-		b.fmt("/MDP <</P %d>>", s.MDP.(Int))
+		b.fmt("/MDP <</P %d>>", s.MDP.(ObjInt))
 	}
 	if s.TimeStamp != nil {
 		b.fmt("/TimeStamp %s", s.TimeStamp.pdfString(pdf, ref))
@@ -884,7 +871,7 @@ func (a AcroForm) pdfString(pdf pdfWriter, catalog, acroRef Reference) string {
 	for i, f := range a.Fields {
 		s := f.pdfString(pdf, catalog)
 		fieldRef := pdf.fields[f] // add to the cache
-		pdf.writeObject(s, nil, fieldRef)
+		pdf.WriteObject(s, nil, fieldRef)
 		refs[i] = fieldRef
 	}
 	b.fmt("<</Fields %s", writeRefArray(refs))

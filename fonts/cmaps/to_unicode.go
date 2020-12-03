@@ -49,7 +49,7 @@ func (tr ToUnicodeTranslation) MergeTo(simple map[model.CID]rune) {
 
 // UnicodeCMap maps from CID to Unicode points.
 type UnicodeCMap struct {
-	UseCMap model.Name // base this cmap on `UseCMap` if `UseCMap` is not empty.
+	UseCMap model.ObjName // base this cmap on `UseCMap` if `UseCMap` is not empty.
 
 	Mappings []ToUnicode // compact representation
 }

@@ -60,10 +60,10 @@ func (g *GraphicState) pdfContent(pdf pdfWriter, _ Reference) (string, []byte) {
 		b.fmt("/LW %.3f", g.LW)
 	}
 	if g.LC != nil {
-		b.fmt("/LC %d", g.LC.(Int))
+		b.fmt("/LC %d", g.LC.(ObjInt))
 	}
 	if g.LJ != nil {
-		b.fmt("/LJ %d", g.LJ.(Int))
+		b.fmt("/LJ %d", g.LJ.(ObjInt))
 	}
 	if g.ML != 0 {
 		b.fmt("/ML %.3f", g.ML)
@@ -78,16 +78,16 @@ func (g *GraphicState) pdfContent(pdf pdfWriter, _ Reference) (string, []byte) {
 		b.fmt("/Font %s", g.Font.pdfString(pdf))
 	}
 	if g.CA != nil {
-		b.fmt("/CA %.3f", g.CA.(Float))
+		b.fmt("/CA %.3f", g.CA.(ObjFloat))
 	}
 	if g.Ca != nil {
-		b.fmt("/ca %.3f", g.Ca.(Float))
+		b.fmt("/ca %.3f", g.Ca.(ObjFloat))
 	}
 	if g.AIS {
 		b.fmt("/AIS %v", g.AIS)
 	}
 	if g.SM != nil {
-		b.fmt("/SM %.3f", g.SM.(Float))
+		b.fmt("/SM %.3f", g.SM.(ObjFloat))
 	}
 	if g.SA {
 		b.fmt("/SA %v", g.SA)

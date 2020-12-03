@@ -63,7 +63,7 @@ func (r resolver) resolveStream(content pdfcpu.Object) (*model.Stream, error) {
 	ar, _ := filters.(pdfcpu.Array)
 	for _, name := range ar {
 		if filterName, isName := r.resolveName(name); isName {
-			out.Filter = append(out.Filter, model.Filter{Name: model.Name(filterName)})
+			out.Filter = append(out.Filter, model.Filter{Name: model.ObjName(filterName)})
 		}
 		// else: ignore invalid values
 	}
@@ -138,7 +138,7 @@ func (r resolver) resolvePageObject(node pdfcpu.Dict, page *model.PageObject) er
 		page.Annots = append(page.Annots, an)
 	}
 	if st, ok := r.resolveInt(node["StructParents"]); ok {
-		page.StructParents = model.Int(st)
+		page.StructParents = model.ObjInt(st)
 	}
 	if tabs, ok := r.resolveName(node["Tabs"]); ok {
 		page.Tabs = tabs
@@ -233,7 +233,7 @@ func (r resolver) resolveBaseAnnotation(annotDict pdfcpu.Dict) (out model.BaseAn
 	}
 
 	if st, ok := r.resolveInt(annotDict["StructParent"]); ok {
-		out.StructParent = model.Int(st)
+		out.StructParent = model.ObjInt(st)
 	}
 	return out, nil
 }
@@ -245,7 +245,7 @@ func (r resolver) resolveBorderStyle(o pdfcpu.Object) *model.BorderStyle {
 	}
 	var out model.BorderStyle
 	if w, ok := r.resolveNumber(dict["W"]); ok {
-		out.W = model.Float(w)
+		out.W = model.ObjFloat(w)
 	}
 	out.S, _ = r.resolveName(dict["S"])
 	d, _ := r.resolveArray(dict["D"])
@@ -314,7 +314,7 @@ func (r resolver) resolveDestinationLocation(dest pdfcpu.Array) (model.Destinati
 		loc := model.DestinationLocationFitDim{}
 		loc.Name = name
 		if left, ok := r.resolveNumber(dest[2]); ok {
-			loc.Dim = model.Float(left)
+			loc.Dim = model.ObjFloat(left)
 		}
 		return loc, nil
 	case "XYZ":
@@ -323,10 +323,10 @@ func (r resolver) resolveDestinationLocation(dest pdfcpu.Array) (model.Destinati
 		}
 		loc := model.DestinationLocationXYZ{}
 		if left, ok := r.resolveNumber(dest[2]); ok {
-			loc.Left = model.Float(left)
+			loc.Left = model.ObjFloat(left)
 		}
 		if top, ok := r.resolveNumber(dest[3]); ok {
-			loc.Top = model.Float(top)
+			loc.Top = model.ObjFloat(top)
 		}
 		loc.Zoom, _ = r.resolveNumber(dest[4])
 		return loc, nil
@@ -464,7 +464,7 @@ func (r resolver) resolveAnnotationMarkup(annot pdfcpu.Dict) (out model.Annotati
 		return out, err
 	}
 	if ca, ok := r.resolveNumber(annot["CA"]); ok {
-		out.CA = model.Float(ca)
+		out.CA = model.ObjFloat(ca)
 	}
 	out.RC = r.textOrStream(annot["RC"])
 
@@ -708,9 +708,9 @@ func (r resolver) resolveFileContent(fileEntry pdfcpu.Object) (*model.EmbeddedFi
 	return &out, err
 }
 
-func (r resolver) processDecodeParms(parms pdfcpu.Object) map[model.Name]int {
+func (r resolver) processDecodeParms(parms pdfcpu.Object) map[model.ObjName]int {
 	parmsDict, _ := r.resolve(parms).(pdfcpu.Dict)
-	parmsModel := make(map[model.Name]int)
+	parmsModel := make(map[model.ObjName]int)
 	for paramName, paramVal := range parmsDict {
 		var intVal int
 		switch val := r.resolve(paramVal).(type) {
@@ -725,7 +725,7 @@ func (r resolver) processDecodeParms(parms pdfcpu.Object) map[model.Name]int {
 		default:
 			continue
 		}
-		parmsModel[model.Name(paramName)] = intVal
+		parmsModel[model.ObjName(paramName)] = intVal
 	}
 	return parmsModel
 }

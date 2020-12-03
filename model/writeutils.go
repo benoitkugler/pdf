@@ -12,7 +12,7 @@ func writeMaybeFloat(f MaybeFloat) string {
 	if f == nil {
 		return "null"
 	}
-	return fmt.Sprintf("%.3f", f.(Float))
+	return fmt.Sprintf("%.3f", f.(ObjFloat))
 }
 
 func writeIntArray(as []int) string {

@@ -11,9 +11,7 @@ func doTestParseObjectOK(parseString string, t *testing.T) {
 		t.Errorf("ParseObject failed: <%v>\n%s", err, parseString)
 		return
 	}
-	if o != nil {
-		_ = o.PDFString()
-	}
+	_ = o.PDFString(nil, 0)
 }
 
 func doTestParseObjectFail(parseString string, t *testing.T) {
@@ -66,7 +64,7 @@ func TestParseCommand(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_ = o.PDFString()
+	_ = o.PDFString(nil, 0)
 }
 
 var datas = []string{

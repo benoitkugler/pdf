@@ -210,7 +210,7 @@ func resolveToUnicode(cmap model.UnicodeCMap) (map[model.CID]rune, error) {
 			return nil, err
 		}
 	case model.UnicodeCMapBasePredefined:
-		predef, ok := standardcmaps.ToUnicodeCMaps[model.Name(use)]
+		predef, ok := standardcmaps.ToUnicodeCMaps[model.ObjName(use)]
 		if !ok {
 			log.Printf("unknown predefined UnicodeCMap %s", use)
 		}

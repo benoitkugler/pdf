@@ -16,7 +16,7 @@ var errBIExpressionCorrupt = errors.New("pdfcpu: corrupt TJ expression")
 func (pr *Parser) parseInlineImage(res model.ResourcesColorSpace) (contentstream.OpBeginImage, error) {
 	var (
 		out          contentstream.OpBeginImage
-		decodeParams []map[model.Name]int
+		decodeParams []map[model.ObjName]int
 	)
 	if err := assertLength(pr.opsStack, 0); err != nil {
 		return out, err
@@ -55,7 +55,7 @@ func (pr *Parser) parseInlineImage(res model.ResourcesColorSpace) (contentstream
 
 // since DecodeParams and Filter are a same object in the model
 // we have to return the DecodeParams separately, to be ignored unless name == "DecodeParams"
-func parseOneImgField(name Name, value Object, img *contentstream.OpBeginImage) ([]map[model.Name]int, error) {
+func parseOneImgField(name Name, value Object, img *contentstream.OpBeginImage) ([]map[model.ObjName]int, error) {
 	var err error
 	switch name {
 	case "BitsPerComponent", "BPC":
@@ -93,7 +93,7 @@ func parseOneImgField(name Name, value Object, img *contentstream.OpBeginImage) 
 		if !ok {
 			return nil, errBIExpressionCorrupt
 		}
-		img.Image.Intent = model.Name(in)
+		img.Image.Intent = model.ObjName(in)
 	case "Interpolate", "I":
 		b, ok := value.(Boolean)
 		if !ok {
@@ -172,7 +172,7 @@ func processFilters(filters Object) ([]model.Filter, error) {
 	var out []model.Filter
 	for _, name := range ar {
 		if filterName, isName := name.(Name); isName {
-			out = append(out, model.Filter{Name: model.Name(filterName)})
+			out = append(out, model.Filter{Name: model.ObjName(filterName)})
 		} else {
 			return nil, errBIExpressionCorrupt
 		}
@@ -180,8 +180,8 @@ func processFilters(filters Object) ([]model.Filter, error) {
 	return out, nil
 }
 
-func processDecodeParms(decode Object) ([]map[model.Name]int, error) {
-	var out []map[model.Name]int
+func processDecodeParms(decode Object) ([]map[model.ObjName]int, error) {
+	var out []map[model.ObjName]int
 	switch decode := decode.(type) {
 	case Array: // one dict param per filter
 		for _, parms := range decode {
@@ -195,9 +195,9 @@ func processDecodeParms(decode Object) ([]map[model.Name]int, error) {
 	return out, nil
 }
 
-func processOneDecodeParms(parms Object) map[model.Name]int {
+func processOneDecodeParms(parms Object) map[model.ObjName]int {
 	parmsDict, _ := parms.(Dict)
-	parmsModel := make(map[model.Name]int)
+	parmsModel := make(map[model.ObjName]int)
 	for paramName, paramVal := range parmsDict {
 		var intVal int
 		switch val := paramVal.(type) {
@@ -214,13 +214,13 @@ func processOneDecodeParms(parms Object) map[model.Name]int {
 		default:
 			continue
 		}
-		parmsModel[model.Name(paramName)] = intVal
+		parmsModel[model.ObjName(paramName)] = intVal
 	}
 	return parmsModel
 }
 
 // read the inline data, store its content in img, and skip EI command
-func (pr *Parser) parseImageData(img *contentstream.OpBeginImage, decodeParams []map[model.Name]int, res model.ResourcesColorSpace) error {
+func (pr *Parser) parseImageData(img *contentstream.OpBeginImage, decodeParams []map[model.ObjName]int, res model.ResourcesColorSpace) error {
 	// first we check the length of decode params
 	// and update the filter list
 	if L := len(decodeParams); L > 0 && L != len(img.Image.Filter) {

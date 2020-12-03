@@ -20,6 +20,15 @@ func (e Encoding) RuneToByte() map[rune]byte {
 	return out
 }
 
+// ByteToRune returns the reverse byte -> rune mapping
+func (e Encoding) ByteToRune() map[byte]rune {
+	out := make(map[byte]rune, len(e.Runes))
+	for r, b := range e.Runes {
+		out[b] = r
+	}
+	return out
+}
+
 // NameToRune combines the informations of `Names` and `Runes`
 // to return a name to rune map
 func (e Encoding) NameToRune() map[string]rune {

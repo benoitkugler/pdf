@@ -5,6 +5,29 @@ import (
 	"testing"
 )
 
+var reversed = map[byte]rune{}
+
+func init() {
+	for r, b := range PdfDocRunes {
+		reversed[b] = r
+	}
+}
+
+// pdfDocEncodingToString decodes PDFDocEncoded byte slice `b` to unicode string.
+func pdfDocEncodingToString(b []byte) string {
+	var runes []rune
+	for _, bval := range b {
+		rune, has := reversed[bval]
+		if !has {
+			continue
+		}
+
+		runes = append(runes, rune)
+	}
+
+	return string(runes)
+}
+
 func TestPDFDocEncodingDecode(t *testing.T) {
 	testcases := []struct {
 		Encoded  []byte
@@ -15,7 +38,7 @@ func TestPDFDocEncodingDecode(t *testing.T) {
 	}
 
 	for _, testcase := range testcases {
-		str := PDFDocEncodingToString(testcase.Encoded)
+		str := pdfDocEncodingToString(testcase.Encoded)
 		if str != testcase.Expected {
 			t.Fatalf("Mismatch %s != %s", str, testcase.Expected)
 		}

@@ -32,30 +32,24 @@ func WriteOperations(ops ...Operation) []byte {
 	return out.Bytes()
 }
 
-type PDFStringer interface {
-	PDFString() string
-}
-
 // PropertyList should be either a Name (refering to the resources dict)
-// or model.PropertyList object.
+// or dict object.
 type PropertyList interface {
 	contentStreamString() string
 }
 
-type PropertyListName model.Name
+type PropertyListName model.ObjName
 
 func (n PropertyListName) contentStreamString() string {
-	return model.Name(n).String()
+	return model.ObjName(n).String()
 }
 
-type PropertyListDict map[model.Name]PDFStringer
+// PropertyListDict is a dictionary, where indirect
+// references and streams are not allowed.
+type PropertyListDict model.ObjDict
 
 func (p PropertyListDict) contentStreamString() string {
-	chunks := make([]string, 0, len(p)*2)
-	for k, v := range p {
-		chunks = append(chunks, k.String(), v.PDFString())
-	}
-	return "<<" + strings.Join(chunks, " ") + ">>"
+	return model.ObjDict(p).PDFString(nil, 0)
 }
 
 // assert interface conformance
@@ -194,7 +188,7 @@ func floatArray(as []Fl) string {
 
 // Tf
 type OpSetFont struct {
-	Font model.Name
+	Font model.ObjName
 	Size Fl
 }
 
@@ -262,7 +256,7 @@ func (o OpStroke) Add(out *bytes.Buffer) {
 
 // BMC or BDC depending on Properties
 type OpBeginMarkedContent struct {
-	Tag        model.Name
+	Tag        model.ObjName
 	Properties PropertyList
 }
 
@@ -310,7 +304,7 @@ type OpShowText struct {
 }
 
 func (o OpShowText) Add(out *bytes.Buffer) {
-	out.WriteString(model.EspaceByteString(o.Text) + "Tj")
+	out.WriteString(model.EspaceByteString([]byte(o.Text)) + "Tj")
 }
 
 // TextSpaced subtracts space after showing the text
@@ -330,7 +324,7 @@ type OpShowSpaceText struct {
 func (o OpShowSpaceText) Add(out *bytes.Buffer) {
 	out.WriteRune('[')
 	for _, ts := range o.Texts {
-		out.WriteString(model.EspaceByteString(ts.Text))
+		out.WriteString(model.EspaceByteString([]byte(ts.Text)))
 		if ts.SpaceSubtractedAfter != 0 {
 			fmt.Fprintf(out, "%d", ts.SpaceSubtractedAfter)
 		}
@@ -344,7 +338,7 @@ type OpMoveShowText struct {
 }
 
 func (o OpMoveShowText) Add(out *bytes.Buffer) {
-	out.WriteString(model.EspaceByteString(o.Text) + "'")
+	out.WriteString(model.EspaceByteString([]byte(o.Text)) + "'")
 }
 
 // Tm
@@ -380,7 +374,7 @@ func (o OpClip) Add(out *bytes.Buffer) {
 
 // CS
 type OpSetStrokeColorSpace struct {
-	ColorSpace model.Name
+	ColorSpace model.ObjName
 }
 
 func (o OpSetStrokeColorSpace) Add(out *bytes.Buffer) {
@@ -396,7 +390,7 @@ func (o OpSetFillColorSpace) Add(out *bytes.Buffer) {
 
 // gs
 type OpSetExtGState struct {
-	Dict model.Name
+	Dict model.ObjName
 }
 
 func (o OpSetExtGState) Add(out *bytes.Buffer) {
@@ -405,7 +399,7 @@ func (o OpSetExtGState) Add(out *bytes.Buffer) {
 
 // sh
 type OpShFill struct {
-	Shading model.Name
+	Shading model.ObjName
 }
 
 func (o OpShFill) Add(out *bytes.Buffer) {
@@ -431,7 +425,7 @@ func (o OpSetStrokeColor) Add(out *bytes.Buffer) {
 // scn
 type OpSetFillColorN struct {
 	Color   []Fl
-	Pattern model.Name // optional
+	Pattern model.ObjName // optional
 }
 
 func (o OpSetFillColorN) Add(out *bytes.Buffer) {
@@ -455,7 +449,7 @@ func (o OpSetStrokeColorN) Add(out *bytes.Buffer) {
 
 // Do
 type OpXObject struct {
-	XObject model.Name
+	XObject model.ObjName
 }
 
 func (o OpXObject) Add(out *bytes.Buffer) {
@@ -464,7 +458,7 @@ func (o OpXObject) Add(out *bytes.Buffer) {
 
 // ri
 type OpSetRenderingIntent struct {
-	Intent model.Name
+	Intent model.ObjName
 }
 
 func (o OpSetRenderingIntent) Add(out *bytes.Buffer) {
@@ -473,7 +467,7 @@ func (o OpSetRenderingIntent) Add(out *bytes.Buffer) {
 
 // MP or DP depending on Properties
 type OpMarkPoint struct {
-	Tag        model.Name
+	Tag        model.ObjName
 	Properties PropertyList // optional
 }
 
@@ -504,7 +498,7 @@ type ImageColorSpaceName struct {
 }
 
 func (c ImageColorSpaceName) PDFString() string {
-	return model.Name(c.ColorSpaceName).String()
+	return model.ObjName(c.ColorSpaceName).String()
 }
 
 // ImageColorSpaceIndexed is written in PDF as
@@ -517,7 +511,7 @@ type ImageColorSpaceIndexed struct {
 
 func (c ImageColorSpaceIndexed) PDFString() string {
 	return fmt.Sprintf("[/Indexed %s %d %s]",
-		model.Name(c.Base), c.Hival, c.Lookup)
+		model.ObjName(c.Base), c.Hival, c.Lookup)
 }
 
 func (c ImageColorSpaceIndexed) ToColorSpace() model.ColorSpace {
@@ -563,7 +557,7 @@ func (img OpBeginImage) Metrics(res model.ResourcesColorSpace) (comps, bits int,
 func (img OpBeginImage) resolveColorSpace(resources model.ResourcesColorSpace) (model.ColorSpace, error) {
 	switch cs := img.ColorSpace.(type) {
 	case ImageColorSpaceName:
-		return resources.Resolve(model.Name(cs.ColorSpaceName))
+		return resources.Resolve(model.ObjName(cs.ColorSpaceName))
 	case ImageColorSpaceIndexed:
 		return cs.ToColorSpace(), nil
 	default:

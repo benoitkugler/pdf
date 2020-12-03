@@ -8,7 +8,7 @@ import (
 	"github.com/pdfcpu/pdfcpu/pkg/pdfcpu"
 )
 
-func (r resolver) resolveShading(sh pdfcpu.Object) (map[model.Name]*model.ShadingDict, error) {
+func (r resolver) resolveShading(sh pdfcpu.Object) (map[model.ObjName]*model.ShadingDict, error) {
 	sh = r.resolve(sh)
 	if sh == nil {
 		return nil, nil
@@ -17,13 +17,13 @@ func (r resolver) resolveShading(sh pdfcpu.Object) (map[model.Name]*model.Shadin
 	if !isDict {
 		return nil, errType("Shading", sh)
 	}
-	out := make(map[model.Name]*model.ShadingDict, len(shDict))
+	out := make(map[model.ObjName]*model.ShadingDict, len(shDict))
 	for name, sha := range shDict {
 		shModel, err := r.resolveOneShading(sha)
 		if err != nil {
 			return nil, err
 		}
-		out[model.Name(name)] = shModel
+		out[model.ObjName(name)] = shModel
 	}
 	return out, nil
 }
@@ -338,7 +338,7 @@ func (r resolver) resolveDeviceN(ar pdfcpu.Array) (model.ColorSpaceDeviceN, erro
 		return out, fmt.Errorf("expected 4 or 5 elements array in DeviceN Color, got %v", ar)
 	}
 	names, _ := r.resolveArray(ar[1])
-	out.Names = make([]model.Name, len(names))
+	out.Names = make([]model.ObjName, len(names))
 	for i, n := range names {
 		out.Names[i], _ = r.resolveName(n)
 	}
@@ -373,10 +373,10 @@ func (r resolver) resolveDeviceNAttributes(obj pdfcpu.Object) (*model.ColorSpace
 	out.Subtype, _ = r.resolveName(dict["Subtype"])
 
 	colorants, _ := r.resolve(dict["Colorants"]).(pdfcpu.Dict)
-	out.Colorants = make(map[model.Name]model.ColorSpaceSeparation, len(colorants))
+	out.Colorants = make(map[model.ObjName]model.ColorSpaceSeparation, len(colorants))
 	for name, col := range colorants {
 		col, _ := r.resolveArray(col)
-		out.Colorants[model.Name(name)], err = r.resolveSeparation(col)
+		out.Colorants[model.ObjName(name)], err = r.resolveSeparation(col)
 		if err != nil {
 			return nil, err
 		}
@@ -388,7 +388,7 @@ func (r resolver) resolveDeviceNAttributes(obj pdfcpu.Object) (*model.ColorSpace
 		return nil, err
 	}
 	comps, _ := r.resolveArray(processDict["Components"])
-	out.Process.Components = make([]model.Name, len(comps))
+	out.Process.Components = make([]model.ObjName, len(comps))
 	for i, n := range comps {
 		out.Process.Components[i], _ = r.resolveName(n)
 	}
@@ -397,23 +397,23 @@ func (r resolver) resolveDeviceNAttributes(obj pdfcpu.Object) (*model.ColorSpace
 		var m model.ColorSpaceDeviceNMixingHints
 
 		sold, _ := r.resolve(mix["Solidities"]).(pdfcpu.Dict)
-		m.Solidities = make(map[model.Name]Fl, len(sold))
+		m.Solidities = make(map[model.ObjName]Fl, len(sold))
 		for i, s := range sold {
-			m.Solidities[model.Name(i)], _ = r.resolveNumber(s)
+			m.Solidities[model.ObjName(i)], _ = r.resolveNumber(s)
 		}
 
 		dot, _ := r.resolve(mix["DotGain"]).(pdfcpu.Dict)
-		m.DotGain = make(map[model.Name]model.FunctionDict, len(dot))
+		m.DotGain = make(map[model.ObjName]model.FunctionDict, len(dot))
 		for i, s := range dot {
 			fn, err := r.resolveFunction(s)
 			if err != nil {
 				return nil, err
 			}
-			m.DotGain[model.Name(i)] = *fn
+			m.DotGain[model.ObjName(i)] = *fn
 		}
 
 		print, _ := r.resolveArray(processDict["PrintingOrder"])
-		m.PrintingOrder = make([]model.Name, len(print))
+		m.PrintingOrder = make([]model.ObjName, len(print))
 		for i, n := range print {
 			m.PrintingOrder[i], _ = r.resolveName(n)
 		}
@@ -581,7 +581,7 @@ func (r resolver) resolveLatticeSh(sh pdfcpu.StreamDict) (out model.ShadingLatti
 
 // ----------------------------- Patterns -----------------------------
 
-func (r resolver) resolvePattern(pattern pdfcpu.Object) (map[model.Name]model.Pattern, error) {
+func (r resolver) resolvePattern(pattern pdfcpu.Object) (map[model.ObjName]model.Pattern, error) {
 	pattern = r.resolve(pattern)
 	if pattern == nil {
 		return nil, nil
@@ -590,13 +590,13 @@ func (r resolver) resolvePattern(pattern pdfcpu.Object) (map[model.Name]model.Pa
 	if !isDict {
 		return nil, errType("Pattern", pattern)
 	}
-	out := make(map[model.Name]model.Pattern, len(patternDict))
+	out := make(map[model.ObjName]model.Pattern, len(patternDict))
 	for name, pat := range patternDict {
 		pattern, err := r.resolveOnePattern(pat)
 		if err != nil {
 			return nil, err
 		}
-		out[model.Name(name)] = pattern
+		out[model.ObjName(name)] = pattern
 	}
 	return out, nil
 }

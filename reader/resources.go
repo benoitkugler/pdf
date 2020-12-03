@@ -104,7 +104,7 @@ func (r resolver) resolveOneFont(font pdfcpu.Object) (*model.FontDict, error) {
 	return fontModel, nil
 }
 
-func (r resolver) resolveFonts(ft pdfcpu.Object) (map[model.Name]*model.FontDict, error) {
+func (r resolver) resolveFonts(ft pdfcpu.Object) (map[model.ObjName]*model.FontDict, error) {
 	ft = r.resolve(ft)
 	if ft == nil {
 		return nil, nil
@@ -113,7 +113,7 @@ func (r resolver) resolveFonts(ft pdfcpu.Object) (map[model.Name]*model.FontDict
 	if !isDict {
 		return nil, errType("Fonts Dict", ft)
 	}
-	ftMap := make(map[model.Name]*model.FontDict)
+	ftMap := make(map[model.ObjName]*model.FontDict)
 	for name, font := range ftDict {
 		fontModel, err := r.resolveOneFont(font)
 		if err != nil {
@@ -122,7 +122,7 @@ func (r resolver) resolveFonts(ft pdfcpu.Object) (map[model.Name]*model.FontDict
 		if fontModel == nil { // ignore the name
 			continue
 		}
-		ftMap[model.Name(name)] = fontModel
+		ftMap[model.ObjName(name)] = fontModel
 	}
 	return ftMap, nil
 }
@@ -139,7 +139,7 @@ func (r resolver) parseDiffArray(ar pdfcpu.Array) model.Differences {
 			currentCode = byte(o)
 			posInNameList = 0
 		case pdfcpu.Name:
-			out[currentCode+byte(posInNameList)] = model.Name(o)
+			out[currentCode+byte(posInNameList)] = model.ObjName(o)
 			posInNameList++
 		}
 	}
@@ -234,7 +234,7 @@ func (r resolver) resolveFontT3(font pdfcpu.Dict) (out model.FontType3, err erro
 	if !ok {
 		return out, errType("Font.CharProcs", charProcs)
 	}
-	out.CharProcs = make(map[model.Name]model.ContentStream, len(charProcsDict))
+	out.CharProcs = make(map[model.ObjName]model.ContentStream, len(charProcsDict))
 	for name, proc := range charProcsDict {
 		// char proc propably wont be shared accros fonts,
 		// so we dont track the refs
@@ -246,7 +246,7 @@ func (r resolver) resolveFontT3(font pdfcpu.Dict) (out model.FontType3, err erro
 			log.Printf("missing content stream for CharProc %s\n", name)
 			continue
 		}
-		out.CharProcs[model.Name(name)] = model.ContentStream{Stream: *cs}
+		out.CharProcs[model.ObjName(name)] = model.ContentStream{Stream: *cs}
 	}
 
 	out.Encoding, err = r.resolveEncoding(font["Encoding"])
@@ -654,7 +654,7 @@ func (r resolver) parseFontDict(font pdfcpu.Dict) (model.Font, error) {
 	}
 }
 
-func (r resolver) resolveExtGState(states pdfcpu.Object) (map[model.Name]*model.GraphicState, error) {
+func (r resolver) resolveExtGState(states pdfcpu.Object) (map[model.ObjName]*model.GraphicState, error) {
 	states = r.resolve(states)
 	if states == nil {
 		return nil, nil
@@ -663,7 +663,7 @@ func (r resolver) resolveExtGState(states pdfcpu.Object) (map[model.Name]*model.
 	if !isDict {
 		return nil, errType("Graphics state Dict", states)
 	}
-	out := make(map[model.Name]*model.GraphicState)
+	out := make(map[model.ObjName]*model.GraphicState)
 	for name, state := range statesDict {
 		gs, err := r.resolveOneExtGState(state)
 		if err != nil {
@@ -672,7 +672,7 @@ func (r resolver) resolveExtGState(states pdfcpu.Object) (map[model.Name]*model.
 		if gs == nil { // ignore the name
 			continue
 		}
-		out[model.Name(name)] = gs
+		out[model.ObjName(name)] = gs
 	}
 	return out, nil
 }
@@ -710,19 +710,19 @@ func (r resolver) parseStateDict(state pdfcpu.Dict) (*model.GraphicState, error)
 	out.RI, _ = r.resolveName(state["RI"])
 
 	if lc, ok := r.resolveInt(state["LC"]); ok { // 0 is not a default value
-		out.LC = model.Int(lc)
+		out.LC = model.ObjInt(lc)
 	}
 	if lj, ok := r.resolveInt(state["LJ"]); ok { // 0 is not a default value
-		out.LJ = model.Int(lj)
+		out.LJ = model.ObjInt(lj)
 	}
 	if ca, ok := r.resolveNumber(state["CA"]); ok { // 0 is not a default value
-		out.CA = model.Float(ca)
+		out.CA = model.ObjFloat(ca)
 	}
 	if ca, ok := r.resolveNumber(state["ca"]); ok { // 0 is not a default value
-		out.Ca = model.Float(ca)
+		out.Ca = model.ObjFloat(ca)
 	}
 	if sm, ok := r.resolveNumber(state["SM"]); ok { // 0 is not a default value
-		out.SM = model.Float(sm)
+		out.SM = model.ObjFloat(sm)
 	}
 	out.AIS, _ = r.resolveBool(state["AIS"])
 	out.SA, _ = r.resolveBool(state["SA"])
@@ -754,7 +754,7 @@ func (r resolver) resolveColorSpace(colorSpace pdfcpu.Object) (model.ResourcesCo
 	if !isDict {
 		return nil, errType("Color space Dict", colorSpace)
 	}
-	out := make(map[model.Name]model.ColorSpace)
+	out := make(map[model.ObjName]model.ColorSpace)
 	for name, cs := range colorSpaceDict {
 		gs, err := r.resolveOneColorSpace(cs)
 		if err != nil {
@@ -763,33 +763,33 @@ func (r resolver) resolveColorSpace(colorSpace pdfcpu.Object) (model.ResourcesCo
 		if gs == nil { // ignore the name
 			continue
 		}
-		out[model.Name(name)] = gs
+		out[model.ObjName(name)] = gs
 	}
 	return out, nil
 }
 
-func (r resolver) resolveProperties(obj pdfcpu.Object) (map[model.Name]model.PropertyList, error) {
+func (r resolver) resolveProperties(obj pdfcpu.Object) (map[model.ObjName]model.PropertyList, error) {
 	dict, _ := r.resolve(obj).(pdfcpu.Dict)
-	out := map[model.Name]model.PropertyList{}
+	out := map[model.ObjName]model.PropertyList{}
 	var err error
 	for k, v := range dict {
 		vDict, _ := r.resolve(v).(pdfcpu.Dict)
-		propDict := model.PropertyList{Custom: make(map[model.Name]model.UPValue)}
+		propDict := make(model.ObjDict)
 		for pName, pValue := range vDict {
-			if pName == "Metadata" {
+			if pName == "Metadata" { // special case Metadata, which is common
 				cs, err := r.resolveStream(pValue)
 				if err != nil {
 					return nil, fmt.Errorf("invalid Metadata entry: %s", err)
 				}
-				propDict.Metadata = &model.MetadataStream{Stream: *cs}
+				propDict["Metadata"] = model.MetadataStream{Stream: *cs}
 			} else {
-				propDict.Custom[model.Name(pName)], err = r.processCustomObject(pValue)
+				propDict[model.ObjName(pName)], err = r.resolveCustomObject(pValue)
 				if err != nil {
 					return nil, fmt.Errorf("invalid property %s: %s", pName, err)
 				}
 			}
 		}
-		out[model.Name(k)] = propDict
+		out[model.ObjName(k)] = propDict
 	}
 	return out, nil
 }

@@ -10,7 +10,7 @@ type t = cmaps.ToUnicodeTranslation
 type a = cmaps.ToUnicodeArray
 type p = cmaps.ToUnicodePair
 
-var ToUnicodeCMaps = map[model.Name]cmaps.UnicodeCMap{
+var ToUnicodeCMaps = map[model.ObjName]cmaps.UnicodeCMap{
 	"Adobe-CNS1-UCS2":   Adobe_CNS1_UCS2,
 	"Adobe-GB1-UCS2":    Adobe_GB1_UCS2,
 	"Adobe-Japan1-UCS2": Adobe_Japan1_UCS2,

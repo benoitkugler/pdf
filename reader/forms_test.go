@@ -22,7 +22,7 @@ func annotsToPageNumber(doc model.Document) map[model.FormFieldWidget]int {
 
 func checkAnnotsWidget(t *testing.T, doc model.Document, annots map[model.FormFieldWidget]int) {
 	for _, field := range doc.Catalog.AcroForm.Flatten() {
-		for _, w := range field.Widgets {
+		for _, w := range field.Field.Widgets {
 			_, ok := annots[w]
 			if !ok {
 				t.Errorf("annotation widget not found in the Annots lists %v", w)

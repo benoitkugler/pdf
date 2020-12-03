@@ -6,7 +6,7 @@ import (
 )
 
 func TestCloneAcro(t *testing.T) {
-	a := &AcroForm{
+	a := AcroForm{
 		Fields: []*FormFieldDict{
 			{
 				FormFieldInheritable: FormFieldInheritable{FT: FormFieldText{}},
@@ -80,7 +80,7 @@ func TestResolve(t *testing.T) {
 		t.Errorf("expected 3 fields, got %d", L)
 	}
 	for _, f := range m {
-		if f.FormFieldInheritable.DA != "564" {
+		if f.Merged.DA != "564" {
 			t.Error()
 		}
 	}

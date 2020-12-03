@@ -435,7 +435,7 @@ func TestParser4(t *testing.T) {
 }
 
 func TestFullCIDCMap(t *testing.T) {
-	names := [...]model.Name{"Adobe-CNS1-3", "KSCms-UHC-H", "Ext-RKSJ-V"}
+	names := [...]model.ObjName{"Adobe-CNS1-3", "KSCms-UHC-H", "Ext-RKSJ-V"}
 	nbCidRanges := [...]int{74, 675, 1}
 	for i, file := range [...]string{
 		"test/Adobe-CNS1-3.cmap",

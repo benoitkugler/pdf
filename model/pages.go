@@ -58,7 +58,7 @@ func (p PageTree) Flatten() []*PageObject {
 // also build up the parent to simplify the writing
 // see catalog.pdfString for more details
 func (pdf pdfWriter) allocateReferences(p *PageTree) {
-	pdf.pages[p] = pdf.createObject()
+	pdf.pages[p] = pdf.CreateObject()
 	for _, kid := range p.Kids {
 		switch kid := kid.(type) {
 		case *PageTree:
@@ -66,7 +66,7 @@ func (pdf pdfWriter) allocateReferences(p *PageTree) {
 			pdf.allocateReferences(kid)
 		case *PageObject:
 			kid.parent = p
-			pdf.pages[kid] = pdf.createObject()
+			pdf.pages[kid] = pdf.CreateObject()
 		}
 	}
 }
@@ -92,7 +92,7 @@ func (pages *PageTree) pdfString(pdf pdfWriter) string {
 	kidRefs := make([]Reference, len(pages.Kids))
 	for i, page := range pages.Kids {
 		kidRef := pdf.pages[page]
-		pdf.writeObject(page.pdfString(pdf), nil, kidRef)
+		pdf.WriteObject(page.pdfString(pdf), nil, kidRef)
 		kidRefs[i] = kidRef
 	}
 	parent := ""
@@ -196,7 +196,7 @@ func (p *PageObject) pdfString(pdf pdfWriter) string {
 		b.line("/Contents %s", writeRefArray(contents))
 	}
 	if p.StructParents != nil {
-		b.fmt("/StructParents %d", p.StructParents.(Int))
+		b.fmt("/StructParents %d", p.StructParents.(ObjInt))
 	}
 	if p.Tabs != "" {
 		b.fmt("/Tabs %s", p.Tabs)
@@ -347,8 +347,8 @@ func (r *ResourcesDict) pdfString(pdf pdfWriter) string {
 	if r.Properties != nil {
 		b.fmt("/Properties <<")
 		for n, item := range r.Properties {
-			ref := pdf.createObject()
-			pdf.writeObject(item.pdfString(pdf, ref, false), nil, ref)
+			ref := pdf.CreateObject()
+			pdf.WriteObject(item.PDFString(pdf, ref), nil, ref)
 			b.fmt("%s %s", n, ref)
 		}
 		b.line(">>")
@@ -400,7 +400,7 @@ func (r ResourcesDict) clone(cache cloneCache) ResourcesDict {
 	if r.Properties != nil {
 		out.Properties = make(map[Name]PropertyList, len(r.Properties))
 		for n, v := range r.Properties {
-			out.Properties[n] = v.Clone()
+			out.Properties[n] = v.Clone().(ObjDict)
 		}
 	}
 	return out
@@ -437,13 +437,13 @@ func (o *Outline) Flatten() []*OutlineItem {
 // ref should be the object number of the outline, need for the child
 // to reference their parent
 func (o *Outline) pdfString(pdf pdfWriter, ref Reference) string {
-	firstRef := pdf.createObject()
+	firstRef := pdf.CreateObject()
 	pdf.outlines[o.First] = firstRef
-	pdf.writeObject(o.First.pdfString(pdf, firstRef, ref), nil, firstRef)
-	lastRef := pdf.createObject()
+	pdf.WriteObject(o.First.pdfString(pdf, firstRef, ref), nil, firstRef)
+	lastRef := pdf.CreateObject()
 	last := o.Last()
 	pdf.outlines[last] = lastRef
-	pdf.writeObject(last.pdfString(pdf, lastRef, ref), nil, lastRef)
+	pdf.WriteObject(last.pdfString(pdf, lastRef, ref), nil, lastRef)
 	return fmt.Sprintf("<</First %s/Last %s/Count %d>>", firstRef, lastRef, o.Count())
 }
 
@@ -547,9 +547,9 @@ func (p *OutlineItem) flatten() []*OutlineItem {
 func (pdf pdfWriter) addOutlineItem(item *OutlineItem, parent Reference) Reference {
 	nextRef, has := pdf.outlines[item]
 	if !has {
-		nextRef = pdf.createObject()
+		nextRef = pdf.CreateObject()
 		pdf.outlines[item] = nextRef
-		pdf.writeObject(item.pdfString(pdf, nextRef, parent), nil, nextRef)
+		pdf.WriteObject(item.pdfString(pdf, nextRef, parent), nil, nextRef)
 	}
 	return nextRef
 }

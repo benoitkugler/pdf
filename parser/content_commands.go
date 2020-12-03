@@ -17,7 +17,7 @@ func assertLength(stack []Object, L int) error {
 	return nil
 }
 
-func assertOneName(stack []Object) (model.Name, error) {
+func assertOneName(stack []Object) (model.ObjName, error) {
 	if err := assertLength(stack, 1); err != nil {
 		return "", err
 	}
@@ -25,7 +25,7 @@ func assertOneName(stack []Object) (model.Name, error) {
 	if !ok {
 		return "", fmt.Errorf("expected Name, got %v", stack[0])
 	}
-	return model.Name(name), nil
+	return model.ObjName(name), nil
 }
 
 func assertOneString(stack []Object) (string, error) {
@@ -33,7 +33,7 @@ func assertOneString(stack []Object) (string, error) {
 		return "", err
 	}
 	st := stack[0]
-	s, ok := IsString(st)
+	s, ok := model.IsString(st)
 	if !ok {
 		return "", fmt.Errorf("expected string, got %v", st)
 	}
@@ -41,7 +41,7 @@ func assertOneString(stack []Object) (string, error) {
 }
 
 func assertNumber(t Object) (Fl, error) {
-	f, ok := IsNumber(t)
+	f, ok := model.IsNumber(t)
 	if !ok {
 		return 0, fmt.Errorf("expected number, got %v", t)
 	}
@@ -82,7 +82,53 @@ func parseSCN(stack []Object) (cs.OpSetFillColorN, error) {
 	if err != nil {
 		return cs.OpSetFillColorN{}, err
 	}
-	return cs.OpSetFillColorN{Color: nbs, Pattern: model.Name(name)}, nil
+	return cs.OpSetFillColorN{Color: nbs, Pattern: model.ObjName(name)}, nil
+}
+
+// property is either a name or a dict
+func parsePropertyList(p Object) (cs.PropertyList, error) {
+	switch p := p.(type) {
+	case Name:
+		return cs.PropertyListName(p), nil
+	case Dict:
+		if err := checkPropertyValue(p); err != nil {
+			return nil, err
+		}
+		return cs.PropertyListDict(p), nil
+	default:
+		return nil, fmt.Errorf("expected name or dictionary, got %v", p)
+	}
+}
+
+func parseTextSpaces(stack []Object) (cs.OpShowSpaceText, error) {
+	var out cs.OpShowSpaceText
+	if err := assertLength(stack, 1); err != nil {
+		return out, err
+	}
+	args, ok := stack[0].(Array)
+	if !ok {
+		return out, fmt.Errorf("expected Array in TJ command, got %v", args)
+	}
+	// we "normalize" the entry by adding consecutive spaces"
+	// not that it would not be correct to do it for strings as well,
+	// since (A) (B) is not the same as (AB): in the first case A and B overlap
+	for _, arg := range args {
+		if s, ok := model.IsString(arg); ok {
+			// start a new TextSpaced
+			out.Texts = append(out.Texts, cs.TextSpaced{Text: s})
+		} else if f, ok := model.IsNumber(arg); ok { // we accept float
+			if L := len(out.Texts); L > 0 {
+				// if we already have a TextSpaced add the number to it
+				out.Texts[L-1].SpaceSubtractedAfter += int(f)
+			} else {
+				// the array starts by a number
+				out.Texts = append(out.Texts, cs.TextSpaced{SpaceSubtractedAfter: int(f)})
+			}
+		} else {
+			return out, fmt.Errorf("invalid type in TJ array: %v %T", arg, arg)
+		}
+	}
+	return out, nil
 }
 
 // checkt the validity of the current tokens, with respect to
@@ -90,6 +136,11 @@ func parseSCN(stack []Object) (cs.OpSetFillColorN, error) {
 // stack does not contain the command
 func parseCommand(command string, stack []Object) (cs.Operation, error) {
 	switch command {
+	// the special case of inline image in handled separatly
+	// case "ID":  OpImageData{},
+	// case "BI":  OpBeginImage{},
+	// case "EI":  OpEndImage{},
+
 	// case "\"":  OpMoveSetShowText{},
 	case "'":
 		str, err := assertOneString(stack)
@@ -104,20 +155,8 @@ func parseCommand(command string, stack []Object) (cs.Operation, error) {
 		if err != nil {
 			return nil, err
 		}
-		// property is either a name or a dict
-		switch p := stack[1].(type) {
-		case Name:
-			return cs.OpBeginMarkedContent{Tag: name, Properties: cs.PropertyListName(p)}, nil
-		case Dict:
-			prop := make(cs.PropertyListDict)
-			for k, v := range p {
-				prop[model.Name(k)] = v
-			}
-			return cs.OpBeginMarkedContent{Tag: name, Properties: prop}, nil
-		default:
-			return nil, fmt.Errorf("expected name or dictionary, got %v", p)
-		}
-	// case "BI":  OpBeginImage{},
+		props, err := parsePropertyList(stack[1])
+		return cs.OpBeginMarkedContent{Tag: name, Properties: props}, err
 	case "BMC":
 		name, err := assertOneName(stack[0:1])
 		return cs.OpBeginMarkedContent{Tag: name}, err
@@ -136,23 +175,11 @@ func parseCommand(command string, stack []Object) (cs.Operation, error) {
 		if err != nil {
 			return nil, err
 		}
-		// property is either a name or a dict
-		switch p := stack[1].(type) {
-		case Name:
-			return cs.OpMarkPoint{Tag: name, Properties: cs.PropertyListName(p)}, nil
-		case Dict:
-			prop := make(cs.PropertyListDict)
-			for k, v := range p {
-				prop[model.Name(k)] = v
-			}
-			return cs.OpMarkPoint{Tag: name, Properties: prop}, nil
-		default:
-			return nil, fmt.Errorf("expected name or dictionary, got %v", p)
-		}
+		props, err := parsePropertyList(stack[1])
+		return cs.OpMarkPoint{Tag: name, Properties: props}, err
 	case "Do":
 		name, err := assertOneName(stack)
 		return cs.OpXObject{XObject: name}, err
-	// case "EI":  OpEndImage{},
 	case "EMC":
 		err := assertLength(stack, 0)
 		return cs.OpEndMarkedContent{}, err
@@ -162,7 +189,7 @@ func parseCommand(command string, stack []Object) (cs.Operation, error) {
 		// case "EX":  OpEndIgnoreUndef{},
 		// case "F":   OpFill{},
 		// case "G":   OpSetStrokeGray{},
-		// case "ID":  OpImageData{},
+
 		// case "J":   OpSetLineCap{},
 		// case "K":   OpSetStrokeCMYKColor{},
 		// case "M":   OpSetMiterLimit{},
@@ -190,34 +217,7 @@ func parseCommand(command string, stack []Object) (cs.Operation, error) {
 	// case "T*":  OpTextNextLine{},
 	// case "TD":  OpTextMoveSet{},
 	case "TJ":
-		if err := assertLength(stack, 1); err != nil {
-			return nil, err
-		}
-		args, ok := stack[0].(Array)
-		if !ok {
-			return nil, fmt.Errorf("expected Array in TJ command, got %v", args)
-		}
-		// we "normalize" the entry by adding consecutive spaces"
-		// not that it would not be correct to do it for strings as well,
-		// since (A) (B) is not the same as (AB): in the first case A and B overlap
-		var out cs.OpShowSpaceText
-		for _, arg := range args {
-			if s, ok := IsString(arg); ok {
-				// start a new TextSpaced
-				out.Texts = append(out.Texts, cs.TextSpaced{Text: s})
-			} else if f, ok := IsNumber(arg); ok { // we accept float
-				if L := len(out.Texts); L > 0 {
-					// if we already have a TextSpaced add the number to it
-					out.Texts[L-1].SpaceSubtractedAfter += int(f)
-				} else {
-					// the array starts by a number
-					out.Texts = append(out.Texts, cs.TextSpaced{SpaceSubtractedAfter: int(f)})
-				}
-			} else {
-				return nil, fmt.Errorf("invalid type in TJ array: %v %T", arg, arg)
-			}
-		}
-		return out, nil
+		return parseTextSpaces(stack)
 	case "TL":
 		nbs, err := assertNumbers(stack, 1)
 		if err != nil {
@@ -350,7 +350,7 @@ func parseCommand(command string, stack []Object) (cs.Operation, error) {
 		if err != nil {
 			return nil, err
 		}
-		return cs.OpSetFillColorN{Color: nbs, Pattern: model.Name(name)}, nil
+		return cs.OpSetFillColorN{Color: nbs, Pattern: model.ObjName(name)}, nil
 	case "sh":
 		name, err := assertOneName(stack)
 		return cs.OpShFill{Shading: name}, err
@@ -365,4 +365,25 @@ func parseCommand(command string, stack []Object) (cs.Operation, error) {
 	default:
 		return nil, fmt.Errorf("invalid command name %s", command)
 	}
+}
+
+// recursively check for invalid content like refs and streams
+func checkPropertyValue(v Object) error {
+	switch v := v.(type) {
+	case nil, Command, IndirectRef, model.ObjStream:
+		return fmt.Errorf("invalid property value %v (type %T not allowed)", v, v)
+	case Array:
+		for _, av := range v {
+			if err := checkPropertyValue(av); err != nil {
+				return err
+			}
+		}
+	case Dict:
+		for _, av := range v {
+			if err := checkPropertyValue(av); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }

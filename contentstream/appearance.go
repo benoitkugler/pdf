@@ -45,7 +45,7 @@ func NewAppearance(width, height Fl) Appearance {
 	return Appearance{
 		BBox: model.Rectangle{Urx: width, Ury: height},
 		Resources: model.ResourcesDict{
-			Font: make(map[model.Name]*model.FontDict),
+			Font: make(map[model.ObjName]*model.FontDict),
 		},
 	}
 }
@@ -94,14 +94,14 @@ func (app *Appearance) SetColorStroke(c color.Color) {
 }
 
 // check is the font is in the map or generate a new name and add the font
-func (ap Appearance) addFont(newFont *model.FontDict) model.Name {
+func (ap Appearance) addFont(newFont *model.FontDict) model.ObjName {
 	for name, f := range ap.Resources.Font {
 		if f == newFont {
 			return name
 		}
 	}
 	// this convention must be respected so that the names are distincts
-	name := model.Name(fmt.Sprintf("Font%d", len(ap.Resources.Font)))
+	name := model.ObjName(fmt.Sprintf("Font%d", len(ap.Resources.Font)))
 	ap.Resources.Font[name] = newFont
 	return name
 }

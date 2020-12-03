@@ -19,7 +19,7 @@ type fieldAppearanceBuilder struct {
 	textColor       color.Color
 	backgroundColor color.Color
 
-	borderStyle model.Name
+	borderStyle model.ObjName
 	borderWidth Fl
 	borderColor color.Color
 
@@ -131,7 +131,7 @@ func (b fieldAppearanceBuilder) getBorderAppearance() contentstream.Appearance {
 			app.Op(contentstream.OpRectangle{X: b.borderWidth / 2, Y: b.borderWidth / 2,
 				W: b.box.Width() - b.borderWidth, H: b.box.Height() - b.borderWidth})
 			app.Op(contentstream.OpStroke{})
-			if m, ok := b.maxCharacterLength.(model.Int); (b.options&model.Comb) != 0 && (ok && m > 1) {
+			if m, ok := b.maxCharacterLength.(model.ObjInt); (b.options&model.Comb) != 0 && (ok && m > 1) {
 				step := b.box.Width() / Fl(m)
 				yb := b.borderWidth / 2
 				yt := b.box.Height() - b.borderWidth/2
@@ -387,7 +387,7 @@ func (t fieldAppearanceBuilder) buildAppearance(ufont fonts.BuiltFont, fontSize 
 			dy := t.box.Height() - offX - (fd.Ascent * usize / 1000)
 			offsetY = minF(ny, maxF(offsetY, dy))
 		}
-		if maxL, _ := t.maxCharacterLength.(model.Int); (t.options&model.Comb) != 0 && maxL > 0 {
+		if maxL, _ := t.maxCharacterLength.(model.ObjInt); (t.options&model.Comb) != 0 && maxL > 0 {
 			textLen := min(int(maxL), len(ptextRunes))
 			var position Fl
 			if t.alignment == model.RightJustified {

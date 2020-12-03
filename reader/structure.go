@@ -5,7 +5,6 @@ import (
 	"log"
 
 	"github.com/benoitkugler/pdf/model"
-	"github.com/benoitkugler/pdf/model/values"
 	"github.com/pdfcpu/pdfcpu/pkg/pdfcpu"
 )
 
@@ -52,13 +51,13 @@ func (r resolver) resolveStructureTree(obj pdfcpu.Object) (*model.StructureTree,
 	}
 
 	roles, _ := r.resolve(structDict["RoleMap"]).(pdfcpu.Dict)
-	out.RoleMap = make(map[model.Name]model.Name, len(roles))
+	out.RoleMap = make(map[model.ObjName]model.ObjName, len(roles))
 	for k, v := range roles {
-		out.RoleMap[model.Name(k)], _ = r.resolveName(v)
+		out.RoleMap[model.ObjName(k)], _ = r.resolveName(v)
 	}
 
 	class, _ := r.resolve(structDict["ClassMap"]).(pdfcpu.Dict)
-	out.ClassMap = make(map[model.Name][]model.AttributeObject, len(class))
+	out.ClassMap = make(map[model.ObjName][]model.AttributeObject, len(class))
 	for k, v := range class {
 		var attrs []model.AttributeObject
 		switch v := r.resolve(v).(type) {
@@ -78,50 +77,73 @@ func (r resolver) resolveStructureTree(obj pdfcpu.Object) (*model.StructureTree,
 		default:
 			return nil, errType("structure Attribute", v)
 		}
-		out.ClassMap[model.Name(k)] = attrs
+		out.ClassMap[model.ObjName(k)] = attrs
 	}
 
 	return &out, nil
 }
 
+// CustomObjectResolver provides a way
+// to overide the default reading behaviour
+// for custom objects
+type CustomObjectResolver interface {
+	Resolve(xref *pdfcpu.XRefTable, obj pdfcpu.Object) (model.Object, error)
+}
+
+func (r resolver) resolveCustomObject(object pdfcpu.Object) (model.Object, error) {
+	if r.customResolve == nil {
+		return r.defaultProcessCustomObject(object)
+	}
+	return r.customResolve.Resolve(r.xref, object)
+}
+
 // resolve indirect object and map pdfcpu types to model/values types
-func (r resolver) processCustomObject(object pdfcpu.Object) (model.UPValue, error) {
+func (r resolver) defaultProcessCustomObject(object pdfcpu.Object) (model.Object, error) {
 	var err error
 	object = r.resolve(object)
 	switch o := object.(type) {
 	case pdfcpu.Name:
-		return values.Name(o), nil
+		return model.Name(o), nil
 	case pdfcpu.Float:
-		return values.Float(o), nil
+		return model.ObjFloat(o), nil
 	case pdfcpu.Integer:
-		return values.Int(o), nil
+		return model.ObjInt(o), nil
 	case pdfcpu.Boolean:
-		return values.Bool(o), nil
+		return model.ObjBoolean(o), nil
+	case pdfcpu.HexLiteral:
+		return model.ObjHexLiteral(o), nil
+	case pdfcpu.StringLiteral:
+		return model.ObjStringLiteral(o), nil
 	case pdfcpu.Array:
-		out := make(values.Array, len(o))
+		out := make(model.ObjArray, len(o))
 		for i, v := range o {
-			out[i], err = r.processCustomObject(v)
+			out[i], err = r.defaultProcessCustomObject(v)
 			if err != nil {
 				return nil, err
 			}
 		}
 		return out, nil
 	case pdfcpu.Dict:
-		out := make(values.Dict, len(o))
+		out := make(model.ObjDict, len(o))
 		for name, v := range o {
-			out[values.Name(name)], err = r.processCustomObject(v)
+			out[model.Name(name)], err = r.defaultProcessCustomObject(v)
 			if err != nil {
 				return nil, err
 			}
 		}
 		return out, nil
+	case pdfcpu.StreamDict:
+		args := make(model.ObjDict, len(o.Dict))
+		for name, v := range o.Dict {
+			args[model.Name(name)], err = r.defaultProcessCustomObject(v)
+			if err != nil {
+				return nil, err
+			}
+		}
+		return model.ObjStream{Args: args, Content: o.Content}, nil
+	default:
+		return nil, fmt.Errorf("unsupported custom type %T in custom object", object)
 	}
-	// simplify strings
-	if s, ok := isString(object); ok {
-		s = decodeTextString(s)
-		return values.String(s), nil
-	}
-	return nil, fmt.Errorf("unsupported custom type %T in custom object", object)
 }
 
 func (r resolver) resolveAttributObject(attr pdfcpu.Object) (out model.AttributeObject, err error) {
@@ -137,12 +159,12 @@ func (r resolver) resolveAttributObject(attr pdfcpu.Object) (out model.Attribute
 			return out, err
 		}
 	} else {
-		atts := make(map[model.Name]model.Attribute)
+		atts := make(model.ObjDict)
 		for name, v := range attrDict {
 			if name == "O" { // already handled
 				continue
 			}
-			atts[model.Name(name)], err = r.processCustomObject(v)
+			atts[model.ObjName(name)], err = r.resolveCustomObject(v)
 			if err != nil {
 				return out, err
 			}
@@ -187,12 +209,12 @@ func (r resolver) resolveUserProperties(dict pdfcpu.Dict, out *model.AttributeOb
 		attr[i].F, _ = isString(r.resolve(propDict["F"]))
 		attr[i].N, _ = isString(r.resolve(propDict["N"]))
 		attr[i].H, _ = r.resolveBool(propDict["H"])
-		attr[i].V, err = r.processCustomObject(propDict["V"])
+		attr[i].V, err = r.resolveCustomObject(propDict["V"])
 		if err != nil {
 			return err
 		}
 	}
-	out.Attributes = map[model.Name]model.Attribute{"P": attr}
+	out.Attributes = model.ObjDict{"P": attr}
 	return nil
 }
 
@@ -257,7 +279,7 @@ func (r resolver) resolveOneStructureElement(element pdfcpu.Object, parent *mode
 
 	switch c := r.resolve(dict["C"]).(type) {
 	case pdfcpu.Name: // only one class
-		out.C = []model.ClassName{{Name: model.Name(c)}}
+		out.C = []model.ClassName{{Name: model.ObjName(c)}}
 	case pdfcpu.Array: // many class, with potential revision number
 		// the minimum number of classes is len(ar) /2, if all items have a revision number
 		out.C = make([]model.ClassName, 0, len(c)/2)

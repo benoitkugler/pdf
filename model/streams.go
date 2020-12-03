@@ -268,9 +268,9 @@ func (f *XObjectForm) pdfContent(pdf pdfWriter, _ Reference) (string, []byte) {
 		b.line("/Resources %s", f.Resources.pdfString(pdf))
 	}
 	if f.StructParent != nil {
-		b.fmt("/StructParent %d", f.StructParent.(Int))
+		b.fmt("/StructParent %d", f.StructParent.(ObjInt))
 	} else if f.StructParents != nil {
-		b.fmt("/StructParents %d", f.StructParent.(Int))
+		b.fmt("/StructParents %d", f.StructParent.(ObjInt))
 	}
 	b.fmt(">>")
 	return b.String(), f.Content
@@ -371,7 +371,7 @@ func (f *XObjectImage) pdfContent(pdf pdfWriter, _ Reference) (string, []byte) {
 		b.fmt("/SMask %s", ref)
 	}
 	if f.StructParent != nil {
-		b.fmt("/StructParent %d", f.StructParent.(Int))
+		b.fmt("/StructParent %d", f.StructParent.(ObjInt))
 	}
 	b.WriteString(">>")
 	return b.String(), f.Content

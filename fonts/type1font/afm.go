@@ -178,7 +178,7 @@ func (f AFMFont) charSet() string {
 	var v strings.Builder
 	for name := range f.charMetrics {
 		if name != ".notdef" {
-			v.WriteString(model.Name(name).String())
+			v.WriteString(model.ObjName(name).String())
 		}
 	}
 	return v.String()
@@ -213,7 +213,7 @@ func (f AFMFont) fontDescriptor() model.FontDescriptor {
 	}
 
 	out := model.FontDescriptor{
-		FontName:    model.Name(f.FontName),
+		FontName:    model.ObjName(f.FontName),
 		FontFamily:  f.FamilyName,
 		Flags:       flag,
 		FontBBox:    model.Rectangle{Llx: f.Llx, Lly: f.Lly, Urx: f.Urx, Ury: f.Ury},

@@ -18,7 +18,7 @@ type cmapHexString []byte
 
 type cmapArray = []cmapObject
 
-type cmapDict = map[model.Name]cmapObject
+type cmapDict = map[model.ObjName]cmapObject
 
 // parseObject detects the signature at the current file position and parses the corresponding object.
 // a nil object with a nil error means EOF
@@ -27,7 +27,7 @@ func (p *parser) parseObject() (cmapObject, error) {
 	for ; token.Kind != tokenizer.EOF && err == nil; token, err = p.tokenizer.NextToken() {
 		switch token.Kind {
 		case tokenizer.Name:
-			return model.Name(token.Value), nil
+			return model.ObjName(token.Value), nil
 		case tokenizer.String:
 			return token.Value, nil
 		case tokenizer.StringHex:
@@ -87,7 +87,7 @@ func (p *parser) parseDict() (cmapDict, error) {
 	for ; token.Kind != tokenizer.EOF && err == nil; token, err = p.tokenizer.NextToken() {
 		switch token.Kind {
 		case tokenizer.Name: // key
-			key := model.Name(token.Value)
+			key := model.ObjName(token.Value)
 			value, err := p.parseObject()
 			if err != nil {
 				return nil, err

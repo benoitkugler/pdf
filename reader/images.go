@@ -9,7 +9,7 @@ import (
 	"github.com/pdfcpu/pdfcpu/pkg/pdfcpu"
 )
 
-func (r resolver) resolveXObjects(obj pdfcpu.Object) (map[model.Name]model.XObject, error) {
+func (r resolver) resolveXObjects(obj pdfcpu.Object) (map[model.ObjName]model.XObject, error) {
 	obj = r.resolve(obj)
 	if obj == nil {
 		return nil, nil
@@ -18,7 +18,7 @@ func (r resolver) resolveXObjects(obj pdfcpu.Object) (map[model.Name]model.XObje
 	if !isDict {
 		return nil, errType("XObjects Dict", obj)
 	}
-	objMap := make(map[model.Name]model.XObject)
+	objMap := make(map[model.ObjName]model.XObject)
 	for name, xObject := range objDict {
 		xObjectModel, err := r.resolveOneXObject(xObject)
 		if err != nil {
@@ -27,7 +27,7 @@ func (r resolver) resolveXObjects(obj pdfcpu.Object) (map[model.Name]model.XObje
 		if xObjectModel == nil { // ignore the name
 			continue
 		}
-		objMap[model.Name(name)] = xObjectModel
+		objMap[model.ObjName(name)] = xObjectModel
 	}
 	return objMap, nil
 }
@@ -88,7 +88,7 @@ func (r resolver) resolveOneXObjectImage(img pdfcpu.Object) (*model.XObjectImage
 		out.BitsPerComponent = uint8(b)
 	}
 	if intent, ok := r.resolveName(stream.Dict["Intent"]); ok {
-		out.Intent = model.Name(intent)
+		out.Intent = model.ObjName(intent)
 	}
 	if m, ok := r.resolveBool(stream.Dict["ImageMask"]); ok {
 		out.ImageMask = m
@@ -141,7 +141,7 @@ func (r resolver) resolveOneXObjectImage(img pdfcpu.Object) (*model.XObjectImage
 		out.SMaskInData = uint8(s)
 	}
 	if st, ok := r.resolveInt(stream.Dict["StructParent"]); ok {
-		out.StructParent = model.Int(st)
+		out.StructParent = model.ObjInt(st)
 	}
 
 	if isRef {

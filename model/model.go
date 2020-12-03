@@ -59,10 +59,10 @@ func (doc *Document) Write(output io.Writer, encryption *Encrypt) error {
 
 	wr.writeHeader()
 
-	root := wr.createObject()
-	wr.writeObject(doc.Catalog.pdfString(wr, root), nil, root)
-	info := wr.createObject()
-	wr.writeObject(doc.Trailer.Info.pdfString(wr, info), nil, info)
+	root := wr.CreateObject()
+	wr.WriteObject(doc.Catalog.pdfString(wr, root), nil, root)
+	info := wr.CreateObject()
+	wr.WriteObject(doc.Trailer.Info.pdfString(wr, info), nil, info)
 
 	var encRef Reference
 	if encryption != nil {
@@ -109,12 +109,12 @@ func (cat *Catalog) pdfString(pdf pdfWriter, catalog Reference) string {
 	b := newBuffer()
 	b.line("<<\n/Type/Catalog")
 	pageRef := pdf.pages[&cat.Pages]
-	pdf.writeObject(cat.Pages.pdfString(pdf), nil, pageRef)
+	pdf.WriteObject(cat.Pages.pdfString(pdf), nil, pageRef)
 	b.line("/Pages %s", pageRef)
 
 	if pLabel := cat.PageLabels; pLabel != nil {
-		labelsRef := pdf.createObject()
-		pdf.writeObject(pLabel.pdfString(pdf, labelsRef), nil, labelsRef)
+		labelsRef := pdf.CreateObject()
+		pdf.WriteObject(pLabel.pdfString(pdf, labelsRef), nil, labelsRef)
 		b.line("/PageLabels %s", labelsRef)
 	}
 
@@ -138,18 +138,18 @@ func (cat *Catalog) pdfString(pdf pdfWriter, catalog Reference) string {
 		b.line("/PageMode %s", p)
 	}
 	if ac := cat.AcroForm; len(ac.Fields) != 0 {
-		ref := pdf.createObject()
-		pdf.writeObject(ac.pdfString(pdf, catalog, ref), nil, ref)
+		ref := pdf.CreateObject()
+		pdf.WriteObject(ac.pdfString(pdf, catalog, ref), nil, ref)
 		b.line("/AcroForm %s", ref)
 	}
 	if outline := cat.Outlines; outline != nil {
-		outlineRef := pdf.createObject()
-		pdf.writeObject(outline.pdfString(pdf, outlineRef), nil, outlineRef)
+		outlineRef := pdf.CreateObject()
+		pdf.WriteObject(outline.pdfString(pdf, outlineRef), nil, outlineRef)
 		b.line("/Outlines %s", outlineRef)
 	}
 	if cat.StructTreeRoot != nil {
-		stRef := pdf.createObject()
-		pdf.writeObject(cat.StructTreeRoot.pdfString(pdf, stRef), nil, stRef)
+		stRef := pdf.CreateObject()
+		pdf.WriteObject(cat.StructTreeRoot.pdfString(pdf, stRef), nil, stRef)
 		b.line("/StructTreeRoot %s", stRef)
 	}
 	if m := cat.MarkInfo; m != nil {
@@ -251,18 +251,18 @@ func (n NameDictionary) pdfString(pdf pdfWriter) string {
 	b := newBuffer()
 	b.WriteString("<<")
 	if dests := n.Dests; !dests.IsEmpty() {
-		ref := pdf.createObject()
-		pdf.writeObject(dests.pdfString(pdf, ref), nil, ref)
+		ref := pdf.CreateObject()
+		pdf.WriteObject(dests.pdfString(pdf, ref), nil, ref)
 		b.fmt("/Dests %s", ref)
 	}
 	if emb := n.EmbeddedFiles; len(emb) != 0 {
-		ref := pdf.createObject()
-		pdf.writeObject(emb.pdfString(pdf, ref), nil, ref)
+		ref := pdf.CreateObject()
+		pdf.WriteObject(emb.pdfString(pdf, ref), nil, ref)
 		b.fmt("/EmbeddedFiles %s", ref)
 	}
 	if aps := n.AP; !aps.IsEmpty() {
-		ref := pdf.createObject()
-		pdf.writeObject(aps.pdfString(pdf, ref), nil, ref)
+		ref := pdf.CreateObject()
+		pdf.WriteObject(aps.pdfString(pdf, ref), nil, ref)
 		b.fmt("/AP %s", ref)
 	}
 	b.WriteString(">>")

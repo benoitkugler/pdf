@@ -7,59 +7,27 @@ import (
 
 // --------------------- Property list ---------------------
 
-// TODO:
+// MetadataStream is a stream containing XML metadata,
+// implementing Object
 type MetadataStream struct {
 	Stream
 }
 
-func (m *MetadataStream) Clone() *MetadataStream {
-	if m == nil {
-		return nil
-	}
-	return &MetadataStream{Stream: m.Stream.Clone()}
+func (m MetadataStream) Clone() Object {
+	return MetadataStream{Stream: m.Stream.Clone()}
 }
 
-func (m MetadataStream) PDFContent() (string, []byte) {
+func (m MetadataStream) PDFString(w PDFWritter, _ Reference) string {
 	base := m.Stream.PDFCommonFields(true)
 	s := fmt.Sprintf("<</Type/Metadata/Subtype/XML %s>>", base)
-	return s, m.Content
+	ref := w.CreateObject()
+	w.WriteObject(s, m.Content, ref)
+	return ref.String()
 }
 
 // PropertyList is a dictionary of custom values.
-// When written in content stream, the PDFString method
-// will be invoked with invalid arguments.
-// We special case Metadata as it will be represented by a stream,
-// not handled for custom values.
-type PropertyList struct {
-	Metadata *MetadataStream // optional, ignored when used in content stream
-	Custom   map[Name]UPValue
-}
-
-// Clone returns a deep copy.
-func (p PropertyList) Clone() PropertyList {
-	out := p
-	if p.Custom != nil {
-		out.Custom = make(map[Name]UPValue, len(p.Custom))
-		for k, v := range p.Custom {
-			out.Custom[k] = v.Clone()
-		}
-	}
-	out.Metadata = p.Metadata.Clone()
-	return out
-}
-
-// pdfString return a PDF description of the properties.
-func (p PropertyList) pdfString(pdf pdfWriter, context Reference, inStream bool) string {
-	chunks := make([]string, 0, len(p.Custom)*2)
-	for k, v := range p.Custom {
-		chunks = append(chunks, k.String(), v.PDFString(pdf, context))
-	}
-	if !inStream && p.Metadata != nil {
-		ref := pdf.addObject(p.Metadata.PDFContent())
-		chunks = append(chunks, "/Metadata", ref.String())
-	}
-	return "<<" + strings.Join(chunks, " ") + ">>"
-}
+// See Metadata for an implementation for the /Metadata key
+type PropertyList = ObjDict
 
 // MarkDict provides additional information relevant to
 // specialized uses of structured PDF documents.
@@ -157,7 +125,7 @@ func (s *StructureTree) BuildParentTree() {
 				case nil: // default to the structure element
 					structParents = se.Pg.StructParents
 				}
-				if sp, ok := structParents.(Int); ok {
+				if sp, ok := structParents.(ObjInt); ok {
 					a := tmp[int(sp)]
 					a.Parents = append(a.Parents, se)
 					tmp[int(sp)] = a
@@ -165,7 +133,7 @@ func (s *StructureTree) BuildParentTree() {
 			case ContentItemObjectReference:
 				if kid.Obj != nil {
 					if structParent := kid.Obj.GetStructParent(); structParent != nil {
-						num := int(structParent.(Int))
+						num := int(structParent.(ObjInt))
 						tmp[num] = NumToParent{Parent: se}
 					}
 				}
@@ -222,8 +190,8 @@ func (s StructureTree) pdfString(pdf pdfWriter, ref Reference) string {
 	// so that pdf.structure is filled
 	refs := make([]Reference, len(s.K))
 	for i, k := range s.K {
-		kidRef := pdf.createObject()
-		pdf.writeObject(k.pdfString(pdf, kidRef, 0), nil, kidRef)
+		kidRef := pdf.CreateObject()
+		pdf.WriteObject(k.pdfString(pdf, kidRef, 0), nil, kidRef)
 		refs[i] = kidRef
 	}
 
@@ -240,8 +208,8 @@ func (s StructureTree) pdfString(pdf pdfWriter, ref Reference) string {
 		classChunks = append(classChunks, fmt.Sprintf("%s [%s]", k, strings.Join(attrChunks, " ")))
 	}
 
-	idTreeRef := pdf.createObject()
-	pdf.writeObject(s.IDTree.pdfString(pdf, idTreeRef), nil, idTreeRef)
+	idTreeRef := pdf.CreateObject()
+	pdf.WriteObject(s.IDTree.pdfString(pdf, idTreeRef), nil, idTreeRef)
 
 	b.line("<</Type/StructTreeRoot/K %s/IDTree %s/ParentTree %s/ParentTreeNextKey %d",
 		writeRefArray(refs), idTreeRef, s.ParentTree.pdfString(pdf), s.ParentTreeNextKey())
@@ -382,8 +350,8 @@ func (ContentItemObjectReference) isContentItem() {}
 func writeContentItem(c ContentItem, pdf pdfWriter, parent Reference) string {
 	switch c := c.(type) {
 	case *StructureElement:
-		ownRef := pdf.createObject()
-		pdf.writeObject(c.pdfString(pdf, ownRef, parent), nil, ownRef)
+		ownRef := pdf.CreateObject()
+		pdf.WriteObject(c.pdfString(pdf, ownRef, parent), nil, ownRef)
 		return ownRef.String()
 	case ContentItemMarkedReference:
 		return c.pdfString(pdf)
@@ -497,7 +465,7 @@ type AttributeObject struct {
 	O Name // required
 
 	// Other keys and values defining the attributes
-	Attributes map[Name]Attribute
+	Attributes map[Name]Object
 }
 
 // return one or to element, suitable to be included in an array
@@ -516,7 +484,7 @@ func (a AttributeObject) pdfString(pdf pdfWriter, ref Reference) string {
 func (a AttributeObject) Clone() AttributeObject {
 	out := a
 	if a.Attributes != nil {
-		out.Attributes = make(map[Name]Attribute, len(a.Attributes))
+		out.Attributes = make(map[Name]Object, len(a.Attributes))
 		for k, v := range a.Attributes {
 			out.Attributes[k] = v.Clone()
 		}
@@ -524,18 +492,13 @@ func (a AttributeObject) Clone() AttributeObject {
 	return out
 }
 
-// Attribute is the customable part of an attribute object
-// It should be composed of direct object, so that
-// PDFString and Clone are easily implementable
-type Attribute = UPValue
-
 // AttributeUserProperties is a predefined kind of Attribute
 // It may be used only if an AttributeObject with O = UserProperties
 // and Attributes = map[P: AttributeUserProperties]
 type AttributeUserProperties []UserProperty
 
 // Clone implements Attribute
-func (us AttributeUserProperties) Clone() Attribute {
+func (us AttributeUserProperties) Clone() Object {
 	var out AttributeUserProperties
 	if us != nil {
 		out = make(AttributeUserProperties, len(us))
@@ -547,7 +510,7 @@ func (us AttributeUserProperties) Clone() Attribute {
 }
 
 // PDFString implements Attribute
-func (us AttributeUserProperties) PDFString(enc PDFStringEncoder, context Reference) string {
+func (us AttributeUserProperties) PDFString(enc PDFWritter, context Reference) string {
 	chunks := make([]string, len(us))
 	for i, u := range us {
 		chunks[i] = u.PDFString(enc, context)
@@ -555,29 +518,14 @@ func (us AttributeUserProperties) PDFString(enc PDFStringEncoder, context Refere
 	return "[" + strings.Join(chunks, " ") + "]"
 }
 
-// UPValue stores a user defined, direct, PDF object,
-// which knows how to handle strings and to clone itself.
-// See the package values for an implementation.
-// This interface is not needed to use most of the package,
-// but is necessary to handle edge case, where the static type
-// of objects are not defined by the SPEC.
-type UPValue interface {
-	// PDFString must return a PDF representation of the value
-	// `enc` and `context` must be used to properly encode and encrypt
-	// text strings, if needed
-	PDFString(enc PDFStringEncoder, context Reference) string
-	// Clone returns a deep copy, preserving the concrete type.
-	Clone() UPValue
-}
-
 type UserProperty struct {
-	N string  // required
-	V UPValue // required
-	F string  // optional
-	H bool    // optional
+	N string // required
+	V Object // required
+	F string // optional
+	H bool   // optional
 }
 
-func (u UserProperty) PDFString(enc PDFStringEncoder, context Reference) string {
+func (u UserProperty) PDFString(enc PDFWritter, context Reference) string {
 	v := ""
 	if u.V != nil {
 		v = "/V " + u.V.PDFString(enc, context)

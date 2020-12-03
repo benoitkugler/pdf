@@ -3,6 +3,7 @@
 package reader
 
 import (
+	"bytes"
 	"encoding/hex"
 	"fmt"
 	"io"
@@ -10,6 +11,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/benoitkugler/pdf/fonts/simpleencodings"
 	"github.com/benoitkugler/pdf/model"
 	"github.com/pdfcpu/pdfcpu/pkg/pdfcpu"
 	"golang.org/x/text/encoding/unicode"
@@ -41,6 +43,8 @@ type resolver struct {
 	iccs              map[pdfcpu.IndirectRef]*model.ColorSpaceICCBased
 	colorTableStreams map[pdfcpu.IndirectRef]*model.ColorTableStream
 	structure         map[pdfcpu.IndirectRef]*model.StructureElement
+
+	customResolve CustomObjectResolver // optional, default is nil
 }
 
 type incompleteDest struct {
@@ -56,7 +60,23 @@ func isUTF16(b []byte) bool {
 	return b[0] == 0xFE && b[1] == 0xFF || b[0] == 0xff && b[1] == 0xfe
 }
 
-var utf16Dec = unicode.UTF16(unicode.BigEndian, unicode.UseBOM)
+var (
+	utf16Dec  = unicode.UTF16(unicode.BigEndian, unicode.UseBOM)
+	pdfDocDec = simpleencodings.PdfDoc.ByteToRune()
+)
+
+// pdfDocEncodingToString decodes PDFDocEncoded byte slice `b` to unicode string.
+func pdfDocEncodingToString(b []byte) string {
+	var buf bytes.Buffer
+	for _, bval := range b {
+		rune, has := pdfDocDec[bval]
+		if !has {
+			continue
+		}
+		buf.WriteRune(rune)
+	}
+	return buf.String()
+}
 
 // decodeTextString expects a "text string" as defined in PDF spec,
 // that is, either a PDFDocEncoded string or a UTF-16BE string
@@ -76,7 +96,7 @@ func decodeTextString(s string) string {
 		return string(out)
 	}
 
-	return model.PDFDocEncodingToString(b)
+	return pdfDocEncodingToString(b)
 }
 
 // var replacer = strings.NewReplacer("\\\\", "\\", "\\(", ")", "\\)", "(", "\\r", "\r")
@@ -150,9 +170,9 @@ func (r resolver) encrypt() (*model.Encrypt, error) {
 	out.Length = uint8(length / 8)
 
 	cf, _ := r.resolve(d["CF"]).(pdfcpu.Dict)
-	out.CF = make(map[model.Name]model.CrypFilter, len(cf))
+	out.CF = make(map[model.ObjName]model.CrypFilter, len(cf))
 	for name, c := range cf {
-		out.CF[model.Name(name)] = r.processCryptFilter(c)
+		out.CF[model.ObjName(name)] = r.processCryptFilter(c)
 	}
 	out.StmF, _ = r.resolveName(d["StmF"])
 	out.StrF, _ = r.resolveName(d["StrF"])
@@ -414,9 +434,9 @@ func (r resolver) resolveNumber(o pdfcpu.Object) (Fl, bool) {
 	}
 }
 
-func (r resolver) resolveName(o pdfcpu.Object) (model.Name, bool) {
+func (r resolver) resolveName(o pdfcpu.Object) (model.ObjName, bool) {
 	b, ok := r.resolve(o).(pdfcpu.Name)
-	return model.Name(b), ok
+	return model.ObjName(b), ok
 }
 
 func (r resolver) resolveArray(o pdfcpu.Object) (pdfcpu.Array, bool) {

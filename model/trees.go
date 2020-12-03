@@ -141,8 +141,8 @@ func (p DestTree) pdfString(pdf pdfWriter, ref Reference) string {
 	if len(p.Kids) != 0 {
 		b.fmt("/Kids [")
 		for _, kid := range p.Kids {
-			kidRef := pdf.createObject()
-			pdf.writeObject(kid.pdfString(pdf, kidRef), nil, kidRef)
+			kidRef := pdf.CreateObject()
+			pdf.WriteObject(kid.pdfString(pdf, kidRef), nil, kidRef)
 			b.fmt("%s ", kidRef)
 		}
 		b.line("]")
@@ -253,8 +253,8 @@ func (p AppearanceTree) pdfString(pdf pdfWriter, ref Reference) string {
 	if len(p.Kids) != 0 {
 		b.fmt("/Kids [")
 		for _, kid := range p.Kids {
-			kidRef := pdf.createObject()
-			pdf.writeObject(kid.pdfString(pdf, kidRef), nil, kidRef)
+			kidRef := pdf.CreateObject()
+			pdf.WriteObject(kid.pdfString(pdf, kidRef), nil, kidRef)
 			b.fmt("%s ", kidRef)
 		}
 		b.line("]")
@@ -356,7 +356,7 @@ type PageLabel struct {
 	St int    // optionnal default to 1
 }
 
-func (p PageLabel) pdfString(st PDFStringEncoder, ref Reference) string {
+func (p PageLabel) pdfString(st PDFWritter, ref Reference) string {
 	return fmt.Sprintf("<</S %s /P %s /St %d>>", p.S, st.EncodeString(p.P, TextString, ref), p.St)
 }
 
@@ -420,8 +420,8 @@ func (p PageLabelsTree) pdfString(pdf pdfWriter, ref Reference) string {
 	if len(p.Kids) != 0 {
 		b.fmt("/Kids [")
 		for _, kid := range p.Kids {
-			kidRef := pdf.createObject()
-			pdf.writeObject(kid.pdfString(pdf, kidRef), nil, kidRef)
+			kidRef := pdf.CreateObject()
+			pdf.WriteObject(kid.pdfString(pdf, kidRef), nil, kidRef)
 			b.fmt("%s ", kidRef)
 		}
 		b.line("]")
@@ -600,8 +600,8 @@ func (d IDTree) pdfString(pdf pdfWriter, ref Reference) string {
 	if len(d.Kids) != 0 {
 		b.fmt("/Kids [")
 		for _, kid := range d.Kids {
-			kidRef := pdf.createObject()
-			pdf.writeObject(kid.pdfString(pdf, kidRef), nil, kidRef)
+			kidRef := pdf.CreateObject()
+			pdf.WriteObject(kid.pdfString(pdf, kidRef), nil, kidRef)
 			b.fmt("%s ", kidRef)
 		}
 		b.line("]")

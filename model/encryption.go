@@ -155,7 +155,7 @@ func (c CrypFilter) pdfString(fromCrypt bool) string {
 		out += fmt.Sprintf("/Length %d", c.Length)
 	}
 	if fromCrypt && len(c.Recipients) == 1 {
-		out += "/Recipients " + EspaceByteString(c.Recipients[0])
+		out += "/Recipients " + EspaceByteString([]byte(c.Recipients[0]))
 	}
 	out += fmt.Sprintf("/EncryptMetadata %v>>", !c.DontEncryptMetadata)
 	return out
@@ -184,7 +184,7 @@ type EncryptionPublicKey []string
 func (e EncryptionPublicKey) encryptionAddFields() string {
 	chunks := make([]string, len(e))
 	for i, s := range e {
-		chunks[i] = EspaceByteString(s)
+		chunks[i] = EspaceByteString([]byte(s))
 	}
 	return fmt.Sprintf("/Recipients [%s]", strings.Join(chunks, " "))
 }
@@ -255,8 +255,8 @@ func (d Document) UseStandardEncryptionHandler(enc Encrypt, userPassword, ownerP
 
 func (e EncryptionStandard) encryptionAddFields() string {
 	return fmt.Sprintf("/R %d /O %s /U %s /EncryptMetadata %v",
-		e.R, EspaceByteString(string(e.O[:])),
-		EspaceByteString(string(e.U[:])), !e.DontEncryptMetadata)
+		e.R, EspaceByteString(e.O[:]),
+		EspaceByteString(e.U[:]), !e.DontEncryptMetadata)
 }
 
 func (e EncryptionStandard) Clone() EncryptionHandler {

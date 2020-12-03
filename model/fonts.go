@@ -141,14 +141,14 @@ func (p *UnicodeCMap) Clone() *UnicodeCMap {
 func (p UnicodeCMap) clone() UnicodeCMapBase { return *p.Clone() }
 
 func (c UnicodeCMap) pdfString(pdf pdfWriter) string {
-	ref := pdf.createObject()
+	ref := pdf.CreateObject()
 	base := c.Stream.PDFCommonFields(true)
 	dict := "<</Type/CMap " + base
 	if c.UseCMap != nil {
 		dict += fmt.Sprintf("/UseCMap %s", c.UseCMap.pdfString(pdf))
 	}
 	dict += ">>"
-	pdf.writeObject(dict, c.Content, ref)
+	pdf.WriteObject(dict, c.Content, ref)
 	return ref.String()
 }
 
@@ -227,8 +227,8 @@ func t1orttPDFString(font Font, pdf pdfWriter) string {
 		t = FontType1(font)
 		subtype = "TrueType"
 	}
-	fd := pdf.createObject()
-	pdf.writeObject(t.FontDescriptor.pdfString(pdf, font, fd), nil, fd) // FontDescriptor need the type of font
+	fd := pdf.CreateObject()
+	pdf.WriteObject(t.FontDescriptor.pdfString(pdf, font, fd), nil, fd) // FontDescriptor need the type of font
 	b := newBuffer()
 	b.line("/Type/Font/Subtype %s/FirstChar %d/LastChar %d",
 		subtype, t.FirstChar, t.LastChar())
@@ -310,8 +310,8 @@ func (f FontType3) fontPDFFields(pdf pdfWriter) string {
 	b.line("/Encoding %s/FirstChar %d/LastChar %d/Widths %s",
 		f.Encoding.simpleEncodingPDFString(pdf), f.FirstChar, f.LastChar(), widthsRef)
 	if f.FontDescriptor != nil {
-		fdRef := pdf.createObject()
-		pdf.writeObject(f.FontDescriptor.pdfString(pdf, f, fdRef), nil, fdRef)
+		fdRef := pdf.CreateObject()
+		pdf.WriteObject(f.FontDescriptor.pdfString(pdf, f, fdRef), nil, fdRef)
 		b.fmt("/FontDescriptor %s", fdRef)
 	}
 	if !f.Resources.IsEmpty() {
@@ -472,8 +472,8 @@ func (f FontType0) FontName() Name {
 }
 
 func (f FontType0) fontPDFFields(pdf pdfWriter) string {
-	desc := pdf.createObject()
-	pdf.writeObject(f.DescendantFonts.pdfString(pdf, desc), nil, desc)
+	desc := pdf.CreateObject()
+	pdf.WriteObject(f.DescendantFonts.pdfString(pdf, desc), nil, desc)
 	out := fmt.Sprintf("/Type/Font/Subtype/Type0/BaseFont %s/DescendantFonts [%s]",
 		f.BaseFont, desc)
 	if f.Encoding != nil {
@@ -526,7 +526,7 @@ func (p CMapEncodingEmbedded) Clone() CMapEncoding {
 }
 
 func (c CMapEncodingEmbedded) cMapEncodingPDFString(pdf pdfWriter) string {
-	ref := pdf.createObject()
+	ref := pdf.CreateObject()
 	base := c.Stream.PDFCommonFields(true)
 	dict := fmt.Sprintf("<</Type/CMap /CMapName %s/CIDSystemInfo %s %s",
 		c.CMapName, c.CIDSystemInfo.pdfString(pdf, ref), base)
@@ -537,7 +537,7 @@ func (c CMapEncodingEmbedded) cMapEncodingPDFString(pdf pdfWriter) string {
 		dict += fmt.Sprintf("/UseCMap %s", c.UseCMap.cMapEncodingPDFString(pdf))
 	}
 	dict += ">>"
-	pdf.writeObject(dict, c.Content, ref)
+	pdf.WriteObject(dict, c.Content, ref)
 	return ref.String()
 }
 
@@ -593,8 +593,8 @@ func (c CIDFontDictionary) Widths() map[CID]int {
 
 func (c CIDFontDictionary) pdfString(pdf pdfWriter, ref Reference) string {
 	b := newBuffer()
-	fD := pdf.createObject()
-	pdf.writeObject(c.FontDescriptor.pdfString(pdf, FontType0{}, fD), nil, fD)
+	fD := pdf.CreateObject()
+	pdf.WriteObject(c.FontDescriptor.pdfString(pdf, FontType0{}, fD), nil, fD)
 	b.line("<</Type/Font/Subtype %s/BaseFont %s/CIDSystemInfo %s/FontDescriptor %s",
 		c.Subtype, c.BaseFont, c.CIDSystemInfo.pdfString(pdf, ref), fD)
 	if c.DW != 0 {

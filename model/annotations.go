@@ -72,7 +72,7 @@ func (bo BorderStyle) String() string {
 	b := newBuffer()
 	b.WriteString("<<")
 	if bo.W != nil {
-		b.fmt("/W %.3f", bo.W.(Float))
+		b.fmt("/W %.3f", bo.W.(ObjFloat))
 	}
 	if bo.S != "" {
 		b.fmt("/S %s", bo.S)
@@ -193,7 +193,7 @@ func (ba BaseAnnotation) fields(pdf pdfWriter, ref Reference) string {
 		b.fmt("/C %s", writeFloatArray(ba.C))
 	}
 	if ba.StructParent != nil {
-		b.fmt("/StructParent %d", ba.StructParent.(Int))
+		b.fmt("/StructParent %d", ba.StructParent.(ObjInt))
 	}
 	return b.String()
 }
@@ -258,7 +258,7 @@ func (a AnnotationMarkup) pdfFields(pdf pdfWriter, context Reference) string {
 		b.fmt("/Popup %s", ref)
 	}
 	if a.CA != nil {
-		b.fmt("/CA %.3f", a.CA.(Float))
+		b.fmt("/CA %.3f", a.CA.(ObjFloat))
 	}
 	if a.RC != "" {
 		b.fmt("/RC %s", pdf.EncodeString(a.RC, TextString, context))
@@ -592,7 +592,7 @@ func (f AnnotationLine) annotationFields(pdf pdfWriter, ref Reference) string {
 	}
 	b.fmt("/Cap %v", f.Cap)
 	if f.LLO != nil {
-		b.fmt("/LLO %.3f", f.LLO.(Float))
+		b.fmt("/LLO %.3f", f.LLO.(ObjFloat))
 	}
 	if f.CP != "" {
 		b.fmt("/CP %s", f.CP)

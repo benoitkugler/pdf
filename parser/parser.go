@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/benoitkugler/pdf/model"
 	tkn "github.com/benoitkugler/pdf/parser/tokenizer"
 	"github.com/pdfcpu/pdfcpu/pkg/log"
 )
@@ -19,7 +20,17 @@ var (
 	errBufNotAvailable         = errors.New("pdfcpu: parse: no buffer available")
 )
 
-// type Command = pdfcpu.Command
+type Object = model.Object
+type Name = model.Name
+type Integer = model.ObjInt
+type Float = model.ObjFloat
+type StringLiteral = model.ObjStringLiteral
+type HexLiteral = model.ObjHexLiteral
+type Array = model.ObjArray
+type Dict = model.ObjDict
+type Boolean = model.ObjBoolean
+type Command = model.ObjCommand
+type IndirectRef = model.ObjIndirectRef
 
 // Standalone implementation of a PDF parser.
 // The parser only handles chunks of PDF files
@@ -191,7 +202,7 @@ func (p *Parser) parseDict(relaxed bool) (Dict, error) {
 func (p Parser) parseOther(l string) (Object, error) {
 	switch l {
 	case "null": // null, absent object
-		return nil, nil
+		return model.ObjNull{}, nil
 	case "true": // boolean true
 		return Boolean(true), nil
 	case "false": // boolean false
@@ -252,10 +263,7 @@ func (p *Parser) parseNumericOrIndRef(currentToken tkn.Token) (Object, error) {
 	// consume the tokens and return
 	_, _ = p.tokens.NextToken()
 	_, _ = p.tokens.NextToken()
-	return IndirectRef{
-		ObjectNumber:     Integer(i),
-		GenerationNumber: Integer(gen),
-	}, nil
+	return IndirectRef{ObjectNumber: i, GenerationNumber: gen}, nil
 }
 
 // ParseObjectDefinition parses an object definition.

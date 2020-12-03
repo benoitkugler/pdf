@@ -137,12 +137,12 @@ func ParseContentResources(content []byte, res model.ResourcesColorSpace) (model
 			log.Parse.Printf("Font[%s]\n", cmd.Font)
 		case cs.OpBeginMarkedContent:
 			if pn, ok := cmd.Properties.(cs.PropertyListName); ok {
-				out.Properties[model.Name(pn)] = model.PropertyList{}
+				out.Properties[model.ObjName(pn)] = model.PropertyList{}
 				log.Parse.Printf("Properties[%s]\n", pn)
 			}
 		case cs.OpMarkPoint:
 			if pn, ok := cmd.Properties.(cs.PropertyListName); ok {
-				out.Properties[model.Name(pn)] = model.PropertyList{}
+				out.Properties[model.ObjName(pn)] = model.PropertyList{}
 				log.Parse.Printf("Properties[%s]\n", pn)
 			}
 		case cs.OpBeginImage:
@@ -157,7 +157,7 @@ func ParseContentResources(content []byte, res model.ResourcesColorSpace) (model
 			case "", model.ColorSpaceRGB, model.ColorSpaceCMYK, model.ColorSpaceGray:
 				// ignored
 			default:
-				out.ColorSpace[model.Name(csName)] = nil
+				out.ColorSpace[model.ObjName(csName)] = nil
 			}
 		}
 	}

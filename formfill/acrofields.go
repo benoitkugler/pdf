@@ -23,15 +23,15 @@ var defaultFont = &model.FontDict{
 }
 
 type filler struct {
-	fontCache map[model.Name]fonts.BuiltFont
+	fontCache map[model.ObjName]fonts.BuiltFont
 }
 
 func newFiller() filler {
-	return filler{fontCache: make(map[model.Name]fonts.BuiltFont)}
+	return filler{fontCache: make(map[model.ObjName]fonts.BuiltFont)}
 }
 
 type daConfig struct {
-	font  model.Name
+	font  model.ObjName
 	color color.Color
 	size  Fl
 }
@@ -46,7 +46,7 @@ func splitDAelements(da string) (daConfig, error) {
 			switch token.Value {
 			case "Tf":
 				if len(stack) >= 2 {
-					ret.font = model.Name(stack[len(stack)-2].Value)
+					ret.font = model.ObjName(stack[len(stack)-2].Value)
 					fl, err := stack[len(stack)-1].Float()
 					if err != nil {
 						return daConfig{}, err
@@ -194,7 +194,7 @@ func (ac *filler) buildAppearance(formResources model.ResourcesDict, fields mode
 
 	//border styles
 	if annot.BS != nil {
-		if bw, ok := annot.BS.W.(model.Float); ok {
+		if bw, ok := annot.BS.W.(model.ObjFloat); ok {
 			appBuilder.borderWidth = Fl(bw)
 		}
 		appBuilder.borderStyle = annot.BS.S
@@ -267,7 +267,7 @@ func (ac *filler) buildAppearance(formResources model.ResourcesDict, fields mode
 // buildWidgets update item
 func (ac filler) buildWidgets(formResources model.ResourcesDict, field model.FormFieldInherited, display string) (int, error) {
 	var topFirst int
-	for _, widget := range field.FormFieldDict.Widgets {
+	for _, widget := range field.Field.Widgets {
 		var (
 			app *model.XObjectForm
 			err error
@@ -288,14 +288,14 @@ func (ac filler) buildWidgets(formResources model.ResourcesDict, field model.For
 
 // fields contains the inherited currentvalues, values are the values to write to the field
 func (ac filler) setField(formResources model.ResourcesDict, field model.FormFieldInherited, values Values) error {
-	field.FormFieldDict.RV = values.RV
+	field.Field.RV = values.RV
 	switch type_ := field.Merged.FT.(type) {
 	case model.FormFieldText:
 		value, ok := values.V.(Text)
 		if !ok {
 			return fmt.Errorf("unexpected value type for text field: %T", values.V)
 		}
-		if ml, _ := type_.MaxLen.(model.Int); ml > 0 {
+		if ml, _ := type_.MaxLen.(model.ObjInt); ml > 0 {
 			asRunes := []rune(value)
 			value = Text(asRunes[0:min(int(ml), len(asRunes))])
 		}
@@ -304,7 +304,7 @@ func (ac filler) setField(formResources model.ResourcesDict, field model.FormFie
 		if err != nil {
 			return err
 		}
-		field.FormFieldDict.FT = type_ // update
+		field.Field.FT = type_ // update
 	case model.FormFieldChoice:
 		value, ok := values.V.(Choices)
 		if !ok {
@@ -320,7 +320,7 @@ func (ac filler) setField(formResources model.ResourcesDict, field model.FormFie
 			return err
 		}
 		type_.TI = topFirst
-		field.FormFieldDict.FT = type_ // update
+		field.Field.FT = type_ // update
 	case model.FormFieldButton:
 		value, ok := values.V.(ButtonAppearanceName)
 		if !ok {
@@ -330,10 +330,10 @@ func (ac filler) setField(formResources model.ResourcesDict, field model.FormFie
 		if (flags & model.Pushbutton) != 0 {
 			return nil
 		}
-		v := model.Name(value)
+		v := model.ObjName(value)
 		if (flags & model.Radio) == 0 {
 			type_.V = v
-			setStateAS(field.FormFieldDict, v)
+			setStateAS(field.Field, v)
 		} else {
 			vidx := -1
 			for idx, vv := range type_.Opt {
@@ -343,34 +343,34 @@ func (ac filler) setField(formResources model.ResourcesDict, field model.FormFie
 			}
 			vt := v
 			if vidx >= 0 {
-				vt = model.Name(strconv.Itoa(vidx))
+				vt = model.ObjName(strconv.Itoa(vidx))
 			}
 			type_.V = v
-			setStateAS(field.FormFieldDict, vt)
+			setStateAS(field.Field, vt)
 		}
-		field.FormFieldDict.FT = type_ // update
+		field.Field.FT = type_ // update
 	}
 	return nil
 }
 
-func setStateAS(field *model.FormFieldDict, state model.Name) {
+func setStateAS(field *model.FormFieldDict, state model.ObjName) {
 	for _, widget := range field.Widgets {
 		if isInAP(widget, state) {
 			widget.AS = state
 		} else {
-			widget.AS = model.Name("Off")
+			widget.AS = model.ObjName("Off")
 		}
 	}
 }
 
-func isInAP(widget model.FormFieldWidget, check model.Name) bool {
+func isInAP(widget model.FormFieldWidget, check model.ObjName) bool {
 	if widget.AP == nil {
 		return false
 	}
 	return widget.AP.N != nil && widget.AP.N[check] != nil
 }
 
-// update `acro` in place, accorcding to the value in `fdf`
+// update `acro` in place, according to the value in `fdf`
 func (ac filler) fillForm(acro *model.AcroForm, fdf FDFDict, lockForm bool) error {
 	// we first walk the fdf tree into a map
 	values := fdf.resolve()
@@ -392,7 +392,7 @@ func (ac filler) fillForm(acro *model.AcroForm, fdf FDFDict, lockForm bool) erro
 	if lockForm {
 		// lock all the fields, not only the ones filled
 		for _, field := range fields {
-			field.Ff |= model.ReadOnly
+			field.Field.Ff |= model.ReadOnly
 		}
 	}
 

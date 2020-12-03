@@ -198,7 +198,7 @@ func TestTextSpaced(t *testing.T) {
 }
 
 func TestInlineData(t *testing.T) {
-	filtersName := []model.Name{
+	filtersName := []model.ObjName{
 		model.ASCII85,
 		model.ASCIIHex,
 		model.Flate,

@@ -85,7 +85,7 @@ func (r resolver) resolveAppearanceEntry(obj pdfcpu.Object) (model.AppearanceEnt
 			if err != nil {
 				return nil, err
 			}
-			out[model.Name(name)] = formObj
+			out[model.ObjName(name)] = formObj
 		}
 	} else { // stream (surely indirect)
 		ap, err := r.resolveOneXObjectForm(obj)
@@ -127,9 +127,9 @@ func (r resolver) resolveOneXObjectForm(obj pdfcpu.Object) (*model.XObjectForm, 
 		}
 	}
 	if st, ok := r.resolveInt(stream.Dict["StructParent"]); ok {
-		ap.StructParent = model.Int(st)
+		ap.StructParent = model.ObjInt(st)
 	} else if st, ok := r.resolveInt(stream.Dict["StructParents"]); ok {
-		ap.StructParents = model.Int(st)
+		ap.StructParents = model.ObjInt(st)
 	}
 
 	if isRef {
@@ -335,16 +335,16 @@ func (r resolver) resolveDestinationOrAction(object pdfcpu.Object) (model.Action
 	return model.Action{}, nil
 }
 
-func (r resolver) resolveDests(object pdfcpu.Object) (map[model.Name]model.DestinationExplicit, error) {
+func (r resolver) resolveDests(object pdfcpu.Object) (map[model.ObjName]model.DestinationExplicit, error) {
 	dict, _ := r.resolve(object).(pdfcpu.Dict)
-	out := make(map[model.Name]model.DestinationExplicit, len(dict))
+	out := make(map[model.ObjName]model.DestinationExplicit, len(dict))
 	for name, dest := range dict {
 		if ar, ok := r.resolveArray(dest); ok {
 			exp, err := r.resolveExplicitDestination(ar)
 			if err != nil {
 				return nil, err
 			}
-			out[model.Name(name)] = exp
+			out[model.ObjName(name)] = exp
 		}
 	}
 	return out, nil

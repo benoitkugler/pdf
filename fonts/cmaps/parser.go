@@ -71,7 +71,7 @@ func (cmap *parser) parse() error {
 				if prev == nil {
 					return ErrBadCMap
 				}
-				name, ok := prev.(model.Name)
+				name, ok := prev.(model.ObjName)
 				if !ok {
 					return ErrBadCMap
 				}
@@ -85,7 +85,7 @@ func (cmap *parser) parse() error {
 					return err
 				}
 			}
-		case model.Name:
+		case model.ObjName:
 			switch t {
 			case "CIDSystemInfo":
 				err := cmap.parseSystemInfo()
@@ -116,7 +116,7 @@ func (cmap *parser) parse() error {
 // parseName parses a cmap name and adds it to `cmap`.
 // cmap names are defined like this:/CMapName/83pv-RKSJ-H def
 func (cmap *parser) addName() error {
-	var name model.Name
+	var name model.ObjName
 	done := false
 	for i := 0; i < 10 && !done; i++ {
 		o, err := cmap.parseObject()
@@ -134,10 +134,10 @@ func (cmap *parser) addName() error {
 				///CMapName/Adobe-SI-*Courier New-6164-0 def
 				// We just append the non-existant operator "New-6164-0" to the name
 				if name != "" {
-					name = model.Name(fmt.Sprintf("%s %s", name, t))
+					name = model.ObjName(fmt.Sprintf("%s %s", name, t))
 				}
 			}
-		case model.Name:
+		case model.ObjName:
 			name = t
 		}
 	}
@@ -218,7 +218,7 @@ func (cmap *parser) parseVersion() error {
 func (cmap *parser) parseSystemInfo() error {
 	inDict := false
 	inDef := false
-	var name model.Name
+	var name model.ObjName
 	done := false
 	systemInfo := model.CIDSystemInfo{}
 
@@ -258,7 +258,7 @@ func (cmap *parser) parseSystemInfo() error {
 			case "def":
 				inDef = false
 			}
-		case model.Name:
+		case model.ObjName:
 			if inDict {
 				name = t
 				inDef = true
@@ -448,7 +448,7 @@ func (cmap *parser) parseBfchar() error {
 			return ErrBadCMap
 		case cmapHexString:
 			target = hexToRune(v)
-		case model.Name:
+		case model.ObjName:
 			target = MissingCodeRune
 		default:
 			return ErrBadCMap

@@ -37,13 +37,13 @@ func (c CharCode) Append(bs *[]byte) {
 // CMap map character code to CIDs.
 // It is either predefined, or embedded in PDF as a stream.
 type CMap struct {
-	Name          model.Name
+	Name          model.ObjName
 	CIDSystemInfo model.CIDSystemInfo
 	Type          int
 	Codespaces    []Codespace
 	CIDs          []CIDRange
 
-	UseCMap model.Name
+	UseCMap model.ObjName
 
 	simple *bool // cached value of Simple
 }
