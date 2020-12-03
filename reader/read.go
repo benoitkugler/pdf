@@ -383,7 +383,7 @@ func (r resolver) catalog() (model.Catalog, error) {
 	if err != nil {
 		return out, err
 	}
-	// TODO: annotations
+
 	out.PageLayout, _ = r.resolveName(d["PageLayout"])
 	out.PageMode, _ = r.resolveName(d["PageMode"])
 

@@ -26,7 +26,7 @@ func init() {
 	// the PDF spec is used in several tests, but is heavy
 	// so, when working on isolated test, you may want to avoid loading it
 	// by commenting this line
-	loadPDFSpec()
+	// loadPDFSpec()
 
 	// generatePDFs()
 }
@@ -89,7 +89,6 @@ func TestOpen(t *testing.T) {
 			}
 		}
 	}
-
 }
 
 func BenchmarkProcess(b *testing.B) {
@@ -132,8 +131,10 @@ func TestDataset(t *testing.T) {
 		}
 
 		fmt.Println("	Pages:", len(doc.Catalog.Pages.Flatten()))
-		fmt.Println("	Dests string:", len(doc.Catalog.Names.Dests.LookupTable()))
 		fmt.Println("	Dests name:", len(doc.Catalog.Dests))
+		fmt.Println("	Dests string:", len(doc.Catalog.Names.Dests.LookupTable()))
+		fmt.Println("	Pages strings:", len(doc.Catalog.Names.Pages.LookupTable()))
+		fmt.Println("	Templates strings:", len(doc.Catalog.Names.Templates.LookupTable()))
 	}
 }
 

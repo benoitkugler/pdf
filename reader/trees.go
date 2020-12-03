@@ -244,3 +244,30 @@ func (d parentTree) resolveLeafValueAppend(r resolver, number int, value pdfcpu.
 	d.out.Nums = append(d.out.Nums, parent)
 	return nil
 }
+
+type templatesNameTree struct {
+	out *model.TemplateTree // target which will be filled
+}
+
+func (d templatesNameTree) createKid() nameTree {
+	return templatesNameTree{out: new(model.TemplateTree)}
+}
+func (d templatesNameTree) appendKid(kid nameTree) {
+	d.out.Kids = append(d.out.Kids, *kid.(templatesNameTree).out)
+}
+func (d templatesNameTree) resolveLeafValueAppend(r resolver, name string, value pdfcpu.Object) error {
+	var page *model.PageObject
+	if pageRef, isRef := value.(pdfcpu.IndirectRef); isRef {
+		page = r.pages[pageRef]
+	}
+	if page == nil { // template -> create a new object
+		page = new(model.PageObject)
+		pageDict, _ := r.resolve(value).(pdfcpu.Dict)
+		err := r.resolvePageObject(pageDict, page)
+		if err != nil {
+			return err
+		}
+	}
+	d.out.Names = append(d.out.Names, model.NameToPage{Name: name, Page: page})
+	return nil
+}

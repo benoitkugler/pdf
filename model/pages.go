@@ -141,7 +141,9 @@ type PageObject struct {
 	StructParents             MaybeInt          // Required if the page contains structural content items
 	Tabs                      Name              // optional, one of R , C or S
 
-	parent *PageTree // cache, set up during pre-allocation
+	// cache, set up during pre-allocation
+	// a nil value indicates a template page
+	parent *PageTree
 }
 
 // AddFormFieldWidget creates a new form field widget
@@ -154,12 +156,18 @@ func (p *PageObject) AddFormFieldWidget(f *FormFieldDict, base BaseAnnotation, w
 }
 
 // the pdf page map is used to fetch the object number
+// of the parent
 func (p *PageObject) pdfString(pdf pdfWriter) string {
-	parentReference := pdf.pages[p.parent]
 	b := newBuffer()
 	b.line("<<")
-	b.line("/Type/Page")
-	b.line("/Parent %s", parentReference)
+	// parent will be nil only for template pages
+	if p.parent == nil {
+		b.line("/Type/Template")
+	} else {
+		parentReference := pdf.pages[p.parent]
+		b.line("/Type/Page")
+		b.line("/Parent %s", parentReference)
+	}
 	if !p.Resources.IsEmpty() {
 		b.line("/Resources %s", pdf.addObject(p.Resources.pdfString(pdf), nil))
 	}
@@ -209,9 +217,16 @@ func (p *PageObject) pdfString(pdf pdfWriter) string {
 func (*PageObject) Count() int { return 1 }
 
 // return a deep copy, with concrete type *PageObject
-// cache.pages must have been previsouly filled
+// cache.pages must have been previsouly filled, otherwise
+// the clone is a new object, with no links to the existing structure
 func (po *PageObject) clone(cache cloneCache) PageNode {
-	out := cache.pages[po].(*PageObject)
+	var out *PageObject
+	if cached, hasCache := cache.pages[po]; hasCache {
+		out = cached.(*PageObject)
+	} else {
+		out = new(PageObject)
+	}
+
 	// ignoring parent since it is not used until writing
 	if po.Resources != nil {
 		res := po.Resources.clone(cache)

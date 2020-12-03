@@ -205,6 +205,20 @@ func (r resolver) processNameDict(entry pdfcpu.Object) (model.NameDictionary, er
 		}
 	}
 
+	if tree := dict["Pages"]; tree != nil {
+		err := r.resolveNameTree(tree, templatesNameTree{out: &out.Pages})
+		if err != nil {
+			return out, err
+		}
+	}
+
+	if tree := dict["Templates"]; tree != nil {
+		err := r.resolveNameTree(tree, templatesNameTree{out: &out.Templates})
+		if err != nil {
+			return out, err
+		}
+	}
+
 	// TODO: other names
 	return out, nil
 }

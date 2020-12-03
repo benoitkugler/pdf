@@ -780,3 +780,125 @@ func (d ParentTree) pdfString(pdf pdfWriter) string {
 	b.fmt(">>")
 	return b.String()
 }
+
+// ----------------- Pages and Templates name entry -----------------
+
+type NameToPage struct {
+	Name string
+	Page *PageObject
+}
+
+// return two elements, to be included in an array
+// pages can be either already written (visible) or not (invisible)
+func (n NameToPage) pdfString(pdf pdfWriter, ref Reference) string {
+	pageRef, ok := pdf.pages[n.Page]
+	if !ok { // template
+		pageRef = pdf.addObject(n.Page.pdfString(pdf), nil)
+	}
+	return fmt.Sprintf("%s %s", pdf.EncodeString(n.Name, ByteString, ref), pageRef)
+}
+
+func (n NameToPage) clone(cache cloneCache) NameToPage {
+	out := n
+	if cached := cache.pages[n.Page]; cached != nil {
+		out.Page = cached.(*PageObject)
+	} else {
+		out.Page = n.Page.clone(cache).(*PageObject)
+	}
+	return out
+}
+
+// TemplateTree is both the Templates and the Pages entry
+// of the name dictionary
+type TemplateTree struct {
+	Kids  []TemplateTree
+	Names []NameToPage
+}
+
+// IsEmpty returns true if the tree is empty
+// and should not be written in the PDF file.
+func (d TemplateTree) IsEmpty() bool {
+	return len(d.Kids) == 0 && len(d.Names) == 0
+}
+
+func (d TemplateTree) names() []string {
+	out := make([]string, len(d.Names))
+	for i, k := range d.Names {
+		out[i] = k.Name
+	}
+	return out
+}
+
+func (d TemplateTree) kids() []nameTree {
+	out := make([]nameTree, len(d.Kids))
+	for i, k := range d.Kids {
+		out[i] = k
+	}
+	return out
+}
+
+// Limits specify the (lexically) least and greatest keys included in the Names array of
+// a leaf node or in the Names arrays of any leaf nodes that are descendants of an
+// intermediate node.
+func (d TemplateTree) Limits() [2]string {
+	return limitsName(d)
+}
+
+// requires that the structure tree is already clone
+func (d TemplateTree) clone(cache cloneCache) TemplateTree {
+	out := d
+	if d.Kids != nil { // preserve reflect.DeepEqual
+		out.Kids = make([]TemplateTree, len(d.Kids))
+		for i, k := range d.Kids {
+			out.Kids[i] = k.clone(cache)
+		}
+	}
+	if d.Names != nil { // preserve reflect.DeepEqual
+		out.Names = make([]NameToPage, len(d.Names))
+		for i, k := range d.Names {
+			out.Names[i] = k.clone(cache)
+		}
+	}
+	return out
+}
+
+func (d TemplateTree) pdfString(pdf pdfWriter, ref Reference) string {
+	b := newBuffer()
+	limits := d.Limits()
+	b.line("<</Limits [%s %s]",
+		pdf.EncodeString(limits[0], ByteString, ref),
+		pdf.EncodeString(limits[1], ByteString, ref))
+	if len(d.Kids) != 0 {
+		b.fmt("/Kids [")
+		for _, kid := range d.Kids {
+			kidRef := pdf.CreateObject()
+			pdf.WriteObject(kid.pdfString(pdf, kidRef), nil, kidRef)
+			b.fmt("%s ", kidRef)
+		}
+		b.line("]")
+	}
+	if len(d.Names) != 0 {
+		b.fmt("/Names [ ")
+		for _, num := range d.Names {
+			b.fmt("%s ", num.pdfString(pdf, ref))
+		}
+		b.line("]")
+	}
+	b.fmt(">>")
+	return b.String()
+}
+
+// LookupTable walks the name tree and
+// accumulates the result into one map
+func (d TemplateTree) LookupTable() map[string]*PageObject {
+	out := make(map[string]*PageObject)
+	for _, v := range d.Names {
+		out[v.Name] = v.Page
+	}
+	for _, kid := range d.Kids {
+		for name, dest := range kid.LookupTable() {
+			out[name] = dest
+		}
+	}
+	return out
+}

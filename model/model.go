@@ -246,6 +246,8 @@ type NameDictionary struct {
 	EmbeddedFiles EmbeddedFileTree
 	Dests         DestTree
 	AP            AppearanceTree
+	Pages         TemplateTree
+	Templates     TemplateTree
 }
 
 func (n NameDictionary) pdfString(pdf pdfWriter) string {
@@ -266,6 +268,16 @@ func (n NameDictionary) pdfString(pdf pdfWriter) string {
 		pdf.WriteObject(aps.pdfString(pdf, ref), nil, ref)
 		b.fmt("/AP %s", ref)
 	}
+	if pages := n.Pages; !pages.IsEmpty() {
+		ref := pdf.CreateObject()
+		pdf.WriteObject(pages.pdfString(pdf, ref), nil, ref)
+		b.fmt("/Pages %s", ref)
+	}
+	if templates := n.Templates; !templates.IsEmpty() {
+		ref := pdf.CreateObject()
+		pdf.WriteObject(templates.pdfString(pdf, ref), nil, ref)
+		b.fmt("/Templates %s", ref)
+	}
 	b.WriteString(">>")
 	return b.String()
 }
@@ -275,6 +287,8 @@ func (n NameDictionary) clone(cache cloneCache) NameDictionary {
 	out.EmbeddedFiles = n.EmbeddedFiles.clone(cache)
 	out.Dests = n.Dests.clone(cache)
 	out.AP = n.AP.clone(cache)
+	out.Pages = n.Pages.clone(cache)
+	out.Templates = n.Templates.clone(cache)
 	return out
 }
 
