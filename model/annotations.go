@@ -859,3 +859,47 @@ func (i *IconFit) Clone() *IconFit {
 	}
 	return &out
 }
+
+// ---------------------------------------------------
+
+// AnnotationScreen specifies a region of a page upon which media clips may be played.
+// See 12.5.6.18 - Screen Annotations
+type AnnotationScreen struct {
+	T  string                      // optional
+	MK *AppearanceCharacteristics  // optional
+	A  Action                      // optional
+	AA AnnotationAdditionalActions // optional
+	P  *PageObject
+}
+
+func (w AnnotationScreen) annotationFields(pdf pdfWriter, ref Reference) string {
+	out := fmt.Sprintf("/Subtype/Screen")
+	if w.T != "" {
+		out += "/T " + pdf.EncodeString(w.T, TextString, ref)
+	}
+	if w.MK != nil {
+		out += fmt.Sprintf("/MK %s", w.MK.pdfString(pdf, ref))
+	}
+	if w.A.ActionType != nil {
+		out += fmt.Sprintf("/A %s", w.A.pdfString(pdf, ref))
+	}
+	if !w.AA.IsEmpty() {
+		out += fmt.Sprintf("/AA %s", w.AA.pdfString(pdf, ref))
+	}
+	if w.P != nil {
+		ref := pdf.pages[w.P]
+		out += "/P " + ref.String()
+	}
+	return out
+}
+
+func (w AnnotationScreen) clone(cache cloneCache) Annotation {
+	out := w
+	out.MK = w.MK.clone(cache)
+	out.A = w.A.clone(cache)
+	out.AA = w.AA.clone(cache)
+	if w.P != nil {
+		out.P = cache.pages[w.P].(*PageObject)
+	}
+	return out
+}

@@ -291,7 +291,7 @@ func (f FormFieldButton) formFieldAttrs(pdf pdfWriter, _, fieldRef Reference) st
 		out += "/V " + f.V.String()
 	}
 	if len(f.Opt) != 0 {
-		out += fmt.Sprintf("/Opt [%s]", pdf.stringsArray(f.Opt, TextString, fieldRef))
+		out += fmt.Sprintf("/Opt [%s]", writeStringsArray(f.Opt, pdf, TextString, fieldRef))
 	}
 	return out
 }
@@ -338,7 +338,7 @@ func (f FormFieldChoice) formFieldAttrs(pdf pdfWriter, _, fieldRef Reference) st
 	} else if len(f.V) == 1 {
 		b.fmt("/V %s", pdf.EncodeString(f.V[0], TextString, fieldRef))
 	} else {
-		b.fmt("/V %s", pdf.stringsArray(f.V, TextString, fieldRef))
+		b.fmt("/V %s", writeStringsArray(f.V, pdf, TextString, fieldRef))
 	}
 	if len(f.Opt) != 0 {
 		b.fmt("/Opt [")
@@ -431,7 +431,7 @@ func (s SignatureDict) pdfString(pdf pdfWriter, catalog, fieldRef Reference) str
 	}
 	b.fmt("/Contents %s", pdf.EncodeString(s.Contents, HexString, fieldRef))
 	if len(s.Cert) != 0 {
-		b.fmt("/Cert %s", pdf.stringsArray(s.Cert, TextString, fieldRef))
+		b.fmt("/Cert %s", writeStringsArray(s.Cert, pdf, TextString, fieldRef))
 	}
 	if len(s.ByteRange) != 0 {
 		b.fmt("/ByteRange [")
@@ -611,7 +611,7 @@ type TransformFieldMDP struct {
 func (t TransformFieldMDP) transformParamsDict(pdf pdfWriter, ref Reference) string {
 	out := fmt.Sprintf("<</Action %s", t.Action)
 	if len(t.Fields) != 0 {
-		out += fmt.Sprintf("/Fields %s", pdf.stringsArray(t.Fields, TextString, ref))
+		out += fmt.Sprintf("/Fields %s", writeStringsArray(t.Fields, pdf, TextString, ref))
 	}
 	out += fmt.Sprintf("/V %s>>", t.V)
 	return out
@@ -631,7 +631,7 @@ type LockDict struct {
 func (l LockDict) pdfString(pdf pdfWriter, ref Reference) string {
 	out := fmt.Sprintf("<</Action %s", l.Action)
 	if len(l.Fields) != 0 {
-		out += fmt.Sprintf("/Fields %s", pdf.stringsArray(l.Fields, TextString, ref))
+		out += fmt.Sprintf("/Fields %s", writeStringsArray(l.Fields, pdf, TextString, ref))
 	}
 	out += ">>"
 	return out
@@ -684,7 +684,7 @@ func (s SeedDict) pdfString(pdf pdfWriter, ref Reference) string {
 		b.fmt("/Cert %s", s.Cert.pdfString(pdf, ref))
 	}
 	if len(s.Reasons) != 0 {
-		b.fmt("/Reasons %s", pdf.stringsArray(s.Reasons, TextString, ref))
+		b.fmt("/Reasons %s", writeStringsArray(s.Reasons, pdf, TextString, ref))
 	}
 	if s.MDP != nil {
 		b.fmt("/MDP <</P %d>>", s.MDP.(ObjInt))
@@ -693,7 +693,7 @@ func (s SeedDict) pdfString(pdf pdfWriter, ref Reference) string {
 		b.fmt("/TimeStamp %s", s.TimeStamp.pdfString(pdf, ref))
 	}
 	if len(s.LegalAttestation) != 0 {
-		b.fmt("/LegalAttestation %s", pdf.stringsArray(s.LegalAttestation, TextString, ref))
+		b.fmt("/LegalAttestation %s", writeStringsArray(s.LegalAttestation, pdf, TextString, ref))
 	}
 	b.fmt("/AddRevInfo %v>>", s.AddRevInfo)
 	return b.String()
@@ -749,7 +749,7 @@ func (c CertDict) pdfString(pdf pdfWriter, ref Reference) string {
 		b.fmt("/Ff %d", c.Ff)
 	}
 	if len(c.Subject) != 0 {
-		b.fmt("/Subject %s", pdf.stringsArray(c.Subject, ByteString, ref))
+		b.fmt("/Subject %s", writeStringsArray(c.Subject, pdf, ByteString, ref))
 	}
 	if len(c.SubjectDN) != 0 {
 		b.fmt("/SubjectDN [")
@@ -763,13 +763,13 @@ func (c CertDict) pdfString(pdf pdfWriter, ref Reference) string {
 		b.fmt("]")
 	}
 	if len(c.KeyUsage) != 0 {
-		b.fmt("/KeyUsage %s", pdf.stringsArray(c.KeyUsage, ByteString, ref))
+		b.fmt("/KeyUsage %s", writeStringsArray(c.KeyUsage, pdf, ByteString, ref))
 	}
 	if len(c.Issuer) != 0 {
-		b.fmt("/Issuer %s", pdf.stringsArray(c.Issuer, ByteString, ref))
+		b.fmt("/Issuer %s", writeStringsArray(c.Issuer, pdf, ByteString, ref))
 	}
 	if len(c.OID) != 0 {
-		b.fmt("/OID %s", pdf.stringsArray(c.OID, ByteString, ref))
+		b.fmt("/OID %s", writeStringsArray(c.OID, pdf, ByteString, ref))
 	}
 	if c.URL != "" {
 		b.fmt("/URL %s", pdf.EncodeString(c.URL, ByteString, ref))

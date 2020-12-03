@@ -365,7 +365,7 @@ func (ac ActionHide) clone(cache cloneCache) ActionType {
 	for i, t := range ac.T {
 		out.T[i] = t.cloneHT(cache)
 	}
-	return ac
+	return out
 }
 
 // ActionHideTarget is either an annotation or
@@ -518,4 +518,48 @@ func (ann AnnotationAdditionalActions) clone(cache cloneCache) AnnotationAdditio
 	a.PV = ann.PV.clone(cache)
 	a.PI = ann.PI.clone(cache)
 	return a
+}
+
+// --------------------------------------------------------------
+
+const (
+	RenditionPlay = iota
+	RenditionStop
+	RenditionPause
+	RenditionResume
+	RenditionPlayWithAN
+)
+
+// ActionRendition controls the playing of multimedia content
+// See 12.6.4.13 - Rendition Actions
+type ActionRendition struct {
+	R  RenditionDict   // optional
+	AN *AnnotationDict // optional, must be with type Screen
+	OP MaybeInt        // optional, see the RenditionXxx constants
+	JS string          // optional, maybe written in PDF a text stream
+}
+
+func (a ActionRendition) actionParams(pdf pdfWriter, ref Reference) string {
+	out := "/S/Rendition"
+	if a.R.Subtype != nil {
+		out += "/R " + a.R.pdfString(pdf, ref)
+	}
+	if a.AN != nil {
+		ref := pdf.addItem(a.AN)
+		out += "/AN " + ref.String()
+	}
+	if a.OP != nil {
+		out += fmt.Sprintf("/OP %d", a.OP.(ObjInt))
+	}
+	if a.JS != "" {
+		out += "/JS " + pdf.EncodeString(a.JS, TextString, ref)
+	}
+	return out
+}
+
+func (ac ActionRendition) clone(cache cloneCache) ActionType {
+	out := ac
+	out.R = ac.R.clone(cache)
+	out.AN = ac.AN.clone(cache).(*AnnotationDict)
+	return out
 }

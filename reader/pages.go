@@ -151,38 +151,35 @@ func (r resolver) resolveAnnotation(annot pdfcpu.Object) (*model.AnnotationDict,
 	if annotModel := r.annotations[annotRef]; isRef && annotModel != nil {
 		return annotModel, nil
 	}
+	var out model.AnnotationDict
+	if isRef {
+		// annotation may have action which refer back to them
+		// to avoid loop we begin by register the new pointer
+		// which will be update soon
+		r.annotations[annotRef] = &out
+	}
 	annot = r.resolve(annot)
 	annotDict, isDict := annot.(pdfcpu.Dict)
 	if !isDict {
 		return nil, errType("Annotation", annot)
 	}
-	annotModel, err := r.resolveAnnotationFields(annotDict)
+	err := r.resolveAnnotationFields(annotDict, &out)
 	if err != nil {
 		return nil, err
 	}
-
-	if isRef { // write the annotation back into the cache
-		r.annotations[annotRef] = &annotModel
-	}
-	return &annotModel, nil
+	return &out, nil
 }
 
-func (r resolver) resolveAnnotationFields(annotDict pdfcpu.Dict) (model.AnnotationDict, error) {
-	var (
-		annotModel model.AnnotationDict
-		err        error
-	)
-	annotModel.BaseAnnotation, err = r.resolveBaseAnnotation(annotDict)
+func (r resolver) resolveAnnotationFields(annotDict pdfcpu.Dict, out *model.AnnotationDict) error {
+	var err error
+	out.BaseAnnotation, err = r.resolveBaseAnnotation(annotDict)
 	if err != nil {
-		return annotModel, err
+		return err
 	}
 
-	annotModel.Subtype, err = r.resolveAnnotationSubType(annotDict)
-	if err != nil {
-		return annotModel, err
-	}
+	out.Subtype, err = r.resolveAnnotationSubType(annotDict)
 
-	return annotModel, nil
+	return err
 }
 
 func (r resolver) resolveBaseAnnotation(annotDict pdfcpu.Dict) (out model.BaseAnnotation, err error) {
@@ -447,6 +444,27 @@ func (r resolver) resolveAnnotationSubType(annot pdfcpu.Dict) (model.Annotation,
 		if err != nil {
 			return nil, err
 		}
+
+		return an, nil
+	case "Screen":
+		var an model.AnnotationScreen
+		title, _ := isString(r.resolve(annot["T"]))
+		an.T = decodeTextString(title)
+		an.MK, err = r.resolveAnnotationMK(annot["MK"])
+		if err != nil {
+			return nil, err
+		}
+		an.A, err = r.processAction(annot["A"])
+		if err != nil {
+			return nil, err
+		}
+		an.AA, err = r.resolveAnnotationAA(annot["AA"])
+		if err != nil {
+			return nil, err
+		}
+		if ref, isRef := annot["P"].(pdfcpu.IndirectRef); isRef {
+			an.P = r.pages[ref]
+		}
 		return an, nil
 	case "": // a form field may come here
 		return nil, nil
@@ -621,6 +639,7 @@ func (r resolver) resolveFileSpec(fs pdfcpu.Object) (*model.FileSpec, error) {
 		return fileSpec, nil
 	}
 	fs = r.resolve(fs)
+
 	var file model.FileSpec
 	if fileString, ok := isString(fs); ok { // File Specification String
 		file.UF = fileString
@@ -629,9 +648,15 @@ func (r resolver) resolveFileSpec(fs pdfcpu.Object) (*model.FileSpec, error) {
 		if !isDict {
 			return nil, errType("FileSpec", fs)
 		}
+
+		// we give the priority to UF, and default to F
 		uf, _ := isString(r.resolve(fsDict["UF"]))
-		desc, _ := isString(r.resolve(fsDict["Desc"]))
 		file.UF = decodeTextString(uf)
+		if file.UF == "" {
+			file.UF, _ = isString(r.resolve(fsDict["F"]))
+		}
+
+		desc, _ := isString(r.resolve(fsDict["Desc"]))
 		file.Desc = decodeTextString(desc)
 
 		ef := r.resolve(fsDict["EF"])
@@ -669,31 +694,25 @@ func (r resolver) resolveFileContent(fileEntry pdfcpu.Object) (*model.EmbeddedFi
 		return nil, errType("Stream Dict", fileEntry)
 	}
 
-	params := r.resolve(stream.Dict["Params"])
-	paramsDict, isDict := params.(pdfcpu.Dict)
-	if !isDict {
-		return nil, errType("FileStream.Params", params)
-	}
-	var paramsModel model.EmbeddedFileParams
-	if size, ok := r.resolveInt(paramsDict["Size"]); ok {
-		paramsModel.Size = size
-	}
-
-	checkSum, _ := isString(r.resolve(paramsDict["CheckSum"]))
-	paramsModel.CheckSum = checkSum
-
-	if cd, ok := isString(r.resolve(paramsDict["CreationDate"])); ok {
-		paramsModel.CreationDate, _ = pdfcpu.DateTime(cd)
-	}
-	if md, ok := isString(r.resolve(paramsDict["ModDate"])); ok {
-		paramsModel.ModDate, _ = pdfcpu.DateTime(md)
-	}
-
 	var (
 		out model.EmbeddedFileStream
 		err error
 	)
-	out.Params = paramsModel
+	paramsDict, _ := r.resolve(stream.Dict["Params"]).(pdfcpu.Dict) // optional
+	if size, ok := r.resolveInt(paramsDict["Size"]); ok {
+		out.Params.Size = size
+	}
+
+	checkSum, _ := isString(r.resolve(paramsDict["CheckSum"]))
+	out.Params.CheckSum = checkSum
+
+	if cd, ok := isString(r.resolve(paramsDict["CreationDate"])); ok {
+		out.Params.CreationDate, _ = pdfcpu.DateTime(cd)
+	}
+	if md, ok := isString(r.resolve(paramsDict["ModDate"])); ok {
+		out.Params.ModDate, _ = pdfcpu.DateTime(md)
+	}
+
 	cs, err := r.resolveStream(stream)
 	if err != nil {
 		return nil, err

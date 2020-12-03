@@ -80,7 +80,7 @@ func (pdf pdfWriter) dateString(t time.Time, context Reference) string {
 	return pdf.EncodeString(str, TextString, context)
 }
 
-func (pdf pdfWriter) stringsArray(ar []string, mode PDFStringEncoding, context Reference) string {
+func writeStringsArray(ar []string, pdf PDFWritter, mode PDFStringEncoding, context Reference) string {
 	chunks := make([]string, len(ar))
 	for i, val := range ar {
 		chunks[i] = pdf.EncodeString(val, mode, context)

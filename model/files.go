@@ -22,7 +22,8 @@ func (f *FileSpec) pdfContent(pdf pdfWriter, ref Reference) (string, []byte) {
 	b := newBuffer()
 	b.fmt("<</Type/Filespec")
 	if f.UF != "" {
-		b.fmt("/UF %s", pdf.EncodeString(f.UF, TextString, ref))
+		b.fmt("/UF %s /F %s", pdf.EncodeString(f.UF, TextString, ref),
+			pdf.EncodeString(f.UF, ByteString, ref))
 	}
 	if f.EF != nil {
 		ref := pdf.addObject(f.EF.pdfContent(pdf, ref))
@@ -80,7 +81,7 @@ func (params EmbeddedFileParams) pdfString(pdf pdfWriter, ref Reference) string 
 
 type EmbeddedFileStream struct {
 	Stream
-	Params EmbeddedFileParams
+	Params EmbeddedFileParams // optional
 }
 
 func (emb *EmbeddedFileStream) pdfContent(pdf pdfWriter, ref Reference) (string, []byte) {

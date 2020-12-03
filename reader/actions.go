@@ -8,6 +8,7 @@ import (
 )
 
 // may return nil if `ac` is nil or invalid
+// TODO: more actions
 func (r resolver) processAction(ac pdfcpu.Object) (out model.Action, err error) {
 	action, _ := r.resolve(ac).(pdfcpu.Dict)
 	if action["S"] == nil {
@@ -85,6 +86,23 @@ func (r resolver) processAction(ac pdfcpu.Object) (out model.Action, err error) 
 			js = r.textOrStream(K["JS"])
 		}
 		out.ActionType = model.ActionJavaScript{JS: js}
+	case "Rendition":
+		var ac model.ActionRendition
+		ac.R, err = r.resolveRendition(action["R"])
+		if err != nil {
+			return out, err
+		}
+		if r.resolve(action["AN"]) != nil {
+			ac.AN, err = r.resolveAnnotation(action["AN"])
+			if err != nil {
+				return out, err
+			}
+		}
+		if op, ok := r.resolveInt(action["OP"]); ok {
+			ac.OP = model.ObjInt(op)
+		}
+		ac.JS = r.textOrStream(action["JS"])
+		out.ActionType = ac
 	default:
 		log.Println("unsupported action:", name)
 		return out, nil
