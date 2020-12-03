@@ -47,6 +47,29 @@ type resolver struct {
 	customResolve CustomObjectResolver // optional, default is nil
 }
 
+func newResolver() resolver {
+	return resolver{
+		formFields:        make(map[pdfcpu.IndirectRef]*model.FormFieldDict),
+		appearanceDicts:   make(map[pdfcpu.IndirectRef]*model.AppearanceDict),
+		resources:         make(map[pdfcpu.IndirectRef]model.ResourcesDict),
+		fonts:             make(map[pdfcpu.IndirectRef]*model.FontDict),
+		graphicsStates:    make(map[pdfcpu.IndirectRef]*model.GraphicState),
+		encodings:         make(map[pdfcpu.IndirectRef]*model.SimpleEncodingDict),
+		annotations:       make(map[pdfcpu.IndirectRef]*model.AnnotationDict),
+		fileSpecs:         make(map[pdfcpu.IndirectRef]*model.FileSpec),
+		fileContents:      make(map[pdfcpu.IndirectRef]*model.EmbeddedFileStream),
+		pages:             make(map[pdfcpu.IndirectRef]*model.PageObject),
+		functions:         make(map[pdfcpu.IndirectRef]*model.FunctionDict),
+		shadings:          make(map[pdfcpu.IndirectRef]*model.ShadingDict),
+		patterns:          make(map[pdfcpu.IndirectRef]model.Pattern),
+		xObjectForms:      make(map[pdfcpu.IndirectRef]*model.XObjectForm),
+		images:            make(map[pdfcpu.IndirectRef]*model.XObjectImage),
+		iccs:              make(map[pdfcpu.IndirectRef]*model.ColorSpaceICCBased),
+		colorTableStreams: make(map[pdfcpu.IndirectRef]*model.ColorTableStream),
+		structure:         make(map[pdfcpu.IndirectRef]*model.StructureElement),
+	}
+}
+
 type incompleteDest struct {
 	destination *model.DestinationExplicitIntern
 	ref         pdfcpu.IndirectRef
@@ -251,19 +274,39 @@ func (r resolver) processCryptFilter(crypt pdfcpu.Object) model.CrypFilter {
 	return out
 }
 
-func ParseFile(filename string, userPassword string) (model.Document, *model.Encrypt, error) {
+// Options enables greater control
+// on the processing.
+// The zero value is the valid default configuration.
+type Options struct {
+	UserPassword         string
+	CustomObjectResolver CustomObjectResolver
+}
+
+// ParsePDFFile opens a file and calls `ParsePDFReader`,
+// see this method for details.
+func ParsePDFFile(filename string, options Options) (model.Document, *model.Encrypt, error) {
 	f, err := os.Open(filename)
 	if err != nil {
 		return model.Document{}, nil, fmt.Errorf("can't open file: %w", err)
 	}
 	defer f.Close()
 
-	return ParsePDF(f, userPassword)
+	return ParsePDFReader(f, options)
 }
 
-func ParsePDF(source io.ReadSeeker, userPassword string) (model.Document, *model.Encrypt, error) {
+// ParsePDFReader reads a PDF file and builds a model.
+// This is done in two steps:
+//	- a first parsing step (involving lexing and parsing)
+// builds a tree object
+//	- this tree is then interpreted according to the PDF specification,
+// resolving indirect objects and transforming dynamic, opaque types
+// into statically typed objects, building the returned `Document`.
+//
+// Information about encryption are returned separately, and will be needed
+// if you want to encrypt the document back.
+func ParsePDFReader(source io.ReadSeeker, options Options) (model.Document, *model.Encrypt, error) {
 	config := pdfcpu.NewDefaultConfiguration()
-	config.UserPW = userPassword
+	config.UserPW = options.UserPassword
 	config.DecodeAllStreams = true
 
 	ti := time.Now()
@@ -276,38 +319,28 @@ func ParsePDF(source io.ReadSeeker, userPassword string) (model.Document, *model
 	fmt.Printf("pdfcpu processing: %s\n", time.Since(ti))
 	ti = time.Now()
 
-	out, enc, err := ProcessContext(ctx)
+	r := newResolver()
+	r.xref = ctx.XRefTable
+	r.customResolve = options.CustomObjectResolver
 
+	out, enc, err := r.processContext()
 	fmt.Printf("model processing: %s\n", time.Since(ti))
 
 	return out, enc, err
 }
 
-// ProcessContext walk through a parsed PDF to build a model.
-// It also returns the potential encryption information.
+// ProcessContext walks through an already parsed PDF to build a model.
+// This function is exposed for debug purposes; you should probably use
+// one of `ParsePDFFile` or `ParsePDFReader` methods.
 func ProcessContext(ctx *pdfcpu.Context) (model.Document, *model.Encrypt, error) {
-	r := resolver{
-		xref:            ctx.XRefTable,
-		formFields:      make(map[pdfcpu.IndirectRef]*model.FormFieldDict),
-		appearanceDicts: make(map[pdfcpu.IndirectRef]*model.AppearanceDict),
-		// appearanceEntries: make(map[pdfcpu.IndirectRef]*model.AppearanceEntry),
-		resources:         make(map[pdfcpu.IndirectRef]model.ResourcesDict),
-		fonts:             make(map[pdfcpu.IndirectRef]*model.FontDict),
-		graphicsStates:    make(map[pdfcpu.IndirectRef]*model.GraphicState),
-		encodings:         make(map[pdfcpu.IndirectRef]*model.SimpleEncodingDict),
-		annotations:       make(map[pdfcpu.IndirectRef]*model.AnnotationDict),
-		fileSpecs:         make(map[pdfcpu.IndirectRef]*model.FileSpec),
-		fileContents:      make(map[pdfcpu.IndirectRef]*model.EmbeddedFileStream),
-		pages:             make(map[pdfcpu.IndirectRef]*model.PageObject),
-		functions:         make(map[pdfcpu.IndirectRef]*model.FunctionDict),
-		shadings:          make(map[pdfcpu.IndirectRef]*model.ShadingDict),
-		patterns:          make(map[pdfcpu.IndirectRef]model.Pattern),
-		xObjectForms:      make(map[pdfcpu.IndirectRef]*model.XObjectForm),
-		images:            make(map[pdfcpu.IndirectRef]*model.XObjectImage),
-		iccs:              make(map[pdfcpu.IndirectRef]*model.ColorSpaceICCBased),
-		colorTableStreams: make(map[pdfcpu.IndirectRef]*model.ColorTableStream),
-		structure:         make(map[pdfcpu.IndirectRef]*model.StructureElement),
-	}
+	r := newResolver()
+	r.xref = ctx.XRefTable
+	return r.processContext()
+}
+
+// processContext walk through a parsed PDF to build a model.
+// It also returns the potential encryption information.
+func (r resolver) processContext() (model.Document, *model.Encrypt, error) {
 	var (
 		out model.Document
 		err error

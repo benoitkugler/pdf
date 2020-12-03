@@ -12,7 +12,7 @@ func TestOutline(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	doc, _, err := ParsePDF(f, "")
+	doc, _, err := ParsePDFReader(f, Options{})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -43,11 +43,7 @@ var data = []FDFField{
 
 func TestFDF(t *testing.T) {
 	const path = "test/ModeleRecuFiscalEditable.pdf"
-	f, err := os.Open(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	doc, _, err := reader.ParsePDF(f, "")
+	doc, _, err := reader.ParsePDFFile(path, reader.Options{})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -37,7 +37,7 @@ func TestWidgets(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	doc, _, err := ParsePDF(f, "")
+	doc, _, err := ParsePDFReader(f, Options{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -67,7 +67,7 @@ func TestForms(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		doc, _, err := ParsePDF(f, "")
+		doc, _, err := ParsePDFReader(f, Options{})
 		if err != nil {
 			t.Fatal(err)
 		}

@@ -53,7 +53,8 @@ func (doc *Document) Clone() Document {
 
 // Write walks the entire document and writes its content
 // into `output`, producing a valid PDF file.
-// `encryption` is an optional encryption dictionary
+// `encryption` is an optional encryption dictionary,
+// returned by `UseStandardEncryptionHandler`.
 func (doc *Document) Write(output io.Writer, encryption *Encrypt) error {
 	wr := newWriter(output, encryption)
 

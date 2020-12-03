@@ -15,7 +15,7 @@ func TestCS(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	doc, _, err := ParsePDF(f, "")
+	doc, _, err := ParsePDFReader(f, Options{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -100,7 +100,7 @@ func TestShading7(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer f.Close()
-	doc, _, err := ParsePDF(f, "")
+	doc, _, err := ParsePDFReader(f, Options{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -121,7 +121,7 @@ func TestShading4(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer f.Close()
-	doc, _, err := ParsePDF(f, "")
+	doc, _, err := ParsePDFReader(f, Options{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -142,7 +142,7 @@ func TestWriteShadings(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		doc, _, err := ParsePDF(f, "")
+		doc, _, err := ParsePDFReader(f, Options{})
 		if err != nil {
 			t.Fatal(err)
 		}

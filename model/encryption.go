@@ -64,7 +64,7 @@ const (
 // Encrypt stores the encryption-related information
 // It will be filled when reading an existing PDF document.
 // Note that to encrypt a document when writting it,
-// a call to Trailer.SetStandardEncryptionHandler is needed
+// a call to `Document.UseStandardEncryptionHandler` is needed
 // (partly because password are needed, which are not contained in the PDF).
 // Also note that encryption with a public key is not supported.
 type Encrypt struct {

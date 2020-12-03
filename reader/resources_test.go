@@ -31,7 +31,7 @@ func TestDifferences(t *testing.T) {
 }
 
 func TestToUnicode(t *testing.T) {
-	doc, _, err := ParseFile("test/transparents.pdf", "")
+	doc, _, err := ParsePDFFile("test/transparents.pdf", Options{})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -38,7 +38,7 @@ func loadPDFSpec() {
 	}
 	defer f.Close()
 
-	pdfSpec, _, err = ParsePDF(f, "")
+	pdfSpec, _, err = ParsePDFReader(f, Options{})
 	if err != nil {
 		panic(err)
 	}
@@ -99,7 +99,9 @@ func BenchmarkProcess(b *testing.B) {
 	}
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, _, err := ProcessContext(ctx)
+		r := newResolver()
+		r.xref = ctx.XRefTable
+		_, _, err := r.processContext()
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -124,7 +126,7 @@ func TestDataset(t *testing.T) {
 	for _, file := range files {
 		fmt.Println("Parsing", file)
 
-		doc, _, err := ParseFile(file, "")
+		doc, _, err := ParsePDFFile(file, Options{})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -142,7 +144,7 @@ func TestProtected(t *testing.T) {
 	}
 	defer f.Close()
 
-	_, enc, err := ParsePDF(f, password)
+	_, enc, err := ParsePDFReader(f, Options{UserPassword: password})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -161,7 +163,7 @@ func TestType3(t *testing.T) {
 	}
 	defer f.Close()
 
-	doc, _, err := ParsePDF(f, "")
+	doc, _, err := ParsePDFReader(f, Options{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -205,7 +207,7 @@ func TestWrite(t *testing.T) {
 
 	var inMemory io.ReadSeeker = bytes.NewReader(out.Bytes())
 
-	doc2, _, err := ParsePDF(inMemory, "")
+	doc2, _, err := ParsePDFReader(inMemory, Options{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -268,7 +270,7 @@ func TestEmbeddedTTF(t *testing.T) {
 		// "test/ModeleRecuFiscalEditable.pdf",
 		"test/ttf.pdf",
 	} {
-		doc, _, err := ParseFile(file, "")
+		doc, _, err := ParsePDFFile(file, Options{})
 		if err != nil {
 			t.Fatal(err)
 		}
