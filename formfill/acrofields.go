@@ -8,10 +8,11 @@ import (
 	"strconv"
 	"strings"
 
+	cs "github.com/benoitkugler/pdf/contentstream"
 	"github.com/benoitkugler/pdf/fonts"
 	"github.com/benoitkugler/pdf/fonts/standardfonts"
 	"github.com/benoitkugler/pdf/model"
-	"github.com/benoitkugler/pdf/parser/tokenizer"
+	"github.com/benoitkugler/pdf/parser"
 )
 
 // port of pdftk library - BK 2020
@@ -37,75 +38,30 @@ type daConfig struct {
 }
 
 func splitDAelements(da string) (daConfig, error) {
-	tk := tokenizer.NewTokenizer([]byte(da))
-	var stack []tokenizer.Token
 	var ret daConfig
-	token, err := tk.NextToken()
-	for ; token.Kind != tokenizer.EOF && err == nil; token, err = tk.NextToken() {
-		if token.Kind == tokenizer.Other {
-			switch token.Value {
-			case "Tf":
-				if len(stack) >= 2 {
-					ret.font = model.ObjName(stack[len(stack)-2].Value)
-					fl, err := stack[len(stack)-1].Float()
-					if err != nil {
-						return daConfig{}, err
-					}
-					ret.size = Fl(fl)
-				}
-			case "g":
-				if len(stack) >= 1 {
-					gray, err := stack[len(stack)-1].Float()
-					if err != nil {
-						return daConfig{}, err
-					}
-					if gray != 0 {
-						ret.color = color.Gray{uint8(gray * 255)}
-					}
-				}
-			case "rg":
-				if len(stack) >= 3 {
-					red, err := stack[len(stack)-3].Float()
-					if err != nil {
-						return daConfig{}, err
-					}
-					green, err := stack[len(stack)-2].Float()
-					if err != nil {
-						return daConfig{}, err
-					}
-					blue, err := stack[len(stack)-1].Float()
-					if err != nil {
-						return daConfig{}, err
-					}
-					ret.color = color.NRGBA{R: uint8(red * 255), G: uint8(green * 255), B: uint8(blue * 255)}
-				}
-			case "k":
-				if len(stack) >= 4 {
-					cyan, err := stack[len(stack)-4].Float()
-					if err != nil {
-						return daConfig{}, err
-					}
-					magenta, err := stack[len(stack)-3].Float()
-					if err != nil {
-						return daConfig{}, err
-					}
-					yellow, err := stack[len(stack)-2].Float()
-					if err != nil {
-						return daConfig{}, err
-					}
-					black, err := stack[len(stack)-1].Float()
-					if err != nil {
-						return daConfig{}, err
-					}
-					ret.color = color.CMYK{C: uint8(cyan * 255), M: uint8(magenta * 255), Y: uint8(yellow * 255), K: uint8(black * 255)}
-				}
+
+	ops, err := parser.ParseContent([]byte(da), nil)
+	if err != nil {
+		return ret, err
+	}
+	for _, op := range ops {
+		switch op := op.(type) {
+		case cs.OpSetFont:
+			ret.font = op.Font
+			ret.size = op.Size
+		case cs.OpSetFillGray:
+			if op.G != 0 {
+				ret.color = color.Gray{uint8(op.G * 255)}
 			}
-			stack = stack[:0]
-		} else {
-			stack = append(stack, token)
+		case cs.OpSetFillRGBColor:
+			ret.color = color.NRGBA{
+				R: uint8(op.R * 255), G: uint8(op.G * 255), B: uint8(op.B * 255), A: 255}
+		case cs.OpSetFillCMYKColor:
+			ret.color = color.CMYK{C: uint8(op.C * 255), M: uint8(op.M * 255),
+				Y: uint8(op.Y * 255), K: uint8(op.K * 255)}
 		}
 	}
-	return ret, err
+	return ret, nil
 }
 
 // Normalizes a Rectangle so that llx and lly are smaller than urx and ury

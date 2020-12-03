@@ -1,7 +1,7 @@
 // This package defines the commands used in
 // PDF content stream objects.
 // They can be chained to build an arbitrary content
-// (see WriteOperations).
+// (see `WriteOperations` and the higher level `Appearance` object).
 // Reciprocally, they can be obtained from a content
 // by parsing it, using for instance the 'parser' package.
 package contentstream
@@ -72,7 +72,7 @@ var _ = map[string]Operation{
 	// "F":   OpFill{},
 	"G": OpSetStrokeGray{},
 	// "J":   OpSetLineCap{},
-	// "K":   OpSetStrokeCMYKColor{},
+	"K": OpSetStrokeCMYKColor{},
 	// "M":   OpSetMiterLimit{},
 	"MP":  OpMarkPoint{},
 	"Q":   OpRestore{},
@@ -110,7 +110,7 @@ var _ = map[string]Operation{
 	// "h":   OpClosePath{},
 	// "i":   OpSetFlat{},
 	// "j":   OpSetLineJoin{},
-	// "k":   OpSetFillCMYKColor{},
+	"k":  OpSetFillCMYKColor{},
 	"l":  OpLineTo{},
 	"m":  OpMoveTo{},
 	"n":  OpEndPath{},
@@ -125,13 +125,6 @@ var _ = map[string]Operation{
 	// "v":   OpCurveTo1{},
 	"w": OpSetLineWidth{},
 	// "y":   OpCurveTo{},
-}
-
-// rg
-type OpSetFillRGBColor OpSetStrokeRGBColor
-
-func (o OpSetFillRGBColor) Add(out *bytes.Buffer) {
-	fmt.Fprintf(out, "%.3f %.3f %.3f rg", o.R, o.G, o.B)
 }
 
 // g
@@ -150,13 +143,36 @@ func (o OpSetStrokeGray) Add(out *bytes.Buffer) {
 	fmt.Fprintf(out, "%.3f G", o.G)
 }
 
-// RG
-type OpSetStrokeRGBColor struct {
+// rg
+type OpSetFillRGBColor struct {
 	R, G, B Fl
 }
 
+func (o OpSetFillRGBColor) Add(out *bytes.Buffer) {
+	fmt.Fprintf(out, "%.3f %.3f %.3f rg", o.R, o.G, o.B)
+}
+
+// RG
+type OpSetStrokeRGBColor OpSetFillRGBColor
+
 func (o OpSetStrokeRGBColor) Add(out *bytes.Buffer) {
 	fmt.Fprintf(out, "%.3f %.3f %.3f RG", o.R, o.G, o.B)
+}
+
+// k
+type OpSetFillCMYKColor struct {
+	C, M, Y, K Fl
+}
+
+func (o OpSetFillCMYKColor) Add(out *bytes.Buffer) {
+	fmt.Fprintf(out, "%.3f %.3f %.3f %.3f k", o.C, o.M, o.Y, o.K)
+}
+
+// K
+type OpSetStrokeCMYKColor OpSetFillCMYKColor
+
+func (o OpSetStrokeCMYKColor) Add(out *bytes.Buffer) {
+	fmt.Fprintf(out, "%.3f %.3f %.3f %.3f K", o.C, o.M, o.Y, o.K)
 }
 
 // w

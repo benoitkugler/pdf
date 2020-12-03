@@ -186,12 +186,21 @@ func parseCommand(command string, stack []Object) (cs.Operation, error) {
 	case "ET":
 		err := assertLength(stack, 0)
 		return cs.OpEndText{}, err
-		// case "EX":  OpEndIgnoreUndef{},
-		// case "F":   OpFill{},
-		// case "G":   OpSetStrokeGray{},
-
+	// case "EX":  OpEndIgnoreUndef{},
+	// case "F":   OpFill{},
+	case "G":
+		nbs, err := assertNumbers(stack, 1)
+		if err != nil {
+			return nil, err
+		}
+		return cs.OpSetStrokeGray{G: nbs[0]}, err
+	case "g":
+		nbs, err := assertNumbers(stack, 1)
+		if err != nil {
+			return nil, err
+		}
+		return cs.OpSetFillGray{G: nbs[0]}, err
 		// case "J":   OpSetLineCap{},
-		// case "K":   OpSetStrokeCMYKColor{},
 		// case "M":   OpSetMiterLimit{},
 	case "MP":
 		name, err := assertOneName(stack)
@@ -199,12 +208,7 @@ func parseCommand(command string, stack []Object) (cs.Operation, error) {
 	case "Q":
 		err := assertLength(stack, 0)
 		return cs.OpRestore{}, err
-	case "RG":
-		nbs, err := assertNumbers(stack, 3)
-		if err != nil {
-			return nil, err
-		}
-		return cs.OpSetStrokeRGBColor{R: nbs[0], G: nbs[1], B: nbs[2]}, nil
+
 	case "S":
 		err := assertLength(stack, 0)
 		return cs.OpStroke{}, err
@@ -287,19 +291,25 @@ func parseCommand(command string, stack []Object) (cs.Operation, error) {
 		err := assertLength(stack, 0)
 		return cs.OpFill{}, err
 	// case "f*":  OpEOFill{},
-	case "g":
-		nbs, err := assertNumbers(stack, 1)
-		if err != nil {
-			return nil, err
-		}
-		return cs.OpSetFillGray{G: nbs[0]}, err
 	case "gs":
 		name, err := assertOneName(stack)
 		return cs.OpSetExtGState{Dict: name}, err
 	// case "h":   OpClosePath{},
 	// case "i":   OpSetFlat{},
 	// case "j":   OpSetLineJoin{},
-	// case "k":   OpSetFillCMYKColor{},
+	case "k":
+		nbs, err := assertNumbers(stack, 4)
+		if err != nil {
+			return nil, err
+		}
+		return cs.OpSetFillCMYKColor{C: nbs[0], M: nbs[1], Y: nbs[2], K: nbs[3]}, nil
+	case "K":
+		nbs, err := assertNumbers(stack, 4)
+		if err != nil {
+			return nil, err
+		}
+		return cs.OpSetStrokeCMYKColor{C: nbs[0], M: nbs[1], Y: nbs[2], K: nbs[3]}, nil
+
 	case "l":
 		nbs, err := assertNumbers(stack, 2)
 		if err != nil {
@@ -330,6 +340,12 @@ func parseCommand(command string, stack []Object) (cs.Operation, error) {
 			return nil, err
 		}
 		return cs.OpSetFillRGBColor{R: nbs[0], G: nbs[1], B: nbs[2]}, nil
+	case "RG":
+		nbs, err := assertNumbers(stack, 3)
+		if err != nil {
+			return nil, err
+		}
+		return cs.OpSetStrokeRGBColor{R: nbs[0], G: nbs[1], B: nbs[2]}, nil
 	case "ri":
 		name, err := assertOneName(stack)
 		return cs.OpSetRenderingIntent{Intent: name}, err
