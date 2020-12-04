@@ -17,8 +17,6 @@ var (
 type GraphicState struct {
 	Font     fonts.Font // the current usable font
 	FontSize Fl
-	// This is the color in use
-	//  colorDetails ColorDetails
 
 	XTLM    Fl // The x position of the text line matrix.
 	YTLM    Fl // The y position of the text line matrix.

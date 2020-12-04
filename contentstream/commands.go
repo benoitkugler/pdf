@@ -54,78 +54,89 @@ func (p PropertyListDict) contentStreamString() string {
 
 // assert interface conformance
 var _ = map[string]Operation{
-	// "\"":  OpMoveSetShowText{},
-	"'": OpMoveShowText{},
-	// "B":   OpFillStroke{},
-	// "B*":  OpEOFillStroke{},
+	"\"":  OpMoveSetShowText{},
+	"'":   OpMoveShowText{},
+	"B":   OpFillStroke{},
+	"B*":  OpEOFillStroke{},
 	"BDC": OpBeginMarkedContent{},
-	"BI":  OpBeginImage{}, // ID and EI are processed together with BI
+	// ID and EI are processed together with BI
+	"BI":  OpBeginImage{},
 	"BMC": OpBeginMarkedContent{},
 	"BT":  OpBeginText{},
-	// "BX":  OpBeginIgnoreUndef{},
+	"BX":  OpBeginIgnoreUndef{},
 	"CS":  OpSetStrokeColorSpace{},
 	"DP":  OpMarkPoint{},
 	"Do":  OpXObject{},
 	"EMC": OpEndMarkedContent{},
 	"ET":  OpEndText{},
-	// "EX":  OpEndIgnoreUndef{},
-	// "F":   OpFill{},
-	"G": OpSetStrokeGray{},
-	// "J":   OpSetLineCap{},
-	"K": OpSetStrokeCMYKColor{},
-	// "M":   OpSetMiterLimit{},
+	"EX":  OpEndIgnoreUndef{},
+	"F":   OpFill{},
+	"G":   OpSetStrokeGray{},
+	"J":   OpSetLineCap{},
+	"K":   OpSetStrokeCMYKColor{},
+	"M":   OpSetMiterLimit{},
 	"MP":  OpMarkPoint{},
 	"Q":   OpRestore{},
 	"RG":  OpSetStrokeRGBColor{},
 	"S":   OpStroke{},
 	"SC":  OpSetStrokeColor{},
 	"SCN": OpSetStrokeColorN{},
-	// "T*":  OpTextNextLine{},
-	// "TD":  OpTextMoveSet{},
-	"TJ": OpShowSpaceText{},
-	"TL": OpSetTextLeading{},
-	// "Tc":  OpSetCharSpacing{},
-	"Td": OpTextMove{},
-	"Tf": OpSetFont{},
-	"Tj": OpShowText{},
-	"Tm": OpSetTextMatrix{},
-	// "Tr":  OpSetTextRender{},
-	// "Ts":  OpSetTextRise{},
-	// "Tw":  OpSetWordSpacing{},
-	// "Tz":  OpSetHorizScaling{},
-	"W": OpClip{},
-	// "W*":  OpEOClip{},
-	// "b":   OpCloseFillStroke{},
-	// "b*":  OpCloseEOFillStroke{},
-	// "c":   OpCurveTo{},
-	// "cm":  OpConcat{},
-	"cs": OpSetFillColorSpace{},
-	"d":  OpSetDash{},
-	// "d0":  OpSetCharWidth{},
-	// "d1":  OpSetCacheDevice{},
-	"f": OpFill{},
-	// "f*":  OpEOFill{},
-	"g":  OpSetFillGray{},
-	"gs": OpSetExtGState{},
-	// "h":   OpClosePath{},
-	// "i":   OpSetFlat{},
-	// "j":   OpSetLineJoin{},
-	"k":  OpSetFillCMYKColor{},
-	"l":  OpLineTo{},
-	"m":  OpMoveTo{},
-	"n":  OpEndPath{},
-	"q":  OpSave{},
-	"re": OpRectangle{},
-	"rg": OpSetFillRGBColor{},
-	"ri": OpSetRenderingIntent{},
-	// "s":   OpCloseStroke{},
+	"T*":  OpTextNextLine{},
+	"TD":  OpTextMoveSet{},
+	"TJ":  OpShowSpaceText{},
+	"TL":  OpSetTextLeading{},
+	"Tc":  OpSetCharSpacing{},
+	"Td":  OpTextMove{},
+	"Tf":  OpSetFont{},
+	"Tj":  OpShowText{},
+	"Tm":  OpSetTextMatrix{},
+	"Tr":  OpSetTextRender{},
+	"Ts":  OpSetTextRise{},
+	"Tw":  OpSetWordSpacing{},
+	"Tz":  OpSetHorizScaling{},
+	"W":   OpClip{},
+	"W*":  OpEOClip{},
+	"b":   OpCloseFillStroke{},
+	"b*":  OpCloseEOFillStroke{},
+	"c":   OpCubicTo{},
+	"cm":  OpConcat{},
+	"cs":  OpSetFillColorSpace{},
+	"d":   OpSetDash{},
+	"d0":  OpSetCharWidth{},
+	"d1":  OpSetCacheDevice{},
+	"f":   OpFill{},
+	"f*":  OpEOFill{},
+	"g":   OpSetFillGray{},
+	"gs":  OpSetExtGState{},
+	"h":   OpClosePath{},
+	"i":   OpSetFlat{},
+	"j":   OpSetLineJoin{},
+	"k":   OpSetFillCMYKColor{},
+	"l":   OpLineTo{},
+	"m":   OpMoveTo{},
+	"n":   OpEndPath{},
+	"q":   OpSave{},
+	"re":  OpRectangle{},
+	"rg":  OpSetFillRGBColor{},
+	"ri":  OpSetRenderingIntent{},
+	"s":   OpCloseStroke{},
 	"sc":  OpSetFillColor{},
 	"scn": OpSetFillColorN{},
 	"sh":  OpShFill{},
-	// "v":   OpCurveTo1{},
-	"w": OpSetLineWidth{},
-	// "y":   OpCurveTo{},
+	"v":   OpCurveTo1{},
+	"w":   OpSetLineWidth{},
+	"y":   OpCurveTo{},
 }
+
+// BX
+type OpBeginIgnoreUndef struct{}
+
+// EX
+func (o OpBeginIgnoreUndef) Add(out *bytes.Buffer) { out.WriteString("BX") }
+
+type OpEndIgnoreUndef struct{}
+
+func (o OpEndIgnoreUndef) Add(out *bytes.Buffer) { out.WriteString("EX") }
 
 // g
 type OpSetFillGray struct {
@@ -175,6 +186,33 @@ func (o OpSetStrokeCMYKColor) Add(out *bytes.Buffer) {
 	fmt.Fprintf(out, "%.3f %.3f %.3f %.3f K", o.C, o.M, o.Y, o.K)
 }
 
+// J
+type OpSetLineCap struct {
+	Style uint8
+}
+
+func (o OpSetLineCap) Add(out *bytes.Buffer) {
+	fmt.Fprintf(out, "%d J", o.Style)
+}
+
+// j
+type OpSetLineJoin struct {
+	Style uint8
+}
+
+func (o OpSetLineJoin) Add(out *bytes.Buffer) {
+	fmt.Fprintf(out, "%d j", o.Style)
+}
+
+// M
+type OpSetMiterLimit struct {
+	Limit Fl
+}
+
+func (o OpSetMiterLimit) Add(out *bytes.Buffer) {
+	fmt.Fprintf(out, "%.3f M", o.Limit)
+}
+
 // w
 type OpSetLineWidth struct {
 	W Fl
@@ -184,17 +222,26 @@ func (o OpSetLineWidth) Add(out *bytes.Buffer) {
 	fmt.Fprintf(out, "%.3f w", o.W)
 }
 
+// i
+type OpSetFlat struct {
+	Flatness Fl // between 0 to 100
+}
+
+func (o OpSetFlat) Add(out *bytes.Buffer) {
+	fmt.Fprintf(out, "%.2f i", o.Flatness)
+}
+
 // d
 type OpSetDash struct {
 	Dash model.DashPattern
 }
 
 func (o OpSetDash) Add(out *bytes.Buffer) {
-	fmt.Fprintf(out, "[%s] %.3f d", floatArray(o.Dash.Array), o.Dash.Phase)
+	fmt.Fprintf(out, "[%s] %.3f d", floatArray(o.Dash.Array...), o.Dash.Phase)
 }
 
 // without the enclosing []
-func floatArray(as []Fl) string {
+func floatArray(as ...Fl) string {
 	b := make([]string, len(as))
 	for i, a := range as {
 		b[i] = fmt.Sprintf("%f", a)
@@ -221,13 +268,56 @@ func (o OpSetTextLeading) Add(out *bytes.Buffer) {
 	fmt.Fprintf(out, "%.3f TL", o.L)
 }
 
+// Tc
+type OpSetCharSpacing struct {
+	CharSpace Fl
+}
+
+func (o OpSetCharSpacing) Add(out *bytes.Buffer) {
+	fmt.Fprintf(out, "%.3f Tc", o.CharSpace)
+}
+
+// Tw
+type OpSetWordSpacing struct {
+	WordSpace Fl
+}
+
+func (o OpSetWordSpacing) Add(out *bytes.Buffer) {
+	fmt.Fprintf(out, "%.3f Tw", o.WordSpace)
+}
+
+// Tz
+type OpSetHorizScaling struct {
+	Scale Fl
+}
+
+func (o OpSetHorizScaling) Add(out *bytes.Buffer) {
+	fmt.Fprintf(out, "%.3f Tz", o.Scale)
+}
+
+// Tr
+type OpSetTextRender struct {
+	Render Fl
+}
+
+func (o OpSetTextRender) Add(out *bytes.Buffer) {
+	fmt.Fprintf(out, "%.3f Tr", o.Render)
+}
+
+// Ts
+type OpSetTextRise struct {
+	Rise Fl
+}
+
+func (o OpSetTextRise) Add(out *bytes.Buffer) {
+	fmt.Fprintf(out, "%.3f Ts", o.Rise)
+}
+
 // n
 // OpEndPath is the same as new path.
 type OpEndPath struct{}
 
-func (o OpEndPath) Add(out *bytes.Buffer) {
-	out.WriteByte('n')
-}
+func (o OpEndPath) Add(out *bytes.Buffer) { out.WriteByte('n') }
 
 // m
 type OpMoveTo struct {
@@ -247,6 +337,36 @@ func (o OpLineTo) Add(out *bytes.Buffer) {
 	fmt.Fprintf(out, "%.3f %.3f l", o.X, o.Y)
 }
 
+// c
+type OpCubicTo struct {
+	// P1 et P2 are the control points
+	X1, Y1, X2, Y2, X3, Y3 Fl
+}
+
+func (o OpCubicTo) Add(out *bytes.Buffer) {
+	out.WriteString(floatArray(o.X1, o.Y1, o.X2, o.Y2, o.X3, o.Y3) + " c")
+}
+
+// v
+type OpCurveTo1 struct {
+	// P2 is the control point
+	X2, Y2, X3, Y3 Fl
+}
+
+func (o OpCurveTo1) Add(out *bytes.Buffer) {
+	out.WriteString(floatArray(o.X2, o.Y2, o.X3, o.Y3) + " v")
+}
+
+// y
+type OpCurveTo struct {
+	// P1 is the control point
+	X1, Y1, X3, Y3 Fl
+}
+
+func (o OpCurveTo) Add(out *bytes.Buffer) {
+	out.WriteString(floatArray(o.X1, o.Y1, o.X3, o.Y3) + " y")
+}
+
 // re
 type OpRectangle struct {
 	X, Y, W, H Fl
@@ -259,16 +379,37 @@ func (o OpRectangle) Add(out *bytes.Buffer) {
 // f
 type OpFill struct{}
 
-func (o OpFill) Add(out *bytes.Buffer) {
-	out.WriteByte('f')
-}
+func (o OpFill) Add(out *bytes.Buffer) { out.WriteByte('f') }
+
+// f*
+type OpEOFill struct{}
+
+func (o OpEOFill) Add(out *bytes.Buffer) { out.WriteString("f*") }
 
 // S
 type OpStroke struct{}
 
-func (o OpStroke) Add(out *bytes.Buffer) {
-	out.WriteByte('S')
-}
+func (o OpStroke) Add(out *bytes.Buffer) { out.WriteByte('S') }
+
+// B
+type OpFillStroke struct{}
+
+func (o OpFillStroke) Add(out *bytes.Buffer) { out.WriteByte('B') }
+
+// B*
+type OpEOFillStroke struct{}
+
+func (o OpEOFillStroke) Add(out *bytes.Buffer) { out.WriteString("B*") }
+
+// b
+type OpCloseFillStroke struct{}
+
+func (o OpCloseFillStroke) Add(out *bytes.Buffer) { out.WriteByte('b') }
+
+// b*
+type OpCloseEOFillStroke struct{}
+
+func (o OpCloseEOFillStroke) Add(out *bytes.Buffer) { out.WriteString("b*") }
 
 // BMC or BDC depending on Properties
 type OpBeginMarkedContent struct {
@@ -314,6 +455,18 @@ func (o OpTextMove) Add(out *bytes.Buffer) {
 	fmt.Fprintf(out, "%.3f %.3f Td", o.X, o.Y)
 }
 
+// TD
+type OpTextMoveSet OpTextMove
+
+func (o OpTextMoveSet) Add(out *bytes.Buffer) {
+	fmt.Fprintf(out, "%.3f %.3f TD", o.X, o.Y)
+}
+
+// T*
+type OpTextNextLine struct{}
+
+func (o OpTextNextLine) Add(out *bytes.Buffer) { out.WriteString("T*") }
+
 // Tj
 type OpShowText struct {
 	Text string // unescaped
@@ -357,14 +510,32 @@ func (o OpMoveShowText) Add(out *bytes.Buffer) {
 	out.WriteString(model.EspaceByteString([]byte(o.Text)) + "'")
 }
 
+// \"
+type OpMoveSetShowText struct {
+	WordSpacing, CharacterSpacing Fl
+	Text                          string // unescaped
+}
+
+func (o OpMoveSetShowText) Add(out *bytes.Buffer) {
+	fmt.Fprintf(out, "%.3f %.3f %s \"", o.WordSpacing, o.CharacterSpacing, model.EspaceByteString([]byte(o.Text)))
+}
+
 // Tm
 type OpSetTextMatrix struct {
 	Matrix model.Matrix
 }
 
 func (o OpSetTextMatrix) Add(out *bytes.Buffer) {
-	fmt.Fprintf(out, "%.3f %.3f %.3f %.3f %.3f %.3f Tm",
-		o.Matrix[0], o.Matrix[1], o.Matrix[2], o.Matrix[3], o.Matrix[4], o.Matrix[5])
+	out.WriteString(floatArray(o.Matrix[:]...) + " Tm")
+}
+
+// cm
+type OpConcat struct {
+	Matrix model.Matrix
+}
+
+func (o OpConcat) Add(out *bytes.Buffer) {
+	out.WriteString(floatArray(o.Matrix[:]...) + " cm")
 }
 
 // Q
@@ -381,12 +552,25 @@ func (o OpSave) Add(out *bytes.Buffer) {
 	out.WriteByte('q')
 }
 
+// s
+type OpCloseStroke struct{}
+
+func (o OpCloseStroke) Add(out *bytes.Buffer) { out.WriteByte('s') }
+
+// h
+type OpClosePath struct{}
+
+func (o OpClosePath) Add(out *bytes.Buffer) { out.WriteByte('h') }
+
 // W
 type OpClip struct{}
 
-func (o OpClip) Add(out *bytes.Buffer) {
-	out.WriteByte('W')
-}
+func (o OpClip) Add(out *bytes.Buffer) { out.WriteByte('W') }
+
+// W*
+type OpEOClip struct{}
+
+func (o OpEOClip) Add(out *bytes.Buffer) { out.WriteString("W*") }
 
 // CS
 type OpSetStrokeColorSpace struct {
@@ -428,14 +612,14 @@ type OpSetFillColor struct {
 }
 
 func (o OpSetFillColor) Add(out *bytes.Buffer) {
-	out.WriteString(floatArray(o.Color) + " sc")
+	out.WriteString(floatArray(o.Color...) + " sc")
 }
 
 // SC
 type OpSetStrokeColor OpSetFillColor
 
 func (o OpSetStrokeColor) Add(out *bytes.Buffer) {
-	out.WriteString(floatArray(o.Color) + " SC")
+	out.WriteString(floatArray(o.Color...) + " SC")
 }
 
 // scn
@@ -449,7 +633,7 @@ func (o OpSetFillColorN) Add(out *bytes.Buffer) {
 	if o.Pattern != "" {
 		n = o.Pattern.String()
 	}
-	out.WriteString(floatArray(o.Color) + n + " scn")
+	out.WriteString(floatArray(o.Color...) + n + " scn")
 }
 
 // SCN
@@ -460,7 +644,7 @@ func (o OpSetStrokeColorN) Add(out *bytes.Buffer) {
 	if o.Pattern != "" {
 		n = o.Pattern.String()
 	}
-	out.WriteString(floatArray(o.Color) + n + " SCN")
+	out.WriteString(floatArray(o.Color...) + n + " SCN")
 }
 
 // Do
@@ -470,6 +654,25 @@ type OpXObject struct {
 
 func (o OpXObject) Add(out *bytes.Buffer) {
 	out.WriteString(o.XObject.String() + " Do")
+}
+
+// d0
+type OpSetCharWidth struct {
+	WX, WY int // glyph units
+}
+
+func (o OpSetCharWidth) Add(out *bytes.Buffer) {
+	fmt.Fprintf(out, "%d %d d0", o.WX, o.WY)
+}
+
+// d1
+type OpSetCacheDevice struct {
+	WX, WY, LLX, LLY, URX, URY int // glyph units
+}
+
+func (o OpSetCacheDevice) Add(out *bytes.Buffer) {
+	fmt.Fprintf(out, "%d %d %d %d %d %d d1",
+		o.WX, o.WY, o.LLX, o.LLY, o.URX, o.URY)
 }
 
 // ri

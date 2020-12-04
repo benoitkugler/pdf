@@ -137,16 +137,32 @@ func parseTextSpaces(stack []Object) (cs.OpShowSpaceText, error) {
 func parseCommand(command string, stack []Object) (cs.Operation, error) {
 	switch command {
 	// the special case of inline image in handled separatly
-	// case "ID":  OpImageData{},
-	// case "BI":  OpBeginImage{},
-	// case "EI":  OpEndImage{},
+	// case "ID":  cs.OpImageData{},
+	// case "BI":  cs.OpBeginImage{},
+	// case "EI":  cs.OpEndImage{},
 
-	// case "\"":  OpMoveSetShowText{},
+	case "\"":
+		if err := assertLength(stack, 3); err != nil {
+			return nil, err
+		}
+		fls, err := assertNumbers(stack[:2], 2)
+		if err != nil {
+			return nil, err
+		}
+		str, err := assertOneString(stack[2:])
+		if err != nil {
+			return nil, err
+		}
+		return cs.OpMoveSetShowText{WordSpacing: fls[0], CharacterSpacing: fls[1], Text: str}, nil
 	case "'":
 		str, err := assertOneString(stack)
 		return cs.OpMoveShowText{Text: str}, err
-	// case "B":   OpFillStroke{},
-	// case "B*":  OpEOFillStroke{},
+	case "B":
+		err := assertLength(stack, 0)
+		return cs.OpFillStroke{}, err
+	case "B*":
+		err := assertLength(stack, 0)
+		return cs.OpEOFillStroke{}, err
 	case "BDC":
 		if err := assertLength(stack, 2); err != nil {
 			return nil, err
@@ -163,7 +179,9 @@ func parseCommand(command string, stack []Object) (cs.Operation, error) {
 	case "BT":
 		err := assertLength(stack, 0)
 		return cs.OpBeginText{}, err
-	// case "BX":  OpBeginIgnoreUndef{},
+	case "BX":
+		err := assertLength(stack, 0)
+		return cs.OpBeginIgnoreUndef{}, err
 	case "CS":
 		name, err := assertOneName(stack)
 		return cs.OpSetStrokeColorSpace{ColorSpace: name}, err
@@ -186,8 +204,12 @@ func parseCommand(command string, stack []Object) (cs.Operation, error) {
 	case "ET":
 		err := assertLength(stack, 0)
 		return cs.OpEndText{}, err
-	// case "EX":  OpEndIgnoreUndef{},
-	// case "F":   OpFill{},
+	case "EX":
+		err := assertLength(stack, 0)
+		return cs.OpEndIgnoreUndef{}, err
+	case "F":
+		err := assertLength(stack, 0)
+		return cs.OpFill{}, err
 	case "G":
 		nbs, err := assertNumbers(stack, 1)
 		if err != nil {
@@ -200,15 +222,25 @@ func parseCommand(command string, stack []Object) (cs.Operation, error) {
 			return nil, err
 		}
 		return cs.OpSetFillGray{G: nbs[0]}, err
-		// case "J":   OpSetLineCap{},
-		// case "M":   OpSetMiterLimit{},
+	case "J":
+		nbs, err := assertNumbers(stack, 1)
+		if err != nil {
+			return nil, err
+		}
+		s := uint8(nbs[0])
+		return cs.OpSetLineCap{Style: s}, nil
+	case "M":
+		nbs, err := assertNumbers(stack, 1)
+		if err != nil {
+			return nil, err
+		}
+		return cs.OpSetMiterLimit{Limit: nbs[0]}, nil
 	case "MP":
 		name, err := assertOneName(stack)
 		return cs.OpMarkPoint{Tag: name}, err
 	case "Q":
 		err := assertLength(stack, 0)
 		return cs.OpRestore{}, err
-
 	case "S":
 		err := assertLength(stack, 0)
 		return cs.OpStroke{}, err
@@ -218,8 +250,15 @@ func parseCommand(command string, stack []Object) (cs.Operation, error) {
 	case "SCN":
 		out, err := parseSCN(stack)
 		return cs.OpSetStrokeColorN(out), err
-	// case "T*":  OpTextNextLine{},
-	// case "TD":  OpTextMoveSet{},
+	case "T*":
+		err := assertLength(stack, 0)
+		return cs.OpTextNextLine{}, err
+	case "TD":
+		nbs, err := assertNumbers(stack, 2)
+		if err != nil {
+			return nil, err
+		}
+		return cs.OpTextMoveSet{X: nbs[0], Y: nbs[1]}, nil
 	case "TJ":
 		return parseTextSpaces(stack)
 	case "TL":
@@ -228,7 +267,12 @@ func parseCommand(command string, stack []Object) (cs.Operation, error) {
 			return nil, err
 		}
 		return cs.OpSetTextLeading{L: nbs[0]}, nil
-	// case "Tc":  OpSetCharSpacing{},
+	case "Tc":
+		nbs, err := assertNumbers(stack, 1)
+		if err != nil {
+			return nil, err
+		}
+		return cs.OpSetCharSpacing{CharSpace: nbs[0]}, nil
 	case "Td":
 		nbs, err := assertNumbers(stack, 2)
 		if err != nil {
@@ -256,18 +300,56 @@ func parseCommand(command string, stack []Object) (cs.Operation, error) {
 		var mat model.Matrix
 		copy(mat[:], nbs)
 		return cs.OpSetTextMatrix{Matrix: mat}, nil
-	// case "Tr":  OpSetTextRender{},
-	// case "Ts":  OpSetTextRise{},
-	// case "Tw":  OpSetWordSpacing{},
-	// case "Tz":  OpSetHorizScaling{},
+	case "Tr":
+		nbs, err := assertNumbers(stack, 1)
+		if err != nil {
+			return nil, err
+		}
+		return cs.OpSetTextRender{Render: nbs[0]}, nil
+	case "Ts":
+		nbs, err := assertNumbers(stack, 1)
+		if err != nil {
+			return nil, err
+		}
+		return cs.OpSetTextRise{Rise: nbs[0]}, nil
+	case "Tw":
+		nbs, err := assertNumbers(stack, 1)
+		if err != nil {
+			return nil, err
+		}
+		return cs.OpSetWordSpacing{WordSpace: nbs[0]}, nil
+	case "Tz":
+		nbs, err := assertNumbers(stack, 1)
+		if err != nil {
+			return nil, err
+		}
+		return cs.OpSetHorizScaling{Scale: nbs[0]}, nil
 	case "W":
 		err := assertLength(stack, 0)
 		return cs.OpClip{}, err
-	// case "W*":  OpEOClip{},
-	// case "b":   OpCloseFillStroke{},
-	// case "b*":  OpCloseEOFillStroke{},
-	// case "c":   OpCurveTo{},
-	// case "cm":  OpConcat{},
+	case "W*":
+		err := assertLength(stack, 0)
+		return cs.OpEOClip{}, err
+	case "b":
+		err := assertLength(stack, 0)
+		return cs.OpCloseFillStroke{}, err
+	case "b*":
+		err := assertLength(stack, 0)
+		return cs.OpCloseEOFillStroke{}, err
+	case "c":
+		fls, err := assertNumbers(stack, 6)
+		if err != nil {
+			return nil, err
+		}
+		return cs.OpCubicTo{X1: fls[0], Y1: fls[1], X2: fls[2], Y2: fls[3], X3: fls[4], Y3: fls[5]}, nil
+	case "cm":
+		nbs, err := assertNumbers(stack, 6)
+		if err != nil {
+			return nil, err
+		}
+		var mat model.Matrix
+		copy(mat[:], nbs)
+		return cs.OpConcat{Matrix: mat}, nil
 	case "cs":
 		name, err := assertOneName(stack)
 		return cs.OpSetFillColorSpace{ColorSpace: name}, err
@@ -285,18 +367,44 @@ func parseCommand(command string, stack []Object) (cs.Operation, error) {
 		}
 		phase, err := assertNumber(stack[1])
 		return cs.OpSetDash{Dash: model.DashPattern{Array: dash, Phase: phase}}, err
-	// case "d0":  OpSetCharWidth{},
-	// case "d1":  OpSetCacheDevice{},
+	case "d0":
+		nbs, err := assertNumbers(stack, 2)
+		if err != nil {
+			return nil, err
+		}
+		return cs.OpSetCharWidth{WX: int(nbs[0]), WY: int(nbs[1])}, nil
+	case "d1":
+		nbs, err := assertNumbers(stack, 6)
+		if err != nil {
+			return nil, err
+		}
+		return cs.OpSetCacheDevice{WX: int(nbs[0]), WY: int(nbs[1]),
+			LLX: int(nbs[2]), LLY: int(nbs[3]), URX: int(nbs[4]), URY: int(nbs[5])}, nil
 	case "f":
 		err := assertLength(stack, 0)
 		return cs.OpFill{}, err
-	// case "f*":  OpEOFill{},
+	case "f*":
+		err := assertLength(stack, 0)
+		return cs.OpEOFill{}, err
 	case "gs":
 		name, err := assertOneName(stack)
 		return cs.OpSetExtGState{Dict: name}, err
-	// case "h":   OpClosePath{},
-	// case "i":   OpSetFlat{},
-	// case "j":   OpSetLineJoin{},
+	case "h":
+		err := assertLength(stack, 0)
+		return cs.OpClosePath{}, err
+	case "i":
+		nbs, err := assertNumbers(stack, 1)
+		if err != nil {
+			return nil, err
+		}
+		return cs.OpSetFlat{Flatness: nbs[0]}, nil
+	case "j":
+		nbs, err := assertNumbers(stack, 1)
+		if err != nil {
+			return nil, err
+		}
+		s := uint8(nbs[0])
+		return cs.OpSetLineJoin{Style: s}, nil
 	case "k":
 		nbs, err := assertNumbers(stack, 4)
 		if err != nil {
@@ -349,7 +457,9 @@ func parseCommand(command string, stack []Object) (cs.Operation, error) {
 	case "ri":
 		name, err := assertOneName(stack)
 		return cs.OpSetRenderingIntent{Intent: name}, err
-	// case "s":   OpCloseStroke{},
+	case "s":
+		err := assertLength(stack, 0)
+		return cs.OpCloseStroke{}, err
 	case "sc":
 		nbs, err := assertNumbers(stack, -1)
 		return cs.OpSetFillColor{Color: nbs}, err
@@ -370,14 +480,24 @@ func parseCommand(command string, stack []Object) (cs.Operation, error) {
 	case "sh":
 		name, err := assertOneName(stack)
 		return cs.OpShFill{Shading: name}, err
-	// case "v":   OpCurveTo1{},
+	case "v":
+		nbs, err := assertNumbers(stack, 4)
+		if err != nil {
+			return nil, err
+		}
+		return cs.OpCurveTo1{X2: nbs[0], Y2: nbs[1], X3: nbs[2], Y3: nbs[3]}, nil
 	case "w":
 		nbs, err := assertNumbers(stack, 1)
 		if err != nil {
 			return nil, err
 		}
 		return cs.OpSetLineWidth{W: nbs[0]}, nil
-		// case "y":   OpCurveTo{},
+	case "y":
+		nbs, err := assertNumbers(stack, 4)
+		if err != nil {
+			return nil, err
+		}
+		return cs.OpCurveTo{X1: nbs[0], Y1: nbs[1], X3: nbs[2], Y3: nbs[3]}, nil
 	default:
 		return nil, fmt.Errorf("invalid command name %s", command)
 	}
