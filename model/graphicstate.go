@@ -372,7 +372,7 @@ type ShadingDict struct {
 func (s *ShadingDict) pdfContent(pdf pdfWriter, _ Reference) (string, []byte) {
 	b := newBuffer()
 	if s.ColorSpace != nil {
-		b.fmt("/ColorSpace %s", s.ColorSpace.colorSpacePDFString(pdf))
+		b.fmt("/ColorSpace %s", s.ColorSpace.colorSpaceWrite(pdf))
 	}
 	if len(s.Background) != 0 {
 		b.fmt("/Background %s", writeFloatArray(s.Background))

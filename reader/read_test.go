@@ -308,31 +308,39 @@ func TestEmbeddedTTF(t *testing.T) {
 	}
 }
 
-func TestMp3(t *testing.T) {
-	doc, _, err := ParsePDFFile("test/mp3.pdf", Options{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	media := 0
-	for _, page := range doc.Catalog.Pages.Flatten() {
-		for _, annot := range page.Annots {
-			if sc, ok := annot.Subtype.(model.AnnotationScreen); ok {
-				fmt.Println(sc.P)
-				if rd, ok := sc.A.ActionType.(model.ActionRendition); ok {
-					if med, ok := rd.R.Subtype.(model.RenditionMedia); ok {
-						fmt.Println(med.P)
-						media++
+func TestMedia(t *testing.T) {
+	for _, file := range []string{
+		"test/mp3.pdf",
+		"test/mp4.pdf",
+	} {
+
+		doc, _, err := ParsePDFFile(file, Options{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		media := 0
+		for _, page := range doc.Catalog.Pages.Flatten() {
+			for _, annot := range page.Annots {
+				if sc, ok := annot.Subtype.(model.AnnotationScreen); ok {
+					if sc.P == nil {
+						t.Error("missing page object in Screen Annotation")
+					}
+					if rd, ok := sc.A.ActionType.(model.ActionRendition); ok {
+						if med, ok := rd.R.Subtype.(model.RenditionMedia); ok {
+							fmt.Println(med.P)
+							media++
+						}
 					}
 				}
 			}
 		}
-	}
-	if media != 1 {
-		t.Errorf("expected one media file, got %d", media)
-	}
+		if media != 1 {
+			t.Errorf("expected one media file, got %d", media)
+		}
 
-	err = reWrite(doc, "test/mp3.pdf.pdf")
-	if err != nil {
-		t.Fatal(err)
+		err = reWrite(doc, file+".pdf")
+		if err != nil {
+			t.Fatal(err)
+		}
 	}
 }

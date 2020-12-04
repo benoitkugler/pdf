@@ -17,7 +17,7 @@ func (m MetadataStream) Clone() Object {
 	return MetadataStream{Stream: m.Stream.Clone()}
 }
 
-func (m MetadataStream) PDFString(w PDFWritter, _ Reference) string {
+func (m MetadataStream) Write(w PDFWritter, _ Reference) string {
 	base := m.Stream.PDFCommonFields(true)
 	s := fmt.Sprintf("<</Type/Metadata/Subtype/XML %s>>", base)
 	ref := w.CreateObject()
@@ -472,7 +472,7 @@ type AttributeObject struct {
 func (a AttributeObject) pdfString(pdf pdfWriter, ref Reference) string {
 	chunks := make([]string, 0, len(a.Attributes))
 	for name, attr := range a.Attributes {
-		chunks = append(chunks, name.String()+" "+attr.PDFString(pdf, ref))
+		chunks = append(chunks, name.String()+" "+attr.Write(pdf, ref))
 	}
 	out := fmt.Sprintf("<</O%s%s>>", a.O, strings.Join(chunks, " "))
 	if a.RevisionNumber != 0 {
@@ -510,10 +510,10 @@ func (us AttributeUserProperties) Clone() Object {
 }
 
 // PDFString implements Attribute
-func (us AttributeUserProperties) PDFString(enc PDFWritter, context Reference) string {
+func (us AttributeUserProperties) Write(enc PDFWritter, context Reference) string {
 	chunks := make([]string, len(us))
 	for i, u := range us {
-		chunks[i] = u.PDFString(enc, context)
+		chunks[i] = u.Write(enc, context)
 	}
 	return "[" + strings.Join(chunks, " ") + "]"
 }
@@ -525,10 +525,10 @@ type UserProperty struct {
 	H bool   // optional
 }
 
-func (u UserProperty) PDFString(enc PDFWritter, context Reference) string {
+func (u UserProperty) Write(enc PDFWritter, context Reference) string {
 	v := ""
 	if u.V != nil {
-		v = "/V " + u.V.PDFString(enc, context)
+		v = "/V " + u.V.Write(enc, context)
 	}
 	return fmt.Sprintf("<</N %s%s/F %s/H %v>>",
 		enc.EncodeString(u.N, TextString, context), v,

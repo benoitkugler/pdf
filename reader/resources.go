@@ -776,7 +776,8 @@ func (r resolver) resolveProperties(obj pdfcpu.Object) (map[model.ObjName]model.
 		vDict, _ := r.resolve(v).(pdfcpu.Dict)
 		propDict := make(model.ObjDict)
 		for pName, pValue := range vDict {
-			if pName == "Metadata" { // special case Metadata, which is common
+			// special case Metadata, which is common
+			if pName == "Metadata" && r.customResolve == nil {
 				cs, err := r.resolveStream(pValue)
 				if err != nil {
 					return nil, fmt.Errorf("invalid Metadata entry: %s", err)

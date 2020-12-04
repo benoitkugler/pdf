@@ -353,7 +353,7 @@ func (f *XObjectImage) pdfContent(pdf pdfWriter, _ Reference) (string, []byte) {
 	b.line("<</Subtype/Image" + base)
 
 	if f.ColorSpace != nil {
-		b.fmt("/ColorSpace %s", f.ColorSpace.colorSpacePDFString(pdf))
+		b.fmt("/ColorSpace %s", f.ColorSpace.colorSpaceWrite(pdf))
 	}
 
 	//TODO: mask

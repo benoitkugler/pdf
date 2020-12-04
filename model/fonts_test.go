@@ -16,7 +16,7 @@ func TestEncodingString(t *testing.T) {
 		7:  "88",
 	}
 	exp := "[ 1/dsd/mldsks/mdsùldùs 7/88 10/ee/sd/ee]"
-	if d := diffs.PDFString(); d != exp {
+	if d := diffs.Write(); d != exp {
 		t.Errorf("expected %s, got %v", exp, d)
 	}
 }

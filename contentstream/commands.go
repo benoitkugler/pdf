@@ -49,7 +49,7 @@ func (n PropertyListName) contentStreamString() string {
 type PropertyListDict model.ObjDict
 
 func (p PropertyListDict) contentStreamString() string {
-	return model.ObjDict(p).PDFString(nil, 0)
+	return model.ObjDict(p).Write(nil, 0)
 }
 
 // assert interface conformance
@@ -502,7 +502,7 @@ func (o OpMarkPoint) Add(out *bytes.Buffer) {
 // 	- a name
 type ImageColorSpace interface {
 	isColorSpace()
-	PDFString() string
+	Write() string
 }
 
 func (ImageColorSpaceName) isColorSpace()    {}
@@ -513,7 +513,7 @@ type ImageColorSpaceName struct {
 	model.ColorSpaceName
 }
 
-func (c ImageColorSpaceName) PDFString() string {
+func (c ImageColorSpaceName) Write() string {
 	return model.ObjName(c.ColorSpaceName).String()
 }
 
@@ -525,7 +525,7 @@ type ImageColorSpaceIndexed struct {
 	Lookup model.ColorTableBytes
 }
 
-func (c ImageColorSpaceIndexed) PDFString() string {
+func (c ImageColorSpaceIndexed) Write() string {
 	return fmt.Sprintf("[/Indexed %s %d %s]",
 		model.ObjName(c.Base), c.Hival, c.Lookup)
 }
@@ -543,7 +543,7 @@ type OpBeginImage struct {
 func (o OpBeginImage) Add(out *bytes.Buffer) {
 	out.WriteString("BI " + o.Image.PDFFields(true))
 	if o.ColorSpace != nil {
-		out.WriteString(" /CS " + o.ColorSpace.PDFString())
+		out.WriteString(" /CS " + o.ColorSpace.Write())
 	}
 	out.WriteString(" ID ") // one space
 	out.Write(o.Image.Content)

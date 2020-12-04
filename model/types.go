@@ -22,7 +22,7 @@ import (
 // Note thaht the PDF null object is represented by its own concrete type,
 // so Object must never be nil.
 type Object interface {
-	// PDFString must return a PDF string representation
+	// Write must return a PDF string representation
 	// of the object.
 	// `PDFWritter` shall be use with strings and streams,
 	// so that they are espaced and crypted accordingly.
@@ -35,7 +35,7 @@ type Object interface {
 	//
 	// When used in content stream, ecryption is disabled, so the `PDFWritter`
 	// instance will be nil (and `Reference` invalid).
-	PDFString(writter PDFWritter, parent Reference) string
+	Write(writter PDFWritter, parent Reference) string
 
 	// Clone must return a deep copy of the object, preserving the concrete type.
 	Clone() Object
@@ -44,7 +44,7 @@ type Object interface {
 type ObjNull struct{}
 
 // String returns the PDF representation of a name
-func (n ObjNull) PDFString(PDFWritter, Reference) string {
+func (n ObjNull) Write(PDFWritter, Reference) string {
 	return "null"
 }
 
@@ -62,25 +62,25 @@ func (n ObjName) String() string {
 func (n ObjName) Clone() Object { return n }
 
 // String returns the PDF representation of a name
-func (n ObjName) PDFString(PDFWritter, Reference) string {
+func (n ObjName) Write(PDFWritter, Reference) string {
 	return n.String()
 }
 
 // ObjFloat implements MaybeFloat
 type ObjFloat Fl
 
-func (f ObjFloat) PDFString(PDFWritter, Reference) string {
+func (f ObjFloat) Write(PDFWritter, Reference) string {
 	// The max precision encountered so far has been 12 (fontType3 fontmatrix components).
 	return strconv.FormatFloat(float64(f), 'f', 12, 64)
 }
 
 func (f ObjFloat) Clone() Object { return f }
 
-// ObjBoolean represents a PDF boolean object.
-type ObjBoolean bool
+// ObjBool represents a PDF boolean object.
+type ObjBool bool
 
-func (boolean ObjBoolean) Clone() Object { return boolean }
-func (boolean ObjBoolean) PDFString(PDFWritter, Reference) string {
+func (boolean ObjBool) Clone() Object { return boolean }
+func (boolean ObjBool) Write(PDFWritter, Reference) string {
 	return fmt.Sprintf("%v", bool(boolean))
 }
 
@@ -88,7 +88,7 @@ func (boolean ObjBoolean) PDFString(PDFWritter, Reference) string {
 type ObjInt int
 
 func (i ObjInt) Clone() Object { return i }
-func (i ObjInt) PDFString(PDFWritter, Reference) string {
+func (i ObjInt) Write(PDFWritter, Reference) string {
 	return strconv.Itoa(int(i))
 }
 
@@ -99,7 +99,7 @@ type ObjStringLiteral string
 
 func (s ObjStringLiteral) Clone() Object { return s }
 
-func (s ObjStringLiteral) PDFString(w PDFWritter, r Reference) string {
+func (s ObjStringLiteral) Write(w PDFWritter, r Reference) string {
 	if w == nil { // content stream mode
 		return EspaceByteString([]byte(s))
 	}
@@ -113,7 +113,7 @@ type ObjHexLiteral string
 
 func (h ObjHexLiteral) Clone() Object { return h }
 
-func (h ObjHexLiteral) PDFString(w PDFWritter, r Reference) string {
+func (h ObjHexLiteral) Write(w PDFWritter, r Reference) string {
 	if w == nil { // content stream mode
 		return EspaceHexString([]byte(h))
 	}
@@ -121,6 +121,8 @@ func (h ObjHexLiteral) PDFString(w PDFWritter, r Reference) string {
 }
 
 // ObjIndirectRef represents a PDF indirect object.
+// This type will be found in a parsed PDF, but not in the model
+// (see the `Reference` type documentation).
 type ObjIndirectRef struct {
 	ObjectNumber     int
 	GenerationNumber int
@@ -128,7 +130,7 @@ type ObjIndirectRef struct {
 
 func (ir ObjIndirectRef) Clone() Object { return ir }
 
-func (ir ObjIndirectRef) PDFString(PDFWritter, Reference) string {
+func (ir ObjIndirectRef) Write(PDFWritter, Reference) string {
 	return fmt.Sprintf("%d %d R", ir.ObjectNumber, ir.GenerationNumber)
 }
 
@@ -137,7 +139,7 @@ type ObjCommand string
 
 func (cmd ObjCommand) Clone() Object { return cmd }
 
-func (cmd ObjCommand) PDFString(PDFWritter, Reference) string {
+func (cmd ObjCommand) Write(PDFWritter, Reference) string {
 	return string(cmd)
 }
 
@@ -152,10 +154,10 @@ func (arr ObjArray) Clone() Object {
 	return out
 }
 
-func (arr ObjArray) PDFString(w PDFWritter, r Reference) string {
+func (arr ObjArray) Write(w PDFWritter, r Reference) string {
 	chunks := make([]string, len(arr))
 	for i, o := range arr {
-		chunks[i] = o.PDFString(w, r)
+		chunks[i] = o.Write(w, r)
 	}
 	return "[" + strings.Join(chunks, " ") + "]"
 }
@@ -171,10 +173,10 @@ func (d ObjDict) Clone() Object {
 	return out
 }
 
-func (d ObjDict) PDFString(w PDFWritter, r Reference) string {
+func (d ObjDict) Write(w PDFWritter, r Reference) string {
 	chunks := make([]string, 0, len(d))
 	for i, o := range d {
-		chunks = append(chunks, i.PDFString(w, r), o.PDFString(w, r))
+		chunks = append(chunks, i.Write(w, r), o.Write(w, r))
 	}
 	return "<<\n" + strings.Join(chunks, "\n") + "\n>>"
 }
@@ -192,12 +194,12 @@ func (stream ObjStream) Clone() Object {
 	}
 }
 
-func (stream ObjStream) PDFString(w PDFWritter, r Reference) string {
+func (stream ObjStream) Write(w PDFWritter, r Reference) string {
 	if w == nil { // shoud never happen
 		return ""
 	}
 	ref := w.CreateObject()
-	w.WriteObject(stream.Args.PDFString(w, ref), stream.Content, ref)
+	w.WriteObject(stream.Args.Write(w, ref), stream.Content, ref)
 	return ref.String()
 }
 
@@ -226,6 +228,15 @@ type MaybeFloat interface {
 }
 
 func (f ObjFloat) isMaybeFloat() {}
+
+// MaybeBool is a Bool or nothing
+// It'a an other way to specify *Fl,
+// safer to use and pass by value.
+type MaybeBool interface {
+	isMaybeBool()
+}
+
+func (b ObjBool) isMaybeBool() {}
 
 // IsString return `true` is `o` is either a StringLitteral
 // or an HexLitteral

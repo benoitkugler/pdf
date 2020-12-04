@@ -109,7 +109,7 @@ func (r resolver) defaultProcessCustomObject(object pdfcpu.Object) (model.Object
 	case pdfcpu.Integer:
 		return model.ObjInt(o), nil
 	case pdfcpu.Boolean:
-		return model.ObjBoolean(o), nil
+		return model.ObjBool(o), nil
 	case pdfcpu.HexLiteral:
 		return model.ObjHexLiteral(o), nil
 	case pdfcpu.StringLiteral:

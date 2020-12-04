@@ -28,7 +28,7 @@ type StringLiteral = model.ObjStringLiteral
 type HexLiteral = model.ObjHexLiteral
 type Array = model.ObjArray
 type Dict = model.ObjDict
-type Boolean = model.ObjBoolean
+type Bool = model.ObjBool
 type Command = model.ObjCommand
 type IndirectRef = model.ObjIndirectRef
 
@@ -204,9 +204,9 @@ func (p Parser) parseOther(l string) (Object, error) {
 	case "null": // null, absent object
 		return model.ObjNull{}, nil
 	case "true": // boolean true
-		return Boolean(true), nil
+		return Bool(true), nil
 	case "false": // boolean false
-		return Boolean(false), nil
+		return Bool(false), nil
 	default:
 		if p.ContentStreamMode {
 			return Command(l), nil

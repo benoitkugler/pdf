@@ -83,7 +83,7 @@ func parseOneImgField(name Name, value Object, img *contentstream.OpBeginImage) 
 		}
 		img.Image.Decode, err = processPoints(arr)
 	case "ImageMask", "IM":
-		b, ok := value.(Boolean)
+		b, ok := value.(Bool)
 		if !ok {
 			return nil, errBIExpressionCorrupt
 		}
@@ -95,7 +95,7 @@ func parseOneImgField(name Name, value Object, img *contentstream.OpBeginImage) 
 		}
 		img.Image.Intent = model.ObjName(in)
 	case "Interpolate", "I":
-		b, ok := value.(Boolean)
+		b, ok := value.(Bool)
 		if !ok {
 			return nil, errBIExpressionCorrupt
 		}
@@ -201,7 +201,7 @@ func processOneDecodeParms(parms Object) map[model.ObjName]int {
 	for paramName, paramVal := range parmsDict {
 		var intVal int
 		switch val := paramVal.(type) {
-		case Boolean:
+		case Bool:
 			if val {
 				intVal = 1
 			} else {

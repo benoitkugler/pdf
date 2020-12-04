@@ -9,7 +9,7 @@ import (
 // identifier. The second string is text associated with the language.
 type LanguageArray [][2]string
 
-func (l LanguageArray) PDFString(w PDFWritter, ref Reference) string {
+func (l LanguageArray) Write(w PDFWritter, ref Reference) string {
 	chunks := make([]string, 0, len(l)*2)
 	for _, p := range l {
 		chunks = append(chunks, p[0], p[1])
@@ -21,11 +21,141 @@ func (l LanguageArray) Clone() LanguageArray {
 	return append([][2]string(nil), l...)
 }
 
+// MediaCriteria
+// All entry are optional
+type MediaCriteria struct {
+	A, C, O, S MaybeBool
+	R          MaybeInt
+	D          MediaBitDepth
+	Z          MediaScreenSize
+	V          []SoftwareIdentifier
+	P          [2]Name
+	L          []string
+}
+
+func (m MediaCriteria) Write(pdf PDFWritter, context Reference) string {
+	b := newBuffer()
+	if bo, ok := m.A.(ObjBool); ok {
+		b.fmt("/A %v", bo)
+	}
+	if bo, ok := m.C.(ObjBool); ok {
+		b.fmt("/C %v", bo)
+	}
+	if bo, ok := m.O.(ObjBool); ok {
+		b.fmt("/O %v", bo)
+	}
+	if bo, ok := m.S.(ObjBool); ok {
+		b.fmt("/S %v", bo)
+	}
+	if i, ok := m.R.(ObjInt); ok {
+		b.fmt("/R %d", i)
+	}
+	if m.D != (MediaBitDepth{}) {
+		b.WriteString("/D " + m.D.Write())
+	}
+	if m.Z != (MediaScreenSize{}) {
+		b.WriteString("/Z " + m.Z.Write())
+	}
+	if len(m.V) != 0 {
+		chunks := make([]string, len(m.V))
+		for i, s := range m.V {
+			chunks[i] = s.Write(pdf, context)
+		}
+		b.fmt("/V [%s]", strings.Join(chunks, " "))
+	}
+	var ps []Name
+	if m.P[0] != "" {
+		ps = append(ps, m.P[0])
+		if m.P[1] != "" {
+			ps = append(ps, m.P[1])
+		}
+	}
+	if len(ps) != 0 {
+		b.WriteString("/P " + writeNameArray(ps))
+	}
+	if len(m.L) != 0 {
+		b.WriteString("/L " + writeStringsArray(m.L, pdf, TextString, context))
+	}
+	b.line(">>")
+	return b.String()
+}
+
+func (m *MediaCriteria) Clone() *MediaCriteria {
+	if m == nil {
+		return nil
+	}
+	out := *m
+	if m.V != nil {
+		out.V = make([]SoftwareIdentifier, len(m.V))
+		for i, s := range m.V {
+			out.V[i] = s.Clone()
+		}
+	}
+	out.L = append([]string(nil), m.L...)
+	return &out
+}
+
+type MediaBitDepth struct {
+	V int // required
+	M int // optional
+}
+
+func (m MediaBitDepth) Write() string {
+	return fmt.Sprintf("<<∕V %d /M %d>>", m.V, m.M)
+}
+
+type MediaScreenSize struct {
+	V [2]int // required
+	M int    // optional
+}
+
+func (m MediaScreenSize) Write() string {
+	return fmt.Sprintf("<<∕V %s /M %d>>", writeIntArray(m.V[:]), m.M)
+}
+
+// Table 292 – Entries in a software identifier dictionary
+type SoftwareIdentifier struct {
+	U      string // required, ASCII string
+	L, H   []int
+	LI, HI MaybeBool
+	OS     []string
+}
+
+func (s SoftwareIdentifier) Write(pdf PDFWritter, context Reference) string {
+	out := "<</U " + EspaceByteString([]byte(s.U))
+	if len(s.L) != 0 {
+		out += "/L " + writeIntArray(s.L)
+	}
+	if len(s.H) != 0 {
+		out += "/H " + writeIntArray(s.H)
+	}
+	if b, ok := s.LI.(ObjBool); ok {
+		out += fmt.Sprintf("/LI %v", b)
+	}
+	if b, ok := s.HI.(ObjBool); ok {
+		out += fmt.Sprintf("/HI %v", b)
+	}
+	if len(s.OS) != 0 {
+		out += "/OS " + writeStringsArray(s.OS, pdf, ByteString, context)
+	}
+	out += ">>"
+	return out
+}
+
+func (s SoftwareIdentifier) Clone() SoftwareIdentifier {
+	out := s
+	out.L = append([]int(nil), s.L...)
+	out.H = append([]int(nil), s.H...)
+	out.OS = append([]string(nil), s.OS...)
+	return out
+}
+
 // RenditionDict is either a media rendition or a selector rendition
 // See 13.2.3 - Renditions
 type RenditionDict struct {
 	N       string // optional
 	Subtype Rendition
+	MH, BE  *MediaCriteria // optional, written in PDF as a dict with a C entry
 }
 
 func (rd RenditionDict) pdfString(w pdfWriter, r Reference) string {
@@ -36,6 +166,12 @@ func (rd RenditionDict) pdfString(w pdfWriter, r Reference) string {
 	if rd.N != "" {
 		out += "/N " + w.EncodeString(rd.N, TextString, r)
 	}
+	if rd.MH != nil {
+		out += fmt.Sprintf("/MH <</C %s>>", rd.MH.Write(w, r))
+	}
+	if rd.BE != nil {
+		out += fmt.Sprintf("/BE <</C %s>>", rd.BE.Write(w, r))
+	}
 	out += ">>"
 	return out
 }
@@ -45,6 +181,8 @@ func (rd RenditionDict) clone(cache cloneCache) RenditionDict {
 	if rd.Subtype != nil {
 		out.Subtype = rd.Subtype.clone(cache)
 	}
+	out.MH = rd.MH.Clone()
+	out.BE = rd.BE.Clone()
 	return out
 }
 
@@ -86,13 +224,16 @@ type RenditionMedia struct {
 func (rm RenditionMedia) clone(cache cloneCache) Rendition {
 	out := rm
 	out.C = rm.C.clone(cache)
-	// TODO: SP
+	out.SP = rm.SP.Clone()
 	return out
 }
 
 func (rm RenditionMedia) renditionFields(w pdfWriter, r Reference) string {
-	// TODO: SP
-	return "/S/MR/C " + rm.C.pdfString(w, r) + "/P " + rm.P.PDFString()
+	out := "/S/MR/C " + rm.C.pdfString(w, r) + "/P " + rm.P.Write()
+	if rm.SP != (MediaScreen{}) {
+		out += "/SP " + rm.SP.Write(w, r)
+	}
+	return out
 }
 
 type MediaClipDict struct {
@@ -163,7 +304,7 @@ func (ms MediaClipData) mediaClipFields(pdf pdfWriter, ref Reference) string {
 		fields += fmt.Sprintf("/P <</TD %s>>", pdf.EncodeString(string(ms.P), ByteString, ref))
 	}
 	if len(ms.Alt) != 0 {
-		fields += "/Alt " + ms.Alt.PDFString(pdf, ref)
+		fields += "/Alt " + ms.Alt.Write(pdf, ref)
 	}
 	if ms.MH != "" {
 		fields += "/MH <</BU %s>>" + pdf.EncodeString(ms.MH, ByteString, ref)
@@ -196,13 +337,13 @@ type MediaClipSection struct {
 func (ms MediaClipSection) mediaClipFields(pdf pdfWriter, ref Reference) string {
 	fields := "/S/MCS/D " + ms.D.pdfString(pdf, ref)
 	if len(ms.Alt) != 0 {
-		fields += "/Alt " + ms.Alt.PDFString(pdf, ref)
+		fields += "/Alt " + ms.Alt.Write(pdf, ref)
 	}
 	if !ms.MH.IsEmpty() {
-		fields += "/MH " + ms.MH.PDFString(pdf, ref)
+		fields += "/MH " + ms.MH.Write(pdf, ref)
 	}
 	if !ms.BE.IsEmpty() {
-		fields += "/BE " + ms.BE.PDFString(pdf, ref)
+		fields += "/BE " + ms.BE.Write(pdf, ref)
 	}
 	return fields
 }
@@ -225,7 +366,7 @@ func (m MediaClipSectionLimits) IsEmpty() bool {
 	return m.B == nil && m.E == nil
 }
 
-func (m MediaClipSectionLimits) PDFString(pdf PDFWritter, ref Reference) string {
+func (m MediaClipSectionLimits) Write(pdf PDFWritter, ref Reference) string {
 	out := "<<"
 	if m.B != nil {
 		out += "/B " + m.B.mediaOffsetString(pdf, ref)
@@ -242,13 +383,13 @@ type MediaPlayer struct {
 	MH, BE MediaPlayerParameters // optional
 }
 
-func (m MediaPlayer) PDFString() string {
+func (m MediaPlayer) Write() string {
 	out := "<<"
 	if m.MH != (MediaPlayerParameters{}) {
-		out += "/MH " + m.MH.PDFString()
+		out += "/MH " + m.MH.Write()
 	}
 	if m.BE != (MediaPlayerParameters{}) {
-		out += "/BE " + m.BE.PDFString()
+		out += "/BE " + m.BE.Write()
 	}
 	out += ">>"
 	return out
@@ -263,7 +404,7 @@ type MediaPlayerParameters struct {
 	RC      MaybeFloat    // optional, default to 1, 0 means for repeat for ever
 }
 
-func (m MediaPlayerParameters) PDFString() string {
+func (m MediaPlayerParameters) Write() string {
 	out := "<<"
 	if m.V != nil {
 		out += fmt.Sprintf("/V %d", m.V.(ObjInt))
@@ -301,8 +442,6 @@ func (f ObjFloat) mediaDurationString() string {
 	return fmt.Sprintf("<</S/T /T<</S/S/V %.3f>> >>", f)
 }
 
-type MediaScreen struct{}
-
 // MediaOffset specifies an offset into a media object. It is either:
 // 	- a time, in seconds as ObjFloat
 //	- a frame, as ObjInt
@@ -321,4 +460,112 @@ func (f ObjFloat) mediaOffsetString(PDFWritter, Reference) string {
 
 func (m ObjStringLiteral) mediaOffsetString(w PDFWritter, ref Reference) string {
 	return fmt.Sprintf("<</S/M/M %s>>", w.EncodeString(string(m), TextString, ref))
+}
+
+type MediaScreen struct {
+	MH, BE *MediaScreenParams // optional
+}
+
+func (m MediaScreen) Write(w PDFWritter, r Reference) string {
+	out := "<<"
+	if m.MH != nil {
+		out += "/MH " + m.MH.Write(w, r)
+	}
+	if m.BE != nil {
+		out += "/BE " + m.BE.Write(w, r)
+	}
+	out += ">>"
+	return out
+}
+
+func (m MediaScreen) Clone() MediaScreen {
+	out := MediaScreen{
+		MH: m.MH.Clone(),
+		BE: m.BE.Clone(),
+	}
+	return out
+}
+
+type MediaScreenParams struct {
+	W MaybeInt
+	B *[3]Fl // optional
+	O MaybeFloat
+	M int
+	F *MediaScreenFloatingWindow // optional
+}
+
+func (m MediaScreenParams) Write(w PDFWritter, r Reference) string {
+	out := "<<"
+	if w, ok := m.W.(ObjInt); ok {
+		out += fmt.Sprintf("/W %d", w)
+	}
+	if m.B != nil {
+		out += "/B " + writeFloatArray((*m.B)[:])
+	}
+	if o, ok := m.O.(ObjFloat); ok {
+		out += fmt.Sprintf("/O %.3f", o)
+	}
+	if m.F != nil {
+		out += "/F " + m.F.Write(w, r)
+	}
+	out += ">>"
+	return out
+}
+
+func (m *MediaScreenParams) Clone() *MediaScreenParams {
+	if m == nil {
+		return nil
+	}
+	out := *m
+	if m.B != nil {
+		tmp := *m.B
+		out.B = &tmp
+	}
+	out.F = m.F.Clone()
+	return &out
+}
+
+type MediaScreenFloatingWindow struct {
+	D     [2]int // required, width and height
+	RT, R uint8
+	P, O  MaybeInt
+	T, UC MaybeBool
+	TT    LanguageArray
+}
+
+func (m MediaScreenFloatingWindow) Write(w PDFWritter, r Reference) string {
+	b := newBuffer()
+	b.WriteString("<</D " + writeIntArray(m.D[:]))
+	if m.RT != 0 {
+		b.fmt("/RT %d", m.RT)
+	}
+	if m.R != 0 {
+		b.fmt("/R %d", m.R)
+	}
+	if i, ok := m.P.(ObjInt); ok {
+		b.fmt("/P %d", i)
+	}
+	if i, ok := m.O.(ObjInt); ok {
+		b.fmt("/O %d", i)
+	}
+	if bo, ok := m.T.(ObjBool); ok {
+		b.fmt("/T %v", bo)
+	}
+	if bo, ok := m.UC.(ObjBool); ok {
+		b.fmt("/UC %v", bo)
+	}
+	if len(m.TT) != 0 {
+		b.WriteString("/TT " + m.TT.Write(w, r))
+	}
+	b.WriteString(">>")
+	return b.String()
+}
+
+func (m *MediaScreenFloatingWindow) Clone() *MediaScreenFloatingWindow {
+	if m == nil {
+		return m
+	}
+	out := *m
+	out.TT = m.TT.Clone()
+	return &out
 }

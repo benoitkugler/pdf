@@ -323,7 +323,7 @@ func (r *ResourcesDict) pdfString(pdf pdfWriter) string {
 			if item == nil {
 				continue
 			}
-			b.fmt("%s %s", n, item.colorSpacePDFString(pdf))
+			b.fmt("%s %s", n, item.colorSpaceWrite(pdf))
 		}
 		b.line(">>")
 	}
@@ -363,7 +363,7 @@ func (r *ResourcesDict) pdfString(pdf pdfWriter) string {
 		b.fmt("/Properties <<")
 		for n, item := range r.Properties {
 			ref := pdf.CreateObject()
-			pdf.WriteObject(item.PDFString(pdf, ref), nil, ref)
+			pdf.WriteObject(item.Write(pdf, ref), nil, ref)
 			b.fmt("%s %s", n, ref)
 		}
 		b.line(">>")

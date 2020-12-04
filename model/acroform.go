@@ -469,7 +469,7 @@ func (s SignatureDict) pdfString(pdf pdfWriter, catalog, fieldRef Reference) str
 		b.fmt("/V %d", s.V)
 	}
 	if s.Prop_Build != nil {
-		b.fmt("/Prop_Build %s", s.Prop_Build.PDFString(pdf, fieldRef))
+		b.fmt("/Prop_Build %s", s.Prop_Build.Write(pdf, fieldRef))
 	}
 	if !s.Prop_AuthTime.IsZero() {
 		b.fmt("/Prop_AuthTime %s", pdf.dateString(s.Prop_AuthTime, fieldRef))

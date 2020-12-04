@@ -12,6 +12,10 @@ import (
 
 // Reference is the object number of a PDF object.
 // It is only needed to write a document.
+// It differs from the ObjReference type because
+// it is never part of a PDF object, but is only created and used
+// during the write phase. Instead, indirection is represented
+// in the model by standard Go pointers.
 type Reference uint32
 
 // String return a string to be used when writing a PDF
