@@ -75,3 +75,43 @@ func AddAttachments(doc *model.Document, enc *model.Encrypt, w io.Writer, files 
 	err := doc.Write(w, enc)
 	return err
 }
+
+// ExtractContent dumps "PDF source" files from `doc` into `outDir` for selected pages.
+// Passing `nil` for `pageNumbers` extracts all pages. Invalid page numbers are ignored.
+func ExtractContent(doc model.Document, outDir string, pageNumbers []int) error {
+	// Note: the parsing of the page selection must have been done previously
+	pages := doc.Catalog.Pages.Flatten()
+
+	if pageNumbers == nil {
+		pageNumbers = make([]int, len(pages))
+		for i := 0; i < len(pages); i++ {
+			pageNumbers[i] = i
+		}
+	}
+
+	seen := map[int]bool{}
+	for _, pageNumber := range pageNumbers {
+		if seen[pageNumber] { // avoid duplicate
+			continue
+		}
+		if pageNumber >= len(pages) { // Handle overflow gracefully
+			continue
+		}
+		seen[pageNumber] = true
+
+		var totalPageContent []byte
+		for _, ct := range pages[pageNumber].Contents {
+			ctContent, err := ct.Decode()
+			if err != nil {
+				return err
+			}
+			totalPageContent = append(totalPageContent, ctContent...)
+		}
+		outPath := filepath.Join(outDir, fmt.Sprintf("Content_page_%d.txt", pageNumber))
+		err := ioutil.WriteFile(outPath, totalPageContent, os.ModePerm)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}

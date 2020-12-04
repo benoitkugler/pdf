@@ -8,18 +8,11 @@ import (
 	"time"
 
 	"github.com/benoitkugler/pdf/model"
+	"github.com/benoitkugler/pdf/reader"
 )
 
 func TestEmbeddedFiles(t *testing.T) {
-	// fin, err := os.Open("type3.pdf")
-	// if err != nil {
-	// 	t.Fatal(err)
-	// }
-	// defer fin.Close()
-	// doc, err := reader.ParsePDF(fin, "")
-	// if err != nil {
-	// 	t.Fatal(err)
-	// }
+	// doc, _, err := reader.ParsePDFFile("test/descriptif.pdf", reader.Options{})
 	var doc model.Document
 
 	out, err := os.Create("test/embedded.pdf")
@@ -44,5 +37,16 @@ func TestEmbeddedFiles(t *testing.T) {
 	expected := []string{"api.go", "api_test.go"}
 	if !reflect.DeepEqual(list, expected) {
 		t.Errorf("expected %v, got %v", expected, list)
+	}
+}
+
+func TestExtractContent(t *testing.T) {
+	doc, _, err := reader.ParsePDFFile("test/descriptif.pdf", reader.Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = ExtractContent(doc, "test/", nil)
+	if err != nil {
+		t.Error(err)
 	}
 }

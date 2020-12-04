@@ -144,14 +144,14 @@ type OpSetFillGray struct {
 }
 
 func (o OpSetFillGray) Add(out *bytes.Buffer) {
-	fmt.Fprintf(out, "%.3f g", o.G)
+	fmt.Fprintf(out, "%g g", o.G)
 }
 
 // G
 type OpSetStrokeGray OpSetFillGray
 
 func (o OpSetStrokeGray) Add(out *bytes.Buffer) {
-	fmt.Fprintf(out, "%.3f G", o.G)
+	fmt.Fprintf(out, "%g G", o.G)
 }
 
 // rg
@@ -160,14 +160,14 @@ type OpSetFillRGBColor struct {
 }
 
 func (o OpSetFillRGBColor) Add(out *bytes.Buffer) {
-	fmt.Fprintf(out, "%.3f %.3f %.3f rg", o.R, o.G, o.B)
+	fmt.Fprintf(out, "%g %g %g rg", o.R, o.G, o.B)
 }
 
 // RG
 type OpSetStrokeRGBColor OpSetFillRGBColor
 
 func (o OpSetStrokeRGBColor) Add(out *bytes.Buffer) {
-	fmt.Fprintf(out, "%.3f %.3f %.3f RG", o.R, o.G, o.B)
+	fmt.Fprintf(out, "%g %g %g RG", o.R, o.G, o.B)
 }
 
 // k
@@ -176,14 +176,14 @@ type OpSetFillCMYKColor struct {
 }
 
 func (o OpSetFillCMYKColor) Add(out *bytes.Buffer) {
-	fmt.Fprintf(out, "%.3f %.3f %.3f %.3f k", o.C, o.M, o.Y, o.K)
+	fmt.Fprintf(out, "%g %g %g %g k", o.C, o.M, o.Y, o.K)
 }
 
 // K
 type OpSetStrokeCMYKColor OpSetFillCMYKColor
 
 func (o OpSetStrokeCMYKColor) Add(out *bytes.Buffer) {
-	fmt.Fprintf(out, "%.3f %.3f %.3f %.3f K", o.C, o.M, o.Y, o.K)
+	fmt.Fprintf(out, "%g %g %g %g K", o.C, o.M, o.Y, o.K)
 }
 
 // J
@@ -210,7 +210,7 @@ type OpSetMiterLimit struct {
 }
 
 func (o OpSetMiterLimit) Add(out *bytes.Buffer) {
-	fmt.Fprintf(out, "%.3f M", o.Limit)
+	fmt.Fprintf(out, "%g M", o.Limit)
 }
 
 // w
@@ -219,7 +219,7 @@ type OpSetLineWidth struct {
 }
 
 func (o OpSetLineWidth) Add(out *bytes.Buffer) {
-	fmt.Fprintf(out, "%.3f w", o.W)
+	fmt.Fprintf(out, "%g w", o.W)
 }
 
 // i
@@ -237,14 +237,14 @@ type OpSetDash struct {
 }
 
 func (o OpSetDash) Add(out *bytes.Buffer) {
-	fmt.Fprintf(out, "[%s] %.3f d", floatArray(o.Dash.Array...), o.Dash.Phase)
+	fmt.Fprintf(out, "[%s] %g d", floatArray(o.Dash.Array...), o.Dash.Phase)
 }
 
 // without the enclosing []
 func floatArray(as ...Fl) string {
 	b := make([]string, len(as))
 	for i, a := range as {
-		b[i] = fmt.Sprintf("%f", a)
+		b[i] = fmt.Sprintf("%g", a)
 	}
 	return strings.Join(b, " ")
 }
@@ -256,7 +256,7 @@ type OpSetFont struct {
 }
 
 func (o OpSetFont) Add(out *bytes.Buffer) {
-	fmt.Fprintf(out, "%s %.3f Tf", o.Font, o.Size)
+	fmt.Fprintf(out, "%s %g Tf", o.Font, o.Size)
 }
 
 // TL
@@ -265,7 +265,7 @@ type OpSetTextLeading struct {
 }
 
 func (o OpSetTextLeading) Add(out *bytes.Buffer) {
-	fmt.Fprintf(out, "%.3f TL", o.L)
+	fmt.Fprintf(out, "%g TL", o.L)
 }
 
 // Tc
@@ -274,7 +274,7 @@ type OpSetCharSpacing struct {
 }
 
 func (o OpSetCharSpacing) Add(out *bytes.Buffer) {
-	fmt.Fprintf(out, "%.3f Tc", o.CharSpace)
+	fmt.Fprintf(out, "%g Tc", o.CharSpace)
 }
 
 // Tw
@@ -283,7 +283,7 @@ type OpSetWordSpacing struct {
 }
 
 func (o OpSetWordSpacing) Add(out *bytes.Buffer) {
-	fmt.Fprintf(out, "%.3f Tw", o.WordSpace)
+	fmt.Fprintf(out, "%g Tw", o.WordSpace)
 }
 
 // Tz
@@ -292,7 +292,7 @@ type OpSetHorizScaling struct {
 }
 
 func (o OpSetHorizScaling) Add(out *bytes.Buffer) {
-	fmt.Fprintf(out, "%.3f Tz", o.Scale)
+	fmt.Fprintf(out, "%g Tz", o.Scale)
 }
 
 // Tr
@@ -301,7 +301,7 @@ type OpSetTextRender struct {
 }
 
 func (o OpSetTextRender) Add(out *bytes.Buffer) {
-	fmt.Fprintf(out, "%.3f Tr", o.Render)
+	fmt.Fprintf(out, "%g Tr", o.Render)
 }
 
 // Ts
@@ -310,7 +310,7 @@ type OpSetTextRise struct {
 }
 
 func (o OpSetTextRise) Add(out *bytes.Buffer) {
-	fmt.Fprintf(out, "%.3f Ts", o.Rise)
+	fmt.Fprintf(out, "%g Ts", o.Rise)
 }
 
 // n
@@ -325,7 +325,7 @@ type OpMoveTo struct {
 }
 
 func (o OpMoveTo) Add(out *bytes.Buffer) {
-	fmt.Fprintf(out, "%.3f %.3f m", o.X, o.Y)
+	fmt.Fprintf(out, "%g %g m", o.X, o.Y)
 }
 
 // l
@@ -334,7 +334,7 @@ type OpLineTo struct {
 }
 
 func (o OpLineTo) Add(out *bytes.Buffer) {
-	fmt.Fprintf(out, "%.3f %.3f l", o.X, o.Y)
+	fmt.Fprintf(out, "%g %g l", o.X, o.Y)
 }
 
 // c
@@ -373,7 +373,7 @@ type OpRectangle struct {
 }
 
 func (o OpRectangle) Add(out *bytes.Buffer) {
-	fmt.Fprintf(out, "%.3f %.3f %.3f %.3f re", o.X, o.Y, o.W, o.H)
+	fmt.Fprintf(out, "%g %g %g %g re", o.X, o.Y, o.W, o.H)
 }
 
 // f
@@ -452,14 +452,14 @@ type OpTextMove struct {
 }
 
 func (o OpTextMove) Add(out *bytes.Buffer) {
-	fmt.Fprintf(out, "%.3f %.3f Td", o.X, o.Y)
+	fmt.Fprintf(out, "%g %g Td", o.X, o.Y)
 }
 
 // TD
 type OpTextMoveSet OpTextMove
 
 func (o OpTextMoveSet) Add(out *bytes.Buffer) {
-	fmt.Fprintf(out, "%.3f %.3f TD", o.X, o.Y)
+	fmt.Fprintf(out, "%g %g TD", o.X, o.Y)
 }
 
 // T*
@@ -517,7 +517,7 @@ type OpMoveSetShowText struct {
 }
 
 func (o OpMoveSetShowText) Add(out *bytes.Buffer) {
-	fmt.Fprintf(out, "%.3f %.3f %s \"", o.WordSpacing, o.CharacterSpacing, model.EspaceByteString([]byte(o.Text)))
+	fmt.Fprintf(out, "%g %g %s \"", o.WordSpacing, o.CharacterSpacing, model.EspaceByteString([]byte(o.Text)))
 }
 
 // Tm

@@ -17,9 +17,11 @@ limitations under the License.
 package parser
 
 import (
+	"io/ioutil"
 	"reflect"
 	"testing"
 
+	"github.com/benoitkugler/pdf/contentstream"
 	"github.com/benoitkugler/pdf/model"
 )
 
@@ -62,5 +64,34 @@ func TestFail(t *testing.T) {
 		if err == nil {
 			t.Error("expected error on invalid input")
 		}
+	}
+}
+
+func TestContent(t *testing.T) {
+	b, err := ioutil.ReadFile("test/content.txt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	ops, err := ParseContent(b, nil)
+	if err != nil {
+		t.Error(err)
+	}
+
+	b2 := contentstream.WriteOperations(ops...)
+	ops2, err := ParseContent(b2, nil)
+	if err != nil {
+		t.Error(err)
+	}
+
+	if !reflect.DeepEqual(ops, ops2) {
+		if len(ops) != len(ops2) {
+			t.Errorf("expected same length")
+		}
+		for i, o := range ops {
+			if !reflect.DeepEqual(o, ops2[i]) {
+				t.Errorf("differents values %v and %v", o, ops2[i])
+			}
+		}
+		t.Error("expected idempotent parsing")
 	}
 }
