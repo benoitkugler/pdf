@@ -9,6 +9,7 @@ import (
 
 	"github.com/benoitkugler/pdf/contentstream"
 	"github.com/benoitkugler/pdf/model"
+	"github.com/benoitkugler/pdfcpu/pkg/filter"
 )
 
 var errBIExpressionCorrupt = errors.New("pdfcpu: corrupt TJ expression")
@@ -220,6 +221,7 @@ func processOneDecodeParms(parms Object) map[model.ObjName]int {
 }
 
 // read the inline data, store its content in img, and skip EI command
+// TODO: the CCITT decoder may read after EOD
 func (pr *Parser) parseImageData(img *contentstream.OpBeginImage, decodeParams []map[model.ObjName]int, res model.ResourcesColorSpace) error {
 	// first we check the length of decode params
 	// and update the filter list
@@ -232,8 +234,7 @@ func (pr *Parser) parseImageData(img *contentstream.OpBeginImage, decodeParams [
 
 	// to read the binary data, there are 2 cases
 	// 	- if the data is not filtered, we use the image charac. to deduce the length
-	//	- if the data is filtered, we have to rely on the filter format (and reader)
-	//	End Of Data marker
+	//	- if the data is filtered, we have to rely on the filter format End Of Data marker
 
 	if len(img.Image.Filter) == 0 {
 		bits, comps, err := img.Metrics(res)
@@ -245,12 +246,25 @@ func (pr *Parser) parseImageData(img *contentstream.OpBeginImage, decodeParams [
 		img.Image.Content = pr.tokens.SkipBytes(n + 1) // with space after ID
 	} else {
 		pr.tokens.SkipBytes(1) // with space after ID
+
 		input := pr.tokens.Bytes()
 		origin := bytes.NewReader(input)
 		totalLength := origin.Len()
-		reader, err := img.Image.Stream.Filter.DecodeReader(origin)
-		if err != nil {
-			return fmt.Errorf("invalid inline image data filters: %s", err)
+
+		// we only apply the first filter
+		fi := img.Image.Stream.Filter[0]
+		var (
+			reader io.Reader
+			err    error
+		)
+		if fi.Name == model.DCT {
+			// special case since pdfcpu/filter does not handle DCT
+			reader = filter.LimitedDCTDecoder(origin)
+		} else {
+			reader, err = fi.DecodeReader(origin)
+			if err != nil {
+				return fmt.Errorf("invalid inline image data filters: %s", err)
+			}
 		}
 		_, err = io.Copy(ioutil.Discard, reader)
 		if err != nil {
@@ -260,10 +274,6 @@ func (pr *Parser) parseImageData(img *contentstream.OpBeginImage, decodeParams [
 		leftLength := origin.Len()
 		compressedLength := totalLength - leftLength
 		// ... and we store the compressed version ...
-		// NOTE: we dont leverage the decoded content,
-		// to satisfy the convention of model.
-		// In pratice, it should not be problematic, since inline image are short,
-		// but it could be a motivation to change the convention.
 		img.Image.Content = input[0:compressedLength]
 		// ... and move the tokenizer
 		pr.tokens.SkipBytes(compressedLength)

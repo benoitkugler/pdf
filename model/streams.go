@@ -48,6 +48,14 @@ func (f Filter) params() map[string]int {
 	return out
 }
 
+func (fi Filter) DecodeReader(r io.Reader) (io.Reader, error) {
+	fil, err := filter.NewFilter(string(fi.Name), fi.params())
+	if err != nil {
+		return nil, err
+	}
+	return fil.Decode(r)
+}
+
 // // NewFilter validate `s` and returns
 // // an empty string it is not a known filter
 // func NewFilter(s string) Filter {
@@ -75,12 +83,9 @@ type Filters []Filter
 // DecodeReader accumulate the filters to produce a Reader,
 // decoding `r`.
 func (fs Filters) DecodeReader(r io.Reader) (io.Reader, error) {
+	var err error
 	for _, fi := range fs {
-		fil, err := filter.NewFilter(string(fi.Name), fi.params())
-		if err != nil {
-			return nil, err
-		}
-		r, err = fil.Decode(r)
+		r, err = fi.DecodeReader(r)
 		if err != nil {
 			return nil, err
 		}

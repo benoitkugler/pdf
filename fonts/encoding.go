@@ -1,11 +1,12 @@
 package fonts
 
 import (
+	"bytes"
 	"log"
 
+	"github.com/benoitkugler/font/sfnt"
 	"github.com/benoitkugler/pdf/fonts/cmaps"
 	"github.com/benoitkugler/pdf/fonts/glyphsnames"
-	"github.com/benoitkugler/pdf/fonts/sfnt"
 	"github.com/benoitkugler/pdf/fonts/simpleencodings"
 	"github.com/benoitkugler/pdf/fonts/standardcmaps"
 	"github.com/benoitkugler/pdf/fonts/type1font"
@@ -146,31 +147,39 @@ func builtinTrueTypeEncoding(desc model.FontDescriptor) *simpleencodings.Encodin
 		log.Printf("unable to decode embedded font file: %s\n", err)
 		return &simpleencodings.Standard
 	}
-	font, err := sfnt.Parse(content)
+	font, err := sfnt.Parse(bytes.NewReader(content))
 	if err != nil {
 		log.Printf("invalid TrueType embedded font file: %s\n", err)
 		return &simpleencodings.Standard
 	}
-	fontChars, err := font.Chars()
+	cmap, err := font.CmapTable()
 	if err != nil {
 		log.Printf("invalid encoding in TrueType embedded font file: %s\n", err)
 		return &simpleencodings.Standard
 	}
+	fontChars := cmap.Compile()
+
+	// TODO: use builtin glyph names
+	// var glyphNames sfnt.GlyphNames
+	// if postTable, err := font.PostTable(); err == nil && postTable.Names != nil {
+	// 	glyphNames = postTable.Names
+	// }
+
 	runes := make(map[rune]byte, len(fontChars))
 	var names [256]string
-	var b sfnt.Buffer
 	for r, index := range fontChars {
 		if index > 0xFF {
 			log.Printf("overflow for glyph index %d in TrueType font", index)
 		}
 		runes[r] = byte(index) // keep the lower order byte
 
-		name, err := font.GlyphName(&b, index)
-		if err != nil {
-			log.Printf("glyph index %d without name: %s\n", index, err)
-		} else {
-			names[runes[r]] = name
-		}
+		// TODO:
+		// name, err := font.GlyphName(&b, index)
+		// if err != nil {
+		// 	log.Printf("glyph index %d without name: %s\n", index, err)
+		// } else {
+		// 	names[runes[r]] = name
+		// }
 	}
 	return &simpleencodings.Encoding{Names: names, Runes: runes}
 }

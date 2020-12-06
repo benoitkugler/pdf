@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ConradIrwin/font/sfnt"
+	"github.com/benoitkugler/font/sfnt"
 	"github.com/benoitkugler/pdf/fonts"
 	"github.com/benoitkugler/pdf/model"
 	"github.com/pdfcpu/pdfcpu/pkg/pdfcpu"
@@ -288,18 +288,21 @@ func TestEmbeddedTTF(t *testing.T) {
 						if err != nil {
 							t.Fatal(err)
 						}
+						// err = ioutil.WriteFile("font.ttf", b, os.ModePerm)
+						// if err != nil {
+						// 	t.Error(err)
+						// }
 						ft, err := sfnt.Parse(bytes.NewReader(b))
 						// ft, err := sfnt.Parse(b)
 						if err != nil {
 							t.Fatal(err)
 						}
-						ft.HeadTable()
 
 						fmt.Println(ft.HheaTable())
 						fmt.Println(ft.OS2Table())
-						// fmt.Println(ft.GposTable())
-						// fmt.Println(ft.Chars())
-						// // ft.Kern(&b, sfnt.GlyphIndex(b1), sfnt.GlyphIndex(b2))
+						fmt.Println(ft.GposTable())
+						fmt.Println(ft.CmapTable())
+						// ft.Kern(&b, sfnt.GlyphIndex(b1), sfnt.GlyphIndex(b2))
 
 					}
 				}

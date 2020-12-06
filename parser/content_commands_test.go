@@ -2,6 +2,8 @@ package parser
 
 import (
 	"bytes"
+	"image"
+	"image/jpeg"
 	"math/rand"
 	"reflect"
 	"testing"
@@ -198,6 +200,27 @@ func TestTextSpaced(t *testing.T) {
 	}
 }
 
+func randJPEG() ([]byte, error) {
+	var buf bytes.Buffer
+	img := image.NewRGBA(image.Rect(0, 0, 20, 20))
+	for i := range img.Pix {
+		img.Pix[i] = uint8(rand.Int())
+	}
+	err := jpeg.Encode(&buf, img, nil)
+	return buf.Bytes(), err
+}
+
+func createImageStream(fi model.Name) (model.Stream, error) {
+	l := model.Filters{{Name: fi}}
+	if fi == model.DCT {
+		content, err := randJPEG()
+		return model.Stream{Filter: l, Content: content}, err
+	}
+	in := make([]byte, 2000)
+	rand.Read(in)
+	return model.NewStream(in, l)
+}
+
 func TestInlineData(t *testing.T) {
 	filtersName := []model.ObjName{
 		model.ASCII85,
@@ -205,25 +228,24 @@ func TestInlineData(t *testing.T) {
 		model.Flate,
 		model.LZW,
 		model.RunLength,
+		model.DCT,
 	}
 	for _, fi := range filtersName {
-		in := make([]byte, 2000)
-		rand.Read(in)
-		st, err := model.NewStream(in, model.Filters{{Name: fi}})
+		st, err := createImageStream(fi)
 		if err != nil {
 			t.Fatal(err)
 		}
 
 		contentStream := []byte("BI " + st.PDFCommonFields(false) + " ID ")
 		contentStream = append(contentStream, st.Content...)
-		contentStream = append(contentStream, "EI"...)
+		contentStream = append(contentStream, "EI f s /Next cs"...)
 
 		ops, err := ParseContent(contentStream, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if len(ops) != 1 {
-			t.Errorf("expected one operation, got %v", ops)
+		if len(ops) != 4 {
+			t.Errorf("expected 4 operation, got %v", ops)
 		}
 		img, ok := ops[0].(contentstream.OpBeginImage)
 		if !ok {
