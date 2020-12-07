@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/benoitkugler/pdf/fonts"
 	"github.com/benoitkugler/pdf/model"
 )
 
@@ -476,18 +477,11 @@ func (o OpShowText) Add(out *bytes.Buffer) {
 	out.WriteString(model.EspaceByteString([]byte(o.Text)) + "Tj")
 }
 
-// TextSpaced subtracts space after showing the text
-// See 9.4.3 - Text-Showing Operators
-type TextSpaced struct {
-	Text                 string // unescaped
-	SpaceSubtractedAfter int
-}
-
 // TJ - OpShowSpaceText enables font kerning
 type OpShowSpaceText struct {
 	// Texts store a "normalized version" of texts and spaces
 	// SpaceSubtractedAfter fields of 0 are ignored.
-	Texts []TextSpaced
+	Texts []fonts.TextSpaced
 }
 
 func (o OpShowSpaceText) Add(out *bytes.Buffer) {

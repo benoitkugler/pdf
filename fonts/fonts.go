@@ -27,6 +27,13 @@ import (
 
 type Fl = model.Fl
 
+// TextSpaced subtracts space after showing the text
+// See 9.4.3 - Text-Showing Operators
+type TextSpaced struct {
+	Text                 string // unescaped
+	SpaceSubtractedAfter int    // value in thousands of text space unit
+}
+
 // BuiltFont associate the built font
 // to its origin data.
 type BuiltFont struct {
@@ -40,17 +47,24 @@ type BuiltFont struct {
 // one font should be build once and reused as often as possible.
 // TODO: Support font kerning:
 //		- fetch the information from various files
-//		- modify the Encode method to (optionaly) return a slice of TextSpaced
+// 		- add the EncodeKern method
+//		- add GetWidthWithKerning([]rune) ?
 type Font interface {
 	// GetWidth return the size, in points, needed to display the character `c`
 	// using the font size `size`.
 	// Note that this method can't handle kerning.
 	GetWidth(c rune, size Fl) Fl
+
 	// Encode transform a slice of unicode points to a
 	// slice of bytes, conform to the font expectation.
-	// Only Font0 type are able to represent all the unicode range,
-	// so for other fonts, a substitution byte is used.
+	// See `EncodeKern` for kerning support.
 	Encode(cs []rune) []byte
+
+	// EncodeKern encodes the given unicode points
+	// but also adds kerning information, if available from the font.
+	// EncodeKern(cs []rune) []TextSpaced
+
+	// Desc return the font descriptor
 	Desc() model.FontDescriptor
 }
 
@@ -60,6 +74,7 @@ type simpleFont struct {
 	firstChar byte
 	widths    []int
 	charMap   map[rune]byte
+	kerns     map[uint16]int // key = first<< 8 + second
 }
 
 func (ft simpleFont) GetWidth(c rune, size Fl) Fl {
@@ -93,6 +108,21 @@ func (ft simpleFont) Encode(cs []rune) []byte {
 	}
 	return out
 }
+
+// func (ft simpleFont) EncodeKern(cs []rune) []TextSpaced {
+// 	encoded := ft.Encode(cs)
+// 	var current TextSpaced
+// 	for i := 0; i < len(encoded)-1; i++ {
+// 		first, second := encoded[i], encoded[i+1]
+// 		kern, has := ft.kerns[uint16(first<<8)|uint16(second)]
+// 		if has {
+// 			// add the first char to the current text
+// 			current.Text = append(current.Text, first)
+// 			// close the current and add the kern space
+// 			current.SpaceSubtractedAfter =
+// 		}
+// 	}
+// }
 
 func (ft simpleFont) Desc() model.FontDescriptor {
 	return ft.desc

@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	cs "github.com/benoitkugler/pdf/contentstream"
+	"github.com/benoitkugler/pdf/fonts"
 	"github.com/benoitkugler/pdf/model"
 )
 
@@ -109,24 +110,31 @@ func parseTextSpaces(stack []Object) (cs.OpShowSpaceText, error) {
 	if !ok {
 		return out, fmt.Errorf("expected Array in TJ command, got %v", args)
 	}
-	// we "normalize" the entry by adding consecutive spaces"
-	// not that it would not be correct to do it for strings as well,
-	// since (A) (B) is not the same as (AB): in the first case A and B overlap
+	// we "normalize" the entry by adding consecutive spaces
+	var (
+		current fonts.TextSpaced
+		last    uint8 // 0 at the start, 1 for text, 2 for number
+	)
 	for _, arg := range args {
 		if s, ok := model.IsString(arg); ok {
-			// start a new TextSpaced
-			out.Texts = append(out.Texts, cs.TextSpaced{Text: s})
-		} else if f, ok := model.IsNumber(arg); ok { // we accept float
-			if L := len(out.Texts); L > 0 {
-				// if we already have a TextSpaced add the number to it
-				out.Texts[L-1].SpaceSubtractedAfter += int(f)
+			if last == 2 {
+				// add the last and start a new TextSpaced
+				out.Texts = append(out.Texts, current)
+				current = fonts.TextSpaced{Text: s}
 			} else {
-				// the array starts by a number
-				out.Texts = append(out.Texts, cs.TextSpaced{SpaceSubtractedAfter: int(f)})
+				// we concatenat the strings
+				current.Text += s
 			}
+			last = 1
+		} else if f, ok := model.IsNumber(arg); ok { // we accept float
+			current.SpaceSubtractedAfter += int(f)
+			last = 2
 		} else {
 			return out, fmt.Errorf("invalid type in TJ array: %v %T", arg, arg)
 		}
+	}
+	if current != (fonts.TextSpaced{}) {
+		out.Texts = append(out.Texts, current)
 	}
 	return out, nil
 }

@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/benoitkugler/pdf/contentstream"
+	"github.com/benoitkugler/pdf/fonts"
 	"github.com/benoitkugler/pdf/model"
 )
 
@@ -59,10 +60,10 @@ var ops = [...]contentstream.Operation{
 	contentstream.OpTextNextLine{},
 	contentstream.OpTextMoveSet{},
 	contentstream.OpShowSpaceText{
-		Texts: []contentstream.TextSpaced{
+		Texts: []fonts.TextSpaced{
 			{Text: "msdùlùd", SpaceSubtractedAfter: 12},
 			{Text: "AB", SpaceSubtractedAfter: -5},
-			{Text: "c", SpaceSubtractedAfter: 0},
+			{Text: "c", SpaceSubtractedAfter: 2},
 			{Text: "('')\\", SpaceSubtractedAfter: 0},
 		},
 	},
@@ -184,7 +185,7 @@ func TestTextSpaced(t *testing.T) {
 	if !ok {
 		t.Error()
 	}
-	expected := contentstream.OpShowSpaceText{Texts: []contentstream.TextSpaced{
+	expected := contentstream.OpShowSpaceText{Texts: []fonts.TextSpaced{
 		{Text: "", SpaceSubtractedAfter: 45},
 		{Text: "A", SpaceSubtractedAfter: 40},
 		{Text: "B"},
@@ -197,6 +198,26 @@ func TestTextSpaced(t *testing.T) {
 	_, err = ParseContent([]byte(invalid), nil)
 	if err == nil {
 		t.Fatalf("expected error on invalid input %s", invalid)
+	}
+}
+
+func TestNormalizeSpacedText(t *testing.T) {
+	in := "[(AB) (CD) 4 6 (AB) 5]TJ"
+	ops, err := ParseContent([]byte(in), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(ops) != 1 {
+		t.Fatal()
+	}
+	exp := contentstream.OpShowSpaceText{
+		Texts: []fonts.TextSpaced{
+			{Text: "ABCD", SpaceSubtractedAfter: 10},
+			{Text: "AB", SpaceSubtractedAfter: 5},
+		},
+	}
+	if !reflect.DeepEqual(ops[0], exp) {
+		t.Errorf("expected merged %v got %v", exp, ops[0])
 	}
 }
 

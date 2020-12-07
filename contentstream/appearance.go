@@ -30,7 +30,6 @@ type GraphicState struct {
 type Appearance struct {
 	ops []Operation
 
-	// XObjectForm fields
 	BBox      model.Rectangle
 	Matrix    model.Matrix
 	Resources model.ResourcesDict
@@ -39,6 +38,8 @@ type Appearance struct {
 	stateList []GraphicState
 }
 
+// NewAppearance setup the BBox and initialize the
+// resources dictionary.
 func NewAppearance(width, height Fl) Appearance {
 	return Appearance{
 		BBox: model.Rectangle{Urx: width, Ury: height},

@@ -10,7 +10,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/benoitkugler/font/sfnt"
 	"github.com/benoitkugler/pdf/fonts"
 	"github.com/benoitkugler/pdf/model"
 	"github.com/pdfcpu/pdfcpu/pkg/pdfcpu"
@@ -268,7 +267,7 @@ func BenchmarkWrite(b *testing.B) {
 func TestEmbeddedTTF(t *testing.T) {
 	for _, file := range [...]string{
 		"test/symbolic_ttf.pdf",
-		// "test/ModeleRecuFiscalEditable.pdf",
+		"test/ModeleRecuFiscalEditable.pdf",
 		"test/ttf.pdf",
 	} {
 		doc, _, err := ParsePDFFile(file, Options{})
@@ -279,29 +278,29 @@ func TestEmbeddedTTF(t *testing.T) {
 			if r := page.Resources; r != nil {
 				for _, font := range r.Font {
 					if ttf, ok := font.Subtype.(model.FontTrueType); ok {
-						_, err = fonts.BuildFont(font)
+						_, err := fonts.BuildFont(font)
 						if err != nil {
 							t.Fatal(err)
 						}
-						fmt.Println(font.Subtype.FontName())
-						b, err := ttf.FontDescriptor.FontFile.Decode()
-						if err != nil {
-							t.Fatal(err)
-						}
+						fmt.Println(ttf.Encoding)
+						// b, err := ttf.FontDescriptor.FontFile.Decode()
+						// if err != nil {
+						// 	t.Fatal(err)
+						// }
 						// err = ioutil.WriteFile("font.ttf", b, os.ModePerm)
 						// if err != nil {
 						// 	t.Error(err)
 						// }
-						ft, err := sfnt.Parse(bytes.NewReader(b))
-						// ft, err := sfnt.Parse(b)
-						if err != nil {
-							t.Fatal(err)
-						}
+						// ft, err := sfnt.Parse(bytes.NewReader(b))
+						// // ft, err := sfnt.Parse(b)
+						// if err != nil {
+						// 	t.Fatal(err)
+						// }
 
-						fmt.Println(ft.HheaTable())
-						fmt.Println(ft.OS2Table())
-						fmt.Println(ft.GposTable())
-						fmt.Println(ft.CmapTable())
+						// fmt.Println(ft.HheaTable())
+						// fmt.Println(ft.OS2Table())
+						// fmt.Println(ft.GposTable())
+						// fmt.Println(ft.CmapTable())
 						// ft.Kern(&b, sfnt.GlyphIndex(b1), sfnt.GlyphIndex(b2))
 
 					}

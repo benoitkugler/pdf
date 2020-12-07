@@ -100,11 +100,10 @@ type charMetric struct {
 // an implicit first first glyph.
 type KernPair struct {
 	SndChar string // glyph name
-	// in glyph units, most often negative,
+	// KerningDistance is expressed in glyph units.
+	// It is most often negative,
 	// that is, a negative value indicates that chars
-	// should be closer
-	// Note that it is the opposite of the convention
-	// described by the PDF spec for TJ text operator
+	// should be closer.
 	KerningDistance int
 }
 

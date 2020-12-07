@@ -106,8 +106,24 @@ func builtinType1Encoding(desc model.FontDescriptor) *simpleencodings.Encoding {
 func resolveCharMapTrueType(f model.FontTrueType, userCharMap map[string]rune) map[rune]byte {
 	// 9.6.6.3 - when the font has no Encoding entry, or the font descriptor’s Symbolic flag is set
 	// (in which case the Encoding entry is ignored)
+	// the character mapping is the "identity"
 	if (f.FontDescriptor.Flags&model.Symbolic) != 0 || f.Encoding == nil {
-		return builtinTrueTypeEncoding(f.FontDescriptor).Runes
+		out := make(map[rune]byte, 256)
+		cm := trueTypeCharmap(f.FontDescriptor)
+		if cm == nil { // assume simple byte encoding
+			for r := rune(0); r <= 255; r++ {
+				out[r] = byte(r)
+			}
+		} else {
+			// If the font contains a (3, 0) subtable, the range of character codes shall be one of these: 0x0000 - 0x00FF,
+			// 0xF000 - 0xF0FF, 0xF100 - 0xF1FF, or 0xF200 - 0xF2FF. Depending on the range of codes, each byte
+			// from the string shall be prepended with the high byte of the range, to form a two-byte character, which shall
+			// be used to select the associated glyph description from the subtable.
+			for r := range cm.Compile() {
+				out[r] = byte(r) // keep the lower order byte
+			}
+		}
+		return out
 	}
 
 	// 9.6.6.3 - if the font has a named Encoding entry of either MacRomanEncoding or WinAnsiEncoding,
@@ -122,7 +138,7 @@ func resolveCharMapTrueType(f model.FontTrueType, userCharMap map[string]rune) m
 			if dict.BaseEncoding != "" {
 				base = simpleencodings.PredefinedEncodings[dict.BaseEncoding]
 			} else {
-				base = builtinTrueTypeEncoding(f.FontDescriptor)
+				base = &simpleencodings.Standard
 			}
 			out := applyDifferences(dict.Differences, userCharMap, base)
 			// Finally, any undefined entries in the table shall be filled using StandardEncoding.
@@ -138,51 +154,72 @@ func resolveCharMapTrueType(f model.FontTrueType, userCharMap map[string]rune) m
 	return simpleencodings.Standard.Runes
 }
 
-func builtinTrueTypeEncoding(desc model.FontDescriptor) *simpleencodings.Encoding {
-	if desc.FontFile == nil { // we choose an arbitrary encoding
-		return &simpleencodings.Standard
+// may return nil
+func trueTypeCharmap(desc model.FontDescriptor) sfnt.Cmap {
+	if desc.FontFile == nil {
+		return nil
 	}
 	content, err := desc.FontFile.Decode()
 	if err != nil {
 		log.Printf("unable to decode embedded font file: %s\n", err)
-		return &simpleencodings.Standard
+		return nil
 	}
 	font, err := sfnt.Parse(bytes.NewReader(content))
 	if err != nil {
 		log.Printf("invalid TrueType embedded font file: %s\n", err)
-		return &simpleencodings.Standard
+		return nil
 	}
 	cmap, err := font.CmapTable()
 	if err != nil {
-		log.Printf("invalid encoding in TrueType embedded font file: %s\n", err)
-		return &simpleencodings.Standard
+		log.Printf("unable to read Cmap table in TrueType embedded font file: %s\n", err)
 	}
-	fontChars := cmap.Compile()
-
-	// TODO: use builtin glyph names
-	// var glyphNames sfnt.GlyphNames
-	// if postTable, err := font.PostTable(); err == nil && postTable.Names != nil {
-	// 	glyphNames = postTable.Names
-	// }
-
-	runes := make(map[rune]byte, len(fontChars))
-	var names [256]string
-	for r, index := range fontChars {
-		if index > 0xFF {
-			log.Printf("overflow for glyph index %d in TrueType font", index)
-		}
-		runes[r] = byte(index) // keep the lower order byte
-
-		// TODO:
-		// name, err := font.GlyphName(&b, index)
-		// if err != nil {
-		// 	log.Printf("glyph index %d without name: %s\n", index, err)
-		// } else {
-		// 	names[runes[r]] = name
-		// }
-	}
-	return &simpleencodings.Encoding{Names: names, Runes: runes}
+	return cmap
 }
+
+// func builtinTrueTypeEncoding(desc model.FontDescriptor) *simpleencodings.Encoding {
+// 	if desc.FontFile == nil { // we choose an arbitrary encoding
+// 		return &simpleencodings.Standard
+// 	}
+// 	content, err := desc.FontFile.Decode()
+// 	if err != nil {
+// 		log.Printf("unable to decode embedded font file: %s\n", err)
+// 		return &simpleencodings.Standard
+// 	}
+// 	font, err := sfnt.Parse(bytes.NewReader(content))
+// 	if err != nil {
+// 		log.Printf("invalid TrueType embedded font file: %s\n", err)
+// 		return &simpleencodings.Standard
+// 	}
+// 	cmap, err := font.CmapTable()
+// 	if err != nil {
+// 		log.Printf("invalid encoding in TrueType embedded font file: %s\n", err)
+// 		return &simpleencodings.Standard
+// 	}
+// 	fontChars := cmap.Compile()
+
+// 	var glyphNames sfnt.GlyphNames
+// 	if postTable, err := font.PostTable(); err == nil && postTable.Names != nil {
+// 		glyphNames = postTable.Names
+// 	}
+
+// 	runes := make(map[rune]byte, len(fontChars))
+// 	var names [256]string
+// 	for r, index := range fontChars {
+// 		if index > 0xFF {
+// 			log.Printf("overflow for glyph index %d in TrueType font", index)
+// 		}
+// 		runes[r] = byte(index) // keep the lower order byte
+
+// 		// TODO:
+// 		// name, err := font.GlyphName(&b, index)
+// 		// if err != nil {
+// 		// 	log.Printf("glyph index %d without name: %s\n", index, err)
+// 		// } else {
+// 		// 	names[runes[r]] = name
+// 		// }
+// 	}
+// 	return &simpleencodings.Encoding{Names: names, Runes: runes}
+// }
 
 func resolveCharMapType3(f model.FontType3, userCharMap map[string]rune) map[rune]byte {
 	switch enc := f.Encoding.(type) {
