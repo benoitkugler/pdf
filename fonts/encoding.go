@@ -13,6 +13,51 @@ import (
 	"github.com/benoitkugler/pdf/model"
 )
 
+// We follow here the logic from poppler, which itself is based on the PDF spec.
+// Encodings start with a base encoding, which can come from
+// (in order of priority):
+//   1. FontDict.Encoding or FontDict.Encoding.BaseEncoding
+//        - MacRoman / MacExpert / WinAnsi / Standard
+//   2. embedded or external font file
+//   3. default:
+//        - builtin --> builtin encoding
+//        - TrueType --> WinAnsiEncoding
+//        - others --> StandardEncoding
+// and then add a list of differences (if any) from
+// FontDict.Encoding.Differences.
+func resolveSimpleEncoding(font model.Font, enc model.SimpleEncoding) [256]string {
+	var baseEnc *simpleencodings.Encoding
+
+	if predefEnc, ok := enc.(model.SimpleEncodingPredefined); ok {
+		// the font dict overide the font builtin encoding
+		baseEnc = simpleencodings.PredefinedEncodings[predefEnc]
+	} else if encDict, ok := enc.(*model.SimpleEncodingDict); ok && encDict.BaseEncoding != "" {
+		baseEnc = simpleencodings.PredefinedEncodings[encDict.BaseEncoding]
+	} else {
+		// check embedded font file for base encoding
+		// (only for Type 1 fonts - trying to get an encoding out of a
+		// TrueType font is a losing proposition)
+		if font, ok := font.(model.FontType1); ok {
+			baseEnc = builtinType1Encoding(font.FontDescriptor)
+		}
+	}
+
+	if baseEnc == nil { // get default base encoding
+		switch font.(type) {
+		case model.FontTrueType:
+			baseEnc = &simpleencodings.WinAnsi
+		default:
+			baseEnc = &simpleencodings.Standard
+		}
+	}
+
+	// merge differences into encoding
+	if encDict, ok := enc.(*model.SimpleEncodingDict); ok {
+		return encDict.Differences.Apply(baseEnc.Names)
+	}
+	return baseEnc.Names
+}
+
 // build the definitive font encoding, expressed in term
 // of Unicode codepoint to byte
 func resolveCharMapType1(t model.FontType1, userCharMap map[string]rune) map[rune]byte {
@@ -91,16 +136,21 @@ func builtinType1Encoding(desc model.FontDescriptor) *simpleencodings.Encoding {
 		log.Printf("unable to decode embedded font file: %s\n", err)
 		return &simpleencodings.Standard
 	}
-
-	info, err := type1font.ParsePFBFile(content)
-	if err != nil {
-		log.Printf("invalid Type1 embedded font file: %s\n", err)
+	isCFF := desc.FontFile.Subtype == "Type1C"
+	if isCFF {
+		// TODO:
 		return &simpleencodings.Standard
+	} else {
+		info, err := type1font.ParsePFBFile(content)
+		if err != nil {
+			log.Printf("invalid Type1 embedded font file: %s\n", err)
+			return &simpleencodings.Standard
+		}
+		if info.Encoding.Standard {
+			return &simpleencodings.Standard
+		}
+		return &simpleencodings.Encoding{Names: info.Encoding.Custom, Runes: simpleencodings.Standard.Runes}
 	}
-	if info.Encoding.Standard {
-		return &simpleencodings.Standard
-	}
-	return &simpleencodings.Encoding{Names: info.Encoding.Custom, Runes: simpleencodings.Standard.Runes}
 }
 
 func resolveCharMapTrueType(f model.FontTrueType, userCharMap map[string]rune) map[rune]byte {
