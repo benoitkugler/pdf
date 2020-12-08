@@ -1,4 +1,4 @@
-package type1font
+package type1
 
 import (
 	"fmt"

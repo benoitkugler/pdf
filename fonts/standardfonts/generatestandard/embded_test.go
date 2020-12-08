@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/benoitkugler/pdf/fonts/type1font"
+	"github.com/benoitkugler/pdf/fonts/type1"
 )
 
 func TestEmbed(t *testing.T) {
@@ -14,7 +14,7 @@ func TestEmbed(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var fonts []type1font.AFMFont
+	var fonts []type1.AFMFont
 	for _, info := range files {
 		if !strings.HasSuffix(info.Name(), ".afm") {
 			continue // licence file
@@ -25,7 +25,7 @@ func TestEmbed(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		font, err := type1font.ParseAFMFile(f)
+		font, err := type1.ParseAFMFile(f)
 		if err != nil {
 			t.Fatalf("can't parse file %s : %s", info.Name(), err)
 		}

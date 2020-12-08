@@ -9,7 +9,7 @@ import (
 	"github.com/benoitkugler/pdf/fonts/glyphsnames"
 	"github.com/benoitkugler/pdf/fonts/simpleencodings"
 	"github.com/benoitkugler/pdf/fonts/standardcmaps"
-	"github.com/benoitkugler/pdf/fonts/type1font"
+	"github.com/benoitkugler/pdf/fonts/type1"
 	"github.com/benoitkugler/pdf/model"
 )
 
@@ -141,7 +141,7 @@ func builtinType1Encoding(desc model.FontDescriptor) *simpleencodings.Encoding {
 		// TODO:
 		return &simpleencodings.Standard
 	} else {
-		info, err := type1font.ParsePFBFile(content)
+		info, err := type1.ParsePFBFile(content)
 		if err != nil {
 			log.Printf("invalid Type1 embedded font file: %s\n", err)
 			return &simpleencodings.Standard

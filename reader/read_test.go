@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"log"
 	"os"
 	"strings"
@@ -343,6 +344,50 @@ func TestMedia(t *testing.T) {
 		err = reWrite(doc, file+".pdf")
 		if err != nil {
 			t.Fatal(err)
+		}
+	}
+}
+
+func TestType1C(t *testing.T) {
+	file := "test/type1C.pdf"
+	doc, _, err := ParsePDFFile(file, Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, page := range doc.Catalog.Pages.Flatten() {
+		if r := page.Resources; r != nil {
+			for _, font := range r.Font {
+				if ttf, ok := font.Subtype.(model.FontType1); ok {
+					if ft := ttf.FontDescriptor.FontFile; ft == nil || ft.Subtype != "Type1C" {
+						continue
+					}
+					// _, err := fonts.BuildFont(font)
+					// if err != nil {
+					// 	t.Fatal(err)
+					// }
+					// fmt.Println(ttf.Encoding)
+					b, err := ttf.FontDescriptor.FontFile.Decode()
+					if err != nil {
+						t.Fatal(err)
+					}
+					err = ioutil.WriteFile(string(ttf.FontName())+".cff", b, os.ModePerm)
+					if err != nil {
+						t.Error(err)
+					}
+					// ft, err := sfnt.Parse(bytes.NewReader(b))
+					// // ft, err := sfnt.Parse(b)
+					// if err != nil {
+					// 	t.Fatal(err)
+					// }
+
+					// fmt.Println(ft.HheaTable())
+					// fmt.Println(ft.OS2Table())
+					// fmt.Println(ft.GposTable())
+					// fmt.Println(ft.CmapTable())
+					// ft.Kern(&b, sfnt.GlyphIndex(b1), sfnt.GlyphIndex(b2))
+
+				}
+			}
 		}
 	}
 }
