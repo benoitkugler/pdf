@@ -17,7 +17,7 @@ var errBIExpressionCorrupt = errors.New("pdfcpu: corrupt TJ expression")
 func (pr *Parser) parseInlineImage(res model.ResourcesColorSpace) (contentstream.OpBeginImage, error) {
 	var (
 		out          contentstream.OpBeginImage
-		decodeParams []map[model.ObjName]int
+		decodeParams []map[string]int
 	)
 	if err := assertLength(pr.opsStack, 0); err != nil {
 		return out, err
@@ -56,7 +56,7 @@ func (pr *Parser) parseInlineImage(res model.ResourcesColorSpace) (contentstream
 
 // since DecodeParams and Filter are a same object in the model
 // we have to return the DecodeParams separately, to be ignored unless name == "DecodeParams"
-func parseOneImgField(name Name, value Object, img *contentstream.OpBeginImage) ([]map[model.ObjName]int, error) {
+func parseOneImgField(name Name, value Object, img *contentstream.OpBeginImage) ([]map[string]int, error) {
 	var err error
 	switch name {
 	case "BitsPerComponent", "BPC":
@@ -181,8 +181,8 @@ func processFilters(filters Object) ([]model.Filter, error) {
 	return out, nil
 }
 
-func processDecodeParms(decode Object) ([]map[model.ObjName]int, error) {
-	var out []map[model.ObjName]int
+func processDecodeParms(decode Object) ([]map[string]int, error) {
+	var out []map[string]int
 	switch decode := decode.(type) {
 	case Array: // one dict param per filter
 		for _, parms := range decode {
@@ -196,9 +196,9 @@ func processDecodeParms(decode Object) ([]map[model.ObjName]int, error) {
 	return out, nil
 }
 
-func processOneDecodeParms(parms Object) map[model.ObjName]int {
+func processOneDecodeParms(parms Object) map[string]int {
 	parmsDict, _ := parms.(Dict)
-	parmsModel := make(map[model.ObjName]int)
+	parmsModel := make(map[string]int)
 	for paramName, paramVal := range parmsDict {
 		var intVal int
 		switch val := paramVal.(type) {
@@ -215,14 +215,14 @@ func processOneDecodeParms(parms Object) map[model.ObjName]int {
 		default:
 			continue
 		}
-		parmsModel[model.ObjName(paramName)] = intVal
+		parmsModel[string(paramName)] = intVal
 	}
 	return parmsModel
 }
 
 // read the inline data, store its content in img, and skip EI command
 // TODO: the CCITT decoder may read after EOD
-func (pr *Parser) parseImageData(img *contentstream.OpBeginImage, decodeParams []map[model.ObjName]int, res model.ResourcesColorSpace) error {
+func (pr *Parser) parseImageData(img *contentstream.OpBeginImage, decodeParams []map[string]int, res model.ResourcesColorSpace) error {
 	// first we check the length of decode params
 	// and update the filter list
 	if L := len(decodeParams); L > 0 && L != len(img.Image.Filter) {

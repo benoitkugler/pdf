@@ -727,9 +727,9 @@ func (r resolver) resolveFileContent(fileEntry pdfcpu.Object) (*model.EmbeddedFi
 	return &out, err
 }
 
-func (r resolver) processDecodeParms(parms pdfcpu.Object) map[model.ObjName]int {
+func (r resolver) processDecodeParms(parms pdfcpu.Object) map[string]int {
 	parmsDict, _ := r.resolve(parms).(pdfcpu.Dict)
-	parmsModel := make(map[model.ObjName]int)
+	parmsModel := make(map[string]int)
 	for paramName, paramVal := range parmsDict {
 		var intVal int
 		switch val := r.resolve(paramVal).(type) {
@@ -744,7 +744,7 @@ func (r resolver) processDecodeParms(parms pdfcpu.Object) map[model.ObjName]int 
 		default:
 			continue
 		}
-		parmsModel[model.ObjName(paramName)] = intVal
+		parmsModel[paramName] = intVal
 	}
 	return parmsModel
 }

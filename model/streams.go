@@ -25,14 +25,14 @@ const (
 type Filter struct {
 	Name Name
 	// optional, boolean value are stored as 0 (false) or 1 (true)
-	DecodeParams map[Name]int
+	DecodeParams map[string]int
 }
 
 // Clone returns a deep copy of the filter
 func (f Filter) Clone() Filter {
 	out := f
 	if f.DecodeParams != nil {
-		out.DecodeParams = make(map[Name]int, len(f.DecodeParams))
+		out.DecodeParams = make(map[string]int, len(f.DecodeParams))
 		for n, v := range f.DecodeParams {
 			out.DecodeParams[n] = v
 		}
@@ -40,16 +40,8 @@ func (f Filter) Clone() Filter {
 	return out
 }
 
-func (f Filter) params() map[string]int {
-	out := make(map[string]int, len(f.DecodeParams))
-	for k, v := range f.DecodeParams {
-		out[string(k)] = v
-	}
-	return out
-}
-
 func (fi Filter) DecodeReader(r io.Reader) (io.Reader, error) {
-	fil, err := filter.NewFilter(string(fi.Name), fi.params())
+	fil, err := filter.NewFilter(string(fi.Name), fi.DecodeParams)
 	if err != nil {
 		return nil, err
 	}
@@ -69,7 +61,7 @@ func (fi Filter) DecodeReader(r io.Reader) (io.Reader, error) {
 // 	}
 // }
 
-var booleanNames = map[Name]bool{
+var booleanNames = map[string]bool{
 	"EndOfLine":        true,
 	"EncodedByteAlign": true,
 	"EndOfBlock":       true,
@@ -94,11 +86,11 @@ func (fs Filters) DecodeReader(r io.Reader) (io.Reader, error) {
 }
 
 // Stream is a PDF stream.
-// New Stream must be created
+//
+// A new stream can be created
 // by applying the filters described
 // in `StreamDict.Filters` to the non-filtered data
-// to obtain `Content`. See NewStream for a convenient
-// way to encode stream.
+// to obtain `Content`.
 type Stream struct {
 	// Length      int
 	Filter Filters
@@ -117,7 +109,7 @@ func NewStream(content []byte, filters Filters) (Stream, error) {
 	L := len(filters)
 	reversed := make(Filters, L)
 	for i, fi := range filters {
-		fil, err := filter.NewFilter(string(fi.Name), fi.params())
+		fil, err := filter.NewFilter(string(fi.Name), fi.DecodeParams)
 		if err != nil {
 			return Stream{}, err
 		}
