@@ -193,6 +193,12 @@ type Font interface {
 	clone(cloneCache) Font
 }
 
+// FontSimple is either FontType1, TrueType or Type3
+type FontSimple interface {
+	Font
+	SimpleEncoding() SimpleEncoding
+}
+
 type FontType1 struct {
 	BaseFont  Name
 	FirstChar byte
@@ -203,9 +209,8 @@ type FontType1 struct {
 	Encoding       SimpleEncoding // optional
 }
 
-func (ft FontType1) FontName() Name {
-	return ft.BaseFont
-}
+func (ft FontType1) FontName() Name                 { return ft.BaseFont }
+func (ft FontType1) SimpleEncoding() SimpleEncoding { return ft.Encoding }
 
 // LastChar return the last caracter encoded by the font (see Widths)
 func (t FontType1) LastChar() byte {
@@ -260,9 +265,8 @@ func (t FontType1) clone(cache cloneCache) Font {
 
 type FontTrueType FontType1
 
-func (ft FontTrueType) FontName() Name {
-	return ft.BaseFont
-}
+func (ft FontTrueType) FontName() Name                 { return ft.BaseFont }
+func (ft FontTrueType) SimpleEncoding() SimpleEncoding { return ft.Encoding }
 
 func (t FontTrueType) fontPDFFields(pdf pdfWriter) string {
 	return t1orttWrite(t, pdf)
@@ -290,6 +294,8 @@ func (ft FontType3) FontName() Name {
 	}
 	return ""
 }
+
+func (ft FontType3) SimpleEncoding() SimpleEncoding { return ft.Encoding }
 
 // LastChar return the last caracter encoded by the font (see Widths)
 func (t FontType3) LastChar() byte {

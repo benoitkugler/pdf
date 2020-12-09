@@ -22,6 +22,8 @@ import (
 	"log"
 
 	"github.com/benoitkugler/pdf/fonts/cmaps"
+	"github.com/benoitkugler/pdf/fonts/standardfonts"
+	"github.com/benoitkugler/pdf/fonts/type1"
 	"github.com/benoitkugler/pdf/model"
 )
 
@@ -176,27 +178,10 @@ func (ct compositeFont) Desc() model.FontDescriptor {
 // BuildFont compiles an existing FontDictionary, as found in a PDF,
 // to a usefull font metrics. When needed the font builtin encoding is parsed
 // and used.
-// For fonts who used glyph names which are not referenced, `BuildFontWithCharMap`
-// provides a way of specifying custom names.
 // TODO: New font should be created from a font file using `NewFont`
 func BuildFont(f *model.FontDict) (BuiltFont, error) {
-	return BuildFontWithCharMap(f, nil)
-}
-
-// Type1, TrueType and Type3 fonts describe their character by name and not by Unicode point.
-// In several cases, we can use predefined encodings to establish this mapping.
-// In particular, all 14 Standard fonts are covered, as well as all the Nonsymbolic fonts
-// (described by the Flags field of the FontDescriptor).
-// However, an arbitrary font may use unknown character names, which can't be mapped implicitly
-// to Unicode point. For this edge case, a user-defined map from the
-// character names to their Unicode value must used. This map will be merged to
-// a registry of common names.
-func BuildFontWithCharMap(f *model.FontDict, userCharMap map[string]rune) (BuiltFont, error) {
 	// 9.10.2 - Mapping Character Codes to Unicode Values
-	var (
-		toUnicode     map[model.CID]rune
-		simpleCharMap map[rune]byte
-	)
+	var toUnicode map[model.CID]rune
 	if f.ToUnicode != nil {
 		var err error
 		toUnicode, err = resolveToUnicode(*f.ToUnicode)
@@ -204,44 +189,44 @@ func BuildFontWithCharMap(f *model.FontDict, userCharMap map[string]rune) (Built
 			return BuiltFont{}, err
 		}
 	}
-	switch ft := f.Subtype.(type) {
-	case model.FontType1:
-		if toUnicode != nil {
-			simpleCharMap = reverseToUnicodeSimple(toUnicode)
-		} else {
-			simpleCharMap = resolveCharMapType1(ft, userCharMap)
+
+	if ft, ok := f.Subtype.(model.FontSimple); ok {
+		enc := resolveSimpleEncoding(ft)
+		simpleCharMap := buildSimpleFromUnicode(&enc, toUnicode)
+		var out simpleFont
+		switch ft := f.Subtype.(type) {
+		case model.FontType1:
+			out = simpleFont{
+				desc:      ft.FontDescriptor,
+				charMap:   simpleCharMap,
+				firstChar: ft.FirstChar,
+				widths:    ft.Widths,
+			}
+		case model.FontTrueType:
+			out = simpleFont{
+				desc:      ft.FontDescriptor,
+				charMap:   simpleCharMap,
+				firstChar: ft.FirstChar,
+				widths:    ft.Widths,
+			}
+		case model.FontType3:
+			out = simpleFont{
+				desc:      buildType3FontDesc(ft),
+				charMap:   simpleCharMap,
+				firstChar: ft.FirstChar,
+				widths:    ft.Widths,
+			}
+		default:
+			panic("should be an exhaustive switch")
 		}
-		return BuiltFont{Meta: f, Font: simpleFont{
-			desc:      ft.FontDescriptor,
-			charMap:   simpleCharMap,
-			firstChar: ft.FirstChar,
-			widths:    ft.Widths,
-		}}, nil
-	case model.FontTrueType:
-		if toUnicode != nil {
-			simpleCharMap = reverseToUnicodeSimple(toUnicode)
-		} else {
-			simpleCharMap = resolveCharMapTrueType(ft, userCharMap)
+		if len(out.widths) == 0 {
+			out.firstChar, out.widths = fallbackWidths(out.desc).WidthsWithEncoding(enc)
 		}
-		return BuiltFont{Meta: f, Font: simpleFont{
-			desc:      ft.FontDescriptor,
-			charMap:   simpleCharMap,
-			firstChar: ft.FirstChar,
-			widths:    ft.Widths,
-		}}, nil
-	case model.FontType3:
-		if toUnicode != nil {
-			simpleCharMap = reverseToUnicodeSimple(toUnicode)
-		} else {
-			simpleCharMap = resolveCharMapType3(ft, userCharMap)
-		}
-		return BuiltFont{Meta: f, Font: simpleFont{
-			desc:      buildType3FontDesc(ft),
-			charMap:   simpleCharMap,
-			firstChar: ft.FirstChar,
-			widths:    ft.Widths,
-		}}, nil
-	case model.FontType0:
+		return BuiltFont{Meta: f, Font: out}, nil
+	}
+
+	// TODO:
+	if ft, ok := f.Subtype.(model.FontType0); ok {
 		var fromUnicode map[rune]model.CID
 		if toUnicode != nil {
 			fromUnicode = reverseToUnicode(toUnicode)
@@ -252,11 +237,9 @@ func BuildFontWithCharMap(f *model.FontDict, userCharMap map[string]rune) (Built
 			fromUnicode: fromUnicode,
 			desc:        buildType0FontDesc(ft),
 		}}, nil
-	case nil:
-		return BuiltFont{}, errors.New("missing font subtype")
-	default:
-		panic("should be an exhaustive switch")
 	}
+
+	return BuiltFont{}, errors.New("missing font subtype")
 }
 
 // if no font desc is given, create one from the properties
@@ -268,6 +251,45 @@ func buildType3FontDesc(tf model.FontType3) model.FontDescriptor {
 	var out model.FontDescriptor
 	out.FontBBox = tf.FontBBox
 	return out
+}
+
+var fallbacks = [...]*type1.Metrics{
+	&standardfonts.Courier, // archetype of fixed width
+	&standardfonts.Courier_Oblique,
+	&standardfonts.Courier_Bold,
+	&standardfonts.Courier_BoldOblique,
+	&standardfonts.Helvetica, // archetype of sans serif
+	&standardfonts.Helvetica_Oblique,
+	&standardfonts.Helvetica_Bold,
+	&standardfonts.Helvetica_BoldOblique,
+	&standardfonts.Times_Roman, // archetype of serif
+	&standardfonts.Times_Italic,
+	&standardfonts.Times_Bold,
+	&standardfonts.Times_BoldItalic,
+}
+
+// this should never be used: the font dict must specify
+// the widths, but certain PDF generators
+// apparently don't include widths for Arial and TimesNewRoman
+func fallbackWidths(ft model.FontDescriptor) *type1.Metrics {
+	var i uint8
+	if ft.Flags&model.FixedPitch != 0 {
+		i = 0
+	} else if ft.Flags&model.Serif != 0 {
+		i = 8
+	} else {
+		i = 4
+	}
+
+	if ft.Flags&model.ForceBold != 0 {
+		i += 2
+	}
+
+	if ft.Flags&model.Italic != 0 {
+		i += 1
+	}
+
+	return fallbacks[i]
 }
 
 func buildType0FontDesc(tf model.FontType0) model.FontDescriptor {

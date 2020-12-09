@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/benoitkugler/pdf/fonts/simpleencodings"
 	tk "github.com/benoitkugler/pdf/parser/tokenizer"
 )
 
@@ -46,7 +47,7 @@ func (l lexer) peekToken() tk.Token {
 // Encoding is either the standard encoding, or defined by the font
 type Encoding struct {
 	Standard bool
-	Custom   [256]string
+	Custom   simpleencodings.Encoding
 }
 
 /*

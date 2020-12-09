@@ -14,11 +14,12 @@ func TestDefinedEnc(t *testing.T) {
 			Differences:  model.Differences{25: "idieresis", 149: "fraction"},
 		},
 	}
-	if resolveCharMapType1(f, nil)[239] != 25 {
+
+	if enc := resolveSimpleEncoding(f); enc.RuneToByte()[239] != 25 {
 		t.Error()
 	}
 
-	content, err := ioutil.ReadFile("type1font/test/CalligrapherRegular.pfb")
+	content, err := ioutil.ReadFile("type1/test/CalligrapherRegular.pfb")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -29,7 +30,7 @@ func TestDefinedEnc(t *testing.T) {
 		},
 		FontDescriptor: model.FontDescriptor{FontFile: &model.FontFile{Stream: model.Stream{Content: content}}},
 	}
-	if b := resolveCharMapType1(f, nil)[239]; b != 25 {
-		t.Errorf("expected 25, got %d", b)
+	if enc := resolveSimpleEncoding(f).RuneToByte(); enc[239] != 25 {
+		t.Errorf("expected 25, got %d", enc[239])
 	}
 }

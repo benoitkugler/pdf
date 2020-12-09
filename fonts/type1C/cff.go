@@ -89,6 +89,9 @@ type CFF struct {
 	Encoding *simpleencodings.Encoding
 }
 
+// ParseCFF parse a CFF font file.
+// Although the format natively support multiple fonts,
+// this package only support single font files.
 func ParseCFF(input []byte) (CFF, error) {
 	p := cffParser{src: input}
 	return p.parse()
@@ -447,6 +450,24 @@ func (p *cffParser) parseEncoding(topDict *topDictData, numGlyphs int32, charset
 			}
 		default:
 			return nil, errInvalidCFFTable
+		}
+
+		if format&0x80 != 0 { // 1000_000
+			nSupsBuf, err := p.read(1)
+			if err != nil {
+				return nil, err
+			}
+			buf, err := p.read(3 * int(nSupsBuf[0]))
+			if err != nil {
+				return nil, err
+			}
+			for i := byte(0); i < nSupsBuf[0]; i++ {
+				code, sid := buf[3*i], be.Uint16(buf[3*i+1:])
+				encoding[code], err = strs.getString(sid)
+				if err != nil {
+					return nil, err
+				}
+			}
 		}
 		return &encoding, nil
 	}
