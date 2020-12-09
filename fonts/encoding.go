@@ -53,9 +53,9 @@ func resolveSimpleEncoding(font model.Font, enc model.SimpleEncoding) [256]strin
 
 	// merge differences into encoding
 	if encDict, ok := enc.(*model.SimpleEncodingDict); ok {
-		return encDict.Differences.Apply(baseEnc.Names)
+		return encDict.Differences.Apply(*baseEnc)
 	}
-	return baseEnc.Names
+	return *baseEnc
 }
 
 // build the definitive font encoding, expressed in term
@@ -93,7 +93,7 @@ func applyDifferences(diffs model.Differences, userCharMap map[string]rune, base
 	}
 
 	// add the potential difference
-	withDiffs := diffs.Apply(baseEnc.Names)
+	withDiffs := diffs.Apply(*baseEnc)
 
 	out := make(map[rune]byte)
 
@@ -149,7 +149,7 @@ func builtinType1Encoding(desc model.FontDescriptor) *simpleencodings.Encoding {
 		if info.Encoding.Standard {
 			return &simpleencodings.Standard
 		}
-		return &simpleencodings.Encoding{Names: info.Encoding.Custom, Runes: simpleencodings.Standard.Runes}
+		return (*simpleencodings.Encoding)(&info.Encoding.Custom)
 	}
 }
 
@@ -180,9 +180,9 @@ func resolveCharMapTrueType(f model.FontTrueType, userCharMap map[string]rune) m
 	// or if the font descriptor’s Nonsymbolic flag (see Table 123) is set
 	if (f.FontDescriptor.Flags&model.Nonsymbolic) != 0 || f.Encoding == model.MacRomanEncoding || f.Encoding == model.WinAnsiEncoding {
 		if f.Encoding == model.MacRomanEncoding {
-			return simpleencodings.MacRoman.Runes
+			return simpleencodings.MacRoman.RuneToByte()
 		} else if f.Encoding == model.WinAnsiEncoding {
-			return simpleencodings.WinAnsi.Runes
+			return simpleencodings.WinAnsi.RuneToByte()
 		} else if dict, ok := f.Encoding.(*model.SimpleEncodingDict); ok {
 			var base *simpleencodings.Encoding
 			if dict.BaseEncoding != "" {
@@ -192,7 +192,7 @@ func resolveCharMapTrueType(f model.FontTrueType, userCharMap map[string]rune) m
 			}
 			out := applyDifferences(dict.Differences, userCharMap, base)
 			// Finally, any undefined entries in the table shall be filled using StandardEncoding.
-			for r, bStd := range simpleencodings.Standard.Runes {
+			for r, bStd := range simpleencodings.Standard.RuneToByte() {
 				if _, ok := out[r]; !ok { // missing rune
 					out[r] = bStd
 				}
@@ -201,7 +201,7 @@ func resolveCharMapTrueType(f model.FontTrueType, userCharMap map[string]rune) m
 		}
 	}
 	// default value
-	return simpleencodings.Standard.Runes
+	return simpleencodings.Standard.RuneToByte()
 }
 
 // may return nil
@@ -274,7 +274,7 @@ func trueTypeCharmap(desc model.FontDescriptor) sfnt.Cmap {
 func resolveCharMapType3(f model.FontType3, userCharMap map[string]rune) map[rune]byte {
 	switch enc := f.Encoding.(type) {
 	case model.SimpleEncodingPredefined:
-		return simpleencodings.PredefinedEncodings[enc].Runes
+		return simpleencodings.PredefinedEncodings[enc].RuneToByte()
 	case *model.SimpleEncodingDict:
 		base := &simpleencodings.Standard
 		if enc.BaseEncoding != "" {
@@ -282,7 +282,7 @@ func resolveCharMapType3(f model.FontType3, userCharMap map[string]rune) map[run
 		}
 		return applyDifferences(enc.Differences, userCharMap, base)
 	default: // should not happen according to the spec
-		return simpleencodings.Standard.Runes
+		return simpleencodings.Standard.RuneToByte()
 	}
 }
 

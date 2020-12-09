@@ -349,44 +349,57 @@ func TestMedia(t *testing.T) {
 }
 
 func TestType1C(t *testing.T) {
-	file := "test/type1C.pdf"
+	file := "test/UTF-32.pdf"
+	// file := "test/type1C.pdf"
 	doc, _, err := ParsePDFFile(file, Options{})
 	if err != nil {
 		t.Fatal(err)
 	}
+	seen := map[*model.FontDict]bool{} // avoid processing the same font twice
 	for _, page := range doc.Catalog.Pages.Flatten() {
 		if r := page.Resources; r != nil {
 			for _, font := range r.Font {
-				if ttf, ok := font.Subtype.(model.FontType1); ok {
-					if ft := ttf.FontDescriptor.FontFile; ft == nil || ft.Subtype != "Type1C" {
-						continue
-					}
-					// _, err := fonts.BuildFont(font)
-					// if err != nil {
-					// 	t.Fatal(err)
-					// }
-					// fmt.Println(ttf.Encoding)
-					b, err := ttf.FontDescriptor.FontFile.Decode()
-					if err != nil {
-						t.Fatal(err)
-					}
-					err = ioutil.WriteFile(string(ttf.FontName())+".cff", b, os.ModePerm)
-					if err != nil {
-						t.Error(err)
-					}
-					// ft, err := sfnt.Parse(bytes.NewReader(b))
-					// // ft, err := sfnt.Parse(b)
-					// if err != nil {
-					// 	t.Fatal(err)
-					// }
-
-					// fmt.Println(ft.HheaTable())
-					// fmt.Println(ft.OS2Table())
-					// fmt.Println(ft.GposTable())
-					// fmt.Println(ft.CmapTable())
-					// ft.Kern(&b, sfnt.GlyphIndex(b1), sfnt.GlyphIndex(b2))
-
+				if seen[font] {
+					continue
 				}
+				seen[font] = true
+				var fontFile *model.FontFile
+				if ttf, ok := font.Subtype.(model.FontType1); ok {
+					if ft := ttf.FontDescriptor.FontFile; ft != nil && ft.Subtype == "Type1C" {
+						fontFile = ft
+					}
+				} else if type0, ok := font.Subtype.(model.FontType0); ok {
+					if ft := type0.DescendantFonts.FontDescriptor.FontFile; ft != nil && ft.Subtype == "CIDFontType0C" {
+						fontFile = ft
+					}
+				}
+				if fontFile == nil {
+					continue
+				}
+				// _, err := fonts.BuildFont(font)
+				// if err != nil {
+				// 	t.Fatal(err)
+				// }
+				// fmt.Println(ttf.Encoding)
+				b, err := fontFile.Decode()
+				if err != nil {
+					t.Fatal(err)
+				}
+				err = ioutil.WriteFile(string(font.Subtype.FontName())+".cff", b, os.ModePerm)
+				if err != nil {
+					t.Error(err)
+				}
+				// ft, err := sfnt.Parse(bytes.NewReader(b))
+				// // ft, err := sfnt.Parse(b)
+				// if err != nil {
+				// 	t.Fatal(err)
+				// }
+
+				// fmt.Println(ft.HheaTable())
+				// fmt.Println(ft.OS2Table())
+				// fmt.Println(ft.GposTable())
+				// fmt.Println(ft.CmapTable())
+				// ft.Kern(&b, sfnt.GlyphIndex(b1), sfnt.GlyphIndex(b2))
 			}
 		}
 	}

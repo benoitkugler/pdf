@@ -77,7 +77,7 @@ func (m Metrics) WesternType1Font() model.FontType1 {
 	}
 
 	// use WinAnsi
-	f, w := m.WidthsWithEncoding(simpleencodings.WinAnsi.Names)
+	f, w := m.WidthsWithEncoding(simpleencodings.WinAnsi)
 	return model.FontType1{
 		FirstChar:      f,
 		Widths:         w,

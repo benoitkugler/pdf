@@ -5,24 +5,16 @@ import (
 	"testing"
 )
 
-var reversed = map[byte]rune{}
-
-func init() {
-	for r, b := range PdfDocRunes {
-		reversed[b] = r
-	}
-}
-
 // pdfDocEncodingToString decodes PDFDocEncoded byte slice `b` to unicode string.
 func pdfDocEncodingToString(b []byte) string {
 	var runes []rune
 	for _, bval := range b {
-		rune, has := reversed[bval]
-		if !has {
+		r := pdfDocEncoding[bval]
+		if r == 0 {
 			continue
 		}
 
-		runes = append(runes, rune)
+		runes = append(runes, r)
 	}
 
 	return string(runes)

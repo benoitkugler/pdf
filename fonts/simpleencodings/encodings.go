@@ -4,37 +4,51 @@
 // PDF use some predefined encodings, defined in this package.
 package simpleencodings
 
-import "github.com/benoitkugler/pdf/model"
+import (
+	"github.com/benoitkugler/pdf/fonts/glyphsnames"
+	"github.com/benoitkugler/pdf/model"
+)
 
-type Encoding struct {
-	Names [256]string
-	Runes map[rune]byte
-}
+type Encoding [256]string
 
-// RuneToByte returns a copy of the rune to byte map
+// RuneToByte returns a rune to byte map
 func (e Encoding) RuneToByte() map[rune]byte {
-	out := make(map[rune]byte, len(e.Runes))
-	for r, b := range e.Runes {
-		out[r] = b
+	out := make(map[rune]byte)
+	for b, name := range e {
+		if name == "" {
+			continue
+		}
+		r, _ := glyphsnames.GlyphToRune(name)
+		// TestRuneNames assert that each name is referenced
+		out[r] = byte(b)
 	}
 	return out
 }
 
 // ByteToRune returns the reverse byte -> rune mapping
 func (e Encoding) ByteToRune() map[byte]rune {
-	out := make(map[byte]rune, len(e.Runes))
-	for r, b := range e.Runes {
-		out[b] = r
+	out := make(map[byte]rune)
+	for b, name := range e {
+		if name == "" {
+			continue
+		}
+		r, _ := glyphsnames.GlyphToRune(name)
+		// TestRuneNames assert that each name is referenced
+		out[byte(b)] = r
 	}
 	return out
 }
 
-// NameToRune combines the informations of `Names` and `Runes`
-// to return a name to rune map
+// NameToRune returns a name to rune map
 func (e Encoding) NameToRune() map[string]rune {
-	out := make(map[string]rune, len(e.Runes))
-	for r, b := range e.Runes {
-		out[e.Names[b]] = r
+	out := make(map[string]rune)
+	for _, name := range e {
+		if name == "" {
+			continue
+		}
+		r, _ := glyphsnames.GlyphToRune(name)
+		// TestRuneNames assert that each name is referenced
+		out[name] = r
 	}
 	return out
 }
