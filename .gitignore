@@ -3,3 +3,4 @@ model/test/*
 apidemo/test/*
 reader/profile/*
 formfill/test/*
+parser/test/inline_images.pdf

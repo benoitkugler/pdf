@@ -5,6 +5,7 @@ import (
 	"image"
 	"image/jpeg"
 	"math/rand"
+	"os"
 	"reflect"
 	"testing"
 
@@ -221,9 +222,9 @@ func TestNormalizeSpacedText(t *testing.T) {
 	}
 }
 
-func randJPEG() ([]byte, error) {
+func randJPEG(size int) ([]byte, error) {
 	var buf bytes.Buffer
-	img := image.NewRGBA(image.Rect(0, 0, 20, 20))
+	img := image.NewRGBA(image.Rect(0, 0, size, size))
 	for i := range img.Pix {
 		img.Pix[i] = uint8(rand.Int())
 	}
@@ -231,15 +232,24 @@ func randJPEG() ([]byte, error) {
 	return buf.Bytes(), err
 }
 
-func createImageStream(fi model.Name) (model.Stream, error) {
+func createImageStream(fi model.Name) (contentstream.OpBeginImage, error) {
 	l := model.Filters{{Name: fi}}
 	if fi == model.DCT {
-		content, err := randJPEG()
-		return model.Stream{Filter: l, Content: content}, err
+		content, err := randJPEG(30)
+		return contentstream.OpBeginImage{
+			Image: model.Image{Stream: model.Stream{Filter: l, Content: content}, BitsPerComponent: 8,
+				Height: 30, Width: 30,
+			},
+			ColorSpace: contentstream.ImageColorSpaceName{ColorSpaceName: model.ColorSpaceRGB},
+		}, err
 	}
-	in := make([]byte, 2000)
+	in := make([]byte, 30*30)
 	rand.Read(in)
-	return model.NewStream(in, l)
+	out, err := model.NewStream(in, l)
+	return contentstream.OpBeginImage{
+		Image: model.Image{Stream: out, BitsPerComponent: 8,
+			Height: 30, Width: 30}, ColorSpace: contentstream.ImageColorSpaceName{ColorSpaceName: model.ColorSpaceGray},
+	}, err
 }
 
 func TestInlineData(t *testing.T) {
@@ -257,9 +267,9 @@ func TestInlineData(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		contentStream := []byte("BI " + st.PDFCommonFields(false) + " ID ")
-		contentStream = append(contentStream, st.Content...)
-		contentStream = append(contentStream, "EI f s /Next cs"...)
+		var content bytes.Buffer
+		st.Add(&content)
+		contentStream := append(content.Bytes(), " f s /DeviceRGB cs"...)
 
 		ops, err := ParseContent(contentStream, nil)
 		if err != nil {
@@ -272,8 +282,51 @@ func TestInlineData(t *testing.T) {
 		if !ok {
 			t.Errorf("expected Image, got %v", ops[0])
 		}
-		if !bytes.Equal(img.Image.Content, st.Content) {
+		if !bytes.Equal(img.Image.Content, st.Image.Content) {
 			t.Error("failed to retrieve image data")
 		}
+	}
+}
+
+func TestForgePDFInlineData(t *testing.T) {
+	// generate samples demonstrating inline data
+	filtersName := []model.ObjName{
+		model.ASCII85,
+		model.ASCIIHex,
+		model.Flate,
+		model.LZW,
+		model.RunLength,
+		model.DCT,
+	}
+	var doc model.Document
+	for _, fi := range filtersName {
+		st, err := createImageStream(fi)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		contentStream := contentstream.WriteOperations(
+			contentstream.OpSave{},
+			contentstream.OpConcat{Matrix: model.Matrix{15, 0, 0, 15, 100, 100}},
+			st,
+			contentstream.OpRestore{},
+			contentstream.OpRectangle{W: 50, H: 50},
+			contentstream.OpSetFillGray{G: 0.8},
+			contentstream.OpFill{},
+		)
+
+		doc.Catalog.Pages.Kids = append(doc.Catalog.Pages.Kids,
+			&model.PageObject{
+				MediaBox: &model.Rectangle{Llx: 0, Lly: 0, Urx: 200, Ury: 200},
+				Contents: []model.ContentStream{{Stream: model.Stream{Content: contentStream}}},
+			})
+	}
+	f, err := os.Create("test/inline_images.pdf")
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = doc.Write(f, nil)
+	if err != nil {
+		t.Fatal(err)
 	}
 }
