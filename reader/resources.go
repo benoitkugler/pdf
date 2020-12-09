@@ -191,10 +191,10 @@ func (r resolver) resolveFontTT1orTT(font pdfcpu.Dict) (out model.FontType1, err
 		var names [256]string
 		switch enc := out.Encoding.(type) {
 		case model.SimpleEncodingPredefined: // enc is validated by resolveEncoding
-			names = simpleencodings.PredefinedEncodings[enc].Names
+			names = *simpleencodings.PredefinedEncodings[enc]
 		case *model.SimpleEncodingDict:
 			if enc.BaseEncoding != "" { // baseEncoding is validated by resolveEncoding
-				names = simpleencodings.PredefinedEncodings[enc.BaseEncoding].Names
+				names = *simpleencodings.PredefinedEncodings[enc.BaseEncoding]
 			} else {
 				names = standard.Builtin
 			}

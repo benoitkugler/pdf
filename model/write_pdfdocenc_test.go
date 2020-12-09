@@ -9,7 +9,7 @@ import (
 func pdfDocEncodingToString(b []byte) string {
 	var runes []rune
 	for _, bval := range b {
-		r := pdfDocEncoding[bval]
+		r := PDFDocEncoding[bval]
 		if r == 0 {
 			continue
 		}

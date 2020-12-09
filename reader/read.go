@@ -11,7 +11,6 @@ import (
 	"os"
 	"time"
 
-	"github.com/benoitkugler/pdf/fonts/simpleencodings"
 	"github.com/benoitkugler/pdf/model"
 	"github.com/pdfcpu/pdfcpu/pkg/pdfcpu"
 	"golang.org/x/text/encoding/unicode"
@@ -85,18 +84,18 @@ func isUTF16(b []byte) bool {
 
 var (
 	utf16Dec  = unicode.UTF16(unicode.BigEndian, unicode.UseBOM)
-	pdfDocDec = simpleencodings.PdfDoc.ByteToRune()
+	pdfDocDec = model.PDFDocEncoding
 )
 
 // pdfDocEncodingToString decodes PDFDocEncoded byte slice `b` to unicode string.
 func pdfDocEncodingToString(b []byte) string {
 	var buf bytes.Buffer
 	for _, bval := range b {
-		rune, has := pdfDocDec[bval]
-		if !has {
+		r := pdfDocDec[bval]
+		if r == 0 {
 			continue
 		}
-		buf.WriteRune(rune)
+		buf.WriteRune(r)
 	}
 	return buf.String()
 }
