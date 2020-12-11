@@ -9,10 +9,7 @@ import (
 
 type SkipperDCT struct{}
 
-// LimitedDCTDecoder return a Reader which do not read passed
-// the end of the image.
-// DCT is not among the supported decoders (since it would produce an Image)
-// but this function provides an alternative to parse inline image data.
+// Skip implements Skipper for DCT filter (JPEG).
 func (d SkipperDCT) Skip(encoded []byte) (int, error) {
 	r := bytes.NewReader(encoded)
 	re := &jpegLimitedReader{source: r, scratch: &bytes.Buffer{}}

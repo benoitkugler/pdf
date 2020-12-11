@@ -49,7 +49,7 @@ func (f SkipperRunLength) decode(w io.ByteWriter, src io.ByteReader) error {
 	}
 }
 
-// Skip implements decoding for an RunLengthDecode filter.
+// Skip implements Skipper for an RunLengthDecode filter.
 func (f SkipperRunLength) Skip(encoded []byte) (int, error) {
 	// we make sure not to read passed EOD
 	r := bytes.NewReader(encoded)

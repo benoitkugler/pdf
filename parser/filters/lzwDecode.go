@@ -12,7 +12,7 @@ type SkipperLZW struct {
 	EarlyChange bool
 }
 
-// Skip implements decoding for an LZWDecode filter.
+// Skip implements Skipper for an LZWDecode filter.
 func (f SkipperLZW) Skip(encoded []byte) (int, error) {
 	r := bytes.NewReader(encoded)
 

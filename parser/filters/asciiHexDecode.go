@@ -9,7 +9,7 @@ type SkipperAsciiHex struct{}
 
 const eodHexDecode = '>'
 
-// Skip implements decoding for an ASCIIHexDecode filter.
+// Skip implements Skipper for an ASCIIHexDecode filter.
 func (f SkipperAsciiHex) Skip(encoded []byte) (int, error) {
 	// we make sure not to read passed EOD
 	origin := bytes.NewReader(encoded)

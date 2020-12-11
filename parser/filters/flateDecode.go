@@ -8,7 +8,7 @@ import (
 
 type SkipperFlate struct{}
 
-// Skip implements decoding for a Flate filter.
+// Skip implements Skipper for a Flate filter.
 func (f SkipperFlate) Skip(encoded []byte) (int, error) {
 	r := bytes.NewReader(encoded)
 	rc, err := zlib.NewReader(r)
