@@ -6,7 +6,7 @@ import (
 	"math/rand"
 	"testing"
 
-	"github.com/benoitkugler/pdfcpu/pkg/filter"
+	"github.com/pdfcpu/pdfcpu/pkg/filter"
 )
 
 var skippers = map[string]Skipper{
