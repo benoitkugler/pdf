@@ -6,6 +6,7 @@ import (
 	"math/rand"
 	"testing"
 
+	"github.com/benoitkugler/pdf/parser/filters/ccitt"
 	"github.com/pdfcpu/pdfcpu/pkg/filter"
 )
 
@@ -16,16 +17,31 @@ var skippers = map[string]Skipper{
 	LZW:       SkipperLZW{EarlyChange: true},
 	Flate:     SkipperFlate{},
 	DCT:       SkipperDCT{},
+	CCITTFax: SkipperCCITT{
+		Params: ccitt.CCITTParams{
+			Columns: 153,
+			Rows:    55,
+		},
+	},
 }
 
 func forgeEncoded(t *testing.T, fi string) []byte {
-	// special case for DCT
+	// special case for DCT...
 	if fi == DCT {
 		out, err := randJPEG()
 		if err != nil {
 			t.Fatal(err)
 		}
 		return out
+	}
+	// ... and CCITT
+	if fi == CCITTFax {
+		// default values of parameters
+		b, err := ioutil.ReadFile("ccitt/testdata/bw-gopher.ccitt_group3")
+		if err != nil {
+			t.Fatal(err)
+		}
+		return b
 	}
 
 	input := make([]byte, 1000)
@@ -53,6 +69,7 @@ func TestDontPassEOD(t *testing.T) {
 		LZW,
 		Flate,
 		DCT,
+		CCITTFax,
 	} {
 		filtered := forgeEncoded(t, fi)
 
@@ -70,7 +87,7 @@ func TestDontPassEOD(t *testing.T) {
 		// we want to use the number of byte read from the
 		// filtered stream to detect EOD
 		if read1 != len(filtered) {
-			t.Errorf("invalid number of bytes read with filter %s", fi)
+			t.Errorf("invalid number of bytes read with filter %s: %d, expected %d", fi, read1, len(filtered))
 		}
 	}
 }
@@ -83,6 +100,7 @@ func TestInvalid(t *testing.T) {
 		// LZW,
 		Flate,
 		DCT,
+		CCITTFax,
 	} {
 		for range [200]int{} {
 			// random input

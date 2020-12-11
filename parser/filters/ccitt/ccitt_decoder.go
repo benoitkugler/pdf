@@ -1,4 +1,4 @@
-package filter
+package ccitt
 
 import (
 	"errors"
@@ -7,7 +7,46 @@ import (
 	"math"
 )
 
-type ccittDecoder struct {
+// CCITTParams holds the parameters of an encoded CCITT input.
+// `DamagedRowsBeforeError` is not supported.
+type CCITTParams struct {
+	Encoding                                int32 // K parameter
+	Columns, Rows                           int32
+	EndOfBlock, EndOfLine, ByteAlign, Black bool
+}
+
+// NewReader return a ready to use Reader, decoding the CCITT
+// `src`.
+// The resultant byte stream is one bit per pixel (MSB first), with 1 meaning
+// white and 0 meaning black. Each row in the result is byte-aligned.
+//
+// A zero height, means that the image height is not known in advance. In thise
+// case, EndOfBlock must be true.
+func NewReader(src io.ByteReader, params CCITTParams) (*CCITTDecoder, error) {
+	out := CCITTDecoder{src: src, p: params}
+
+	if out.p.Columns < 1 {
+		out.p.Columns = 1
+	} else if out.p.Columns > math.MaxInt32-2 {
+		out.p.Columns = math.MaxInt32 - 2
+	}
+	out.codingLine = make([]int32, out.p.Columns+1)
+	out.refLine = make([]int32, out.p.Columns+2)
+	out.codingLine[0] = out.p.Columns
+	out.nextLine2D = out.p.Encoding < 0
+
+	err := out.initialize()
+
+	return &out, err
+}
+
+type short = int16
+
+func bad2DCode(code int32) error {
+	return fmt.Errorf("bad 2D code %x in CCITT stream", code)
+}
+
+type CCITTDecoder struct {
 	src io.ByteReader // the input source
 
 	inputBits           int32 // number of bits in input buffer
@@ -20,40 +59,63 @@ type ccittDecoder struct {
 	row                 int32 // current row
 
 	// user parameters
-	CCITTParams
+	p CCITTParams
 }
 
-func newCCITTDecoder(params CCITTParams, src io.ByteReader) *ccittDecoder {
-	out := ccittDecoder{src: src, CCITTParams: params}
-
-	if out.Columns < 1 {
-		out.Columns = 1
-	} else if out.Columns > math.MaxInt32-2 {
-		out.Columns = math.MaxInt32 - 2
+// skip any initial zero bits and end-of-line marker, and get the 2D
+// encoding tag
+func (st *CCITTDecoder) initialize() error {
+	code1, err := st.lookBits(12)
+	if err != nil {
+		return err
 	}
-	out.codingLine = make([]int32, out.Columns+1)
-	out.refLine = make([]int32, out.Columns+2)
-	out.codingLine[0] = out.Columns
-	out.nextLine2D = out.Encoding < 0
-
-	return &out
+	for code1 == 0 {
+		st.eatBits(1)
+		code1, err = st.lookBits(12)
+		if err != nil {
+			return err
+		}
+	}
+	if code1 == 0x001 {
+		st.eatBits(12)
+		st.p.EndOfLine = true
+	}
+	if st.p.Encoding > 0 {
+		b, err := st.lookBits(1)
+		if err != nil {
+			return err
+		}
+		st.nextLine2D = b == 0
+		st.eatBits(1)
+	}
+	return nil
 }
 
-// CCITTParams holds the parameters of an encoded CCITT input.
-// `DamagedRowsBeforeError` is not supported.
-type CCITTParams struct {
-	Encoding                                int32 // K parameter
-	Columns, Rows                           int32
-	EndOfBlock, EndOfLine, ByteAlign, Black bool
+func (st *CCITTDecoder) Read(p []byte) (int, error) {
+	i := 0
+	for ; i < len(p); i++ {
+		b, err := st.ReadByte()
+		if err != nil {
+			return i, err
+		}
+		p[i] = b
+	}
+	return len(p), nil
 }
 
-type short = int16
-
-func bad2DCode(code int32) error {
-	return bad2DCode(code)
+func (st *CCITTDecoder) ReadByte() (byte, error) {
+	if st.outputBits == 0 { // read the next row
+		err := st.readRow()
+		if err != nil {
+			return 0, err
+		}
+	}
+	// get a byte
+	out, err := st.getByte()
+	return out, err
 }
 
-func (st *ccittDecoder) eatBits(n int32) {
+func (st *CCITTDecoder) eatBits(n int32) {
 	st.inputBits -= n
 	if st.inputBits < 0 {
 		st.inputBits = 0
@@ -61,7 +123,8 @@ func (st *ccittDecoder) eatBits(n int32) {
 }
 
 // return an error only if the underlying reader error is different from EOF
-func (st *ccittDecoder) lookBits(n int32) (short, error) {
+// return a maximum of 16 bits
+func (st *CCITTDecoder) lookBits(n int32) (short, error) {
 	for st.inputBits < n {
 		c, err := st.src.ReadByte()
 		// first check for EOF ...
@@ -82,16 +145,17 @@ func (st *ccittDecoder) lookBits(n int32) (short, error) {
 		st.inputBuf = (st.inputBuf << 8) + uint32(c)
 		st.inputBits += 8
 	}
-	return short((st.inputBuf >> (st.inputBits - n)) & (0xffffffff >> (32 - n))), nil
+	out := short((st.inputBuf >> (st.inputBits - n)) & (0xffffffff >> (32 - n)))
+	return out, nil
 }
 
-func (st *ccittDecoder) getTwoDimCode() (int32, error) {
+func (st *CCITTDecoder) getTwoDimCode() (int32, error) {
 	var (
 		code short
 		err  error
 	)
 
-	if st.EndOfBlock {
+	if st.p.EndOfBlock {
 		code, err = st.lookBits(7)
 		if err != nil {
 			return 0, err
@@ -99,7 +163,7 @@ func (st *ccittDecoder) getTwoDimCode() (int32, error) {
 		if code != codeEOF {
 			p := twoDimTab1[code]
 			if p.bits > 0 {
-				st.eatBits(p.bits)
+				st.eatBits(int32(p.bits))
 				return int32(p.n), nil
 			}
 		}
@@ -116,7 +180,7 @@ func (st *ccittDecoder) getTwoDimCode() (int32, error) {
 				code <<= 7 - n
 			}
 			p := twoDimTab1[code]
-			if p.bits == n {
+			if int32(p.bits) == n {
 				st.eatBits(n)
 				return int32(p.n), nil
 			}
@@ -125,12 +189,12 @@ func (st *ccittDecoder) getTwoDimCode() (int32, error) {
 	return codeEOF, bad2DCode(int32(code))
 }
 
-func (st *ccittDecoder) getWhiteCode() (short, error) {
+func (st *CCITTDecoder) getWhiteCode() (short, error) {
 	var (
 		code short
 		err  error
 	)
-	if st.EndOfBlock {
+	if st.p.EndOfBlock {
 		code, err = st.lookBits(12)
 		if err != nil {
 			return 0, err
@@ -145,30 +209,29 @@ func (st *ccittDecoder) getWhiteCode() (short, error) {
 			p = whiteTab2[code>>3]
 		}
 		if p.bits > 0 {
-			st.eatBits(p.bits)
+			st.eatBits(int32(p.bits))
 			return p.n, nil
 		}
 	} else {
 		for n := int32(1); n <= 9; n++ {
-			code, err = st.lookBits(12)
+			code, err = st.lookBits(n)
 			if err != nil {
 				return 0, err
 			}
 			if code == codeEOF {
 				return 1, nil
 			}
-
 			if n < 9 {
 				code <<= 9 - n
 			}
 			p := whiteTab2[code]
-			if p.bits == n {
+			if int32(p.bits) == n {
 				st.eatBits(n)
 				return p.n, nil
 			}
 		}
 		for n := int32(11); n <= 12; n++ {
-			code, err = st.lookBits(12)
+			code, err = st.lookBits(n)
 			if err != nil {
 				return 0, err
 			}
@@ -179,7 +242,7 @@ func (st *ccittDecoder) getWhiteCode() (short, error) {
 				code <<= 12 - n
 			}
 			p := whiteTab1[code]
-			if p.bits == n {
+			if int32(p.bits) == n {
 				st.eatBits(n)
 				return p.n, nil
 			}
@@ -191,12 +254,12 @@ func (st *ccittDecoder) getWhiteCode() (short, error) {
 	return 1, fmt.Errorf("bad white code (%x) in CCITTFax stream", code)
 }
 
-func (st *ccittDecoder) getBlackCode() (short, error) {
+func (st *CCITTDecoder) getBlackCode() (short, error) {
 	var (
 		code short
 		err  error
 	)
-	if st.EndOfBlock {
+	if st.p.EndOfBlock {
 		code, err = st.lookBits(13)
 		if err != nil {
 			return 0, err
@@ -213,7 +276,7 @@ func (st *ccittDecoder) getBlackCode() (short, error) {
 			p = blackTab3[code>>7]
 		}
 		if p.bits > 0 {
-			st.eatBits(p.bits)
+			st.eatBits(int32(p.bits))
 			return p.n, nil
 		}
 	} else {
@@ -230,7 +293,7 @@ func (st *ccittDecoder) getBlackCode() (short, error) {
 				code <<= 6 - n
 			}
 			p := blackTab3[code]
-			if p.bits == n {
+			if int32(p.bits) == n {
 				st.eatBits(n)
 				return p.n, nil
 			}
@@ -249,7 +312,7 @@ func (st *ccittDecoder) getBlackCode() (short, error) {
 			}
 			if code >= 64 {
 				p := blackTab2[code-64]
-				if p.bits == n {
+				if int32(p.bits) == n {
 					st.eatBits(n)
 					return p.n, nil
 				}
@@ -268,7 +331,7 @@ func (st *ccittDecoder) getBlackCode() (short, error) {
 				code <<= 13 - n
 			}
 			p := blackTab1[code]
-			if p.bits == n {
+			if int32(p.bits) == n {
 				st.eatBits(n)
 				return p.n, nil
 			}
@@ -280,9 +343,9 @@ func (st *ccittDecoder) getBlackCode() (short, error) {
 	return 1, fmt.Errorf("bad black code (%x) in CCITTFax stream", code)
 }
 
-func (st *ccittDecoder) addPixels(a1, blackPixels int32) error {
+func (st *CCITTDecoder) addPixels(a1, blackPixels int32) error {
 	if a1 > st.codingLine[st.a0i] {
-		if a1 > st.Columns {
+		if a1 > st.p.Columns {
 			return fmt.Errorf("CCITTFax row is wrong length (%d)", a1)
 		}
 		if (st.a0i&1)^blackPixels != 0 {
@@ -293,9 +356,9 @@ func (st *ccittDecoder) addPixels(a1, blackPixels int32) error {
 	return nil
 }
 
-func (st *ccittDecoder) addPixelsNeg(a1, blackPixels int32) error {
+func (st *CCITTDecoder) addPixelsNeg(a1, blackPixels int32) error {
 	if a1 > st.codingLine[st.a0i] {
-		if a1 > st.Columns {
+		if a1 > st.p.Columns {
 			return fmt.Errorf("CCITTFax row is wrong length (%d)", a1)
 		}
 		if (st.a0i&1)^blackPixels != 0 {
@@ -314,20 +377,7 @@ func (st *ccittDecoder) addPixelsNeg(a1, blackPixels int32) error {
 	return nil
 }
 
-func (st *ccittDecoder) ReadByte() (byte, error) {
-
-	if st.outputBits == 0 { // read the next row
-		err := st.readRow()
-		if err != nil {
-			return 0, err
-		}
-	}
-
-	// get a byte
-	return st.getByte()
-}
-
-func (st *ccittDecoder) readRow() error {
+func (st *CCITTDecoder) readRow() error {
 	var (
 		gotEOL bool
 		err    error
@@ -355,14 +405,14 @@ func (st *ccittDecoder) readRow() error {
 	// happen to be zero -- so we don't look for EOL markers in this
 	// case)
 	gotEOL = false
-	if !st.EndOfBlock && st.row == st.Rows-1 {
+	if !st.p.EndOfBlock && st.row == st.p.Rows-1 {
 		st.eof = true
-	} else if st.EndOfLine || !st.ByteAlign {
+	} else if st.p.EndOfLine || !st.p.ByteAlign {
 		code1, err := st.lookBits(12)
 		if err != nil {
 			return err
 		}
-		if st.EndOfLine {
+		if st.p.EndOfLine {
 			for code1 != codeEOF && code1 != 0x001 {
 				st.eatBits(1)
 				code1, err = st.lookBits(12)
@@ -393,7 +443,7 @@ func (st *ccittDecoder) readRow() error {
 	//   2. xx:00:1y:yy:yy
 	// where xx is the previous line, yy is the next line, and colons
 	// separate bytes.)
-	if st.ByteAlign && !gotEOL {
+	if st.p.ByteAlign && !gotEOL {
 		st.inputBits &= ^7
 	}
 
@@ -407,7 +457,7 @@ func (st *ccittDecoder) readRow() error {
 	}
 
 	// get 2D encoding tag
-	if !st.eof && st.Encoding > 0 {
+	if !st.eof && st.p.Encoding > 0 {
 		b, err := st.lookBits(1)
 		if err != nil {
 			return err
@@ -417,7 +467,7 @@ func (st *ccittDecoder) readRow() error {
 	}
 
 	// check for end-of-block marker
-	if st.EndOfBlock && !st.EndOfLine && st.ByteAlign {
+	if st.p.EndOfBlock && !st.p.EndOfLine && st.p.ByteAlign {
 		// in this case, we didn't check for an EOL code above, so we
 		// need to check here
 		code1, err := st.lookBits(24)
@@ -429,21 +479,21 @@ func (st *ccittDecoder) readRow() error {
 			gotEOL = true
 		}
 	}
-	if st.EndOfBlock && gotEOL {
+	if st.p.EndOfBlock && gotEOL {
 		code1, err := st.lookBits(12)
 		if err != nil {
 			return err
 		}
 		if code1 == 0x001 {
 			st.eatBits(12)
-			if st.Encoding > 0 {
+			if st.p.Encoding > 0 {
 				_, err := st.lookBits(1)
 				if err != nil {
 					return err
 				}
 				st.eatBits(1)
 			}
-			if st.Encoding >= 0 {
+			if st.p.Encoding >= 0 {
 				for i := 0; i < 4; i++ {
 					code1, err := st.lookBits(12)
 					if err != nil {
@@ -453,7 +503,7 @@ func (st *ccittDecoder) readRow() error {
 						return errors.New("bad RTC code in CCITTFax stream")
 					}
 					st.eatBits(12)
-					if st.Encoding > 0 {
+					if st.p.Encoding > 0 {
 						_, err := st.lookBits(1)
 						if err != nil {
 							return err
@@ -479,7 +529,7 @@ func (st *ccittDecoder) readRow() error {
 	return nil
 }
 
-func (st *ccittDecoder) getByte() (byte, error) {
+func (st *CCITTDecoder) getByte() (byte, error) {
 	var buf byte
 	if st.outputBits >= 8 {
 		buf = 0xff
@@ -487,7 +537,7 @@ func (st *ccittDecoder) getByte() (byte, error) {
 			buf = 0x00
 		}
 		st.outputBits -= 8
-		if st.outputBits == 0 && st.codingLine[st.a0i] < st.Columns {
+		if st.outputBits == 0 && st.codingLine[st.a0i] < st.p.Columns {
 			st.a0i++
 			st.outputBits = st.codingLine[st.a0i] - st.codingLine[st.a0i-1]
 		}
@@ -506,19 +556,19 @@ func (st *ccittDecoder) getByte() (byte, error) {
 			}
 		}
 	}
-	if st.Black {
-		buf ^= 0xff
+	if st.p.Black {
+		buf = ^buf
 	}
 	return buf, nil
 }
 
-func (st *ccittDecoder) encoding2D() error {
+func (st *CCITTDecoder) encoding2D() error {
 	var i, b1i, blackPixels int32
-	for i = 0; i < st.Columns && st.codingLine[i] < st.Columns; i++ {
+	for i = 0; i < st.p.Columns && st.codingLine[i] < st.p.Columns; i++ {
 		st.refLine[i] = st.codingLine[i]
 	}
-	for ; i < st.Columns+2; i++ {
-		st.refLine[i] = st.Columns
+	for ; i < st.p.Columns+2; i++ {
+		st.refLine[i] = st.p.Columns
 	}
 	st.codingLine[0] = 0
 	st.a0i = 0
@@ -529,19 +579,19 @@ func (st *ccittDecoder) encoding2D() error {
 	//   st.codingLine[st.a0i = 0] = st.refLine[b1i = 0] = 0 is possible
 	// exception at right edge:
 	//   st.refLine[b1i] = st.refLine[b1i+1] = st.columns is possible
-	for st.codingLine[st.a0i] < st.Columns {
+	for st.codingLine[st.a0i] < st.p.Columns {
 		code1, err := st.getTwoDimCode()
 		if err != nil {
 			return err
 		}
 		switch code1 {
 		case twoDimPass:
-			if b1i+1 < st.Columns+2 {
+			if b1i+1 < st.p.Columns+2 {
 				err = st.addPixels(st.refLine[b1i+1], blackPixels)
 				if err != nil {
 					return err
 				}
-				if st.refLine[b1i+1] < st.Columns {
+				if st.refLine[b1i+1] < st.p.Columns {
 					b1i += 2
 				}
 			}
@@ -603,20 +653,20 @@ func (st *ccittDecoder) encoding2D() error {
 			if err != nil {
 				return err
 			}
-			if st.codingLine[st.a0i] < st.Columns {
+			if st.codingLine[st.a0i] < st.p.Columns {
 				err = st.addPixels(st.codingLine[st.a0i]+code2, blackPixels^1)
 				if err != nil {
 					return err
 				}
 			}
-			for st.refLine[b1i] <= st.codingLine[st.a0i] && st.refLine[b1i] < st.Columns {
+			for st.refLine[b1i] <= st.codingLine[st.a0i] && st.refLine[b1i] < st.p.Columns {
 				b1i += 2
-				if b1i > st.Columns+1 {
+				if b1i > st.p.Columns+1 {
 					return bad2DCode(code1)
 				}
 			}
 		case twoDimVertR3:
-			if b1i > st.Columns+1 {
+			if b1i > st.p.Columns+1 {
 				return bad2DCode(code1)
 			}
 			err = st.addPixels(st.refLine[b1i]+3, blackPixels)
@@ -624,17 +674,17 @@ func (st *ccittDecoder) encoding2D() error {
 				return err
 			}
 			blackPixels ^= 1
-			if st.codingLine[st.a0i] < st.Columns {
+			if st.codingLine[st.a0i] < st.p.Columns {
 				b1i++
-				for st.refLine[b1i] <= st.codingLine[st.a0i] && st.refLine[b1i] < st.Columns {
+				for st.refLine[b1i] <= st.codingLine[st.a0i] && st.refLine[b1i] < st.p.Columns {
 					b1i += 2
-					if b1i > st.Columns+1 {
+					if b1i > st.p.Columns+1 {
 						return bad2DCode(code1)
 					}
 				}
 			}
 		case twoDimVertR2:
-			if b1i > st.Columns+1 {
+			if b1i > st.p.Columns+1 {
 				return bad2DCode(code1)
 			}
 			err = st.addPixels(st.refLine[b1i]+2, blackPixels)
@@ -642,17 +692,17 @@ func (st *ccittDecoder) encoding2D() error {
 				return err
 			}
 			blackPixels ^= 1
-			if st.codingLine[st.a0i] < st.Columns {
+			if st.codingLine[st.a0i] < st.p.Columns {
 				b1i++
-				for st.refLine[b1i] <= st.codingLine[st.a0i] && st.refLine[b1i] < st.Columns {
+				for st.refLine[b1i] <= st.codingLine[st.a0i] && st.refLine[b1i] < st.p.Columns {
 					b1i += 2
-					if b1i > st.Columns+1 {
+					if b1i > st.p.Columns+1 {
 						return bad2DCode(code1)
 					}
 				}
 			}
 		case twoDimVertR1:
-			if b1i > st.Columns+1 {
+			if b1i > st.p.Columns+1 {
 				return bad2DCode(code1)
 			}
 			err = st.addPixels(st.refLine[b1i]+1, blackPixels)
@@ -660,32 +710,32 @@ func (st *ccittDecoder) encoding2D() error {
 				return err
 			}
 			blackPixels ^= 1
-			if st.codingLine[st.a0i] < st.Columns {
+			if st.codingLine[st.a0i] < st.p.Columns {
 				b1i++
-				for st.refLine[b1i] <= st.codingLine[st.a0i] && st.refLine[b1i] < st.Columns {
+				for st.refLine[b1i] <= st.codingLine[st.a0i] && st.refLine[b1i] < st.p.Columns {
 					b1i += 2
-					if b1i > st.Columns+1 {
+					if b1i > st.p.Columns+1 {
 						return bad2DCode(code1)
 					}
 				}
 			}
 		case twoDimVert0:
-			if b1i > st.Columns+1 {
+			if b1i > st.p.Columns+1 {
 				return bad2DCode(code1)
 			}
 			st.addPixels(st.refLine[b1i], blackPixels)
 			blackPixels ^= 1
-			if st.codingLine[st.a0i] < st.Columns {
+			if st.codingLine[st.a0i] < st.p.Columns {
 				b1i++
-				for st.refLine[b1i] <= st.codingLine[st.a0i] && st.refLine[b1i] < st.Columns {
+				for st.refLine[b1i] <= st.codingLine[st.a0i] && st.refLine[b1i] < st.p.Columns {
 					b1i += 2
-					if b1i > st.Columns+1 {
+					if b1i > st.p.Columns+1 {
 						return bad2DCode(code1)
 					}
 				}
 			}
 		case twoDimVertL3:
-			if b1i > st.Columns+1 {
+			if b1i > st.p.Columns+1 {
 				return bad2DCode(code1)
 			}
 			err = st.addPixelsNeg(st.refLine[b1i]-3, blackPixels)
@@ -693,59 +743,59 @@ func (st *ccittDecoder) encoding2D() error {
 				return err
 			}
 			blackPixels ^= 1
-			if st.codingLine[st.a0i] < st.Columns {
+			if st.codingLine[st.a0i] < st.p.Columns {
 				if b1i > 0 {
 					b1i--
 				} else {
 					b1i++
 				}
-				for st.refLine[b1i] <= st.codingLine[st.a0i] && st.refLine[b1i] < st.Columns {
+				for st.refLine[b1i] <= st.codingLine[st.a0i] && st.refLine[b1i] < st.p.Columns {
 					b1i += 2
-					if b1i > st.Columns+1 {
+					if b1i > st.p.Columns+1 {
 						return bad2DCode(code1)
 					}
 				}
 			}
 		case twoDimVertL2:
-			if b1i > st.Columns+1 {
+			if b1i > st.p.Columns+1 {
 				return bad2DCode(code1)
 			}
 			st.addPixelsNeg(st.refLine[b1i]-2, blackPixels)
 			blackPixels ^= 1
-			if st.codingLine[st.a0i] < st.Columns {
+			if st.codingLine[st.a0i] < st.p.Columns {
 				if b1i > 0 {
 					b1i--
 				} else {
 					b1i++
 				}
-				for st.refLine[b1i] <= st.codingLine[st.a0i] && st.refLine[b1i] < st.Columns {
+				for st.refLine[b1i] <= st.codingLine[st.a0i] && st.refLine[b1i] < st.p.Columns {
 					b1i += 2
-					if b1i > st.Columns+1 {
+					if b1i > st.p.Columns+1 {
 						return bad2DCode(code1)
 					}
 				}
 			}
 		case twoDimVertL1:
-			if b1i > st.Columns+1 {
+			if b1i > st.p.Columns+1 {
 				return bad2DCode(code1)
 			}
 			st.addPixelsNeg(st.refLine[b1i]-1, blackPixels)
 			blackPixels ^= 1
-			if st.codingLine[st.a0i] < st.Columns {
+			if st.codingLine[st.a0i] < st.p.Columns {
 				if b1i > 0 {
 					b1i--
 				} else {
 					b1i++
 				}
-				for st.refLine[b1i] <= st.codingLine[st.a0i] && st.refLine[b1i] < st.Columns {
+				for st.refLine[b1i] <= st.codingLine[st.a0i] && st.refLine[b1i] < st.p.Columns {
 					b1i += 2
-					if b1i > st.Columns+1 {
+					if b1i > st.p.Columns+1 {
 						return bad2DCode(code1)
 					}
 				}
 			}
 		case codeEOF:
-			err = st.addPixels(st.Columns, 0)
+			err = st.addPixels(st.p.Columns, 0)
 			if err != nil {
 				return err
 			}
@@ -757,11 +807,11 @@ func (st *ccittDecoder) encoding2D() error {
 	return nil
 }
 
-func (st *ccittDecoder) encoding1D() error {
+func (st *CCITTDecoder) encoding1D() error {
 	st.codingLine[0] = 0
 	st.a0i = 0
 	var blackPixels int32
-	for st.codingLine[st.a0i] < st.Columns {
+	for st.codingLine[st.a0i] < st.p.Columns {
 		var code1 int32
 		if blackPixels != 0 {
 			code3, err := st.getBlackCode()
@@ -770,7 +820,7 @@ func (st *ccittDecoder) encoding1D() error {
 			}
 			code1 += int32(code3)
 			for code3 >= 64 {
-				code3, err := st.getBlackCode()
+				code3, err = st.getBlackCode()
 				if err != nil {
 					return err
 				}
@@ -783,7 +833,7 @@ func (st *ccittDecoder) encoding1D() error {
 			}
 			code1 += int32(code3)
 			for code3 >= 64 {
-				code3, err := st.getWhiteCode()
+				code3, err = st.getWhiteCode()
 				if err != nil {
 					return err
 				}
@@ -799,9 +849,9 @@ func (st *ccittDecoder) encoding1D() error {
 	return nil
 }
 
-func (st *ccittDecoder) getOneByteLoopBody(bits int32, buf byte) (int32, byte, error) {
+func (st *CCITTDecoder) getOneByteLoopBody(bits int32, buf byte) (int32, byte, error) {
 	if st.outputBits > bits {
-		buf <<= bits
+		buf = buf << bits
 		if (st.a0i & 1) == 0 {
 			buf |= 0xff >> (8 - bits)
 		}
@@ -814,9 +864,9 @@ func (st *ccittDecoder) getOneByteLoopBody(bits int32, buf byte) (int32, byte, e
 		}
 		bits -= st.outputBits
 		st.outputBits = 0
-		if st.codingLine[st.a0i] < st.Columns {
+		if st.codingLine[st.a0i] < st.p.Columns {
 			st.a0i++
-			if st.a0i > st.Columns {
+			if st.a0i > st.p.Columns {
 				return 0, 0, fmt.Errorf("bad bits %x in CCITTFax stream", bits)
 			}
 			st.outputBits = st.codingLine[st.a0i] - st.codingLine[st.a0i-1]

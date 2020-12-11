@@ -15,15 +15,12 @@ const (
 	LZW       = "LZWDecode"
 	Flate     = "FlateDecode"
 	DCT       = "DCTDecode"
-
-	// CCITTFax is a valid filter for inline image,
-	// but it is not currently supported.
-	CCITTFax = "CCITTFaxDecode"
+	CCITTFax  = "CCITTFaxDecode"
 )
 
 // Skipper reads the input data and stop exactly after
 // the EOD marker. It returns the number of bytes read (including EOD).
-// Since some filters may take additional parameters, skippers should
+// Since some filters take additional parameters, skippers should
 // be directly created by their concrete types, but this interface is exposed as a
 // convenience.
 type Skipper interface {

@@ -1,4 +1,4 @@
-package filter
+package ccitt
 
 const (
 	ccittEOL     = -2
@@ -14,7 +14,7 @@ const (
 )
 
 type ccittCode struct {
-	bits int32
+	bits int16
 	n    int16
 }
 
@@ -46,7 +46,7 @@ var twoDimTab1 = [128]ccittCode{{codeEOF, codeEOF}, {codeEOF, codeEOF}, // 00000
 // white run lengths
 //------------------------------------------------------------------------
 
-// 11EOF2 bit codes (upper 7 bits are 0)
+// 11-12 bit codes (upper 7 bits are 0)
 var whiteTab1 = [32]ccittCode{
 	{codeEOF, codeEOF},                     // 00000
 	{12, ccittEOL},                         // 00001
