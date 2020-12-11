@@ -1,18 +1,15 @@
 package parser
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
-	"io"
-	"io/ioutil"
 
 	"github.com/benoitkugler/pdf/contentstream"
 	"github.com/benoitkugler/pdf/model"
-	"github.com/benoitkugler/pdfcpu/pkg/filter"
+	"github.com/benoitkugler/pdf/parser/filters"
 )
 
-var errBIExpressionCorrupt = errors.New("pdfcpu: corrupt TJ expression")
+var errBIExpressionCorrupt = errors.New("corrupt BI (inline image) expression")
 
 func (pr *Parser) parseInlineImage(res model.ResourcesColorSpace) (contentstream.OpBeginImage, error) {
 	var (
@@ -221,7 +218,6 @@ func processOneDecodeParms(parms Object) map[string]int {
 }
 
 // read the inline data, store its content in img, and skip EI command
-// TODO: the CCITT decoder may read after EOD
 func (pr *Parser) parseImageData(img *contentstream.OpBeginImage, decodeParams []map[string]int, res model.ResourcesColorSpace) error {
 	// first we check the length of decode params
 	// and update the filter list
@@ -233,7 +229,7 @@ func (pr *Parser) parseImageData(img *contentstream.OpBeginImage, decodeParams [
 	}
 
 	// to read the binary data, there are 2 cases
-	// 	- if the data is not filtered, we use the image charac. to deduce the length
+	// 	- if the data is not filtered, we use the image metadata to deduce the length
 	//	- if the data is filtered, we have to rely on the filter format End Of Data marker
 
 	if len(img.Image.Filter) == 0 {
@@ -246,37 +242,40 @@ func (pr *Parser) parseImageData(img *contentstream.OpBeginImage, decodeParams [
 		img.Image.Content = pr.tokens.SkipBytes(n + 1) // with space after ID
 	} else {
 		pr.tokens.SkipBytes(1) // with space after ID
-
 		input := pr.tokens.Bytes()
-		origin := bytes.NewReader(input)
-		totalLength := origin.Len()
 
 		// we only apply the first filter
 		fi := img.Image.Stream.Filter[0]
-		var (
-			reader io.Reader
-			err    error
-		)
-		if fi.Name == model.DCT {
-			// special case since pdfcpu/filter does not handle DCT
-			reader = filter.LimitedDCTDecoder(origin)
-		} else {
-			reader, err = fi.DecodeReader(origin)
-			if err != nil {
-				return fmt.Errorf("invalid inline image data filters: %s", err)
+		var skipper filters.Skipper
+		switch fi.Name {
+		case filters.ASCII85:
+			skipper = filters.SkipperAscii85{}
+		case filters.ASCIIHex:
+			skipper = filters.SkipperAsciiHex{}
+		case filters.Flate:
+			skipper = filters.SkipperFlate{}
+		case filters.RunLength:
+			skipper = filters.SkipperRunLength{}
+		case filters.DCT:
+			skipper = filters.SkipperDCT{}
+		case filters.LZW:
+			var earlyChange bool
+			ec, ok := fi.DecodeParams["EarlyChange"]
+			if !ok || ec == 1 {
+				earlyChange = true
 			}
+			skipper = filters.SkipperLZW{EarlyChange: earlyChange}
+		default:
+			return fmt.Errorf("unsupported filter in inline image data: %s", fi.Name)
 		}
-		_, err = io.Copy(ioutil.Discard, reader)
+		encodedLength, err := skipper.Skip(input)
 		if err != nil {
 			return fmt.Errorf("can't read compressed inline image data: %s", err)
 		}
-		// we now can compute the length of the data ...
-		leftLength := origin.Len()
-		compressedLength := totalLength - leftLength
-		// ... and we store the compressed version ...
-		img.Image.Content = input[0:compressedLength]
+		// we return the compressed version ...
+		img.Image.Content = input[0:encodedLength]
 		// ... and move the tokenizer
-		pr.tokens.SkipBytes(compressedLength)
+		pr.tokens.SkipBytes(encodedLength)
 	}
 	o, err := pr.ParseObject() // EI
 	if err != nil {

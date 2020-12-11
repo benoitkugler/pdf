@@ -7,9 +7,8 @@ import (
 	"github.com/hhrutter/lzw"
 )
 
-// TODO: check parameters
 type SkipperLZW struct {
-	EarlyChange bool
+	EarlyChange bool // In PDF, written as an integer. Default value: 1 (true).
 }
 
 // Skip implements Skipper for an LZWDecode filter.
