@@ -6,7 +6,7 @@ import (
 	"math/rand"
 	"testing"
 
-	"github.com/benoitkugler/pdf/parser/filters/ccitt"
+	"github.com/benoitkugler/pdf/reader/parser/filters/ccitt"
 	"github.com/pdfcpu/pdfcpu/pkg/filter"
 )
 

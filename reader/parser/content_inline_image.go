@@ -6,7 +6,7 @@ import (
 
 	"github.com/benoitkugler/pdf/contentstream"
 	"github.com/benoitkugler/pdf/model"
-	"github.com/benoitkugler/pdf/parser/filters"
+	"github.com/benoitkugler/pdf/reader/parser/filters"
 )
 
 var errBIExpressionCorrupt = errors.New("corrupt BI (inline image) expression")

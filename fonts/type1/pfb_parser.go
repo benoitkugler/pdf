@@ -6,7 +6,7 @@ import (
 	"fmt"
 
 	"github.com/benoitkugler/pdf/fonts/simpleencodings"
-	tk "github.com/benoitkugler/pdf/parser/tokenizer"
+	tk "github.com/benoitkugler/pdf/reader/parser/tokenizer"
 )
 
 // constants for encryption

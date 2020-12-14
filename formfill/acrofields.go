@@ -12,7 +12,7 @@ import (
 	"github.com/benoitkugler/pdf/fonts"
 	"github.com/benoitkugler/pdf/fonts/standardfonts"
 	"github.com/benoitkugler/pdf/model"
-	"github.com/benoitkugler/pdf/parser"
+	"github.com/benoitkugler/pdf/reader/parser"
 )
 
 // port of pdftk library - BK 2020

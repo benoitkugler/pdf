@@ -6,7 +6,7 @@ import (
 	"io/ioutil"
 	"testing"
 
-	"github.com/benoitkugler/pdf/parser/filters/ccitt"
+	"github.com/benoitkugler/pdf/reader/parser/filters/ccitt"
 )
 
 type cr struct {

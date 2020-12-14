@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"io/ioutil"
 
-	"github.com/benoitkugler/pdf/parser/filters/ccitt"
+	"github.com/benoitkugler/pdf/reader/parser/filters/ccitt"
 )
 
 type SkipperCCITT struct {

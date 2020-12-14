@@ -1,5 +1,6 @@
-// Uses pdfcpu library to process a PDF file
-// and populate a model.Document object
+// Package reader leverage a PDF file reader
+// to read a file, analyze its structure and build a
+// high level, in-memory representation as a `model.Document`.
 package reader
 
 import (

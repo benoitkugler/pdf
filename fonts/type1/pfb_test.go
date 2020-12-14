@@ -5,7 +5,7 @@ import (
 	"io/ioutil"
 	"testing"
 
-	"github.com/benoitkugler/pdf/parser/tokenizer"
+	"github.com/benoitkugler/pdf/reader/parser/tokenizer"
 )
 
 func TestOpen(t *testing.T) {
