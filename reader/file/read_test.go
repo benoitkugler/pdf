@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"os"
 	"testing"
-
-	"github.com/benoitkugler/pdf/reader/parser/tokenizer"
 )
 
 func TestOffset(t *testing.T) {
@@ -22,15 +20,28 @@ func TestOffset(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	buf := make([]byte, ctx.fileSize-o)
-	err = ctx.readAt(buf, o)
+	err = ctx.buildXRefTableStartingAt(o)
 	if err != nil {
 		t.Fatal(err)
+	}
+	fmt.Println(len(ctx.xrefTable.Table))
+	// buf := make([]byte, ctx.fileSize-o)
+	// err = ctx.readAt(buf, o)
+	// if err != nil {
+	// 	t.Fatal(err)
+	// }
+}
+
+func BenchmarkReadXRef(b *testing.B) {
+	f, err := os.Open("../test/PDF_SPEC.pdf")
+	if err != nil {
+		b.Fatal(err)
 	}
 
-	trs, err := tokenizer.Tokenize(buf)
-	if err != nil {
-		t.Fatal(err)
+	for i := 0; i < b.N; i++ {
+		err = Read(f, nil)
+		if err != nil {
+			b.Fatal(err)
+		}
 	}
-	fmt.Println(len(trs))
 }

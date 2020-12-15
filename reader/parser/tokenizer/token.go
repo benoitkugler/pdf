@@ -18,7 +18,8 @@ type Fl = float64
 type Kind uint8
 
 const (
-	EOF Kind = iota
+	_ Kind = iota
+	EOF
 	Float
 	Integer
 	String
@@ -205,6 +206,7 @@ func (tk *Tokenizer) SetPosition(pos int) {
 
 // PeekToken reads a token but does not advance the position.
 // It returns a cached value, meaning it is a very cheap call.
+// If the error is not nil, the return Token is garranteed to be zero.
 func (pr Tokenizer) PeekToken() (Token, error) {
 	return pr.aToken, pr.aError
 }

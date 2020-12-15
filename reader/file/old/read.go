@@ -954,8 +954,6 @@ func parseXRefSection(s *bufio.Scanner, ctx *Context, ssCount *int) (*int64, err
 	return processTrailer(ctx, s, line)
 }
 
-var errCorruptHeader = errors.New("headerVersion: corrupt pdf stream - no header version available")
-
 // Get version from first line of file.
 // Beginning with PDF 1.4, the Version entry in the document’s catalog dictionary
 // (located via the Root entry in the file’s trailer, as described in 7.5.5, "File Trailer"),

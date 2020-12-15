@@ -69,12 +69,12 @@ func TestConvert(t *testing.T) {
 }
 
 func TestStrings(t *testing.T) {
-	for i := range [CharString + 1]int{} {
-		if Kind(i).String() == "<invalid token>" {
+	for i := range [CharString]int{} {
+		if Kind(i+1).String() == "<invalid token>" {
 			t.Error()
 		}
 	}
-	if Kind(CharString+1).String() != "<invalid token>" {
+	if Kind(CharString+1).String() != "<invalid token>" || Kind(0).String() != "<invalid token>" {
 		t.Error()
 	}
 }
