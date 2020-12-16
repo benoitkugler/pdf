@@ -287,13 +287,40 @@ func (f *XObjectForm) clone(cache cloneCache) Referenceable {
 
 // ----------------------- images -----------------------
 
-// TODO:
+// Mask is either MaskColor or *XObjectImage
+// See 8.9.6.2 - Stencil Masking
 type Mask interface {
-	isMask()
-	Clone() Mask
+	maskPDFString(pdf pdfWriter) string
+	cloneMask(cloneCache) Mask
 }
 
-// Image are shared between inline images and XForm images
+// MaskColor is a range of colours to be masked
+// See 8.9.6.4 - Colour Key Masking
+type MaskColor [][2]int
+
+func (m MaskColor) maskPDFString(pdfWriter) string {
+	out := make([]int, 2*len(m))
+	for i, v := range m {
+		out[2*i], out[2*i+1] = v[0], v[1]
+	}
+	return writeIntArray(out)
+}
+
+func (m MaskColor) cloneMask(cloneCache) Mask {
+	return append(MaskColor(nil), m...)
+}
+
+func (m *XObjectImage) maskPDFString(p pdfWriter) string {
+	ref := p.addItem(m)
+	return ref.String()
+}
+
+func (m *XObjectImage) cloneMask(cache cloneCache) Mask {
+	return m.cloneMask(cache).(*XObjectImage)
+}
+
+// Image are shared between inline images and XForm images.
+// The ColorSpace is not included since inline images have additional restrictions.
 type Image struct {
 	Stream
 
@@ -326,15 +353,46 @@ func (img Image) PDFFields(inline bool) string {
 	return b.String()
 }
 
+// Clone returns a deep copy
+func (img Image) Clone() Image {
+	out := img
+	out.Stream = img.Stream.Clone()
+	out.Decode = append([][2]Fl(nil), img.Decode...)
+	return out
+}
+
+// ImageSMask is a soft image mask
+// See 11.6.5.3 - Soft-Mask Images
+type ImageSMask struct {
+	Image      // ImageMask and Intent are ignored
+	Matte []Fl // optional, length: number of color components in the parent image
+}
+
+func (f *ImageSMask) pdfContent(pdf pdfWriter, _ Reference) (string, []byte) {
+	base := f.Image.PDFFields(false)
+	s := "<</Subtype/Image/ColorSpace" + Name(ColorSpaceGray).String() + base + ">>"
+	return s, f.Content
+}
+
+func (img *ImageSMask) clone(cache cloneCache) Referenceable {
+	if img == nil {
+		return img
+	}
+	out := *img
+	out.Image = img.Image.Clone()
+	out.Matte = append([]Fl(nil), img.Matte...)
+	return &out
+}
+
 // XObjectImage represents a sampled visual image such as a photograph
 type XObjectImage struct {
 	Image
 
 	ColorSpace ColorSpace // optional, any type of colour space except Pattern
-	Mask       Mask       // optional
 
 	Alternates   []AlternateImage // optional
-	SMask        *XObjectImage    // optional
+	Mask         Mask             // optional
+	SMask        *ImageSMask      // optional
 	SMaskInData  uint8            // optional, 0, 1 or 2
 	StructParent MaybeInt         // required if the image is a structural content item
 }
@@ -353,7 +411,9 @@ func (f *XObjectImage) pdfContent(pdf pdfWriter, _ Reference) (string, []byte) {
 		b.fmt("/ColorSpace %s", f.ColorSpace.colorSpaceWrite(pdf))
 	}
 
-	//TODO: mask
+	if f.Mask != nil {
+		b.WriteString("/Mask " + f.Mask.maskPDFString(pdf))
+	}
 
 	if len(f.Alternates) != 0 {
 		chunks := make([]string, len(f.Alternates))
@@ -382,7 +442,7 @@ func (img *XObjectImage) clone(cache cloneCache) Referenceable {
 	out.Stream = img.Stream.Clone()
 	out.ColorSpace = cloneColorSpace(img.ColorSpace, cache)
 	if img.Mask != nil {
-		out.Mask = img.Mask.Clone()
+		out.Mask = img.Mask.cloneMask(cache)
 	}
 	out.Decode = append([][2]Fl(nil), img.Decode...)
 	if img.Alternates != nil {
@@ -391,7 +451,7 @@ func (img *XObjectImage) clone(cache cloneCache) Referenceable {
 	for i, alt := range img.Alternates {
 		out.Alternates[i] = alt.clone(cache)
 	}
-	out.SMask = cache.checkOrClone(img.SMask).(*XObjectImage)
+	out.SMask = cache.checkOrClone(img.SMask).(*ImageSMask)
 	return &out
 }
 

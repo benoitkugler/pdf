@@ -40,6 +40,7 @@ type resolver struct {
 	patterns          map[pdfcpu.IndirectRef]model.Pattern
 	xObjectForms      map[pdfcpu.IndirectRef]*model.XObjectForm
 	images            map[pdfcpu.IndirectRef]*model.XObjectImage
+	imageSMasks       map[pdfcpu.IndirectRef]*model.ImageSMask
 	iccs              map[pdfcpu.IndirectRef]*model.ColorSpaceICCBased
 	colorTableStreams map[pdfcpu.IndirectRef]*model.ColorTableStream
 	structure         map[pdfcpu.IndirectRef]*model.StructureElement
@@ -64,6 +65,7 @@ func newResolver() resolver {
 		patterns:          make(map[pdfcpu.IndirectRef]model.Pattern),
 		xObjectForms:      make(map[pdfcpu.IndirectRef]*model.XObjectForm),
 		images:            make(map[pdfcpu.IndirectRef]*model.XObjectImage),
+		imageSMasks:       make(map[pdfcpu.IndirectRef]*model.ImageSMask),
 		iccs:              make(map[pdfcpu.IndirectRef]*model.ColorSpaceICCBased),
 		colorTableStreams: make(map[pdfcpu.IndirectRef]*model.ColorTableStream),
 		structure:         make(map[pdfcpu.IndirectRef]*model.StructureElement),

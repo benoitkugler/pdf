@@ -26,7 +26,7 @@ func init() {
 	// the PDF spec is used in several tests, but is heavy
 	// so, when working on isolated test, you may want to avoid loading it
 	// by commenting this line
-	// loadPDFSpec()
+	loadPDFSpec()
 
 	// generatePDFs()
 }
