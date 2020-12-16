@@ -74,13 +74,13 @@ func (r resolver) resolveStream(content pdfcpu.Object) (*model.Stream, error) {
 			return nil, fmt.Errorf("unexpected length for DecodeParms array: %d", len(decode))
 		}
 		for i, parms := range decode {
-			out.Filter[i].DecodeParams = r.processDecodeParms(parms)
+			out.Filter[i].DecodeParms = r.processDecodeParms(parms)
 		}
 	case pdfcpu.Dict: // one filter and one dict param
 		if len(out.Filter) != 1 {
 			return nil, errType("DecodeParms", decode)
 		}
-		out.Filter[0].DecodeParams = r.processDecodeParms(decode)
+		out.Filter[0].DecodeParms = r.processDecodeParms(decode)
 	}
 
 	return &out, nil

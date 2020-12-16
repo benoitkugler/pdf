@@ -29,7 +29,7 @@ type lexer struct {
 
 // constructs a new lexer given a header-less .pfb segment
 func newLexer(data []byte) lexer {
-	return lexer{tk.NewTokenizer(data)}
+	return lexer{*tk.NewTokenizer(data)}
 }
 
 func (l *lexer) nextToken() (tk.Token, error) {

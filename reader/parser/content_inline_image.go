@@ -13,8 +13,8 @@ var errBIExpressionCorrupt = errors.New("corrupt BI (inline image) expression")
 
 func (pr *Parser) parseInlineImage(res model.ResourcesColorSpace) (contentstream.OpBeginImage, error) {
 	var (
-		out          contentstream.OpBeginImage
-		decodeParams []map[string]int
+		out                   contentstream.OpBeginImage
+		filters, decodeParams Object // parsing delayed
 	)
 	if err := assertLength(pr.opsStack, 0); err != nil {
 		return out, err
@@ -27,7 +27,7 @@ func (pr *Parser) parseInlineImage(res model.ResourcesColorSpace) (contentstream
 		}
 		if obj == Command("ID") {
 			// done with the characteristics;
-			err = pr.parseImageData(&out, decodeParams, res)
+			err = pr.parseImageData(&out, filters, decodeParams, res)
 			// EI is consumed in parseImageData
 			return out, err
 		} else {
@@ -40,62 +40,64 @@ func (pr *Parser) parseInlineImage(res model.ResourcesColorSpace) (contentstream
 			if err != nil {
 				return out, errBIExpressionCorrupt
 			}
-			dp, err := parseOneImgField(name, value, &out)
+			o1, o2, err := parseOneImgField(name, value, &out)
 			if err != nil {
 				return out, err
 			}
-			if dp != nil { // only true for the DecodeParams key
-				decodeParams = dp
+			if o1 != nil { // only true for the Filter key
+				filters = o1
+			}
+			if o2 != nil { // only true for the DecodeParms key
+				decodeParams = o2
 			}
 		}
 	}
 }
 
-// since DecodeParams and Filter are a same object in the model
-// we have to return the DecodeParams separately, to be ignored unless name == "DecodeParams"
-func parseOneImgField(name Name, value Object, img *contentstream.OpBeginImage) ([]map[string]int, error) {
-	var err error
+// since DecodeParms and Filter are a same object in the model
+// we have to return them separately
+func parseOneImgField(name Name, value Object, img *contentstream.OpBeginImage) (filters, decodeParams Object, err error) {
 	switch name {
 	case "BitsPerComponent", "BPC":
 		i, ok := value.(Integer)
 		if !ok {
-			return nil, errBIExpressionCorrupt
+			return nil, nil, errBIExpressionCorrupt
 		}
 		img.Image.BitsPerComponent = uint8(i)
 	case "Width", "W":
 		i, ok := value.(Integer)
 		if !ok {
-			return nil, errBIExpressionCorrupt
+			return nil, nil, errBIExpressionCorrupt
 		}
 		img.Image.Width = int(i)
 	case "Height", "H":
 		i, ok := value.(Integer)
 		if !ok {
-			return nil, errBIExpressionCorrupt
+			return nil, nil, errBIExpressionCorrupt
 		}
 		img.Image.Height = int(i)
 	case "Decode", "D":
 		arr, ok := value.(Array)
 		if !ok {
-			return nil, errBIExpressionCorrupt
+			return nil, nil, errBIExpressionCorrupt
 		}
 		img.Image.Decode, err = processPoints(arr)
 	case "ImageMask", "IM":
 		b, ok := value.(Bool)
 		if !ok {
-			return nil, errBIExpressionCorrupt
+			return nil, nil, errBIExpressionCorrupt
 		}
 		img.Image.ImageMask = bool(b)
 	case "Intent":
 		in, ok := value.(Name)
 		if !ok {
-			return nil, errBIExpressionCorrupt
+			return nil, nil, errBIExpressionCorrupt
 		}
 		img.Image.Intent = model.ObjName(in)
 	case "Interpolate", "I":
 		b, ok := value.(Bool)
 		if !ok {
-			return nil, errBIExpressionCorrupt
+			return nil, nil, errBIExpressionCorrupt
 		}
 		img.Image.Interpolate = bool(b)
 	case "ColorSpace", "CS":
@@ -105,13 +107,13 @@ func parseOneImgField(name Name, value Object, img *contentstream.OpBeginImage) 
 		case Array:
 			img.ColorSpace, err = processIndexedCS(value)
 		}
-	case "DecodeParms", "DP":
-		return processDecodeParms(value)
-	case "Filter", "F":
-		img.Image.Filter, err = processFilters(value)
+	case "Filter", "F": // parsing is delayed
+		return value, nil, nil
+	case "DecodeParms", "DP": // parsing is delayed
+		return nil, value, nil
 	}
 
-	return nil, err
+	return nil, nil, err
 }
 
 func processPoints(arr Array) ([][2]Fl, error) {
@@ -159,37 +161,49 @@ func processIndexedCS(arr Array) (contentstream.ImageColorSpaceIndexed, error) {
 	return out, nil
 }
 
-func processFilters(filters Object) ([]model.Filter, error) {
+var filtersCorrupted = errors.New("corrupted filter expression")
+
+// ParseDirectFilters process the given filters, which must be direct objects.
+// It is the case in image inline parameters and xRefStream dicts.
+// An empty list may be returned if the filters are nil.
+func ParseDirectFilters(filters, decodeParams Object) (model.Filters, error) {
+	if filters == nil {
+		return nil, nil
+	}
 	if filterName, isName := filters.(Name); isName {
 		filters = Array{filterName}
 	}
 	ar, ok := filters.(Array)
 	if !ok {
-		return nil, errBIExpressionCorrupt
+		return nil, filtersCorrupted
 	}
-	var out []model.Filter
+	var out model.Filters
 	for _, name := range ar {
 		if filterName, isName := name.(Name); isName {
 			out = append(out, model.Filter{Name: model.ObjName(filterName)})
 		} else {
-			return nil, errBIExpressionCorrupt
+			return nil, filtersCorrupted
 		}
 	}
-	return out, nil
-}
 
-func processDecodeParms(decode Object) ([]map[string]int, error) {
-	var out []map[string]int
-	switch decode := decode.(type) {
+	switch decode := decodeParams.(type) {
 	case Array: // one dict param per filter
-		for _, parms := range decode {
-			out = append(out, processOneDecodeParms(parms))
+		if len(decode) != len(out) {
+			return nil, fmt.Errorf("unexpected length for DecodeParms array: %d", len(decode))
+		}
+		for i, parms := range decode {
+			out[i].DecodeParms = processOneDecodeParms(parms)
 		}
 	case Dict: // one filter and one dict param
-		out = append(out, processOneDecodeParms(decode))
+		if len(out) != 1 {
+			return nil, fmt.Errorf("DecodeParms as dict only supported for one filter, got %d", len(out))
+		}
+		out[0].DecodeParms = processOneDecodeParms(decode)
+	case nil: // OK
 	default:
-		return nil, errBIExpressionCorrupt
+		return nil, filtersCorrupted
 	}
+
 	return out, nil
 }
 
@@ -217,15 +231,41 @@ func processOneDecodeParms(parms Object) map[string]int {
 	return parmsModel
 }
 
-// read the inline data, store its content in img, and skip EI command
-func (pr *Parser) parseImageData(img *contentstream.OpBeginImage, decodeParams []map[string]int, res model.ResourcesColorSpace) error {
-	// first we check the length of decode params
-	// and update the filter list
-	if L := len(decodeParams); L > 0 && L != len(img.Image.Filter) {
-		return fmt.Errorf("unexpected length for DecodeParms array: %d", L)
+// SkipperFromFilter select the right skipper.
+// An error is returned if the filter is not supported
+func SkipperFromFilter(fi model.Filter) (filters.Skipper, error) {
+	var skipper filters.Skipper
+	switch fi.Name {
+	case filters.ASCII85:
+		skipper = filters.SkipperAscii85{}
+	case filters.ASCIIHex:
+		skipper = filters.SkipperAsciiHex{}
+	case filters.Flate:
+		skipper = filters.SkipperFlate{}
+	case filters.RunLength:
+		skipper = filters.SkipperRunLength{}
+	case filters.DCT:
+		skipper = filters.SkipperDCT{}
+	case filters.LZW:
+		var earlyChange bool
+		ec, ok := fi.DecodeParms["EarlyChange"]
+		if !ok || ec == 1 {
+			earlyChange = true
+		}
+		skipper = filters.SkipperLZW{EarlyChange: earlyChange}
+	default:
+		return nil, fmt.Errorf("unsupported filter: %s", fi.Name)
 	}
-	for i := range decodeParams {
-		img.Image.Filter[i].DecodeParams = decodeParams[i]
+	return skipper, nil
+}
+
+// read the inline data, store its content in img, and skip EI command
+func (pr *Parser) parseImageData(img *contentstream.OpBeginImage, fils, decodeParams Object, res model.ResourcesColorSpace) error {
+	var err error
+	// first we check update the filter list
+	img.Image.Filter, err = ParseDirectFilters(fils, decodeParams)
+	if err != nil {
+		return err
 	}
 
 	// to read the binary data, there are 2 cases
@@ -246,27 +286,9 @@ func (pr *Parser) parseImageData(img *contentstream.OpBeginImage, decodeParams [
 
 		// we only apply the first filter
 		fi := img.Image.Stream.Filter[0]
-		var skipper filters.Skipper
-		switch fi.Name {
-		case filters.ASCII85:
-			skipper = filters.SkipperAscii85{}
-		case filters.ASCIIHex:
-			skipper = filters.SkipperAsciiHex{}
-		case filters.Flate:
-			skipper = filters.SkipperFlate{}
-		case filters.RunLength:
-			skipper = filters.SkipperRunLength{}
-		case filters.DCT:
-			skipper = filters.SkipperDCT{}
-		case filters.LZW:
-			var earlyChange bool
-			ec, ok := fi.DecodeParams["EarlyChange"]
-			if !ok || ec == 1 {
-				earlyChange = true
-			}
-			skipper = filters.SkipperLZW{EarlyChange: earlyChange}
-		default:
-			return fmt.Errorf("unsupported filter in inline image data: %s", fi.Name)
+		skipper, err := SkipperFromFilter(fi)
+		if err != nil {
+			return err
 		}
 		encodedLength, err := skipper.Skip(input)
 		if err != nil {

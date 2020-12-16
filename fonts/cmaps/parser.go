@@ -30,7 +30,7 @@ type parser struct {
 // parser creates a new instance of the PDF CMap parser from input data.
 func newparser(content []byte) *parser {
 	parser := parser{}
-	parser.tokenizer = tokenizer.NewTokenizer(content)
+	parser.tokenizer = *tokenizer.NewTokenizer(content)
 	return &parser
 }
 

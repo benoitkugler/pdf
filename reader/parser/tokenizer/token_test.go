@@ -3,6 +3,7 @@ package tokenizer
 import (
 	"bytes"
 	"io/ioutil"
+	"reflect"
 	"testing"
 )
 
@@ -23,6 +24,22 @@ func TestCharString(t *testing.T) {
 	}
 	if nbCs != 269 {
 		t.Fatalf("expected 269 CharStrings, got %d", nbCs)
+	}
+
+	tk := NewTokenizerFromReader(bytes.NewReader(b))
+	tks2, err := tk.readAll()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(tks, tks2) {
+		if len(tks) != len(tks2) {
+			t.Fatalf("expected same length, got %d and %d", len(tks), len(tks2))
+		}
+		for i := range tks {
+			if !reflect.DeepEqual(tks[i], tks2[i]) {
+				t.Errorf("expected same token %d, got %v and %v", i, tks[i], tks2[i])
+			}
+		}
 	}
 }
 

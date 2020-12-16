@@ -1,23 +1,65 @@
 package parser
 
 import (
+	"bytes"
 	"reflect"
 	"testing"
+
+	"github.com/benoitkugler/pdf/reader/parser/tokenizer"
 )
 
 func doTestParseObjectOK(parseString string, t *testing.T) {
 	o, err := ParseObject([]byte(parseString))
 	if err != nil {
-		t.Errorf("ParseObject failed: <%v>\n%s", err, parseString)
+		t.Errorf("ParseObject from byte slice failed: <%v>\n%s", err, parseString)
 		return
 	}
 	_ = o.Write(nil, 0)
+
+	pr := NewParserFromTokenizer(tokenizer.NewTokenizerFromReader(bytes.NewReader([]byte(parseString))))
+	o2, err := pr.ParseObject()
+	if err != nil {
+		t.Errorf("ParseObject from reader failed: <%v>\n%s", err, parseString)
+		return
+	}
+	if !reflect.DeepEqual(o, o2) {
+		t.Errorf("expected same results, got %v and %v", o, o2)
+	}
 }
 
 func doTestParseObjectFail(parseString string, t *testing.T) {
 	_, err := ParseObject([]byte(parseString))
 	if err == nil {
 		t.Errorf("ParseObjectshould have returned an error for %s", parseString)
+	}
+}
+
+func TestInitMethods(t *testing.T) {
+	input := []byte("<</Key1/Value1/key1/Value2>>")
+
+	o1, err := ParseObject(input)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	tk := tokenizer.NewTokenizer(input)
+	p := NewParserFromTokenizer(tk)
+	o2, err := p.ParseObject()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	p2 := NewParser(input)
+	o3, err := p2.ParseObject()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !reflect.DeepEqual(o1, o2) {
+		t.Errorf("expected equals %v and %v", o1, o2)
+	}
+	if !reflect.DeepEqual(o2, o3) {
+		t.Errorf("expected equals %v and %v", o2, o3)
 	}
 }
 

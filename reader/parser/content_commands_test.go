@@ -233,7 +233,7 @@ func randJPEG(size int) ([]byte, error) {
 }
 
 func createImageStream(fi model.Name) (contentstream.OpBeginImage, error) {
-	l := model.Filters{{Name: fi}}
+	l := model.Filters{{Name: fi, DecodeParms: map[string]int{"unusedint": 4}}}
 	if fi == model.DCT {
 		content, err := randJPEG(30)
 		return contentstream.OpBeginImage{
@@ -270,7 +270,6 @@ func TestInlineData(t *testing.T) {
 		var content bytes.Buffer
 		st.Add(&content)
 		contentStream := append(content.Bytes(), " f s /DeviceRGB cs"...)
-
 		ops, err := ParseContent(contentStream, nil)
 		if err != nil {
 			t.Fatal(err)

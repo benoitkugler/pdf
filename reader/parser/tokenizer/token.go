@@ -9,6 +9,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"io"
 	"strconv"
 	"strings"
 )
@@ -136,6 +137,10 @@ func (t Token) startsBinary() bool {
 // the iteration method `NextToken` of the Tokenizer type.
 func Tokenize(data []byte) ([]Token, error) {
 	tk := NewTokenizer(data)
+	return tk.readAll()
+}
+
+func (tk *Tokenizer) readAll() ([]Token, error) {
 	var out []Token
 	t, err := tk.NextToken()
 	for ; t.Kind != EOF && err == nil; t, err = tk.NextToken() {
@@ -151,9 +156,7 @@ func Tokenize(data []byte) ([]Token, error) {
 //
 // Comments are ignored.
 //
-// The tokenizer can't handle streams and inline image data on it's own:
-// it will stop (by returning EOF) when reached. Processing may be resumed
-// with `SetPos` method.
+// The tokenizer can't handle streams and inline image data on it's own.
 //
 // Regarding exponential numbers: 7.3.3 Numeric Objects:
 // A conforming writer shall not use the PostScript syntax for numbers
@@ -163,6 +166,8 @@ func Tokenize(data []byte) ([]Token, error) {
 // we support it in the tokenizer (no confusion with other types, so
 // no compromise).
 type Tokenizer struct {
+	src io.Reader // if not nil, 'data' will be read from it
+
 	data []byte
 
 	// since indirect reference require
@@ -181,16 +186,40 @@ type Tokenizer struct {
 	aaError error // +2
 }
 
-func NewTokenizer(data []byte) Tokenizer {
+// NewTokenizer returns a tokenizer working on the
+// given input.
+func NewTokenizer(data []byte) *Tokenizer {
 	tk := Tokenizer{data: data}
 	tk.SetPosition(0)
+	return &tk
+}
+
+// NewTokenizerFromReader supports tokenizing an input stream,
+// without knowing its length.
+// The tokenizer will call Read and buffer the data.
+// The error from the io.Read method is discarded:
+// the internal buffer is simply not grown.
+// See `SetPosition`, `SkipBytes` and `Bytes` for more information
+// of the behavior in this mode.
+func NewTokenizerFromReader(src io.Reader) *Tokenizer {
+	tk := &Tokenizer{src: src}
+	tk.SetPosition(0)
 	return tk
+}
+
+func (tk *Tokenizer) grow(size int) {
+	data := make([]byte, size)
+	n, _ := tk.src.Read(data)
+	tk.data = append(tk.data, data[:n]...)
 }
 
 // SetPosition set the position of the tokenizer in the input data.
 //
 // Most of the time, `NextToken` should be preferred, but this method may be used
 // for example to go back to a saved position.
+//
+// When using an io.Reader as source, no additional buffering is performed, meaning
+//
 func (tk *Tokenizer) SetPosition(pos int) {
 	// Internally, there are two cases where NextToken() is not sufficient:
 	// at the start (aToken and aaToken are empty)
@@ -218,10 +247,7 @@ func (pr Tokenizer) PeekPeekToken() (Token, error) {
 }
 
 func (pr Tokenizer) IsEOF() bool {
-	tk, err := pr.PeekToken()
-	if err != nil { // delay the error checking
-		return false
-	}
+	tk, _ := pr.PeekToken() // delay the error checking
 	return tk.Kind == EOF
 }
 
@@ -245,8 +271,20 @@ func (pr *Tokenizer) NextToken() (Token, error) {
 	return tk, err
 }
 
+// SkipWhitespaceStream consume the white space after a 'stream' keyword
+func (pr *Tokenizer) SkipWhitespaceStream() {
+	// The keyword stream that follows the stream dictionary shall be followed by an end-of-line marker
+	// consisting of either a CARRIAGE RETURN and a LINE FEED or just a LINE FEED, and not by a CARRIAGE
+	// RETURN alone
+	c, _ := pr.read() // delay error checking
+	if c == '\r' {
+		_, _ = pr.read()
+	}
+}
+
 // SkipBytes skips the next `n` bytes and return them. This method is useful
-// to handle streams and inline data.
+// to handle inline data.
+// If `n` is too large, it will be truncated: no additional buffering is done.
 func (pr *Tokenizer) SkipBytes(n int) []byte {
 	// use currentPos, which is the position 'expected' by the caller
 	target := pr.currentPos + n
@@ -260,6 +298,7 @@ func (pr *Tokenizer) SkipBytes(n int) []byte {
 
 // Bytes return a slice of the bytes, starting
 // from the current position.
+// When using an io.Reader, only the current internal buffer is returned.
 func (pr Tokenizer) Bytes() []byte {
 	if pr.currentPos >= len(pr.data) {
 		return nil
@@ -281,9 +320,14 @@ func IsHexChar(c byte) (uint8, bool) {
 	return c, false
 }
 
+const bufferSize = 1024 // should be enough for many pdf objects
+
 // return false if EOF, true if the moved forward
 func (pr *Tokenizer) read() (byte, bool) {
-	if pr.pos >= len(pr.data) {
+	if pr.pos >= len(pr.data) && pr.src != nil { // try and grow
+		pr.grow(bufferSize)
+	}
+	if pr.pos >= len(pr.data) { // should not happen when pr.src != nil
 		return 0, false
 	}
 	ch := pr.data[pr.pos]
@@ -302,6 +346,29 @@ func (pr Tokenizer) HasEOLBeforeToken() bool {
 		}
 	}
 	return false
+}
+
+// ReadLine read from the current position to the end of a line,
+// and returns it (without the EOL markers).
+func (pr Tokenizer) ReadLine() []byte {
+	var out []byte
+	for {
+		c, ok := pr.read()
+		if !ok {
+			return out
+		}
+		if c == '\n' {
+			return out
+		}
+		if c == '\r' {
+			c, ok := pr.read()
+			if !ok || c == '\n' {
+				return out
+			}
+			pr.pos--
+		}
+		out = append(out, c)
+	}
 }
 
 // CurrentPosition return the position in the input.
@@ -595,6 +662,9 @@ func (pr *Tokenizer) readNumber() (Token, bool) {
 func (pr *Tokenizer) readCharString(length int) Token {
 	pr.pos++ // space
 	maxL := pr.pos + length
+	if maxL >= len(pr.data) && pr.src != nil { // try to grow
+		pr.grow(maxL - len(pr.data))
+	}
 	if maxL >= len(pr.data) {
 		maxL = len(pr.data)
 	}

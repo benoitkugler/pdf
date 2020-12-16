@@ -39,7 +39,7 @@ type IndirectRef = model.ObjIndirectRef
 // An higher-level reader is needed to decode Streams and Inline Data,
 // which require knowledge on the filters used.
 type Parser struct {
-	tokens tkn.Tokenizer
+	tokens *tkn.Tokenizer
 
 	// If true, disallow Indirect Reference,
 	// but allow Commands
@@ -48,9 +48,14 @@ type Parser struct {
 	opsStack []Object // only used in content stream
 }
 
+// NewParser uses a byte slice as input.
 func NewParser(data []byte) *Parser {
-	p := &Parser{tokens: tkn.NewTokenizer(data)}
-	return p
+	return NewParserFromTokenizer(tkn.NewTokenizer(data))
+}
+
+// NewParserFromTokenizer use a tokenizer as input.
+func NewParserFromTokenizer(tokens *tkn.Tokenizer) *Parser {
+	return &Parser{tokens: tokens}
 }
 
 // ParseObject tokenizes and parses the input,

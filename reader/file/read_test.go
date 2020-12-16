@@ -24,7 +24,7 @@ func TestOffset(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	fmt.Println(len(ctx.xrefTable.Table))
+	fmt.Println(len(ctx.xrefTable))
 	// buf := make([]byte, ctx.fileSize-o)
 	// err = ctx.readAt(buf, o)
 	// if err != nil {

@@ -25,23 +25,23 @@ const (
 type Filter struct {
 	Name Name
 	// optional, boolean value are stored as 0 (false) or 1 (true)
-	DecodeParams map[string]int
+	DecodeParms map[string]int
 }
 
 // Clone returns a deep copy of the filter
 func (f Filter) Clone() Filter {
 	out := f
-	if f.DecodeParams != nil {
-		out.DecodeParams = make(map[string]int, len(f.DecodeParams))
-		for n, v := range f.DecodeParams {
-			out.DecodeParams[n] = v
+	if f.DecodeParms != nil {
+		out.DecodeParms = make(map[string]int, len(f.DecodeParms))
+		for n, v := range f.DecodeParms {
+			out.DecodeParms[n] = v
 		}
 	}
 	return out
 }
 
 func (fi Filter) DecodeReader(r io.Reader) (io.Reader, error) {
-	fil, err := filter.NewFilter(string(fi.Name), fi.DecodeParams)
+	fil, err := filter.NewFilter(string(fi.Name), fi.DecodeParms)
 	if err != nil {
 		return nil, err
 	}
@@ -68,7 +68,7 @@ var booleanNames = map[string]bool{
 	"BlackIs1":         true,
 }
 
-// type DecodeParams []map[Name]int
+// type DecodeParms []map[Name]int
 
 type Filters []Filter
 
@@ -95,7 +95,7 @@ type Stream struct {
 	// Length      int
 	Filter Filters
 
-	// DecodeParms DecodeParams
+	// DecodeParms DecodeParms
 
 	Content []byte // such as read/writen, not decoded
 }
@@ -109,7 +109,7 @@ func NewStream(content []byte, filters Filters) (Stream, error) {
 	L := len(filters)
 	reversed := make(Filters, L)
 	for i, fi := range filters {
-		fil, err := filter.NewFilter(string(fi.Name), fi.DecodeParams)
+		fil, err := filter.NewFilter(string(fi.Name), fi.DecodeParms)
 		if err != nil {
 			return Stream{}, err
 		}
@@ -160,7 +160,7 @@ func (c Stream) Clone() Stream {
 
 // ParamsForFilter is a convenience which returns
 // the additionnal arguments of the i-th filter
-// func (dc DecodeParams) ParamsForFilter(index int) map[string]int {
+// func (dc DecodeParms) ParamsForFilter(index int) map[string]int {
 // 	if index >= len(dc) {
 // 		return nil
 // 	}
@@ -184,21 +184,21 @@ func (s Stream) PDFCommonFields(withLength bool) string {
 		var st strings.Builder
 		for i, f := range s.Filter {
 			fs[i] = Name(f.Name).String()
-			if len(f.DecodeParams) == 0 {
+			if len(f.DecodeParms) == 0 {
 				st.WriteString("null ")
 				continue
 			}
 			st.WriteString("<< ")
-			for n, k := range f.DecodeParams {
+			for n, k := range f.DecodeParms {
 				var arg interface{} = k
 				if booleanNames[n] {
 					arg = k == 1
 				}
-				st.WriteString(fmt.Sprintf("%s %v ", n, arg))
+				st.WriteString(fmt.Sprintf("/%s %v ", n, arg))
 			}
 			st.WriteString(" >> ")
 		}
-		b.fmt("/Filter [%s]/DecodeParams [ %s]", strings.Join(fs, " "), st.String())
+		b.fmt("/Filter [%s]/DecodeParms [ %s]", strings.Join(fs, " "), st.String())
 	}
 	return b.String()
 }

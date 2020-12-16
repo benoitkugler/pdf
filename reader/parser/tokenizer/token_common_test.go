@@ -17,6 +17,7 @@ limitations under the License.
 package tokenizer
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"testing"
@@ -25,8 +26,7 @@ import (
 // avoid painfull freeze
 const stackOverflow = 10_000
 
-func tokenize(s string) error {
-	tk := NewTokenizer([]byte(s))
+func tokenizeOne(s string, tk *Tokenizer) error {
 	next, _ := tk.PeekToken()
 	i := 0
 	for token, err := tk.NextToken(); ; token, err = tk.NextToken() {
@@ -46,6 +46,21 @@ func tokenize(s string) error {
 		next, _ = tk.PeekToken()
 	}
 
+	return nil
+}
+
+func tokenize(s string) error {
+	tk := NewTokenizer([]byte(s))
+	err := tokenizeOne(s, tk)
+	if err != nil {
+		return fmt.Errorf("tokenize from byte slice: %s", err)
+	}
+
+	tk = NewTokenizerFromReader(bytes.NewReader([]byte(s)))
+	err = tokenizeOne(s, tk)
+	if err != nil {
+		return fmt.Errorf("tokenize from reader: %s", err)
+	}
 	return nil
 }
 
