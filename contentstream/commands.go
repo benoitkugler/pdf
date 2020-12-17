@@ -568,7 +568,7 @@ func (o OpEOClip) Add(out *bytes.Buffer) { out.WriteString("W*") }
 
 // CS
 type OpSetStrokeColorSpace struct {
-	ColorSpace model.ObjName
+	ColorSpace model.ObjName // either a ColorSpaceName, or a name of a resource
 }
 
 func (o OpSetStrokeColorSpace) Add(out *bytes.Buffer) {

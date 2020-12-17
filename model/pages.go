@@ -101,7 +101,9 @@ func (pages *PageTree) pdfString(pdf pdfWriter) string {
 	}
 	res := ""
 	if !pages.Resources.IsEmpty() {
-		res = fmt.Sprintf("/Resources %s", pdf.addObject(pages.Resources.pdfString(pdf), nil))
+		refResources := pdf.CreateObject()
+		pdf.WriteObject(pages.Resources.pdfString(pdf, refResources), nil, refResources)
+		res = fmt.Sprintf("/Resources %s", refResources)
 	}
 	content := fmt.Sprintf("<</Type/Pages/Count %d/Kids %s%s%s>>",
 		pages.Count(), writeRefArray(kidRefs), parent, res)
@@ -169,7 +171,9 @@ func (p *PageObject) pdfString(pdf pdfWriter) string {
 		b.line("/Parent %s", parentReference)
 	}
 	if !p.Resources.IsEmpty() {
-		b.line("/Resources %s", pdf.addObject(p.Resources.pdfString(pdf), nil))
+		refResources := pdf.CreateObject()
+		pdf.WriteObject(p.Resources.pdfString(pdf, refResources), nil, refResources)
+		b.line("/Resources %s", refResources)
 	}
 	if p.MediaBox != nil {
 		b.line("/MediaBox %s", p.MediaBox.String())
@@ -306,7 +310,7 @@ func (r *ResourcesDict) IsEmpty() bool {
 		len(r.Font) == 0 && len(r.XObject) == 0 && len(r.Properties) == 0
 }
 
-func (r *ResourcesDict) pdfString(pdf pdfWriter) string {
+func (r *ResourcesDict) pdfString(pdf pdfWriter, context Reference) string {
 	b := newBuffer()
 	b.line("<<")
 	if r.ExtGState != nil {
@@ -323,7 +327,7 @@ func (r *ResourcesDict) pdfString(pdf pdfWriter) string {
 			if item == nil {
 				continue
 			}
-			b.fmt("%s %s", n, item.colorSpaceWrite(pdf))
+			b.fmt("%s %s", n, item.colorSpaceWrite(pdf, context))
 		}
 		b.line(">>")
 	}

@@ -38,7 +38,7 @@ func TestWriteColorSpace(t *testing.T) {
 	cs2 := ColorSpaceIndexed{cs, 5, &ColorTableStream{}}
 
 	pdf := newWriter(new(bytes.Buffer), nil)
-	pdf.addObject(cs2.colorSpaceWrite(pdf), nil)
+	pdf.addObject(cs2.colorSpaceWrite(pdf, 0), nil)
 	if pdf.err != nil {
 		t.Error(pdf.err)
 	}

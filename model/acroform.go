@@ -887,7 +887,7 @@ func (a AcroForm) pdfString(pdf pdfWriter, catalog, acroRef Reference) string {
 		b.fmt("/CO %s", writeRefArray(refs))
 	}
 	if !a.DR.IsEmpty() {
-		ref := pdf.addObject(a.DR.pdfString(pdf), nil)
+		ref := pdf.addObject(a.DR.pdfString(pdf, acroRef), nil)
 		b.fmt("/DR %s", ref)
 	}
 	if a.DA != "" {

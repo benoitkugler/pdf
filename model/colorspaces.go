@@ -52,7 +52,7 @@ var _ ColorSpace = (*ColorSpaceICCBased)(nil)
 // ColorSpace is either a Name or a more complex object
 // The three families Device, CIE-based and Special are supported.
 type ColorSpace interface {
-	colorSpaceWrite(pdf pdfWriter) string
+	colorSpaceWrite(pdf pdfWriter, context Reference) string
 	// Return the number of color components
 	NbColorComponents() int
 }
@@ -111,7 +111,7 @@ func (n ColorSpaceName) NbColorComponents() int {
 	}
 }
 
-func (n ColorSpaceName) colorSpaceWrite(pdf pdfWriter) string {
+func (n ColorSpaceName) colorSpaceWrite(pdf pdfWriter, _ Reference) string {
 	return Name(n).String()
 }
 
@@ -126,7 +126,7 @@ type ColorSpaceCalGray struct {
 
 func (ColorSpaceCalGray) NbColorComponents() int { return 1 }
 
-func (c ColorSpaceCalGray) colorSpaceWrite(pdf pdfWriter) string {
+func (c ColorSpaceCalGray) colorSpaceWrite(pdf pdfWriter, _ Reference) string {
 	out := fmt.Sprintf("<</WhitePoint %s", writeFloatArray(c.WhitePoint[:]))
 	if c.BlackPoint != [3]Fl{} {
 		out += fmt.Sprintf("/BlackPoint %s", writeFloatArray(c.BlackPoint[:]))
@@ -149,7 +149,7 @@ type ColorSpaceCalRGB struct {
 
 func (ColorSpaceCalRGB) NbColorComponents() int { return 3 }
 
-func (c ColorSpaceCalRGB) colorSpaceWrite(pdf pdfWriter) string {
+func (c ColorSpaceCalRGB) colorSpaceWrite(pdf pdfWriter, _ Reference) string {
 	out := fmt.Sprintf("<</WhitePoint %s", writeFloatArray(c.WhitePoint[:]))
 	if c.BlackPoint != [3]Fl{} {
 		out += fmt.Sprintf("/BlackPoint %s", writeFloatArray(c.BlackPoint[:]))
@@ -174,7 +174,7 @@ type ColorSpaceLab struct {
 
 func (ColorSpaceLab) NbColorComponents() int { return 3 }
 
-func (c ColorSpaceLab) colorSpaceWrite(pdf pdfWriter) string {
+func (c ColorSpaceLab) colorSpaceWrite(pdf pdfWriter, _ Reference) string {
 	out := fmt.Sprintf("<</WhitePoint %s", writeFloatArray(c.WhitePoint[:]))
 	if c.BlackPoint != [3]Fl{} {
 		out += fmt.Sprintf("/BlackPoint %s", writeFloatArray(c.BlackPoint[:]))
@@ -200,12 +200,12 @@ func (cs ColorSpaceICCBased) NbColorComponents() int { return cs.N }
 
 // returns the stream object. `pdf` is used
 // to write potential alternate space.
-func (c *ColorSpaceICCBased) pdfContent(pdf pdfWriter, _ Reference) (string, []byte) {
+func (c *ColorSpaceICCBased) pdfContent(pdf pdfWriter, ref Reference) (string, []byte) {
 	baseArgs := c.PDFCommonFields(true)
 	b := newBuffer()
 	b.fmt("<</N %d %s", c.N, baseArgs)
 	if c.Alternate != nil {
-		b.fmt("/Alternate %s", c.Alternate.colorSpaceWrite(pdf))
+		b.fmt("/Alternate %s", c.Alternate.colorSpaceWrite(pdf, ref))
 	}
 	if len(c.Range) != 0 {
 		b.fmt("/Range %s", writePointsArray(c.Range))
@@ -214,7 +214,7 @@ func (c *ColorSpaceICCBased) pdfContent(pdf pdfWriter, _ Reference) (string, []b
 	return b.String(), c.Content
 }
 
-func (cs *ColorSpaceICCBased) colorSpaceWrite(pdf pdfWriter) string {
+func (cs *ColorSpaceICCBased) colorSpaceWrite(pdf pdfWriter, _ Reference) string {
 	ref := pdf.addItem(cs) // get or write the content stream (see ColorSpaceICCBased.pdfContent)
 	return fmt.Sprintf("[/ICCBased %s]", ref)
 }
@@ -244,10 +244,10 @@ type ColorSpaceIndexed struct {
 
 func (ColorSpaceIndexed) NbColorComponents() int { return 1 }
 
-func (c ColorSpaceIndexed) colorSpaceWrite(pdf pdfWriter) string {
+func (c ColorSpaceIndexed) colorSpaceWrite(pdf pdfWriter, ref Reference) string {
 	base := "null"
 	if c.Base != nil {
-		base = c.Base.colorSpaceWrite(pdf)
+		base = c.Base.colorSpaceWrite(pdf, ref)
 	}
 	var tableString string
 	switch table := c.Lookup.(type) {
@@ -255,7 +255,7 @@ func (c ColorSpaceIndexed) colorSpaceWrite(pdf pdfWriter) string {
 		ref := pdf.addItem(table)
 		tableString = ref.String()
 	case ColorTableBytes:
-		tableString = string(table)
+		tableString = pdf.EncodeString(string(table), HexString, ref)
 	}
 	return fmt.Sprintf("[/Indexed %s %d %s]", base, c.Hival, tableString)
 }
@@ -305,10 +305,10 @@ type ColorSpaceUncoloredPattern struct {
 
 func (ColorSpaceUncoloredPattern) NbColorComponents() int { return 0 }
 
-func (c ColorSpaceUncoloredPattern) colorSpaceWrite(pdf pdfWriter) string {
+func (c ColorSpaceUncoloredPattern) colorSpaceWrite(pdf pdfWriter, ref Reference) string {
 	under := "null"
 	if c.UnderlyingColorSpace != nil {
-		under = c.UnderlyingColorSpace.colorSpaceWrite(pdf)
+		under = c.UnderlyingColorSpace.colorSpaceWrite(pdf, ref)
 	}
 	return fmt.Sprintf("[/Pattern %s]", under)
 }
@@ -327,10 +327,10 @@ type ColorSpaceSeparation struct {
 
 func (ColorSpaceSeparation) NbColorComponents() int { return 1 }
 
-func (s ColorSpaceSeparation) colorSpaceWrite(pdf pdfWriter) string {
+func (s ColorSpaceSeparation) colorSpaceWrite(pdf pdfWriter, ref Reference) string {
 	cs := "null"
 	if s.AlternateSpace != nil {
-		cs = s.AlternateSpace.colorSpaceWrite(pdf)
+		cs = s.AlternateSpace.colorSpaceWrite(pdf, ref)
 	}
 	funcRef := pdf.addObject(s.TintTransform.pdfContent(pdf))
 	return fmt.Sprintf("[/Separation %s %s %s]", s.Name, cs, funcRef)
@@ -355,7 +355,7 @@ type ColorSpaceDeviceNAttributes struct {
 	MixingHints *ColorSpaceDeviceNMixingHints // optional
 }
 
-func (c ColorSpaceDeviceNAttributes) pdfString(pdf pdfWriter) string {
+func (c ColorSpaceDeviceNAttributes) pdfString(pdf pdfWriter, ref Reference) string {
 	out := newBuffer()
 	out.WriteString("<<")
 	if c.Subtype != "" {
@@ -363,11 +363,11 @@ func (c ColorSpaceDeviceNAttributes) pdfString(pdf pdfWriter) string {
 	}
 	out.WriteString("/Colorants <<")
 	for name, cs := range c.Colorants {
-		out.WriteString(name.String() + " " + cs.colorSpaceWrite(pdf))
+		out.WriteString(name.String() + " " + cs.colorSpaceWrite(pdf, ref))
 	}
 	out.WriteString(">>")
 	if c.Process.ColorSpace != nil {
-		out.fmt("/Process %s", c.Process.pdfString(pdf))
+		out.fmt("/Process %s", c.Process.pdfString(pdf, ref))
 	}
 	if c.MixingHints != nil {
 		out.fmt("/MixingHints %s", c.MixingHints.pdfString(pdf))
@@ -398,10 +398,10 @@ type ColorSpaceDeviceNProcess struct {
 	Components []Name     // required
 }
 
-func (c ColorSpaceDeviceNProcess) pdfString(pdf pdfWriter) string {
+func (c ColorSpaceDeviceNProcess) pdfString(pdf pdfWriter, ref Reference) string {
 	cs := "null"
 	if c.ColorSpace != nil {
-		cs = c.ColorSpace.colorSpaceWrite(pdf)
+		cs = c.ColorSpace.colorSpaceWrite(pdf, ref)
 	}
 	return fmt.Sprintf("<</ColorSpace %s/Components %s>>",
 		cs, writeNameArray(c.Components))
@@ -477,16 +477,16 @@ type ColorSpaceDeviceN struct {
 
 func (cs ColorSpaceDeviceN) NbColorComponents() int { return len(cs.Names) }
 
-func (n ColorSpaceDeviceN) colorSpaceWrite(pdf pdfWriter) string {
+func (n ColorSpaceDeviceN) colorSpaceWrite(pdf pdfWriter, ref Reference) string {
 	names := writeNameArray(n.Names)
 	alt := "null"
 	if n.AlternateSpace != nil {
-		alt = n.AlternateSpace.colorSpaceWrite(pdf)
+		alt = n.AlternateSpace.colorSpaceWrite(pdf, ref)
 	}
 	tint := pdf.addObject(n.TintTransform.pdfContent(pdf))
 	attr := ""
 	if n.Attributes != nil {
-		attr = n.Attributes.pdfString(pdf)
+		attr = n.Attributes.pdfString(pdf, ref)
 	}
 	return fmt.Sprintf("[/DeviceN %s %s %s %s]", names, alt, tint, attr)
 }

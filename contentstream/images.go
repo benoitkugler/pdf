@@ -6,9 +6,14 @@ import (
 	"encoding/binary"
 	"fmt"
 	"image/color"
+	"image/gif"
 	"image/jpeg"
+	"image/png"
 	"io"
 	"io/ioutil"
+	"mime"
+	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/benoitkugler/pdf/model"
@@ -17,8 +22,97 @@ import (
 // supports importing common image type
 // we follow the logic from gofpdf
 
+// RenderingDims defines the size of an image
+// in the page. PDF image objects don't contain such
+// information, which are added via a tranformation matrix
+// associated to the image.
+type RenderingDims struct {
+	Width, Height RenderingSize
+}
+
+// EffectiveSize performs automatic width and height calculation.
+//
+// `intrasecWidth`, `intrasecHeight` are the dimensions of the image
+// in terms of columns and rows.
+//
+// If both `Width` and `Height` are nil, the image is rendered at 96 dpi.
+// If either `Width` or `Height` is nil, it will be
+// calculated from the other dimension so that the aspect ratio is maintained.
+// Otherwise, `Width` or `Height` may be a dpi or a length.
+func (r RenderingDims) EffectiveSize(intrasecWidth, intrasecHeight int) (width Fl, height Fl) {
+	if r.Width == nil && r.Height == nil { // Put image at 96 dpi
+		r.Width = RenderingDPI(96)
+		r.Height = RenderingDPI(96)
+	}
+	// resolve the non nil values
+	if r.Width != nil {
+		width = r.Width.effectiveLength(intrasecWidth)
+	}
+	if r.Height != nil {
+		height = r.Height.effectiveLength(intrasecHeight)
+	}
+	// use ratio for nil values: the first condition
+	// ensure that not both width and height are zero
+	if r.Width == nil {
+		width = height * Fl(intrasecWidth) / Fl(intrasecHeight)
+	}
+	if r.Height == nil {
+		height = width * Fl(intrasecHeight) / Fl(intrasecWidth)
+	}
+	return width, height
+}
+
+// RenderingSize is either RenderingDPI or RenderingLength.
+type RenderingSize interface {
+	effectiveLength(intrasec int) Fl
+}
+
+// RenderingDPI specifies a length in DPI
+type RenderingDPI Fl
+
+func (dpi RenderingDPI) effectiveLength(intrasec int) Fl {
+	return Fl(intrasec) * 72.0 / Fl(dpi)
+}
+
+// RenderingLength specifies a length in user space units.
+type RenderingLength Fl
+
+func (l RenderingLength) effectiveLength(int) Fl { return Fl(l) }
+
+// ParseImageFile read the image type from the file extension.
+// See `ParseImage` for more details.
+func ParseImageFile(filename string) (*model.XObjectImage, Fl, error) {
+	ext := filepath.Ext(filename)
+	mimeType := mime.TypeByExtension(ext)
+	f, err := os.Open(filename)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer f.Close()
+	return ParseImage(f, mimeType)
+}
+
+// ParseImage supports importing JPG, JPEG, PNG and GIFF images,
+// according to the given MIME type.
+// A dpi is returned: it's a default value (72) for JPG/JPEG images,
+// and the one found in the image for PNG and GIFF.
+func ParseImage(r io.Reader, mimeType string) (*model.XObjectImage, Fl, error) {
+	switch mimeType {
+	case "image/jpeg":
+		out, err := parseJPG(r)
+		return out, 72, err
+	case "image/png":
+		return parsePNG(r)
+	case "image/gif":
+		return parseGIF(r)
+	default:
+		return nil, 0, fmt.Errorf("unsupported image format: %s", mimeType)
+	}
+}
+
 // parseJPG extracts info from io.Reader with JPEG data
-func parseJPG(r io.Reader) (out model.XObjectImage, err error) {
+func parseJPG(r io.Reader) (out *model.XObjectImage, err error) {
+	out = new(model.XObjectImage)
 	out.Content, err = ioutil.ReadAll(r)
 	if err != nil {
 		return out, err
@@ -43,6 +137,20 @@ func parseJPG(r io.Reader) (out model.XObjectImage, err error) {
 		return out, fmt.Errorf("image JPEG buffer has unsupported color space (%v)", config.ColorModel)
 	}
 	return
+}
+
+// parseGIF extracts info from a GIF data, via PNG conversion
+func parseGIF(r io.Reader) (*model.XObjectImage, Fl, error) {
+	img, err := gif.Decode(r)
+	if err != nil {
+		return nil, 0, err
+	}
+	pngBuf := new(bytes.Buffer)
+	err = png.Encode(pngBuf, img)
+	if err != nil {
+		return nil, 0, err
+	}
+	return parsePNG(pngBuf)
 }
 
 func pngColorSpace(ct byte) (cs model.ColorSpace, colorVal int, err error) {
@@ -87,7 +195,15 @@ func sliceUncompress(data []byte) (outData []byte, err error) {
 	return ioutil.ReadAll(r)
 }
 
-func parsePNG(r io.Reader, readDPI, compressPalette bool) (img model.XObjectImage, dpi float64, err error) {
+// the potential compression of the palette (for indexed color space)
+// is not done here
+// we wan't use the standard library because of the tRNS information
+// which is not exposed (and seems to modify the value of the pixels color ?)
+// so we have to write a custom png parser...
+func parsePNG(r io.Reader) (img *model.XObjectImage, dpi float64, err error) {
+	img = new(model.XObjectImage)
+	dpi = 72 // default value
+
 	buf := &bytes.Buffer{}
 	_, err = buf.ReadFrom(r)
 	if err != nil {
@@ -122,11 +238,6 @@ func parsePNG(r io.Reader, readDPI, compressPalette bool) (img model.XObjectImag
 	if err != nil {
 		return img, 0, err
 	}
-	img.Filter = model.Filters{{Name: model.Flate, DecodeParms: map[string]int{
-		"Predictor": 15,
-		"Colors":    colorVal,
-		"Columns":   img.Width,
-	}}}
 
 	if b, err := buf.ReadByte(); b != 0 || err != nil {
 		return img, 0, fmt.Errorf("unknown compression method in PNG buffer")
@@ -180,8 +291,7 @@ func parsePNG(r io.Reader, readDPI, compressPalette bool) (img model.XObjectImag
 			if err != nil {
 				return img, 0, err
 			}
-			// only modify the info block if the user wants us to
-			if x == y && readDPI {
+			if x == y {
 				switch units {
 				// if units is 1 then measurement is px/meter
 				case 1:
@@ -204,16 +314,12 @@ func parsePNG(r io.Reader, readDPI, compressPalette bool) (img model.XObjectImag
 			return img, 0, fmt.Errorf("missing palette in PNG buffer")
 		}
 		indexed.Hival = uint8(len(pal)/3 - 1)
-		if compressPalette {
-			pal = sliceCompress(pal)
+		if len(pal) >= 100 {
 			indexed.Lookup = &model.ColorTableStream{
 				Content: pal,
-				Filter:  model.Filters{{Name: model.Flate}},
 			}
 		} else {
-			indexed.Lookup = &model.ColorTableStream{
-				Content: pal,
-			}
+			indexed.Lookup = model.ColorTableBytes(pal)
 		}
 		img.ColorSpace = indexed
 	} else {
@@ -270,7 +376,15 @@ func parsePNG(r io.Reader, readDPI, compressPalette bool) (img model.XObjectImag
 		data = sliceCompress(color.Bytes())
 		smask = sliceCompress(alpha.Bytes())
 	}
-	img.Content = data
+	img.Stream = model.Stream{
+		Content: data,
+		Filter: model.Filters{{Name: model.Flate, DecodeParms: map[string]int{
+			"Predictor":        15,
+			"Colors":           colorVal,
+			"Columns":          img.Width,
+			"BitsPerComponent": int(img.BitsPerComponent),
+		}}},
+	}
 
 	// 	Soft mask
 	if len(smask) > 0 {

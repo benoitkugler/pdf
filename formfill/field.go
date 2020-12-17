@@ -46,25 +46,29 @@ func darker(c color.Color) color.RGBA {
 }
 
 func (b fieldAppearanceBuilder) drawTopFrame(app *contentstream.Appearance) {
-	app.Op(contentstream.OpMoveTo{X: b.borderWidth, Y: b.borderWidth})
-	app.Op(contentstream.OpLineTo{X: b.borderWidth, Y: b.box.Height() - b.borderWidth})
-	app.Op(contentstream.OpLineTo{X: b.box.Width() - b.borderWidth, Y: b.box.Height() - b.borderWidth})
-	app.Op(contentstream.OpLineTo{X: b.box.Width() - 2*b.borderWidth, Y: b.box.Height() - 2*b.borderWidth})
-	app.Op(contentstream.OpLineTo{X: 2 * b.borderWidth, Y: b.box.Height() - 2*b.borderWidth})
-	app.Op(contentstream.OpLineTo{X: 2 * b.borderWidth, Y: 2 * b.borderWidth})
-	app.Op(contentstream.OpLineTo{X: b.borderWidth, Y: b.borderWidth})
-	app.Op(contentstream.OpFill{})
+	app.Ops(
+		contentstream.OpMoveTo{X: b.borderWidth, Y: b.borderWidth},
+		contentstream.OpLineTo{X: b.borderWidth, Y: b.box.Height() - b.borderWidth},
+		contentstream.OpLineTo{X: b.box.Width() - b.borderWidth, Y: b.box.Height() - b.borderWidth},
+		contentstream.OpLineTo{X: b.box.Width() - 2*b.borderWidth, Y: b.box.Height() - 2*b.borderWidth},
+		contentstream.OpLineTo{X: 2 * b.borderWidth, Y: b.box.Height() - 2*b.borderWidth},
+		contentstream.OpLineTo{X: 2 * b.borderWidth, Y: 2 * b.borderWidth},
+		contentstream.OpLineTo{X: b.borderWidth, Y: b.borderWidth},
+		contentstream.OpFill{},
+	)
 }
 
 func (b fieldAppearanceBuilder) drawBottomFrame(app *contentstream.Appearance) {
-	app.Op(contentstream.OpMoveTo{X: b.borderWidth, Y: b.borderWidth})
-	app.Op(contentstream.OpLineTo{X: b.box.Width() - b.borderWidth, Y: b.borderWidth})
-	app.Op(contentstream.OpLineTo{X: b.box.Width() - b.borderWidth, Y: b.box.Height() - b.borderWidth})
-	app.Op(contentstream.OpLineTo{X: b.box.Width() - 2*b.borderWidth, Y: b.box.Height() - 2*b.borderWidth})
-	app.Op(contentstream.OpLineTo{X: b.box.Width() - 2*b.borderWidth, Y: 2 * b.borderWidth})
-	app.Op(contentstream.OpLineTo{X: 2 * b.borderWidth, Y: 2 * b.borderWidth})
-	app.Op(contentstream.OpLineTo{X: b.borderWidth, Y: b.borderWidth})
-	app.Op(contentstream.OpFill{})
+	app.Ops(
+		contentstream.OpMoveTo{X: b.borderWidth, Y: b.borderWidth},
+		contentstream.OpLineTo{X: b.box.Width() - b.borderWidth, Y: b.borderWidth},
+		contentstream.OpLineTo{X: b.box.Width() - b.borderWidth, Y: b.box.Height() - b.borderWidth},
+		contentstream.OpLineTo{X: b.box.Width() - 2*b.borderWidth, Y: b.box.Height() - 2*b.borderWidth},
+		contentstream.OpLineTo{X: b.box.Width() - 2*b.borderWidth, Y: 2 * b.borderWidth},
+		contentstream.OpLineTo{X: 2 * b.borderWidth, Y: 2 * b.borderWidth},
+		contentstream.OpLineTo{X: b.borderWidth, Y: b.borderWidth},
+		contentstream.OpFill{},
+	)
 }
 
 func (b fieldAppearanceBuilder) getBorderAppearance() contentstream.Appearance {
@@ -80,67 +84,73 @@ func (b fieldAppearanceBuilder) getBorderAppearance() contentstream.Appearance {
 	// background
 	if b.backgroundColor != nil {
 		app.SetColorFill(b.backgroundColor)
-		app.Op(contentstream.OpRectangle{X: 0, Y: 0, W: b.box.Width(), H: b.box.Height()})
-		app.Op(contentstream.OpFill{})
+		app.Ops(contentstream.OpRectangle{X: 0, Y: 0, W: b.box.Width(), H: b.box.Height()})
+		app.Ops(contentstream.OpFill{})
 	}
 	// border
 	switch b.borderStyle {
 	case "U":
 		if b.borderWidth != 0 && b.borderColor != nil {
 			app.SetColorStroke(b.borderColor)
-			app.Op(contentstream.OpSetLineWidth{W: b.borderWidth})
-			app.Op(contentstream.OpMoveTo{X: 0, Y: b.borderWidth / 2})
-			app.Op(contentstream.OpLineTo{X: b.box.Width(), Y: b.borderWidth / 2})
-			app.Op(contentstream.OpStroke{})
+			app.Ops(
+				contentstream.OpSetLineWidth{W: b.borderWidth},
+				contentstream.OpMoveTo{X: 0, Y: b.borderWidth / 2},
+				contentstream.OpLineTo{X: b.box.Width(), Y: b.borderWidth / 2},
+				contentstream.OpStroke{},
+			)
 		}
 	case "B":
 		if b.borderWidth != 0 && b.borderColor != nil {
 			app.SetColorStroke(b.borderColor)
-			app.Op(contentstream.OpSetLineWidth{W: b.borderWidth})
-			app.Op(contentstream.OpRectangle{X: b.borderWidth / 2, Y: b.borderWidth / 2, W: b.box.Width() - b.borderWidth, H: b.box.Height() - b.borderWidth})
-			app.Op(contentstream.OpStroke{})
+			app.Ops(
+				contentstream.OpSetLineWidth{W: b.borderWidth},
+				contentstream.OpRectangle{X: b.borderWidth / 2, Y: b.borderWidth / 2, W: b.box.Width() - b.borderWidth, H: b.box.Height() - b.borderWidth},
+				contentstream.OpStroke{},
+			)
 		}
 		// beveled
 		var actual color.Color = color.White
 		if b.backgroundColor != nil {
 			actual = b.backgroundColor
 		}
-		app.Op(contentstream.OpSetFillGray{G: 1})
+		app.Ops(contentstream.OpSetFillGray{G: 1})
 		b.drawTopFrame(&app)
 		app.SetColorFill(darker(actual))
 		b.drawBottomFrame(&app)
 	case "I":
 		if b.borderWidth != 0 && b.borderColor != nil {
 			app.SetColorStroke(b.borderColor)
-			app.Op(contentstream.OpSetLineWidth{W: b.borderWidth})
-			app.Op(contentstream.OpRectangle{X: b.borderWidth / 2, Y: b.borderWidth / 2, W: b.box.Width() - b.borderWidth, H: b.box.Height() - b.borderWidth})
-			app.Op(contentstream.OpStroke{})
+			app.Ops(
+				contentstream.OpSetLineWidth{W: b.borderWidth},
+				contentstream.OpRectangle{X: b.borderWidth / 2, Y: b.borderWidth / 2, W: b.box.Width() - b.borderWidth, H: b.box.Height() - b.borderWidth},
+				contentstream.OpStroke{},
+			)
 		}
 		// inset
-		app.Op(contentstream.OpSetFillGray{G: 0.5})
+		app.Ops(contentstream.OpSetFillGray{G: 0.5})
 		b.drawTopFrame(&app)
-		app.Op(contentstream.OpSetFillGray{G: 0.75})
+		app.Ops(contentstream.OpSetFillGray{G: 0.75})
 		b.drawBottomFrame(&app)
 	default:
 		if b.borderWidth != 0 && b.borderColor != nil {
 			if b.borderStyle == "D" {
-				app.Op(contentstream.OpSetDash{Dash: model.DashPattern{Array: []Fl{3}, Phase: 0}})
+				app.Ops(contentstream.OpSetDash{Dash: model.DashPattern{Array: []Fl{3}, Phase: 0}})
 			}
 			app.SetColorStroke(b.borderColor)
-			app.Op(contentstream.OpSetLineWidth{W: b.borderWidth})
-			app.Op(contentstream.OpRectangle{X: b.borderWidth / 2, Y: b.borderWidth / 2,
+			app.Ops(contentstream.OpSetLineWidth{W: b.borderWidth})
+			app.Ops(contentstream.OpRectangle{X: b.borderWidth / 2, Y: b.borderWidth / 2,
 				W: b.box.Width() - b.borderWidth, H: b.box.Height() - b.borderWidth})
-			app.Op(contentstream.OpStroke{})
+			app.Ops(contentstream.OpStroke{})
 			if m, ok := b.maxCharacterLength.(model.ObjInt); (b.options&model.Comb) != 0 && (ok && m > 1) {
 				step := b.box.Width() / Fl(m)
 				yb := b.borderWidth / 2
 				yt := b.box.Height() - b.borderWidth/2
 				for k := 1; k < int(m); k++ {
 					x := step * Fl(k)
-					app.Op(contentstream.OpMoveTo{X: x, Y: yb})
-					app.Op(contentstream.OpLineTo{X: x, Y: yt})
+					app.Ops(contentstream.OpMoveTo{X: x, Y: yb})
+					app.Ops(contentstream.OpLineTo{X: x, Y: yt})
 				}
-				app.Op(contentstream.OpStroke{})
+				app.Ops(contentstream.OpStroke{})
 			}
 		}
 	}
@@ -287,11 +297,11 @@ func (t fieldAppearanceBuilder) buildAppearance(ufont fonts.BuiltFont, fontSize 
 
 	app.SaveState()
 
-	app.Op(contentstream.OpRectangle{X: offX, Y: offX, W: t.box.Width() - 2*offX, H: t.box.Height() - 2*offX})
-	app.Op(contentstream.OpClip{})
-	app.Op(contentstream.OpEndPath{})
+	app.Ops(contentstream.OpRectangle{X: offX, Y: offX, W: t.box.Width() - 2*offX, H: t.box.Height() - 2*offX})
+	app.Ops(contentstream.OpClip{})
+	app.Ops(contentstream.OpEndPath{})
 	if t.textColor == nil {
-		app.Op(contentstream.OpSetFillGray{})
+		app.Ops(contentstream.OpSetFillGray{})
 	} else {
 		app.SetColorFill(t.textColor)
 	}
@@ -473,16 +483,16 @@ func (tx *fieldAppearanceBuilder) getListAppearance(ufont fonts.BuiltFont, fontS
 
 	app.SaveState()
 
-	app.Op(contentstream.OpRectangle{X: offsetX, Y: offsetX, W: tx.box.Width() - 2*offsetX, H: tx.box.Height() - 2*offsetX})
-	app.Op(contentstream.OpClip{})
-	app.Op(contentstream.OpEndPath{})
+	app.Ops(contentstream.OpRectangle{X: offsetX, Y: offsetX, W: tx.box.Width() - 2*offsetX, H: tx.box.Height() - 2*offsetX})
+	app.Ops(contentstream.OpClip{})
+	app.Ops(contentstream.OpEndPath{})
 	mColor := tx.textColor
 	if mColor == nil {
 		mColor = color.Gray{}
 	}
 	app.SetColorFill(color.NRGBA{R: 10, G: 36, B: 106, A: 255})
-	app.Op(contentstream.OpRectangle{X: offsetX, Y: offsetX + h - Fl(topChoice-first+1)*leading, W: tx.box.Width() - 2*offsetX, H: leading})
-	app.Op(contentstream.OpFill{})
+	app.Ops(contentstream.OpRectangle{X: offsetX, Y: offsetX + h - Fl(topChoice-first+1)*leading, W: tx.box.Width() - 2*offsetX, H: leading})
+	app.Ops(contentstream.OpFill{})
 	app.BeginText()
 	app.SetFontAndSize(ufont, usize)
 	app.SetLeading(leading)
@@ -490,7 +500,7 @@ func (tx *fieldAppearanceBuilder) getListAppearance(ufont fonts.BuiltFont, fontS
 	app.SetColorFill(mColor)
 	for idx := first; idx < last; idx++ {
 		if idx == topChoice {
-			app.Op(contentstream.OpSetFillGray{G: 1})
+			app.Ops(contentstream.OpSetFillGray{G: 1})
 			_ = app.NewlineShowText(tx.choices[idx]) // font was setup
 			app.SetColorFill(mColor)
 		} else {

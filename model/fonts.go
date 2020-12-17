@@ -321,7 +321,9 @@ func (f FontType3) fontPDFFields(pdf pdfWriter) string {
 		b.fmt("/FontDescriptor %s", fdRef)
 	}
 	if !f.Resources.IsEmpty() {
-		b.fmt("/Resources %s", f.Resources.pdfString(pdf))
+		refResources := pdf.CreateObject()
+		pdf.WriteObject(f.Resources.pdfString(pdf, refResources), nil, refResources)
+		b.fmt("/Resources %s", refResources)
 	}
 	return b.String()
 }

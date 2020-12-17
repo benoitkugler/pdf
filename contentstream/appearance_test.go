@@ -1,7 +1,6 @@
 package contentstream
 
 import (
-	"os"
 	"testing"
 
 	"github.com/benoitkugler/pdf/fonts"
@@ -19,39 +18,70 @@ func TestKerning(t *testing.T) {
 	a.SetFontAndSize(font, 12)
 	a.BeginText()
 	// a.ShowText("ceci est un test avec des è)=àéà=é")
-	a.Op(OpShowSpaceText{Texts: []fonts.TextSpaced{
+	a.Ops(OpShowSpaceText{Texts: []fonts.TextSpaced{
 		{Text: "aaaaa", SpaceSubtractedAfter: -400},
 		{Text: "bbbbb", SpaceSubtractedAfter: 200},
 		{Text: "ccccc", SpaceSubtractedAfter: 0},
 		{Text: "ddddd"},
 	}})
-	a.Op(OpTextNextLine{})
+	a.Ops(OpTextNextLine{})
 	a.MoveText(0, 40)
-	a.Op(OpShowSpaceText{Texts: []fonts.TextSpaced{
+	a.Ops(OpShowSpaceText{Texts: []fonts.TextSpaced{
 		{Text: "aaaaa", SpaceSubtractedAfter: -400},
 		{Text: "bbbbb", SpaceSubtractedAfter: 200},
 		{Text: "cccccddddd"},
 	}})
 	a.EndText()
-	fo := a.ToXFormObject()
 	var doc model.Document
 
 	doc.Catalog.Pages.Kids = []model.PageNode{
-		&model.PageObject{
-			Contents: []model.ContentStream{
-				fo.ContentStream,
-			},
-			MediaBox:  &fo.BBox,
-			Resources: &fo.Resources,
-		},
+		a.ToPageObject(),
 	}
-	f, err := os.Create("test/kerning.pdf")
+	err = doc.WriteFile("test/kerning.pdf", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer f.Close()
+}
 
-	err = doc.Write(f, nil)
+func TestImages(t *testing.T) {
+	var doc model.Document
+
+	for _, file := range imagesFiles {
+		img, _, err := ParseImageFile(file)
+		if err != nil {
+			t.Fatal(err)
+		}
+		a := NewAppearance(600, 600)
+		// default dpi
+		w, h := RenderingDims{}.EffectiveSize(img.Width, img.Height)
+		a.AddImage(img, 50, 50, w, h)
+		w2, h2 := RenderingDims{Width: RenderingLength(200)}.EffectiveSize(img.Width, img.Height)
+		a.AddImage(img, 300, 300, w2, h2)
+		doc.Catalog.Pages.Kids = append(doc.Catalog.Pages.Kids, a.ToPageObject())
+	}
+
+	err := doc.WriteFile("test/images.pdf", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestRoundedRect(t *testing.T) {
+	var doc model.Document
+
+	a := NewAppearance(600, 600)
+
+	a.Ops(RoundedRectPath(20, 20, 200, 200, 10, 20, 0, 60)...)
+	a.Ops(
+		OpSetStrokeGray{G: 0.5},
+		OpSetLineWidth{W: 3},
+		OpSetFillRGBColor{R: 0.9, G: 0.9, B: 0.1},
+		OpFillStroke{},
+	)
+
+	doc.Catalog.Pages.Kids = append(doc.Catalog.Pages.Kids, a.ToPageObject())
+
+	err := doc.WriteFile("test/rectangles.pdf", nil)
 	if err != nil {
 		t.Fatal(err)
 	}

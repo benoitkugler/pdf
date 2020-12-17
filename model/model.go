@@ -18,6 +18,7 @@ package model
 import (
 	"fmt"
 	"io"
+	"os"
 	"time"
 )
 
@@ -73,6 +74,24 @@ func (doc *Document) Write(output io.Writer, encryption *Encrypt) error {
 	wr.writeFooter(doc.Trailer, root, info, encRef)
 
 	return wr.err
+}
+
+// WriteFile writes the document in the given file.
+// See method `Write` for more information.
+func (doc *Document) WriteFile(filename string, encryption *Encrypt) error {
+	f, err := os.Create(filename)
+	if err != nil {
+		return fmt.Errorf("can't create PDF file output: %s", err)
+	}
+	err = doc.Write(f, encryption)
+	if err != nil {
+		return err
+	}
+	err = f.Close()
+	if err != nil {
+		return fmt.Errorf("can't close PDF file output: %s", err)
+	}
+	return nil
 }
 
 // Catalog contains the main contents of the document.

@@ -254,7 +254,7 @@ func (a *XObjectForm) GetStructParent() MaybeInt {
 	return a.StructParent
 }
 
-func (f *XObjectForm) pdfContent(pdf pdfWriter, _ Reference) (string, []byte) {
+func (f *XObjectForm) pdfContent(pdf pdfWriter, ref Reference) (string, []byte) {
 	args := f.ContentStream.PDFCommonFields(true)
 	b := newBuffer()
 	b.fmt("<</Subtype/Form %s/BBox %s", args, f.BBox.String())
@@ -262,7 +262,7 @@ func (f *XObjectForm) pdfContent(pdf pdfWriter, _ Reference) (string, []byte) {
 		b.fmt("/Matrix %s", f.Matrix)
 	}
 	if !f.Resources.IsEmpty() {
-		b.line("/Resources %s", f.Resources.pdfString(pdf))
+		b.line("/Resources %s", f.Resources.pdfString(pdf, ref))
 	}
 	if f.StructParent != nil {
 		b.fmt("/StructParent %d", f.StructParent.(ObjInt))
@@ -402,13 +402,13 @@ func (img *XObjectImage) GetStructParent() MaybeInt {
 	return img.StructParent
 }
 
-func (f *XObjectImage) pdfContent(pdf pdfWriter, _ Reference) (string, []byte) {
+func (f *XObjectImage) pdfContent(pdf pdfWriter, ref Reference) (string, []byte) {
 	b := newBuffer()
 	base := f.Image.PDFFields(false)
-	b.line("<</Subtype/Image" + base)
+	b.fmt("<</Subtype/Image" + base)
 
 	if f.ColorSpace != nil {
-		b.fmt("/ColorSpace %s", f.ColorSpace.colorSpaceWrite(pdf))
+		b.fmt("/ColorSpace %s", f.ColorSpace.colorSpaceWrite(pdf, ref))
 	}
 
 	if f.Mask != nil {

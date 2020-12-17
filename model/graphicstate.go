@@ -130,12 +130,12 @@ type PatternTiling struct {
 	Matrix     Matrix // optional, default to identity
 }
 
-func (t *PatternTiling) pdfContent(pdf pdfWriter, _ Reference) (string, []byte) {
+func (t *PatternTiling) pdfContent(pdf pdfWriter, ref Reference) (string, []byte) {
 	b := newBuffer()
 	common := t.ContentStream.PDFCommonFields(true)
 	b.line("<</PatternType 1 %s /PaintType %d/TilingType %d/BBox %s/XStep %.3f /YStep %.3f",
 		common, t.PaintType, t.TilingType, t.BBox, t.XStep, t.YStep)
-	b.line("/Resources %s", t.Resources.pdfString(pdf))
+	b.line("/Resources %s", t.Resources.pdfString(pdf, ref))
 	if t.Matrix != (Matrix{}) {
 		b.line("/Matrix %s", t.Matrix)
 	}
@@ -187,10 +187,13 @@ func (f ShadingFunctionBased) Clone() Shading {
 	return out
 }
 
+// BaseGradient stores attributes common to linear and radial gradients.
 type BaseGradient struct {
-	Domain   [2]Fl          // optional, default to [0 1]
-	Function []FunctionDict // either one 1 -> n function, or n 1->1 functions
-	Extend   [2]bool        // optional, default to [false, false]
+	Domain [2]Fl // optional, default to [0 1]
+	// either one 1 -> n function, or n 1->1 functions,
+	//  where n is the number of color components
+	Function []FunctionDict
+	Extend   [2]bool // optional, default to [false, false]
 }
 
 //	return the inner fields, without << >>
@@ -369,10 +372,10 @@ type ShadingDict struct {
 	AntiAlias  bool       // optional, default to false
 }
 
-func (s *ShadingDict) pdfContent(pdf pdfWriter, _ Reference) (string, []byte) {
+func (s *ShadingDict) pdfContent(pdf pdfWriter, ref Reference) (string, []byte) {
 	b := newBuffer()
 	if s.ColorSpace != nil {
-		b.fmt("/ColorSpace %s", s.ColorSpace.colorSpaceWrite(pdf))
+		b.fmt("/ColorSpace %s", s.ColorSpace.colorSpaceWrite(pdf, ref))
 	}
 	if len(s.Background) != 0 {
 		b.fmt("/Background %s", writeFloatArray(s.Background))
