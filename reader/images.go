@@ -133,14 +133,14 @@ func (r resolver) resolveImage(img pdfcpu.Object) (out model.Image, stream pdfcp
 	if !isStream {
 		return out, stream, errType("Image", img)
 	}
-	cs, err := r.resolveStream(stream)
+	cs, ok, err := r.resolveStream(stream)
 	if err != nil {
 		return out, stream, err
 	}
-	if cs == nil {
+	if !ok {
 		return out, stream, errors.New("missing stream for image")
 	}
-	out.Stream = *cs
+	out.Stream = cs
 
 	if w, ok := r.resolveInt(stream.Dict["Width"]); ok {
 		out.Width = w

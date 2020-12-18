@@ -96,7 +96,8 @@ func (ac ActionGoTo) clone(cache cloneCache) ActionType {
 }
 
 // DestinationLocation precise where and how to
-// display a destination page
+// display a destination page.
+// It is either a Name o
 // See Table 151 – Destination syntax in the SPEC.
 type DestinationLocation interface {
 	locationElements() string // return the elements of the array

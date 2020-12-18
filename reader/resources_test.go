@@ -46,3 +46,40 @@ func TestToUnicode(t *testing.T) {
 		}
 	}
 }
+
+func TestGradients(t *testing.T) {
+	doc, _, err := ParsePDFFile("test/gradients.pdf", Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var processRes func(model.ResourcesDict)
+	processRes = func(r model.ResourcesDict) {
+		for name, pattern := range r.Pattern {
+			if sh, ok := pattern.(*model.PatternShading); ok {
+				fmt.Printf("Pattern shading %s: %T\n", name, sh.Shading.ShadingType)
+				fmt.Println("Pattern state", sh.ExtGState, "pattern cm", sh.Matrix)
+			}
+		}
+		for name, state := range r.ExtGState {
+			if g := state.SMask.G; g != nil {
+				b, _ := g.Decode()
+				fmt.Println("SMask  for", name, ":", string(b))
+				processRes(g.Resources)
+			}
+		}
+		for _, obj := range r.XObject {
+			if f, ok := obj.(*model.XObjectForm); ok {
+				processRes(f.Resources)
+			}
+		}
+		for name, obj := range r.Shading {
+			fmt.Printf("Shading %s: %T\n", name, obj.ShadingType)
+		}
+	}
+	for _, page := range doc.Catalog.Pages.Flatten() {
+		if page.Resources != nil {
+			processRes(*page.Resources)
+		}
+	}
+}

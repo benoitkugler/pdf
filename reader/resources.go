@@ -238,15 +238,15 @@ func (r resolver) resolveFontT3(font pdfcpu.Dict) (out model.FontType3, err erro
 	for name, proc := range charProcsDict {
 		// char proc propably wont be shared accros fonts,
 		// so we dont track the refs
-		cs, err := r.resolveStream(proc)
+		cs, ok, err := r.resolveStream(proc)
 		if err != nil {
 			return out, err
 		}
-		if cs == nil {
+		if !ok {
 			log.Printf("missing content stream for CharProc %s\n", name)
 			continue
 		}
-		out.CharProcs[model.ObjName(name)] = model.ContentStream{Stream: *cs}
+		out.CharProcs[model.ObjName(name)] = model.ContentStream{Stream: cs}
 	}
 
 	out.Encoding, err = r.resolveEncoding(font["Encoding"])
@@ -278,16 +278,16 @@ func (r resolver) resolveFontT3(font pdfcpu.Dict) (out model.FontType3, err erro
 func (r resolver) resolveToUnicode(obj pdfcpu.Object) (*model.UnicodeCMap, error) {
 	// keep track of the ref to avoid loops
 	ref, _ := obj.(pdfcpu.IndirectRef)
-	stream, err := r.resolveStream(obj)
+	stream, ok, err := r.resolveStream(obj)
 	if err != nil {
 		return nil, err
 	}
-	if stream == nil {
+	if !ok {
 		return nil, nil
 	}
 	dict, _ := r.resolve(obj).(pdfcpu.StreamDict)
 	var out model.UnicodeCMap
-	out.Stream = *stream
+	out.Stream = stream
 	if kidRef, isRef := dict.Dict["UseCMap"].(pdfcpu.IndirectRef); isRef && kidRef == ref {
 		// invalid loop, return early
 		return &out, nil
@@ -405,13 +405,13 @@ func (r resolver) resolveFontDescriptor(entry pdfcpu.Object) (model.FontDescript
 }
 
 func (r resolver) processFontFile(object pdfcpu.Object) (*model.FontFile, error) {
-	cs, err := r.resolveStream(object)
-	if err != nil || cs == nil {
+	cs, ok, err := r.resolveStream(object)
+	if err != nil || !ok { // return nil, nil on missing stream
 		return nil, err
 	}
 
 	stream, _ := r.resolve(object).(pdfcpu.StreamDict) // here, we know object is a StreamDict
-	out := model.FontFile{Stream: *cs}
+	out := model.FontFile{Stream: cs}
 
 	out.Subtype, _ = r.resolveName(stream.Dict["Subtype"])
 
@@ -434,16 +434,13 @@ func (r resolver) resolveCMapEncoding(enc pdfcpu.Object) (model.CMapEncoding, er
 	// keep the indirect to check for invalid loop
 	ref, isRef := enc.(pdfcpu.IndirectRef)
 
-	stream, err := r.resolveStream(enc)
-	if err != nil {
+	stream, ok, err := r.resolveStream(enc)
+	if err != nil || !ok { // return nil, nil on missing stream
 		return nil, err
-	}
-	if enc == nil {
-		return nil, nil
 	}
 	encDict, _ := r.resolve(enc).(pdfcpu.StreamDict)
 	var cmap model.CMapEncodingEmbedded
-	cmap.Stream = *stream
+	cmap.Stream = stream
 	cmap.CMapName, _ = r.resolveName(encDict.Dict["CMapName"])
 	cmap.CIDSystemInfo, err = r.resolveCIDSystemInfo(encDict.Dict["CIDSystemInfo"])
 	if err != nil {
@@ -541,12 +538,12 @@ func (r resolver) resolveCIDFontDict(cid pdfcpu.Dict) (model.CIDFontDictionary, 
 	if id, _ := r.resolveName(cid["CIDToGIDMap"]); id == "Identity" {
 		out.CIDToGIDMap = model.CIDToGIDMapIdentity{}
 	} else {
-		stream, err := r.resolveStream(cid["CIDToGIDMap"])
+		stream, ok, err := r.resolveStream(cid["CIDToGIDMap"])
 		if err != nil {
 			return out, err
 		}
-		if stream != nil {
-			out.CIDToGIDMap = model.CIDToGIDMapStream{Stream: *stream}
+		if ok {
+			out.CIDToGIDMap = model.CIDToGIDMapStream{Stream: stream}
 		}
 	}
 	return out, nil
@@ -703,7 +700,10 @@ func (r resolver) resolveOneExtGState(state pdfcpu.Object) (*model.GraphicState,
 }
 
 func (r resolver) parseStateDict(state pdfcpu.Dict) (*model.GraphicState, error) {
-	var out model.GraphicState
+	var (
+		out model.GraphicState
+		err error
+	)
 
 	out.LW, _ = r.resolveNumber(state["LW"])
 	out.ML, _ = r.resolveNumber(state["ML"])
@@ -742,7 +742,58 @@ func (r resolver) parseStateDict(state pdfcpu.Dict) (*model.GraphicState, error)
 		}
 		out.Font.Font = fontModel
 	}
+
+	if bm, ok := r.resolveName(state["BM"]); ok {
+		out.BM = []model.Name{bm}
+	} else if bms, ok := r.resolveArray(state["BM"]); ok {
+		out.BM = make([]model.ObjName, len(bms))
+		for i, bm := range bms {
+			out.BM[i], _ = r.resolveName(bm)
+		}
+	}
+
+	out.SMask, err = r.resolveSoftMaskDict(state["SMask"])
+	if err != nil {
+		return nil, err
+	}
+
 	return &out, nil
+}
+
+func (r resolver) resolveSoftMaskDict(obj pdfcpu.Object) (model.SoftMaskDict, error) {
+	var out model.SoftMaskDict
+	obj = r.resolve(obj)
+	switch obj := obj.(type) {
+	case nil:
+		return out, nil
+	case pdfcpu.Name:
+		if obj == "None" {
+			out.S = "None"
+			return out, nil
+		} else {
+			return out, fmt.Errorf("invalid name on SMask entry: %s", obj)
+		}
+	case pdfcpu.Dict:
+		out.S, _ = r.resolveName(obj["S"])
+		gObj := obj["G"]
+		g, err := r.resolveXFormObjectFields(gObj)
+		if err != nil {
+			return out, err
+		}
+		// here we known resolved gObj is a valid StreamDict
+		gDict := r.resolve(gObj).(pdfcpu.StreamDict).Dict
+		out.G = &model.XObjectTransparencyGroup{XObjectForm: g}
+		group, _ := r.resolve(gDict["Group"]).(pdfcpu.Dict)
+		out.G.CS, err = r.resolveOneColorSpace(group["CS"])
+		if err != nil {
+			return out, err
+		}
+		out.G.I, _ = r.resolveBool(group["I"])
+		out.G.K, _ = r.resolveBool(group["K"])
+		return out, nil
+	default:
+		return out, errType("SoftMaskDict", obj)
+	}
 }
 
 func (r resolver) resolveColorSpace(colorSpace pdfcpu.Object) (model.ResourcesColorSpace, error) {
@@ -778,11 +829,13 @@ func (r resolver) resolveProperties(obj pdfcpu.Object) (map[model.ObjName]model.
 		for pName, pValue := range vDict {
 			// special case Metadata, which is common
 			if pName == "Metadata" && r.customResolve == nil {
-				cs, err := r.resolveStream(pValue)
+				cs, ok, err := r.resolveStream(pValue)
 				if err != nil {
 					return nil, fmt.Errorf("invalid Metadata entry: %s", err)
 				}
-				propDict["Metadata"] = model.MetadataStream{Stream: *cs}
+				if ok {
+					propDict["Metadata"] = model.MetadataStream{Stream: cs}
+				}
 			} else {
 				propDict[model.ObjName(pName)], err = r.resolveCustomObject(pValue)
 				if err != nil {

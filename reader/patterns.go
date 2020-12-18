@@ -97,6 +97,7 @@ func (r resolver) resolveOneShading(shadings pdfcpu.Object) (*model.ShadingDict,
 	return &out, nil
 }
 
+// may return nil
 func (r resolver) resolveOneColorSpace(cs pdfcpu.Object) (model.ColorSpace, error) {
 	cs = r.resolve(cs)
 	switch cs := cs.(type) {
@@ -246,14 +247,14 @@ func (r resolver) resolveICCBased(ar pdfcpu.Array) (*model.ColorSpaceICCBased, e
 		return icc, nil
 	}
 	obj := r.resolve(ar[1]) // ar[1] should be indirect, but we accept direct object
-	common, err := r.resolveStream(ar[1])
+	common, ok, err := r.resolveStream(ar[1])
 	if err != nil {
 		return nil, err
 	}
-	if common == nil {
+	if !ok {
 		return nil, errors.New("missing ICCBased stream")
 	}
-	out := model.ColorSpaceICCBased{Stream: *common}
+	out := model.ColorSpaceICCBased{Stream: common}
 	stream, _ := obj.(pdfcpu.StreamDict) // no error, ar[1] has type Stream
 
 	out.N, _ = r.resolveInt(stream.Dict["N"])
@@ -293,16 +294,16 @@ func (r resolver) resolveIndexed(ar pdfcpu.Array) (model.ColorSpaceIndexed, erro
 		out.Lookup = model.ColorTableBytes(lookupString)
 	} else { // stream
 		lookupRef, isRef := ar[3].(pdfcpu.IndirectRef)
-		cs, err := r.resolveStream(ar[3])
+		cs, ok, err := r.resolveStream(ar[3])
 		if err != nil {
 			return out, err
 		}
-		if cs == nil {
+		if !ok {
 			return out, errors.New("missing stream for lookup of Indexed color space")
 		}
-		out.Lookup = (*model.ColorTableStream)(cs)
+		out.Lookup = (*model.ColorTableStream)(&cs)
 		if isRef {
-			r.colorTableStreams[lookupRef] = (*model.ColorTableStream)(cs)
+			r.colorTableStreams[lookupRef] = (*model.ColorTableStream)(&cs)
 		}
 	}
 	return out, nil
@@ -530,14 +531,14 @@ func (r resolver) resolveRadialSh(sh pdfcpu.Dict) (model.ShadingRadial, error) {
 }
 
 func (r resolver) resolveStreamSh(sh pdfcpu.StreamDict) (model.ShadingStream, error) {
-	cs, err := r.resolveStream(sh)
+	cs, ok, err := r.resolveStream(sh)
 	if err != nil {
 		return model.ShadingStream{}, err
 	}
-	if cs == nil {
+	if !ok {
 		return model.ShadingStream{}, errors.New("missing Shading stream")
 	}
-	out := model.ShadingStream{Stream: *cs}
+	out := model.ShadingStream{Stream: cs}
 	if bi, ok := r.resolveInt(sh.Dict["BitsPerCoordinate"]); ok {
 		out.BitsPerCoordinate = uint8(bi)
 	}
@@ -644,12 +645,12 @@ func (r resolver) resolveOnePattern(pat pdfcpu.Object) (model.Pattern, error) {
 }
 
 func (r resolver) resolveTilingPattern(pat pdfcpu.StreamDict) (*model.PatternTiling, error) {
-	cs, err := r.resolveStream(pat)
+	cs, _, err := r.resolveStream(pat)
 	if err != nil {
 		return nil, err
 	}
-	// since pat is not a ref, cs can't be nil
-	out := model.PatternTiling{ContentStream: model.ContentStream{Stream: *cs}}
+	// since pat is not a ref, ok must be true
+	out := model.PatternTiling{ContentStream: model.ContentStream{Stream: cs}}
 
 	if pt, ok := r.resolveInt(pat.Dict["PaintType"]); ok {
 		out.PaintType = uint8(pt)

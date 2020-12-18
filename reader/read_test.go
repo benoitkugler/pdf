@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"os"
 	"strings"
@@ -26,7 +25,7 @@ func init() {
 	// the PDF spec is used in several tests, but is heavy
 	// so, when working on isolated test, you may want to avoid loading it
 	// by commenting this line
-	loadPDFSpec()
+	// loadPDFSpec()
 
 	// generatePDFs()
 }
@@ -385,10 +384,11 @@ func TestType1C(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				err = ioutil.WriteFile(string(font.Subtype.FontName())+".cff", b, os.ModePerm)
-				if err != nil {
-					t.Error(err)
-				}
+				fmt.Println("skipping Type1C font with length", len(b))
+				// err = ioutil.WriteFile(string(font.Subtype.FontName())+".cff", b, os.ModePerm)
+				// if err != nil {
+				// 	t.Error(err)
+				// }
 				// ft, err := sfnt.Parse(bytes.NewReader(b))
 				// // ft, err := sfnt.Parse(b)
 				// if err != nil {

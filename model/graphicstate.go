@@ -38,6 +38,111 @@ func (f FontStyle) clone(cache cloneCache) FontStyle {
 	return out
 }
 
+// XObjectTransparencyGroup
+// See Table 147 – Additional entries specific to a transparency group attributes dictionary
+type XObjectTransparencyGroup struct {
+	XObjectForm
+
+	// the followings are written in PDF under a /Group dict.
+	CS ColorSpace
+	I  bool // optional, default value: false
+	K  bool // optional, default value: false
+}
+
+func (tg *XObjectTransparencyGroup) pdfContent(pdf pdfWriter, ref Reference) (string, []byte) {
+	base := tg.XObjectForm.commonFields(pdf, ref)
+	gDict := "<</S/Transparency"
+	if tg.CS != nil {
+		gDict += "/CS " + tg.CS.colorSpaceWrite(pdf, ref)
+	}
+	if tg.I {
+		gDict += "/I true"
+	}
+	if tg.K {
+		gDict += "/K true"
+	}
+	gDict += ">>"
+	return "<<" + base + "/G " + gDict + ">>", tg.Content
+}
+
+func (tg *XObjectTransparencyGroup) clone(cache cloneCache) Referenceable {
+	if tg == nil {
+		return tg
+	}
+	out := *tg
+	out.XObjectForm = *(tg.XObjectForm.clone(cache).(*XObjectForm))
+	out.CS = cloneColorSpace(tg.CS, cache)
+	return &out
+}
+
+// FunctionTransfer is either the name /Identity
+// or FunctionDict (1 -> 1)
+type FunctionTransfer interface {
+	functionTransferPDFString(pdf pdfWriter) string
+	cloneFunctionTransfer(cache cloneCache) FunctionTransfer
+}
+
+func (n Name) functionTransferPDFString(pdf pdfWriter) string    { return n.String() }
+func (n Name) cloneFunctionTransfer(cloneCache) FunctionTransfer { return n }
+
+func (f *FunctionDict) functionTransferPDFString(pdf pdfWriter) string {
+	ref := pdf.addItem(f)
+	return ref.String()
+}
+func (f *FunctionDict) cloneFunctionTransfer(cache cloneCache) FunctionTransfer {
+	return cache.checkOrClone(f).(*FunctionDict)
+}
+
+// SoftMaskDict
+// See Table 144 – Entries in a soft-mask dictionary
+// In addition, we use the following convention:
+//	- S == "" means 'nil' (not specified)
+//	- S == /None means the name None
+//	- other value means normal dictionary
+type SoftMaskDict struct {
+	S  Name                      // required
+	G  *XObjectTransparencyGroup // required
+	BC []Fl                      // optional, length: number of color components
+	TR FunctionTransfer          // optional
+}
+
+func (s SoftMaskDict) pdfString(pdf pdfWriter) string {
+	if s.S == "None" {
+		return s.S.String()
+	}
+	out := "<</S" + s.S.String()
+	if s.G != nil {
+		ref := pdf.addItem(s.G)
+		out += "/G " + ref.String()
+	}
+	if len(s.BC) != 0 {
+		out += "/BC " + writeFloatArray(s.BC)
+	}
+	if s.TR != nil {
+		out += "/TR " + s.TR.functionTransferPDFString(pdf)
+	}
+	out += ">>"
+	return out
+}
+
+func (s SoftMaskDict) clone(cache cloneCache) SoftMaskDict {
+	out := s
+	out.G = cache.checkOrClone(s.G).(*XObjectTransparencyGroup)
+	out.BC = append([]Fl(nil), s.BC...)
+	if s.TR != nil {
+		out.TR = s.TR.cloneFunctionTransfer(cache)
+	}
+	return out
+}
+
+// GraphicState precises parameters in the graphics state.
+// See Table 58 – Entries in a Graphics State Parameter Dictionary
+// TODO: The following entries are not yet supported:
+//	- OP, op, OPM
+//	- BG, BG2, UCR, UCR2, TR, TR2
+//	- HT
+//	- FL
+//	- TK
 type GraphicState struct {
 	LW   Fl
 	LC   MaybeInt // optional, >= 0
@@ -46,11 +151,16 @@ type GraphicState struct {
 	D    *DashPattern // optional
 	RI   Name
 	Font FontStyle  // font and size
-	CA   MaybeFloat // optional, >= 0
-	Ca   MaybeFloat // non-stroking, optional, >= 0
-	AIS  bool
 	SM   MaybeFloat // optional
 	SA   bool
+	// Blend mode
+	// See Table 136 – Standard separable blend modes
+	// and Table 137 – Standard nonseparable blend modes
+	BM    []Name       // 1-element array are written in PDF as a singlename
+	SMask SoftMaskDict // optional
+	CA    MaybeFloat   // optional, >= 0
+	Ca    MaybeFloat   // non-stroking, optional, >= 0
+	AIS   bool
 }
 
 func (g *GraphicState) pdfContent(pdf pdfWriter, _ Reference) (string, []byte) {
@@ -77,6 +187,20 @@ func (g *GraphicState) pdfContent(pdf pdfWriter, _ Reference) (string, []byte) {
 	if g.Font.Font != nil {
 		b.fmt("/Font %s", g.Font.pdfString(pdf))
 	}
+	if g.SM != nil {
+		b.fmt("/SM %.3f", g.SM.(ObjFloat))
+	}
+	if g.SA {
+		b.fmt("/SA %v", g.SA)
+	}
+	if len(g.BM) == 1 {
+		b.WriteString("/BM " + g.BM[0].String())
+	} else if len(g.BM) > 1 {
+		b.WriteString("/BM " + writeNameArray(g.BM))
+	}
+	if g.SMask.S != "" {
+		b.WriteString("/SMask " + g.SMask.pdfString(pdf))
+	}
 	if g.CA != nil {
 		b.fmt("/CA %.3f", g.CA.(ObjFloat))
 	}
@@ -85,12 +209,6 @@ func (g *GraphicState) pdfContent(pdf pdfWriter, _ Reference) (string, []byte) {
 	}
 	if g.AIS {
 		b.fmt("/AIS %v", g.AIS)
-	}
-	if g.SM != nil {
-		b.fmt("/SM %.3f", g.SM.(ObjFloat))
-	}
-	if g.SA {
-		b.fmt("/SA %v", g.SA)
 	}
 	b.WriteString(">>")
 	return b.String(), nil
@@ -103,6 +221,8 @@ func (g *GraphicState) clone(cache cloneCache) Referenceable {
 	out := *g // shallow copy
 	out.D = g.D.Clone()
 	out.Font = g.Font.clone(cache)
+	out.BM = append([]Name(nil), g.BM...)
+	out.SMask = g.SMask.clone(cache)
 	return &out
 }
 

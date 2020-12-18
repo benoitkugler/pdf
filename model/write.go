@@ -267,21 +267,22 @@ type Referenceable interface {
 	pdfContent(pdf pdfWriter, objectRef Reference) (content string, stream []byte)
 }
 
-func (*FontDict) IsReferenceable()           {}
-func (*GraphicState) IsReferenceable()       {}
-func (*SimpleEncodingDict) IsReferenceable() {}
-func (*AnnotationDict) IsReferenceable()     {}
-func (*FileSpec) IsReferenceable()           {}
-func (*EmbeddedFileStream) IsReferenceable() {}
-func (*ShadingDict) IsReferenceable()        {}
-func (*FunctionDict) IsReferenceable()       {}
-func (*PatternTiling) IsReferenceable()      {}
-func (*PatternShading) IsReferenceable()     {}
-func (*ColorSpaceICCBased) IsReferenceable() {}
-func (*ColorTableStream) IsReferenceable()   {}
-func (*XObjectForm) IsReferenceable()        {}
-func (*XObjectImage) IsReferenceable()       {}
-func (*ImageSMask) IsReferenceable()         {}
+func (*FontDict) IsReferenceable()                 {}
+func (*GraphicState) IsReferenceable()             {}
+func (*SimpleEncodingDict) IsReferenceable()       {}
+func (*AnnotationDict) IsReferenceable()           {}
+func (*FileSpec) IsReferenceable()                 {}
+func (*EmbeddedFileStream) IsReferenceable()       {}
+func (*ShadingDict) IsReferenceable()              {}
+func (*FunctionDict) IsReferenceable()             {}
+func (*PatternTiling) IsReferenceable()            {}
+func (*PatternShading) IsReferenceable()           {}
+func (*ColorSpaceICCBased) IsReferenceable()       {}
+func (*ColorTableStream) IsReferenceable()         {}
+func (*XObjectForm) IsReferenceable()              {}
+func (*XObjectTransparencyGroup) IsReferenceable() {}
+func (*XObjectImage) IsReferenceable()             {}
+func (*ImageSMask) IsReferenceable()               {}
 
 // check the cache and write a new item if not found
 func (pdf pdfWriter) addItem(item Referenceable) Reference {

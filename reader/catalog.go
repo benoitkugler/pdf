@@ -103,39 +103,53 @@ func (r resolver) resolveOneXObjectForm(obj pdfcpu.Object) (*model.XObjectForm, 
 	if out := r.xObjectForms[xObjRef]; isRef && out != nil {
 		return out, nil
 	}
-	obj = r.resolve(obj)
-	cs, err := r.resolveStream(obj)
+
+	out, err := r.resolveXFormObjectFields(obj)
 	if err != nil {
 		return nil, err
 	}
-	if cs == nil {
-		return nil, errors.New("missing Form XObject")
+
+	if isRef {
+		r.xObjectForms[xObjRef] = &out
 	}
+	return &out, nil
+}
+
+// return an error if resolved obj is nil
+// do not register the ref
+func (r resolver) resolveXFormObjectFields(obj pdfcpu.Object) (model.XObjectForm, error) {
+	var out model.XObjectForm
+	obj = r.resolve(obj)
+	cs, ok, err := r.resolveStream(obj)
+	if err != nil {
+		return out, err
+	}
+	if !ok {
+		return out, errors.New("missing Form XObject")
+	}
+	out.ContentStream = model.ContentStream{Stream: cs}
+
 	stream, _ := obj.(pdfcpu.StreamDict) // here, we are sure obj is a stream
-	ap := model.XObjectForm{ContentStream: model.ContentStream{Stream: *cs}}
 	if rect := r.rectangleFromArray(r.resolve(stream.Dict["BBox"])); rect != nil {
-		ap.BBox = *rect
+		out.BBox = *rect
 	}
 	if mat := r.matrixFromArray(r.resolve(stream.Dict["Matrix"])); mat != nil {
-		ap.Matrix = *mat
+		out.Matrix = *mat
 	}
 	if res := stream.Dict["Resources"]; res != nil {
 		var err error
-		ap.Resources, err = r.resolveOneResourceDict(res)
+		out.Resources, err = r.resolveOneResourceDict(res)
 		if err != nil {
-			return nil, err
+			return out, err
 		}
 	}
 	if st, ok := r.resolveInt(stream.Dict["StructParent"]); ok {
-		ap.StructParent = model.ObjInt(st)
+		out.StructParent = model.ObjInt(st)
 	} else if st, ok := r.resolveInt(stream.Dict["StructParents"]); ok {
-		ap.StructParents = model.ObjInt(st)
+		out.StructParents = model.ObjInt(st)
 	}
 
-	if isRef {
-		r.xObjectForms[xObjRef] = &ap
-	}
-	return &ap, nil
+	return out, nil
 }
 
 // The value of this entry shall be a dictionary in which

@@ -111,7 +111,7 @@ func (n ColorSpaceName) NbColorComponents() int {
 	}
 }
 
-func (n ColorSpaceName) colorSpaceWrite(pdf pdfWriter, _ Reference) string {
+func (n ColorSpaceName) colorSpaceWrite(pdfWriter, Reference) string {
 	return Name(n).String()
 }
 
@@ -332,7 +332,7 @@ func (s ColorSpaceSeparation) colorSpaceWrite(pdf pdfWriter, ref Reference) stri
 	if s.AlternateSpace != nil {
 		cs = s.AlternateSpace.colorSpaceWrite(pdf, ref)
 	}
-	funcRef := pdf.addObject(s.TintTransform.pdfContent(pdf))
+	funcRef := pdf.addObject(s.TintTransform.pdfContent(pdf, ref))
 	return fmt.Sprintf("[/Separation %s %s %s]", s.Name, cs, funcRef)
 }
 
@@ -435,7 +435,9 @@ func (c ColorSpaceDeviceNMixingHints) pdfString(pdf pdfWriter) string {
 	if len(c.DotGain) != 0 {
 		b.WriteString("/DotGain <<")
 		for name, f := range c.DotGain {
-			ref := pdf.addObject(f.pdfContent(pdf))
+			ref := pdf.CreateObject()
+			st, by := f.pdfContent(pdf, ref)
+			pdf.WriteObject(st, by, ref)
 			b.fmt("%s %s", name, ref)
 		}
 		b.WriteString(">>")
@@ -483,7 +485,7 @@ func (n ColorSpaceDeviceN) colorSpaceWrite(pdf pdfWriter, ref Reference) string 
 	if n.AlternateSpace != nil {
 		alt = n.AlternateSpace.colorSpaceWrite(pdf, ref)
 	}
-	tint := pdf.addObject(n.TintTransform.pdfContent(pdf))
+	tint := pdf.addObject(n.TintTransform.pdfContent(pdf, ref))
 	attr := ""
 	if n.Attributes != nil {
 		attr = n.Attributes.pdfString(pdf, ref)

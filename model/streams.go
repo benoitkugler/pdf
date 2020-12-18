@@ -254,10 +254,11 @@ func (a *XObjectForm) GetStructParent() MaybeInt {
 	return a.StructParent
 }
 
-func (f *XObjectForm) pdfContent(pdf pdfWriter, ref Reference) (string, []byte) {
+// inner dict fields
+func (f XObjectForm) commonFields(pdf pdfWriter, ref Reference) string {
 	args := f.ContentStream.PDFCommonFields(true)
 	b := newBuffer()
-	b.fmt("<</Subtype/Form %s/BBox %s", args, f.BBox.String())
+	b.fmt("/Subtype/Form %s/BBox %s", args, f.BBox.String())
 	if f.Matrix != (Matrix{}) {
 		b.fmt("/Matrix %s", f.Matrix)
 	}
@@ -269,8 +270,12 @@ func (f *XObjectForm) pdfContent(pdf pdfWriter, ref Reference) (string, []byte) 
 	} else if f.StructParents != nil {
 		b.fmt("/StructParents %d", f.StructParent.(ObjInt))
 	}
-	b.fmt(">>")
-	return b.String(), f.Content
+	return b.String()
+}
+
+func (f *XObjectForm) pdfContent(pdf pdfWriter, ref Reference) (string, []byte) {
+	base := f.commonFields(pdf, ref)
+	return "<<" + base + ">>", f.Content
 }
 
 // clone returns a deep copy of the form

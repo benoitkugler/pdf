@@ -131,8 +131,8 @@ func (r resolver) textOrStream(object pdfcpu.Object) string {
 	content := r.resolve(object)
 	var jsString string
 	if stream, ok := content.(pdfcpu.StreamDict); ok {
-		s, _ := r.resolveStream(stream)
-		if s != nil {
+		s, ok, _ := r.resolveStream(stream)
+		if ok {
 			decoded, err := s.Decode()
 			if err != nil { // best effort: we return the raw stream
 				log.Println("failed to decode text stream", err)

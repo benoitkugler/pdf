@@ -29,7 +29,7 @@ type FunctionDict struct {
 
 // pdfContent return the object content of `f`
 // `pdf` is used to write and reference the sub-functions of a `StitchingFunction`
-func (f FunctionDict) pdfContent(pdf pdfWriter) (string, []byte) {
+func (f *FunctionDict) pdfContent(pdf pdfWriter, _ Reference) (string, []byte) {
 	baseArgs := fmt.Sprintf("/Domain %s", writeRangeArray(f.Domain))
 	if len(f.Range) != 0 {
 		baseArgs += fmt.Sprintf("/Range %s", writeRangeArray(f.Range))
@@ -61,11 +61,19 @@ func (f FunctionDict) Clone() FunctionDict {
 	return out
 }
 
+func (f *FunctionDict) clone(cloneCache) Referenceable {
+	if f == nil {
+		return f
+	}
+	out := f.Clone()
+	return &out
+}
+
 // convenience: write the functions and returns the corresponding reference
 func (pdf pdfWriter) writeFunctions(fns []FunctionDict) []Reference {
 	refs := make([]Reference, len(fns))
 	for i, f := range fns {
-		refs[i] = pdf.addObject(f.pdfContent(pdf))
+		refs[i] = pdf.addObject(f.pdfContent(pdf, 0))
 	}
 	return refs
 }

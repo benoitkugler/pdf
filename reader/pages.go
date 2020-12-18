@@ -44,16 +44,17 @@ func (r resolver) allocatesPages(pages pdfcpu.Object) {
 	}
 }
 
-func (r resolver) resolveStream(content pdfcpu.Object) (*model.Stream, error) {
+// return false instead of an error for null values
+func (r resolver) resolveStream(content pdfcpu.Object) (model.Stream, bool, error) {
+	var out model.Stream
 	content = r.resolve(content)
 	if content == nil {
-		return nil, nil
+		return out, false, nil
 	}
 	stream, ok := content.(pdfcpu.StreamDict)
 	if !ok {
-		return nil, errType("Content stream", content)
+		return out, false, errType("Content stream", content)
 	}
-	var out model.Stream
 	// length will be deduced from the content
 	out.Content = stream.Raw
 	filters := r.resolve(stream.Dict["Filter"])
@@ -71,19 +72,19 @@ func (r resolver) resolveStream(content pdfcpu.Object) (*model.Stream, error) {
 	switch decode := decode.(type) {
 	case pdfcpu.Array: // one dict param per filter
 		if len(decode) != len(out.Filter) {
-			return nil, fmt.Errorf("unexpected length for DecodeParms array: %d", len(decode))
+			return out, false, fmt.Errorf("unexpected length for DecodeParms array: %d", len(decode))
 		}
 		for i, parms := range decode {
 			out.Filter[i].DecodeParms = r.processDecodeParms(parms)
 		}
 	case pdfcpu.Dict: // one filter and one dict param
 		if len(out.Filter) != 1 {
-			return nil, errType("DecodeParms", decode)
+			return out, false, errType("DecodeParms", decode)
 		}
 		out.Filter[0].DecodeParms = r.processDecodeParms(decode)
 	}
 
-	return &out, nil
+	return out, true, nil
 }
 
 // `page` has been previously allocated and must be filled
@@ -111,21 +112,21 @@ func (r resolver) resolvePageObject(node pdfcpu.Dict, page *model.PageObject) er
 	case pdfcpu.Array: // array of streams
 		page.Contents = make([]model.ContentStream, 0, len(contents))
 		for _, v := range contents {
-			ct, err := r.resolveStream(v)
+			ct, ok, err := r.resolveStream(v)
 			if err != nil {
 				return err
 			}
-			if ct != nil { // invalid content stream are just ignored
-				page.Contents = append(page.Contents, model.ContentStream{Stream: *ct})
+			if ok { // invalid content stream are just ignored
+				page.Contents = append(page.Contents, model.ContentStream{Stream: ct})
 			}
 		}
 	case pdfcpu.StreamDict:
-		ct, err := r.resolveStream(contents)
+		ct, ok, err := r.resolveStream(contents)
 		if err != nil {
 			return err
 		}
-		if ct != nil {
-			page.Contents = append(page.Contents, model.ContentStream{Stream: *ct})
+		if ok {
+			page.Contents = append(page.Contents, model.ContentStream{Stream: ct})
 		}
 	}
 
@@ -713,14 +714,14 @@ func (r resolver) resolveFileContent(fileEntry pdfcpu.Object) (*model.EmbeddedFi
 		out.Params.ModDate, _ = pdfcpu.DateTime(md)
 	}
 
-	cs, err := r.resolveStream(stream)
+	cs, ok, err := r.resolveStream(stream)
 	if err != nil {
 		return nil, err
 	}
-	if cs == nil {
+	if !ok {
 		return nil, errors.New("missing file content stream")
 	}
-	out.Stream = *cs
+	out.Stream = cs
 	if isFileRef { // write back to the cache
 		r.fileContents[fileEntryRef] = &out
 	}
