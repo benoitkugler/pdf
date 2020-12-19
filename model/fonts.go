@@ -51,24 +51,24 @@ type FontDescriptor struct {
 // font is used to choose the key for the potential FontFile
 func (f FontDescriptor) pdfString(pdf pdfWriter, font Font, context Reference) string {
 	b := newBuffer()
-	b.line("<</Type/FontDescriptor/FontName %s/Flags %d/FontBBox %s/ItalicAngle %.3f/Ascent %.3f/Descent %.3f",
+	b.line("<</Type/FontDescriptor/FontName %s/Flags %d/FontBBox %s/ItalicAngle %g/Ascent %g/Descent %g",
 		f.FontName, f.Flags, f.FontBBox.String(), f.ItalicAngle, f.Ascent, f.Descent)
 	if f.Leading != 0 {
-		b.fmt("/Leading %.3f ", f.Leading)
+		b.fmt("/Leading %g ", f.Leading)
 	}
-	b.fmt("/CapHeight %.3f ", f.CapHeight)
+	b.fmt("/CapHeight %g ", f.CapHeight)
 	if f.XHeight != 0 {
-		b.fmt("/XHeight %.3f ", f.XHeight)
+		b.fmt("/XHeight %g ", f.XHeight)
 	}
-	b.fmt("/StemV %.3f ", f.StemV)
+	b.fmt("/StemV %g ", f.StemV)
 	if f.StemH != 0 {
-		b.fmt("/StemH %.3f ", f.StemH)
+		b.fmt("/StemH %g ", f.StemH)
 	}
 	if f.AvgWidth != 0 {
-		b.fmt("/AvgWidth %.3f ", f.AvgWidth)
+		b.fmt("/AvgWidth %g ", f.AvgWidth)
 	}
 	if f.MaxWidth != 0 {
-		b.fmt("/MaxWidth %.3f ", f.MaxWidth)
+		b.fmt("/MaxWidth %g ", f.MaxWidth)
 	}
 	if f.MissingWidth != 0 {
 		b.fmt("/MissingWidth %d ", f.MissingWidth)

@@ -35,7 +35,7 @@ func TestKerning(t *testing.T) {
 	var doc model.Document
 
 	doc.Catalog.Pages.Kids = []model.PageNode{
-		a.ToPageObject(),
+		a.ToPageObject(false),
 	}
 	err = doc.WriteFile("test/kerning.pdf", nil)
 	if err != nil {
@@ -57,7 +57,7 @@ func TestImages(t *testing.T) {
 		a.AddImage(img, 50, 50, w, h)
 		w2, h2 := RenderingDims{Width: RenderingLength(200)}.EffectiveSize(img.Width, img.Height)
 		a.AddImage(img, 300, 300, w2, h2)
-		doc.Catalog.Pages.Kids = append(doc.Catalog.Pages.Kids, a.ToPageObject())
+		doc.Catalog.Pages.Kids = append(doc.Catalog.Pages.Kids, a.ToPageObject(false))
 	}
 
 	err := doc.WriteFile("test/images.pdf", nil)
@@ -79,7 +79,7 @@ func TestRoundedRect(t *testing.T) {
 		OpFillStroke{},
 	)
 
-	doc.Catalog.Pages.Kids = append(doc.Catalog.Pages.Kids, a.ToPageObject())
+	doc.Catalog.Pages.Kids = append(doc.Catalog.Pages.Kids, a.ToPageObject(false))
 
 	err := doc.WriteFile("test/rectangles.pdf", nil)
 	if err != nil {

@@ -65,6 +65,7 @@ func TestGradients(t *testing.T) {
 			if g := state.SMask.G; g != nil {
 				b, _ := g.Decode()
 				fmt.Println("SMask  for", name, ":", string(b))
+				fmt.Println("BBox for soft max Xobject", g.BBox)
 				processRes(g.Resources)
 			}
 		}

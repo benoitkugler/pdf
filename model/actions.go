@@ -127,7 +127,7 @@ type DestinationLocationXYZ struct {
 }
 
 func (d DestinationLocationXYZ) locationElements() string {
-	return fmt.Sprintf("/XYZ %s %s %.3f",
+	return fmt.Sprintf("/XYZ %s %s %g",
 		writeMaybeFloat(d.Left), writeMaybeFloat(d.Top), d.Zoom)
 }
 
@@ -137,7 +137,7 @@ type DestinationLocationFitR struct {
 }
 
 func (d DestinationLocationFitR) locationElements() string {
-	return fmt.Sprintf("/FitR %.3f %.3f %.3f %.3f",
+	return fmt.Sprintf("/FitR %g %g %g %g",
 		d.Left, d.Bottom, d.Right, d.Top)
 }
 

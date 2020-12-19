@@ -310,10 +310,48 @@ func (r *ResourcesDict) IsEmpty() bool {
 		len(r.Font) == 0 && len(r.XObject) == 0 && len(r.Properties) == 0
 }
 
+// ShallowCopy returns a new resources dict,
+// with new maps, containing the same pointer values.
+// As a consequence, inserting or deleting resources
+// will not affect the original, but mutating the resources
+// themselves will.
+func (r ResourcesDict) ShallowCopy() ResourcesDict {
+	var out ResourcesDict
+	out.ExtGState = make(map[Name]*GraphicState, len(r.ExtGState))
+	for n, v := range r.ExtGState {
+		out.ExtGState[n] = v
+	}
+	out.ColorSpace = make(map[Name]ColorSpace, len(r.ColorSpace))
+	for n, v := range r.ColorSpace {
+		out.ColorSpace[n] = v
+	}
+	out.Shading = make(map[Name]*ShadingDict, len(r.Shading))
+	for n, v := range r.Shading {
+		out.Shading[n] = v
+	}
+	out.Pattern = make(map[Name]Pattern, len(r.Pattern))
+	for n, v := range r.Pattern {
+		out.Pattern[n] = v
+	}
+	out.Font = make(map[Name]*FontDict, len(r.Font))
+	for n, v := range r.Font {
+		out.Font[n] = v
+	}
+	out.XObject = make(map[Name]XObject, len(r.XObject))
+	for n, v := range r.XObject {
+		out.XObject[n] = v
+	}
+	out.Properties = make(map[Name]PropertyList, len(r.Properties))
+	for n, v := range r.Properties {
+		out.Properties[n] = v
+	}
+	return out
+}
+
 func (r *ResourcesDict) pdfString(pdf pdfWriter, context Reference) string {
 	b := newBuffer()
 	b.line("<<")
-	if r.ExtGState != nil {
+	if len(r.ExtGState) != 0 {
 		b.fmt("/ExtGState <<")
 		for n, item := range r.ExtGState {
 			ref := pdf.addItem(item)
@@ -321,7 +359,7 @@ func (r *ResourcesDict) pdfString(pdf pdfWriter, context Reference) string {
 		}
 		b.line(">>")
 	}
-	if r.ColorSpace != nil {
+	if len(r.ColorSpace) != 0 {
 		b.fmt("/ColorSpace <<")
 		for n, item := range r.ColorSpace {
 			if item == nil {
@@ -331,7 +369,7 @@ func (r *ResourcesDict) pdfString(pdf pdfWriter, context Reference) string {
 		}
 		b.line(">>")
 	}
-	if r.Shading != nil {
+	if len(r.Shading) != 0 {
 		b.fmt("/Shading <<")
 		for n, item := range r.Shading {
 			ref := pdf.addItem(item)
@@ -339,7 +377,7 @@ func (r *ResourcesDict) pdfString(pdf pdfWriter, context Reference) string {
 		}
 		b.line(">>")
 	}
-	if r.Pattern != nil {
+	if len(r.Pattern) != 0 {
 		b.fmt("/Pattern <<")
 		for n, item := range r.Pattern {
 			ref := pdf.addItem(item)
@@ -347,7 +385,7 @@ func (r *ResourcesDict) pdfString(pdf pdfWriter, context Reference) string {
 		}
 		b.line(">>")
 	}
-	if r.Font != nil {
+	if len(r.Font) != 0 {
 		b.fmt("/Font <<")
 		for n, item := range r.Font {
 			ref := pdf.addItem(item)
@@ -355,7 +393,7 @@ func (r *ResourcesDict) pdfString(pdf pdfWriter, context Reference) string {
 		}
 		b.line(">>")
 	}
-	if r.XObject != nil {
+	if len(r.XObject) != 0 {
 		b.fmt("/XObject <<")
 		for n, item := range r.XObject {
 			ref := pdf.addItem(item)
@@ -363,7 +401,7 @@ func (r *ResourcesDict) pdfString(pdf pdfWriter, context Reference) string {
 		}
 		b.line(">>")
 	}
-	if r.Properties != nil {
+	if len(r.Properties) != 0 {
 		b.fmt("/Properties <<")
 		for n, item := range r.Properties {
 			ref := pdf.CreateObject()

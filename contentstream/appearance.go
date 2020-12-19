@@ -45,29 +45,36 @@ func NewAppearance(width, height Fl) Appearance {
 	return Appearance{
 		bBox: model.Rectangle{Urx: width, Ury: height},
 		resources: model.ResourcesDict{
-			Font:    make(map[model.ObjName]*model.FontDict),
-			XObject: make(map[model.ObjName]model.XObject),
-			Shading: make(map[model.ObjName]*model.ShadingDict),
+			Font:      make(map[model.ObjName]*model.FontDict),
+			XObject:   make(map[model.ObjName]model.XObject),
+			Shading:   make(map[model.ObjName]*model.ShadingDict),
+			ExtGState: make(map[model.ObjName]*model.GraphicState),
+			Pattern:   make(map[model.ObjName]model.Pattern),
 		},
 	}
 }
 
 // ToXFormObject write the appearance to a new object,
-// and associate it the resources.
-// The content is not filtred
-func (ap Appearance) ToXFormObject() *model.XObjectForm {
+// and associate it the resources, which are shallow copied.
+// The content is optionaly compressed with the Flater filter.
+func (ap Appearance) ToXFormObject(compress bool) *model.XObjectForm {
 	out := new(model.XObjectForm)
 	out.BBox = ap.bBox
 	// out.Matrix = ap.matrix
-	out.Resources = ap.resources
+	out.Resources = ap.resources.ShallowCopy()
 	out.Content = WriteOperations(ap.ops...)
+	if compress {
+		out.Content = sliceCompress(out.Content)
+		out.Filter = model.Filters{{Name: model.Flate}}
+	}
 	return out
 }
 
 // ToPageObject return a page with a single Content,
 // build from the appearance.
-func (ap Appearance) ToPageObject() *model.PageObject {
-	fo := ap.ToXFormObject()
+// The content is optionaly compressed with the Flater filter.
+func (ap Appearance) ToPageObject(compress bool) *model.PageObject {
+	fo := ap.ToXFormObject(compress)
 	return &model.PageObject{
 		Contents: []model.ContentStream{
 			fo.ContentStream,
@@ -81,21 +88,6 @@ func (ap Appearance) ToPageObject() *model.PageObject {
 // to also update the state: see the other methods.
 func (ap *Appearance) Ops(op ...Operation) {
 	ap.ops = append(ap.ops, op...)
-}
-
-func clamp(ch, a uint32) Fl {
-	if ch < 0 {
-		return 0
-	}
-	if ch > a {
-		return 1
-	}
-	return Fl(ch) / Fl(a)
-}
-
-func colorRGB(c color.Color) (r, g, b Fl) {
-	cr, cg, cb, ca := c.RGBA()
-	return clamp(cr, ca), clamp(cg, ca), clamp(cb, ca)
 }
 
 func (app *Appearance) SetColorFill(c color.Color) {
@@ -116,7 +108,7 @@ func (ap Appearance) addFont(newFont *model.FontDict) model.ObjName {
 		}
 	}
 	// this convention must be respected so that the names are distincts
-	name := model.ObjName(fmt.Sprintf("Font%d", len(ap.resources.Font)))
+	name := model.ObjName(fmt.Sprintf("FT%d", len(ap.resources.Font)))
 	ap.resources.Font[name] = newFont
 	return name
 }
@@ -226,7 +218,7 @@ func (ap *Appearance) addXobject(xobj model.XObject) model.Name {
 		}
 	}
 	// this convention must be respected so that the names are distincts
-	name := model.ObjName(fmt.Sprintf("XObject%d", len(ap.resources.XObject)))
+	name := model.ObjName(fmt.Sprintf("XO%d", len(ap.resources.XObject)))
 	ap.resources.XObject[name] = xobj
 	return name
 }

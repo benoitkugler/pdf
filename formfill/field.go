@@ -275,7 +275,7 @@ func (t fieldAppearanceBuilder) buildAppearance(ufont fonts.BuiltFont, fontSize 
 	app.BeginVariableText()
 	if t.text == "" {
 		app.EndVariableText()
-		return app.ToXFormObject()
+		return app.ToXFormObject(true)
 	}
 
 	fd := ufont.Desc()
@@ -431,7 +431,7 @@ func (t fieldAppearanceBuilder) buildAppearance(ufont fonts.BuiltFont, fontSize 
 	app.EndText()
 	_ = app.RestoreState() // it's clear the call are balanced
 	app.EndVariableText()
-	return app.ToXFormObject()
+	return app.ToXFormObject(true)
 }
 
 func (tx *fieldAppearanceBuilder) getListAppearance(ufont fonts.BuiltFont, fontSize Fl) (*model.XObjectForm, int) {
@@ -439,7 +439,7 @@ func (tx *fieldAppearanceBuilder) getListAppearance(ufont fonts.BuiltFont, fontS
 	app.BeginVariableText()
 	if len(tx.choices) == 0 {
 		app.EndVariableText()
-		return app.ToXFormObject(), tx.topFirst
+		return app.ToXFormObject(true), tx.topFirst
 	}
 	topChoice := tx.choiceSelection
 	if topChoice >= len(tx.choices) {
@@ -510,5 +510,5 @@ func (tx *fieldAppearanceBuilder) getListAppearance(ufont fonts.BuiltFont, fontS
 	app.EndText()
 	_ = app.RestoreState() // calls are balanced
 	app.EndVariableText()
-	return app.ToXFormObject(), tx.topFirst
+	return app.ToXFormObject(true), tx.topFirst
 }

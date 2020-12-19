@@ -9,7 +9,7 @@ type DashPattern struct {
 
 // String returns a description as a PDF array.
 func (d DashPattern) String() string {
-	return fmt.Sprintf("[%s %.3f]", writeFloatArray(d.Array), d.Phase)
+	return fmt.Sprintf("[%s %g]", writeFloatArray(d.Array), d.Phase)
 }
 
 // Clone returns a deep copy
@@ -29,7 +29,7 @@ type FontStyle struct {
 
 func (f FontStyle) pdfString(pdf pdfWriter) string {
 	ref := pdf.addItem(f.Font)
-	return fmt.Sprintf("[%s %.3f]", ref, f.Size)
+	return fmt.Sprintf("[%s %g]", ref, f.Size)
 }
 
 func (f FontStyle) clone(cache cloneCache) FontStyle {
@@ -62,7 +62,7 @@ func (tg *XObjectTransparencyGroup) pdfContent(pdf pdfWriter, ref Reference) (st
 		gDict += "/K true"
 	}
 	gDict += ">>"
-	return "<<" + base + "/G " + gDict + ">>", tg.Content
+	return "<<" + base + "/Group " + gDict + ">>", tg.Content
 }
 
 func (tg *XObjectTransparencyGroup) clone(cache cloneCache) Referenceable {
@@ -167,7 +167,7 @@ func (g *GraphicState) pdfContent(pdf pdfWriter, _ Reference) (string, []byte) {
 	b := newBuffer()
 	b.WriteString("<<")
 	if g.LW != 0 {
-		b.fmt("/LW %.3f", g.LW)
+		b.fmt("/LW %g", g.LW)
 	}
 	if g.LC != nil {
 		b.fmt("/LC %d", g.LC.(ObjInt))
@@ -176,7 +176,7 @@ func (g *GraphicState) pdfContent(pdf pdfWriter, _ Reference) (string, []byte) {
 		b.fmt("/LJ %d", g.LJ.(ObjInt))
 	}
 	if g.ML != 0 {
-		b.fmt("/ML %.3f", g.ML)
+		b.fmt("/ML %g", g.ML)
 	}
 	if g.D != nil {
 		b.fmt("/D %s", *g.D)
@@ -188,7 +188,7 @@ func (g *GraphicState) pdfContent(pdf pdfWriter, _ Reference) (string, []byte) {
 		b.fmt("/Font %s", g.Font.pdfString(pdf))
 	}
 	if g.SM != nil {
-		b.fmt("/SM %.3f", g.SM.(ObjFloat))
+		b.fmt("/SM %g", g.SM.(ObjFloat))
 	}
 	if g.SA {
 		b.fmt("/SA %v", g.SA)
@@ -202,10 +202,10 @@ func (g *GraphicState) pdfContent(pdf pdfWriter, _ Reference) (string, []byte) {
 		b.WriteString("/SMask " + g.SMask.pdfString(pdf))
 	}
 	if g.CA != nil {
-		b.fmt("/CA %.3f", g.CA.(ObjFloat))
+		b.fmt("/CA %g", g.CA.(ObjFloat))
 	}
 	if g.Ca != nil {
-		b.fmt("/ca %.3f", g.Ca.(ObjFloat))
+		b.fmt("/ca %g", g.Ca.(ObjFloat))
 	}
 	if g.AIS {
 		b.fmt("/AIS %v", g.AIS)
@@ -253,7 +253,7 @@ type PatternTiling struct {
 func (t *PatternTiling) pdfContent(pdf pdfWriter, ref Reference) (string, []byte) {
 	b := newBuffer()
 	common := t.ContentStream.PDFCommonFields(true)
-	b.line("<</PatternType 1 %s /PaintType %d/TilingType %d/BBox %s/XStep %.3f /YStep %.3f",
+	b.line("<</PatternType 1 %s /PaintType %d/TilingType %d/BBox %s/XStep %g /YStep %g",
 		common, t.PaintType, t.TilingType, t.BBox, t.XStep, t.YStep)
 	b.line("/Resources %s", t.Resources.pdfString(pdf, ref))
 	if t.Matrix != (Matrix{}) {

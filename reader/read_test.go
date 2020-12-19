@@ -404,3 +404,39 @@ func TestType1C(t *testing.T) {
 		}
 	}
 }
+
+func TestDecrompress(t *testing.T) {
+	file := "test/gradient_spread.pdf"
+	doc, _, err := ParsePDFFile(file, Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	decrompress := func(s *model.ContentStream) {
+		fmt.Println("found content stream")
+		b, err := s.Decode()
+		if err != nil {
+			t.Fatal(err)
+		}
+		s.Stream = model.Stream{ // remove filters
+			Content: b,
+		}
+	}
+	for _, page := range doc.Catalog.Pages.Flatten() {
+		for i := range page.Contents {
+			decrompress(&page.Contents[i])
+		}
+		if page.Resources == nil {
+			continue
+		}
+		for _, xo := range page.Resources.XObject {
+			if form, ok := xo.(*model.XObjectForm); ok {
+				decrompress(&form.ContentStream)
+			}
+		}
+	}
+
+	err = doc.WriteFile(file+"_clear.pdf", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+}

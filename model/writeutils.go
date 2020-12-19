@@ -12,7 +12,7 @@ func writeMaybeFloat(f MaybeFloat) string {
 	if f == nil {
 		return "null"
 	}
-	return fmt.Sprintf("%.3f", f.(ObjFloat))
+	return fmt.Sprintf("%g", f.(ObjFloat))
 }
 
 func writeIntArray(as []int) string {
@@ -26,7 +26,7 @@ func writeIntArray(as []int) string {
 func writeFloatArray(as []Fl) string {
 	b := make([]string, len(as))
 	for i, a := range as {
-		b[i] = fmt.Sprintf("%.3f", a)
+		b[i] = fmt.Sprintf("%g", a)
 	}
 	return fmt.Sprintf("[%s]", strings.Join(b, " "))
 }
@@ -42,7 +42,7 @@ func writeRefArray(as []Reference) string {
 func writePointArray(rs [][2]Fl) string {
 	b := make([]string, len(rs))
 	for i, a := range rs {
-		b[i] = fmt.Sprintf("%.3f %.3f ", a[0], a[1])
+		b[i] = fmt.Sprintf("%g %g ", a[0], a[1])
 	}
 	return fmt.Sprintf("[%s]", strings.Join(b, " "))
 }
@@ -50,7 +50,7 @@ func writePointArray(rs [][2]Fl) string {
 func writeRangeArray(rs []Range) string {
 	b := make([]string, len(rs))
 	for i, a := range rs {
-		b[i] = fmt.Sprintf("%.3f %.3f ", a[0], a[1])
+		b[i] = fmt.Sprintf("%g %g ", a[0], a[1])
 	}
 	return fmt.Sprintf("[%s]", strings.Join(b, " "))
 }
@@ -58,7 +58,7 @@ func writeRangeArray(rs []Range) string {
 func writePointsArray(rs [][2]Fl) string {
 	b := make([]string, len(rs))
 	for i, a := range rs {
-		b[i] = fmt.Sprintf("%.3f %.3f ", a[0], a[1])
+		b[i] = fmt.Sprintf("%g %g ", a[0], a[1])
 	}
 	return fmt.Sprintf("[%s]", strings.Join(b, " "))
 }
