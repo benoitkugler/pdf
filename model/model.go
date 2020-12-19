@@ -10,7 +10,6 @@
 // will take care to encode them when needed. They are a few exceptions, where
 // ASCII strings are required: it is then up to the user to make sure
 // the given string is ASCII.
-// TODO: remove encoding hints from comments of string fields
 //
 // The entry point of the package is the type `Document`.
 package model
@@ -40,11 +39,13 @@ type Document struct {
 }
 
 // Clone returns a deep copy of the document.
-// It may be useful when we want to load
+// It may be useful for example when we want to load
 // a 'template' document once at server startup, and then
-// modyfing it for each request.
+// modifyng it for each request.
 // For every type implementing `Referenceable`, the equalities
-// between pointers are preserved.
+// between pointers are preserved, meaning that if a pointer is
+// used twice in the original document, it will also be used twice in
+// the clone (and not duplicated).
 func (doc *Document) Clone() Document {
 	out := *doc
 	out.Trailer = doc.Trailer.Clone()
