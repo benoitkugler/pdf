@@ -10,6 +10,7 @@ var imagesFiles = [...]string{
 	"test/test_alpha.png",
 	"test/test_indexed.png",
 	"test/test.jpg",
+	"test/test.tiff",
 	"test/test.gif",
 	"test/from_gif.png",
 	"test/test.png",

@@ -57,6 +57,8 @@ func TestImages(t *testing.T) {
 		a.AddImage(img, 50, 50, w, h)
 		w2, h2 := RenderingDims{Width: RenderingLength(200)}.EffectiveSize(img.Width, img.Height)
 		a.AddImage(img, 300, 300, w2, h2)
+
+		// one image per page
 		doc.Catalog.Pages.Kids = append(doc.Catalog.Pages.Kids, a.ToPageObject(false))
 	}
 

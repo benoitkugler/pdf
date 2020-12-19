@@ -17,6 +17,7 @@ import (
 	"strings"
 
 	"github.com/benoitkugler/pdf/model"
+	"golang.org/x/image/tiff"
 )
 
 // supports importing common image type
@@ -105,6 +106,8 @@ func ParseImage(r io.Reader, mimeType string) (*model.XObjectImage, Fl, error) {
 		return parsePNG(r)
 	case "image/gif":
 		return parseGIF(r)
+	case "image/tiff":
+		return parseTIFF(r)
 	default:
 		return nil, 0, fmt.Errorf("unsupported image format: %s", mimeType)
 	}
@@ -139,9 +142,24 @@ func parseJPG(r io.Reader) (out *model.XObjectImage, err error) {
 	return
 }
 
-// parseGIF extracts info from a GIF data, via PNG conversion
+// parseGIF imports the first image from a GIF file, via PNG conversion
 func parseGIF(r io.Reader) (*model.XObjectImage, Fl, error) {
 	img, err := gif.Decode(r)
+	if err != nil {
+		return nil, 0, err
+	}
+	pngBuf := new(bytes.Buffer)
+	err = png.Encode(pngBuf, img)
+	if err != nil {
+		return nil, 0, err
+	}
+	return parsePNG(pngBuf)
+}
+
+// parseTIFF import a TIFF image, via PNG conversion
+// TODO: is it better to use LZW filter directly ? How ?
+func parseTIFF(r io.Reader) (*model.XObjectImage, Fl, error) {
+	img, err := tiff.Decode(r)
 	if err != nil {
 		return nil, 0, err
 	}
