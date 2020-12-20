@@ -196,3 +196,19 @@ func TestEOL(t *testing.T) {
 		t.Error()
 	}
 }
+
+func TestStreamSpace(t *testing.T) {
+	inputs := [][]byte{
+		[]byte("stream\r\nsd2sssd3"),
+		[]byte("stream\n  sd2ssd3"),
+	}
+	expected := []int{8, 7}
+	for i, input := range inputs {
+		tk := NewTokenizer(input)
+		tk.NextToken()
+		p := tk.StreamPosition()
+		if exp := expected[i]; p != exp {
+			t.Errorf("expected %d, got %d", exp, p)
+		}
+	}
+}

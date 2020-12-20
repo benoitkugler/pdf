@@ -266,9 +266,9 @@ func BenchmarkWrite(b *testing.B) {
 
 func TestEmbeddedTTF(t *testing.T) {
 	for _, file := range [...]string{
-		// "test/symbolic_ttf.pdf",
-		// "test/ModeleRecuFiscalEditable.pdf",
-		// "test/ttf.pdf",
+		"test/symbolic_ttf.pdf",
+		"test/ModeleRecuFiscalEditable.pdf",
+		"test/ttf.pdf",
 		"test/ttf_kerning.pdf",
 	} {
 		doc, _, err := ParsePDFFile(file, Options{})

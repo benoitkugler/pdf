@@ -218,8 +218,7 @@ func (tk *Tokenizer) grow(size int) {
 // Most of the time, `NextToken` should be preferred, but this method may be used
 // for example to go back to a saved position.
 //
-// When using an io.Reader as source, no additional buffering is performed, meaning
-//
+// When using an io.Reader as source, no additional buffering is performed.
 func (tk *Tokenizer) SetPosition(pos int) {
 	// Internally, there are two cases where NextToken() is not sufficient:
 	// at the start (aToken and aaToken are empty)
@@ -271,15 +270,25 @@ func (pr *Tokenizer) NextToken() (Token, error) {
 	return tk, err
 }
 
-// SkipWhitespaceStream consume the white space after a 'stream' keyword
-func (pr *Tokenizer) SkipWhitespaceStream() {
+// StreamPosition returns the position of the
+// begining of a stream, taking into account
+// white spaces.
+// See 7.3.8.1 - General
+func (pr *Tokenizer) StreamPosition() int {
 	// The keyword stream that follows the stream dictionary shall be followed by an end-of-line marker
 	// consisting of either a CARRIAGE RETURN and a LINE FEED or just a LINE FEED, and not by a CARRIAGE
 	// RETURN alone
-	c, _ := pr.read() // delay error checking
-	if c == '\r' {
-		_, _ = pr.read()
+	pos := pr.currentPos
+	if pos+2 >= len(pr.data) && pr.src != nil {
+		pr.grow(2)
 	}
+	if pos < len(pr.data) && pr.data[pos] == '\r' {
+		pos++
+	}
+	if pos < len(pr.data) && pr.data[pos] == '\n' {
+		return pos + 1
+	}
+	return pos
 }
 
 // SkipBytes skips the next `n` bytes and return them. This method is useful
@@ -346,29 +355,6 @@ func (pr Tokenizer) HasEOLBeforeToken() bool {
 		}
 	}
 	return false
-}
-
-// ReadLine read from the current position to the end of a line,
-// and returns it (without the EOL markers).
-func (pr Tokenizer) ReadLine() []byte {
-	var out []byte
-	for {
-		c, ok := pr.read()
-		if !ok {
-			return out
-		}
-		if c == '\n' {
-			return out
-		}
-		if c == '\r' {
-			c, ok := pr.read()
-			if !ok || c == '\n' {
-				return out
-			}
-			pr.pos--
-		}
-		out = append(out, c)
-	}
 }
 
 // CurrentPosition return the position in the input.

@@ -1,6 +1,7 @@
 package file
 
 import (
+	"bufio"
 	"bytes"
 	"errors"
 	"fmt"
@@ -103,13 +104,16 @@ func NewDefaultConfiguration() *Configuration {
 	return &Configuration{}
 }
 
-func (ctx *Context) readAt(p []byte, offset int64) error {
+// allocate a slice with length `size` and read at `offset`
+// into it
+func (ctx *Context) readAt(size int, offset int64) ([]byte, error) {
 	_, err := ctx.rs.Seek(offset, io.SeekStart)
 	if err != nil {
-		return err
+		return nil, err
 	}
+	p := make([]byte, size)
 	_, err = ctx.rs.Read(p)
-	return err
+	return p, err
 }
 
 // Get the file offset of the last XRefSection.
@@ -222,8 +226,7 @@ func (ctx *Context) buildXRefTableStartingAt(offset int64) (err error) {
 
 		offs[offset] = true
 
-		buf := make([]byte, ctx.fileSize-offset)
-		err = ctx.readAt(buf, offset)
+		buf, err := ctx.readAt(int(ctx.fileSize-offset), offset)
 		if err != nil {
 			return err
 		}
@@ -266,6 +269,8 @@ func (ctx *Context) buildXRefTableStartingAt(offset int64) (err error) {
 func (ctx *Context) parseXRefSection(tk *tok.Tokenizer, ssCount int) (int64, int, error) {
 	// Process all sub sections of this xRef section.
 	for {
+		fmt.Println(ssCount, string(tk.Bytes())[0:20])
+
 		err := ctx.xrefTable.parseXRefTableSubSection(tk)
 		if err != nil {
 			return 0, 0, err
@@ -305,7 +310,8 @@ func (xrefTable *xrefTable) parseXRefTableSubSection(tk *tok.Tokenizer) error {
 
 	// Process all entries of this subsection into xrefTable entries.
 	for i := 0; i < objCount; i++ {
-		if err := xrefTable.parseXRefTableEntry(tk, startObjNumber+i); err != nil {
+		err = xrefTable.parseXRefTableEntry(tk, startObjNumber+i)
+		if err != nil {
 			return err
 		}
 	}
@@ -327,7 +333,7 @@ func (xrefTable xrefTable) parseXRefTableEntry(tk *tok.Tokenizer, objectNumber i
 	}
 	offset, err := strconv.ParseInt(offsetTk.Value, 10, 64)
 	if err != nil {
-		return err
+		return fmt.Errorf("parseXRefTableEntry: invalid offset: %s", err)
 	}
 
 	generation, err := parseInt(tk)
@@ -487,7 +493,47 @@ func (ctx *Context) parseHybridXRefStream(offset int64) error {
 	return err
 }
 
-// TODO:
+type lineReader struct {
+	src    *bufio.Reader
+	offset int64
+	buf    []byte // avoid allocations
+}
+
+func newLineReader(f io.Reader) lineReader {
+	return lineReader{src: bufio.NewReader(f)}
+}
+
+func (l *lineReader) read() (byte, bool) {
+	c, err := l.src.ReadByte()
+	if err != nil {
+		return 0, false
+	}
+	l.offset += 1
+	return c, true
+}
+
+// return the line and the offset of the first byte in the
+// underlying file
+// the returned slice will be mutated in the next call
+func (l *lineReader) readLine() ([]byte, int64) {
+	// consume initial empty lines
+	c, ok := l.read()
+	for ; c == '\n' || c == '\r'; c, ok = l.read() {
+	}
+	if !ok {
+		return nil, 0
+	}
+	offset := l.offset - 1
+	l.buf = l.buf[:0] // do not re-allocate
+	for {
+		l.buf = append(l.buf, c)
+		c, ok = l.read()
+		if !ok || c == '\n' || c == '\r' {
+			return l.buf, offset
+		}
+	}
+}
+
 // bypassXrefSection is a hack for digesting corrupt xref sections.
 // It populates the xRefTable by reading in all indirect objects line by line
 // and works on the assumption of a single xref section - meaning no incremental updates have been made.
@@ -502,76 +548,73 @@ func (ctx *Context) bypassXrefSection() error {
 	if err != nil {
 		return err
 	}
-	tk := tok.NewTokenizerFromReader(ctx.rs)
+	lr := newLineReader(ctx.rs)
 
 	var (
-		withinObj     bool
-		withinXref    bool
-		withinTrailer bool
+		withinObj  bool
+		withinXref bool
 	)
-
 	for {
-		line := tk.ReadLine()
+		line, lineOffset := lr.readLine()
 		if len(line) == 0 {
-			break
+			return nil
 		}
-		if withinXref {
-			// offset += int64(len(line) + eolCount)
-			if withinTrailer {
-				i := bytes.Index(line, []byte("startxref"))
-				if i >= 0 {
-					// Parse trailer.
-					_, err = ctx.processTrailer(tk)
+		tk := tok.NewTokenizer(line)
+		firstToken, _ := tk.PeekToken()
+
+		if withinObj { // lookfor "endobj"
+			if firstToken.Kind == tok.Other && firstToken.Value == "endobj" {
+				withinObj = false
+			}
+		} else if withinXref {
+			if firstToken.Kind == tok.Other && firstToken.Value == "trailer" {
+				// consume the token and read the end of the file
+				_, _ = tk.NextToken()
+				pos := lineOffset + int64(tk.CurrentPosition())
+				buf, err := ctx.readAt(int(ctx.fileSize-pos), pos)
+				if err != nil {
 					return err
 				}
-				continue
+				tk = tok.NewTokenizer(buf)
+				_, err = ctx.processTrailer(tk)
+				return err
 			}
 			// Ignore all until "trailer".
-			i := bytes.Index(line, []byte("trailer"))
-			if i >= 0 {
-				// bb = append(bb, line...)
-				withinTrailer = true
-			}
-			continue
-		}
-		i := bytes.Index(line, []byte("xref"))
-		if i >= 0 {
-			// offset += int64(len(line) + eolCount)
+		} else if firstToken.Kind == tok.Other && firstToken.Value == "xref" {
 			withinXref = true
-			continue
-		}
-		if !withinObj {
-			i := bytes.Index(line, []byte("obj"))
-			if i >= 0 {
+		} else { // look for a declaration object XXX XX obj
+			objNr, generation, err := parseObjectDeclaration(tk)
+			if err == nil {
+				ctx.xrefTable[objNr] = xrefEntry{
+					free: false,
+					// we do not account for potential whitespace
+					// is this an issue ?
+					offset:     lineOffset,
+					generation: generation,
+				}
 				withinObj = true
-				// off = offset
-				// bb = append(bb, line[:i+3]...)
 			}
-			// offset += int64(len(line) + eolCount)
-			continue
-		}
-
-		// within obj
-		// offset += int64(len(line) + eolCount)
-		// bb = append(bb, ' ')
-		// bb = append(bb, line...)
-		i = bytes.Index(line, []byte("endobj"))
-		if i >= 0 {
-			// l := string(bb)
-			// objNr, generation, err := parseObjectAttributes(&l)
-			// if err != nil {
-			// 	return err
-			// }
-			// of := off
-			// ctx.Table[*objNr] = &XRefTableEntry{
-			// 	Free:       false,
-			// 	Offset:     &of,
-			// 	Generation: generation}
-			// bb = nil
-			withinObj = false
 		}
 	}
-	return nil
+}
+
+func parseObjectDeclaration(tk *tok.Tokenizer) (objectNumber, generationNumber int, err error) {
+	objectNumber, err = parseInt(tk)
+	if err != nil {
+		return
+	}
+	generationNumber, err = parseInt(tk)
+	if err != nil {
+		return
+	}
+	objTk, err := tk.NextToken()
+	if err != nil {
+		return
+	}
+	if !(objTk.Kind == tok.Other && objTk.Value == "obj") {
+		err = fmt.Errorf("parseObjectDeclaration: unexpected token %v", objTk)
+	}
+	return
 }
 
 // return the previous offset (0 if it does not exists)
@@ -583,20 +626,9 @@ func (ctx *Context) parseXRefStream(offset int64) (int64, error) {
 
 	tk := tok.NewTokenizerFromReader(ctx.rs)
 
-	objectNumber, err := parseInt(tk)
+	objectNumber, generationNumber, err := parseObjectDeclaration(tk)
 	if err != nil {
 		return 0, err
-	}
-	generationNumber, err := parseInt(tk)
-	if err != nil {
-		return 0, err
-	}
-	objTk, err := tk.NextToken()
-	if err != nil {
-		return 0, err
-	}
-	if objTk != (tok.Token{Kind: tok.Other, Value: "obj"}) {
-		return 0, fmt.Errorf("parseXRefStream: unexpected token %v", objTk)
 	}
 
 	// parse this object
@@ -618,9 +650,8 @@ func (ctx *Context) parseXRefStream(offset int64) (int64, error) {
 	if streamStart != (tok.Token{Kind: tok.Other, Value: "stream"}) {
 		return 0, fmt.Errorf("unexpected token %s", streamStart)
 	}
-	tk.SkipWhitespaceStream()
 
-	streamOffset := offset + int64(tk.CurrentPosition())
+	streamOffset := offset + int64(tk.StreamPosition())
 
 	sd, decoded, err := ctx.xRefStreamDict(d, streamOffset)
 	if err != nil {
@@ -672,8 +703,7 @@ func (ctx *Context) xRefStreamDict(d parser.Dict, streamOffset int64) (xrefStrea
 	var content []byte
 	if len(filterPipeline) == 0 {
 		length := details.count() * details.entrySize()
-		content = make([]byte, length)
-		err := ctx.readAt(content, streamOffset)
+		content, err = ctx.readAt(length, streamOffset)
 		if err != nil {
 			return details, nil, err
 		}
@@ -682,8 +712,7 @@ func (ctx *Context) xRefStreamDict(d parser.Dict, streamOffset int64) (xrefStrea
 		if err != nil {
 			return details, nil, err
 		}
-		content = make([]byte, details.length)
-		err = ctx.readAt(content, streamOffset)
+		content, err = ctx.readAt(details.length, streamOffset)
 		if err != nil && err != io.EOF {
 			return details, nil, err
 		}
