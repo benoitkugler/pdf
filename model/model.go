@@ -115,6 +115,7 @@ type Catalog struct {
 	// may be found as an array in a PDF file.
 	OpenAction Action
 	URI        string // optional, ASCII string, written in PDF as a dictionary
+	Lang       string
 }
 
 // returns the Dictionary of `cat`
@@ -181,6 +182,9 @@ func (cat *Catalog) pdfString(pdf pdfWriter, catalog Reference) string {
 	}
 	if cat.OpenAction.ActionType != nil {
 		b.line("/OpenAction %s", cat.OpenAction.pdfString(pdf, catalog))
+	}
+	if cat.Lang != "" {
+		b.fmt("/Lang " + pdf.EncodeString(cat.Lang, TextString, catalog))
 	}
 	b.fmt(">>")
 

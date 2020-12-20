@@ -436,6 +436,9 @@ func (r resolver) catalog() (model.Catalog, error) {
 		return out, err
 	}
 
+	lang, _ := isString(r.resolve(d["Lang"]))
+	out.Lang = decodeTextString(lang)
+
 	return out, nil
 }
 
