@@ -266,9 +266,10 @@ func BenchmarkWrite(b *testing.B) {
 
 func TestEmbeddedTTF(t *testing.T) {
 	for _, file := range [...]string{
-		"test/symbolic_ttf.pdf",
-		"test/ModeleRecuFiscalEditable.pdf",
-		"test/ttf.pdf",
+		// "test/symbolic_ttf.pdf",
+		// "test/ModeleRecuFiscalEditable.pdf",
+		// "test/ttf.pdf",
+		"test/ttf_kerning.pdf",
 	} {
 		doc, _, err := ParsePDFFile(file, Options{})
 		if err != nil {
@@ -283,26 +284,6 @@ func TestEmbeddedTTF(t *testing.T) {
 							t.Fatal(err)
 						}
 						fmt.Println(ttf.Encoding)
-						// b, err := ttf.FontDescriptor.FontFile.Decode()
-						// if err != nil {
-						// 	t.Fatal(err)
-						// }
-						// err = ioutil.WriteFile("font.ttf", b, os.ModePerm)
-						// if err != nil {
-						// 	t.Error(err)
-						// }
-						// ft, err := sfnt.Parse(bytes.NewReader(b))
-						// // ft, err := sfnt.Parse(b)
-						// if err != nil {
-						// 	t.Fatal(err)
-						// }
-
-						// fmt.Println(ft.HheaTable())
-						// fmt.Println(ft.OS2Table())
-						// fmt.Println(ft.GposTable())
-						// fmt.Println(ft.CmapTable())
-						// ft.Kern(&b, sfnt.GlyphIndex(b1), sfnt.GlyphIndex(b2))
-
 					}
 				}
 			}

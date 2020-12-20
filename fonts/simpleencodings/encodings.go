@@ -54,6 +54,18 @@ func (e Encoding) NameToRune() map[string]rune {
 	return out
 }
 
+// NameToByte returns a name to byte map
+func (e Encoding) NameToByte() map[string]byte {
+	out := make(map[string]byte)
+	for b, name := range e {
+		if name == "" {
+			continue
+		}
+		out[name] = byte(b)
+	}
+	return out
+}
+
 var PredefinedEncodings = map[model.SimpleEncodingPredefined]*Encoding{
 	model.MacExpertEncoding: &MacExpert,
 	model.MacRomanEncoding:  &MacRoman,

@@ -8,6 +8,8 @@ import (
 	"github.com/benoitkugler/pdf/model"
 )
 
+const notdef = ".notdef"
+
 // Metrics provide metrics for Type1 fonts (such as the predefined).
 // Such metrics are usually extracted from .afm files.
 // PDF writter may need the Kerning entry to support font kerning.
@@ -24,20 +26,41 @@ type Metrics struct {
 	KernPairs map[string][]KernPair
 }
 
-// WidthsWithEncoding use the encoding (byte to name)
-// given to generate a compatible Widths array
+// KernsWithEncoding uses the given encoding (byte to name)
+// and the available `KernPairs` field to build a condensed map of kerns,
+// to be used with the encoding.
+func (m Metrics) KernsWithEncoding(enc simpleencodings.Encoding) map[uint16]int {
+	out := make(map[uint16]int)
+	nameToByte := enc.NameToByte()
+	for b, name := range enc {
+		if name == "" || name == notdef {
+			continue
+		}
+		for _, kern := range m.KernPairs[name] {
+			// we only keep encoded kern pairs
+			if b2, ok := nameToByte[kern.SndChar]; ok {
+				key := uint16(b)<<8 | uint16(b2)
+				out[key] = kern.KerningDistance
+			}
+		}
+	}
+	return out
+}
+
+// WidthsWithEncoding uses the given encoding (byte to name)
+// to generate a compatible Widths array
 // An encoding can be the builtin encoding, a predefined encoding
 // or a one obtained by applying a differences map.
 // `widths` is an array of (lastChar − `firstChar` + 1) widths (that is, lastChar = firstChar + len(widths) - 1)
 // Each element is the glyph width for the character code that equals
 // `firstChar` plus the array index.
-func (f Metrics) WidthsWithEncoding(encoding [256]string) (firstChar byte, widths []int) {
+func (m Metrics) WidthsWithEncoding(encoding simpleencodings.Encoding) (firstChar byte, widths []int) {
 	var lastChar byte
 	firstChar = 255
 	// we first need to find the first and last char
 	// var charcodes []byte
 	for code, name := range encoding {
-		if name == "" || name == ".undef" {
+		if name == "" || name == notdef {
 			continue
 		}
 		if byte(code) < firstChar {
@@ -49,10 +72,10 @@ func (f Metrics) WidthsWithEncoding(encoding [256]string) (firstChar byte, width
 	}
 	widths = make([]int, lastChar-firstChar+1)
 	for code, name := range encoding {
-		if name == "" || name == ".notdef" {
+		if name == "" || name == notdef {
 			continue
 		}
-		width, ok := f.CharsWidths[name]
+		width, ok := m.CharsWidths[name]
 		if !ok {
 			log.Printf("unsupported glyph name : %s", name)
 		}
@@ -176,7 +199,7 @@ func (f AFMFont) widthsStats() (mean, max Fl) {
 func (f AFMFont) charSet() string {
 	var v strings.Builder
 	for name := range f.charMetrics {
-		if name != ".notdef" {
+		if name != notdef {
 			v.WriteString(model.ObjName(name).String())
 		}
 	}
@@ -227,7 +250,7 @@ func (f AFMFont) fontDescriptor() model.FontDescriptor {
 	}
 
 	// use its width as missing width
-	if notdef, ok := f.charMetrics[".notdef"]; ok {
+	if notdef, ok := f.charMetrics[notdef]; ok {
 		out.MissingWidth = notdef.width
 	}
 
