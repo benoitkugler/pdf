@@ -18,9 +18,9 @@ type TableLayout struct {
 	version versionHeader
 	header  layoutHeader11
 
-	Scripts  []*Script  // Scripts contains all the scripts in this layout.
-	Features []*Feature // Features contains all the features in this layout.
-	Lookups  []*Lookup  // Lookups contains all the lookups in this layout.
+	Scripts  []Script  // Scripts contains all the scripts in this layout.
+	Features []Feature // Features contains all the features in this layout.
+	Lookups  []Lookup  // Lookups contains all the lookups in this layout.
 }
 
 // Script represents a single script (i.e "latn" (Latin), "cyrl" (Cyrillic), etc).
@@ -32,8 +32,8 @@ type Script struct {
 
 // LangSys represents the language system for a script.
 type LangSys struct {
-	Tag      TableTag   // Tag for this language.
-	Features []*Feature // Features contains the features for this language.
+	Tag      TableTag  // Tag for this language.
+	Features []Feature // Features contains the features for this language.
 }
 
 // Feature represents a glyph substitution or glyph positioning features.
@@ -120,7 +120,7 @@ func (t *TableLayout) parseLangSys(b []byte, record langSysRecord) (*LangSys, er
 		return nil, fmt.Errorf("reading langSysTable featureIndices[%d]: %s", lang.FeatureIndexCount, err)
 	}
 
-	var features []*Feature
+	var features []Feature
 	for i := 0; i < len(featureIndices); i++ {
 		if int(featureIndices[i]) >= len(t.Features) {
 			return nil, fmt.Errorf("invalid featureIndices[%d] = %d", i, featureIndices[i])
@@ -136,9 +136,9 @@ func (t *TableLayout) parseLangSys(b []byte, record langSysRecord) (*LangSys, er
 
 // parseScript parses a single Script table. b expected to be the beginning of ScriptList.
 // See https://www.microsoft.com/typography/otspec/chapter2.htm#sTbl_lsRec
-func (t *TableLayout) parseScript(b []byte, record scriptRecord) (*Script, error) {
+func (t *TableLayout) parseScript(b []byte, record scriptRecord) (Script, error) {
 	if int(record.Offset) >= len(b) {
-		return nil, io.ErrUnexpectedEOF
+		return Script{}, io.ErrUnexpectedEOF
 	}
 
 	b = b[record.Offset:]
@@ -146,7 +146,7 @@ func (t *TableLayout) parseScript(b []byte, record scriptRecord) (*Script, error
 
 	var script scriptTable
 	if err := binary.Read(r, binary.BigEndian, &script); err != nil {
-		return nil, fmt.Errorf("reading scriptTable: %s", err)
+		return Script{}, fmt.Errorf("reading scriptTable: %s", err)
 	}
 
 	var defaultLang *LangSys
@@ -156,14 +156,14 @@ func (t *TableLayout) parseScript(b []byte, record scriptRecord) (*Script, error
 		var err error
 		defaultLang, err = t.parseLangSys(b, langSysRecord{Offset: script.DefaultLangSys})
 		if err != nil {
-			return nil, err
+			return Script{}, err
 		}
 	}
 
 	for i := 0; i < int(script.LangSysCount); i++ {
 		var record langSysRecord
 		if err := binary.Read(r, binary.BigEndian, &record); err != nil {
-			return nil, fmt.Errorf("reading langSysRecord[%d]: %s", i, err)
+			return Script{}, fmt.Errorf("reading langSysRecord[%d]: %s", i, err)
 		}
 
 		if record.Offset == script.DefaultLangSys {
@@ -173,13 +173,13 @@ func (t *TableLayout) parseScript(b []byte, record scriptRecord) (*Script, error
 
 		lang, err := t.parseLangSys(b, record)
 		if err != nil {
-			return nil, err
+			return Script{}, err
 		}
 
 		langs = append(langs, lang)
 	}
 
-	return &Script{
+	return Script{
 		Tag:             record.Tag,
 		DefaultLanguage: defaultLang,
 		Languages:       langs,
@@ -202,7 +202,7 @@ func (t *TableLayout) parseScriptList(buf []byte) error {
 		return fmt.Errorf("reading scriptCount: %s", err)
 	}
 
-	t.Scripts = nil
+	t.Scripts = make([]Script, count)
 	for i := 0; i < int(count); i++ {
 		var record scriptRecord
 		if err := binary.Read(r, binary.BigEndian, &record); err != nil {
@@ -214,7 +214,7 @@ func (t *TableLayout) parseScriptList(buf []byte) error {
 			return err
 		}
 
-		t.Scripts = append(t.Scripts, script)
+		t.Scripts[i] = script
 	}
 
 	return nil
@@ -222,21 +222,21 @@ func (t *TableLayout) parseScriptList(buf []byte) error {
 
 // parseFeature parses a single Feature table. b expected to be the beginning of FeatureList.
 // See https://www.microsoft.com/typography/otspec/chapter2.htm#featTbl
-func (t *TableLayout) parseFeature(b []byte, record featureRecord) (*Feature, error) {
+func (t *TableLayout) parseFeature(b []byte, record featureRecord) (Feature, error) {
 	if int(record.Offset) >= len(b) {
-		return nil, io.ErrUnexpectedEOF
+		return Feature{}, io.ErrUnexpectedEOF
 	}
 
 	r := bytes.NewReader(b[record.Offset:])
 
 	var feature featureTable
 	if err := binary.Read(r, binary.BigEndian, &feature); err != nil {
-		return nil, fmt.Errorf("reading featureTable: %s", err)
+		return Feature{}, fmt.Errorf("reading featureTable: %s", err)
 	}
 
 	// TODO Read feature.FeatureParams and feature.LookupIndexCount
 
-	return &Feature{
+	return Feature{
 		Tag: record.Tag,
 	}, nil
 }
@@ -257,7 +257,7 @@ func (t *TableLayout) parseFeatureList(buf []byte) error {
 		return fmt.Errorf("reading featureCount: %s", err)
 	}
 
-	t.Features = nil
+	t.Features = make([]Feature, count)
 	for i := 0; i < int(count); i++ {
 		var record featureRecord
 		if err := binary.Read(r, binary.BigEndian, &record); err != nil {
@@ -269,7 +269,7 @@ func (t *TableLayout) parseFeatureList(buf []byte) error {
 			return err
 		}
 
-		t.Features = append(t.Features, feature)
+		t.Features[i] = feature
 	}
 
 	return nil
@@ -277,15 +277,15 @@ func (t *TableLayout) parseFeatureList(buf []byte) error {
 
 // parseLookup parses a single Lookup table. b expected to be the beginning of LookupList.
 // See https://www.microsoft.com/typography/otspec/chapter2.htm#featTbl
-func (t *TableLayout) parseLookup(b []byte, lookupTableOffset uint16) (*Lookup, error) {
+func (t *TableLayout) parseLookup(b []byte, lookupTableOffset uint16) (Lookup, error) {
 	if int(lookupTableOffset) >= len(b) {
-		return nil, io.ErrUnexpectedEOF
+		return Lookup{}, io.ErrUnexpectedEOF
 	}
 
 	b = b[lookupTableOffset:]
 	const tableHeaderSize = 6
 	if len(b) < tableHeaderSize {
-		return nil, io.ErrUnexpectedEOF
+		return Lookup{}, io.ErrUnexpectedEOF
 	}
 
 	type_ := be.Uint16(b)
@@ -293,7 +293,7 @@ func (t *TableLayout) parseLookup(b []byte, lookupTableOffset uint16) (*Lookup, 
 	subTableCount := be.Uint16(b[4:])
 
 	if len(b) < tableHeaderSize+2*int(subTableCount) {
-		return nil, io.ErrUnexpectedEOF
+		return Lookup{}, io.ErrUnexpectedEOF
 	}
 
 	subtableOffsets := make([]uint16, subTableCount)
@@ -303,7 +303,7 @@ func (t *TableLayout) parseLookup(b []byte, lookupTableOffset uint16) (*Lookup, 
 
 	// TODO Read lookup.MarkFilteringSet
 
-	return &Lookup{
+	return Lookup{
 		Type:            type_,
 		Flag:            flag, // TODO Parse the type Enum
 		subtableOffsets: subtableOffsets,
@@ -327,7 +327,7 @@ func (t *TableLayout) parseLookupList(buf []byte) error {
 		return fmt.Errorf("reading lookupCount: %s", err)
 	}
 
-	t.Lookups = nil
+	t.Lookups = make([]Lookup, count)
 	for i := 0; i < int(count); i++ {
 		var lookupTableOffset uint16
 		if err := binary.Read(r, binary.BigEndian, &lookupTableOffset); err != nil {
@@ -339,7 +339,7 @@ func (t *TableLayout) parseLookupList(buf []byte) error {
 			return err
 		}
 
-		t.Lookups = append(t.Lookups, lookup)
+		t.Lookups[i] = lookup
 	}
 
 	return nil

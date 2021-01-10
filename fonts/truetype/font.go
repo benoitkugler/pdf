@@ -382,3 +382,9 @@ func parseOTF(file File) (*Font, error) {
 
 	return font, nil
 }
+
+// HasTable returns `true` is the font has the given table.
+func (f *Font) HasTable(tag TableTag) bool {
+	_, has := f.tables[tag]
+	return has
+}

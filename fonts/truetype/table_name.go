@@ -28,10 +28,15 @@ type nameHeader struct {
 // PlatformID represents the platform id for entries in the name table.
 type PlatformID uint16
 
-var (
-	PlatformUnicode   = PlatformID(0)
-	PlatformMac       = PlatformID(1)
-	PlatformMicrosoft = PlatformID(3)
+const (
+	PlatformUnicode PlatformID = iota
+	PlatformMac
+	PlatformIso /* deprecated */
+	PlatformMicrosoft
+	PlatformCustom
+	_
+	_
+	PlatformAdobe /* artificial */
 )
 
 // String returns an idenfying string for each platform or "Platform X" for unknown values.
@@ -52,7 +57,7 @@ func (p PlatformID) String() string {
 // the three most common values are provided as constants.
 type PlatformEncodingID uint16
 
-var (
+const (
 	PlatformEncodingMacRoman         = PlatformEncodingID(0)
 	PlatformEncodingUnicodeDefault   = PlatformEncodingID(0)
 	PlatformEncodingMicrosoftUnicode = PlatformEncodingID(1)
@@ -62,7 +67,7 @@ var (
 // the three most common values are provided as constants.
 type PlatformLanguageID uint16
 
-var (
+const (
 	PlatformLanguageMacEnglish       = PlatformLanguageID(0)
 	PlatformLanguageUnicodeDefault   = PlatformLanguageID(0)
 	PlatformLanguageMicrosoftEnglish = PlatformLanguageID(0x0409)
@@ -71,32 +76,32 @@ var (
 // NameID is the ID for entries in the font table.
 type NameID uint16
 
-var (
-	NameCopyrightNotice        = NameID(0)
-	NameFontFamily             = NameID(1)
-	NameFontSubfamily          = NameID(2)
-	NameUniqueIdentifier       = NameID(3)
-	NameFull                   = NameID(4)
-	NameVersion                = NameID(5)
-	NamePostscript             = NameID(6)
-	NameTrademark              = NameID(7)
-	NameManufacturer           = NameID(8)
-	NameDesigner               = NameID(9)
-	NameDescription            = NameID(10)
-	NameVendorURL              = NameID(11)
-	NameDesignerURL            = NameID(12)
-	NameLicenseDescription     = NameID(13)
-	_NameReserved              = NameID(15)
-	NameLicenseURL             = NameID(14)
-	NamePreferredFamily        = NameID(16)
-	NamePreferredSubfamily     = NameID(17)
-	NameCompatibleFull         = NameID(18)
-	NameSampleText             = NameID(19)
-	NamePostscriptCID          = NameID(20)
-	NameWWSFamily              = NameID(21)
-	NameWWSSubfamily           = NameID(22)
-	NameLightBackgroundPalette = NameID(23)
-	NameDarkBackgroundPalette  = NameID(24)
+const (
+	NameCopyrightNotice NameID = iota
+	NameFontFamily
+	NameFontSubfamily
+	NameUniqueIdentifier
+	NameFull
+	NameVersion
+	NamePostscript
+	NameTrademark
+	NameManufacturer
+	NameDesigner
+	NameDescription
+	NameVendorURL
+	NameDesignerURL
+	NameLicenseDescription
+	_NameReserved
+	NameLicenseURL
+	NamePreferredFamily
+	NamePreferredSubfamily
+	NameCompatibleFull
+	NameSampleText
+	NamePostscriptCID
+	NameWWSFamily
+	NameWWSSubfamily
+	NameLightBackgroundPalette
+	NameDarkBackgroundPalette
 )
 
 // String returns an identifying

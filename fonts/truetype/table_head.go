@@ -9,7 +9,7 @@ import (
 // https://developer.apple.com/fonts/TrueType-Reference-Manual/RM06/Chap6head.html
 type TableHead struct {
 	VersionNumber      fixed
-	FontRevision       fixed
+	FontRevision       uint32
 	CheckSumAdjustment uint32
 	MagicNumber        uint32
 	Flags              uint16

@@ -3,6 +3,7 @@ package truetype
 import (
 	"bytes"
 	"crypto/rand"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -73,4 +74,17 @@ func TestParseCrashers(t *testing.T) {
 			t.Error("expected error on random input")
 		}
 	}
+}
+
+func TestTables(t *testing.T) {
+	f, err := os.Open("testdata/LateefGR-Regular.ttf")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+	font, err := Parse(f)
+	if err != nil {
+		t.Fatalf("Parse err = %q, want nil", err)
+	}
+	fmt.Println(font.tables)
 }
