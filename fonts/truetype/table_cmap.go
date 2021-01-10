@@ -29,6 +29,7 @@ type GlyphIndex uint16
 
 // Cmap stores a compact representation of a cmap,
 // offering both on-demand rune lookup and full rune range.
+// TODO: also provide an iterator to avoid building a full map
 type Cmap interface {
 	// Compile aggregates all the information to a single map.
 	Compile() map[rune]GlyphIndex
