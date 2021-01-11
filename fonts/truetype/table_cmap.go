@@ -27,12 +27,21 @@ var (
 // GlyphIndex is a glyph index in a Font.
 type GlyphIndex uint16
 
+// CmapIter is an interator over a Cmap
+type CmapIter interface {
+	// Next returns true if the iterator still has data to yield
+	Next() bool
+
+	// Char must be called only when `Next` has returned `true`
+	Char() (rune, GlyphIndex)
+}
+
 // Cmap stores a compact representation of a cmap,
 // offering both on-demand rune lookup and full rune range.
-// TODO: also provide an iterator to avoid building a full map
 type Cmap interface {
-	// Compile aggregates all the information to a single map.
-	Compile() map[rune]GlyphIndex
+	// Iter returns a new iterator over the cmap
+	// Multiple iterators may be used over the same cmap
+	Iter() CmapIter
 
 	// Lookup avoid the construction of a map and provides
 	// an alternative when only few runes need to be fetched.
@@ -45,13 +54,28 @@ type Cmap interface {
 
 type cmap0 map[rune]GlyphIndex
 
-func (s cmap0) Compile() map[rune]GlyphIndex {
-	// return a copy to avoid suprising side effects
-	out := make(map[rune]GlyphIndex, len(s))
-	for k, v := range s {
-		out[k] = v
+type cmap0Iter struct {
+	data cmap0
+	keys []rune
+	pos  int
+}
+
+func (it *cmap0Iter) Next() bool {
+	return it.pos < len(it.keys)
+}
+
+func (it *cmap0Iter) Char() (rune, GlyphIndex) {
+	r := it.keys[it.pos]
+	it.pos++
+	return r, it.data[r]
+}
+
+func (s cmap0) Iter() CmapIter {
+	keys := make([]rune, 0, len(s))
+	for k := range s {
+		keys = append(keys, k)
 	}
-	return s
+	return &cmap0Iter{data: s, keys: keys}
 }
 
 func (s cmap0) Lookup(r rune) GlyphIndex {
@@ -60,23 +84,45 @@ func (s cmap0) Lookup(r rune) GlyphIndex {
 
 type cmap4 []cmapEntry16
 
-func (s cmap4) Compile() map[rune]GlyphIndex {
-	out := make(map[rune]GlyphIndex, len(s))
-	for _, entry := range s {
-		if entry.indexes == nil {
-			for c := entry.start; c <= entry.end; c++ {
-				out[rune(c)] = GlyphIndex(c + entry.delta)
-				if c == 65535 { // avoid overflow
-					break
-				}
-			}
+type cmap4Iter struct {
+	data cmap4
+	pos1 int // into data
+	pos2 int // either into data[pos1].indexes or an offset between start and end
+}
+
+func (it *cmap4Iter) Next() bool {
+	return it.pos1 < len(it.data)
+}
+
+func (it *cmap4Iter) Char() (r rune, gy GlyphIndex) {
+	entry := it.data[it.pos1]
+	if entry.indexes == nil {
+		r = rune(it.pos2 + int(entry.start))
+		gy = GlyphIndex(uint16(it.pos2) + entry.start + entry.delta)
+		if uint16(it.pos2) == entry.end-entry.start {
+			// we have read the last glyph in this part
+			it.pos2 = 0
+			it.pos1++
 		} else {
-			for i, gi := range entry.indexes {
-				out[rune(i)+rune(entry.start)] = gi
-			}
+			it.pos2++
+		}
+	} else { // pos2 is the array index
+		r = rune(it.pos2) + rune(entry.start)
+		gy = entry.indexes[it.pos2]
+		if it.pos2 == len(entry.indexes)-1 {
+			// we have read the last glyph in this part
+			it.pos2 = 0
+			it.pos1++
+		} else {
+			it.pos2++
 		}
 	}
-	return out
+
+	return r, gy
+}
+
+func (s cmap4) Iter() CmapIter {
+	return &cmap4Iter{data: s}
 }
 
 func (s cmap4) Lookup(r rune) GlyphIndex {
@@ -106,12 +152,25 @@ type cmap6 struct {
 	entries   []uint16
 }
 
-func (s cmap6) Compile() map[rune]GlyphIndex {
-	chars := make(map[rune]GlyphIndex, len(s.entries))
-	for i, entry := range s.entries {
-		chars[rune(i)+s.firstCode] = GlyphIndex(entry)
-	}
-	return chars
+type cmap6Iter struct {
+	data cmap6
+	pos  int // index into data.entries
+}
+
+func (it *cmap6Iter) Next() bool {
+	return it.pos < len(it.data.entries)
+}
+
+func (it *cmap6Iter) Char() (rune, GlyphIndex) {
+	entry := it.data.entries[it.pos]
+	r := rune(it.pos) + it.data.firstCode
+	gy := GlyphIndex(entry)
+	it.pos++
+	return r, gy
+}
+
+func (s cmap6) Iter() CmapIter {
+	return &cmap6Iter{data: s}
 }
 
 func (s cmap6) Lookup(r rune) GlyphIndex {
@@ -127,14 +186,33 @@ func (s cmap6) Lookup(r rune) GlyphIndex {
 
 type cmap12 []cmapEntry32
 
-func (s cmap12) Compile() map[rune]GlyphIndex {
-	chars := map[rune]GlyphIndex{}
-	for _, cm := range s {
-		for c := cm.start; c <= cm.end; c++ {
-			chars[rune(c)] = GlyphIndex(c - cm.start + cm.delta)
-		}
+type cmap12Iter struct {
+	data cmap12
+	pos1 int // into data
+	pos2 int // offset from start
+}
+
+func (it *cmap12Iter) Next() bool {
+	return it.pos1 < len(it.data)
+}
+
+func (it *cmap12Iter) Char() (r rune, gy GlyphIndex) {
+	entry := it.data[it.pos1]
+	r = rune(it.pos2 + int(entry.start))
+	gy = GlyphIndex(it.pos2 + int(entry.delta))
+	if uint32(it.pos2) == entry.end-entry.start {
+		// we have read the last glyph in this part
+		it.pos2 = 0
+		it.pos1++
+	} else {
+		it.pos2++
 	}
-	return chars
+
+	return r, gy
+}
+
+func (s cmap12) Iter() CmapIter {
+	return &cmap12Iter{data: s}
 }
 
 func (s cmap12) Lookup(r rune) GlyphIndex {

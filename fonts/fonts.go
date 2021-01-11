@@ -329,13 +329,12 @@ func fetchSimpleTrueTypeKerning(file *model.FontFile, charMap map[rune]byte) (ma
 	if err != nil {
 		return nil, fmt.Errorf("invalid cmap table: %s", err)
 	}
-	chars := cmap.Compile()
 
 	out := make(map[uint16]int)
 	for r, b := range charMap {
-		left := chars[r]
+		left := cmap.Lookup(r)
 		for r2, b2 := range charMap {
-			right := chars[r2]
+			right := cmap.Lookup(r2)
 			if kern, ok := kerns.KernPair(left, right); ok {
 				out[uint16(b)<<8|uint16(b2)] = int(kern)
 			}

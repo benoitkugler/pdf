@@ -32,7 +32,7 @@ func TestPost(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		for _, gi := range cmap.Compile() {
+		for _, gi := range compileCmap(cmap) {
 			name := ps.Names.GlyphName(gi)
 			if name == "" {
 				t.Error("empty name")

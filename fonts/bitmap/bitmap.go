@@ -20,7 +20,7 @@ type Int int32
 type Cardinal uint32
 
 type Size struct {
-	height, width int16
+	Height, Width int16
 
 	// size fixed.Point26_6
 
