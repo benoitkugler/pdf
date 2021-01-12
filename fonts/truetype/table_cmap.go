@@ -41,6 +41,7 @@ type CmapIter interface {
 type Cmap interface {
 	// Iter returns a new iterator over the cmap
 	// Multiple iterators may be used over the same cmap
+	// The returned interface is garanted not to be nil
 	Iter() CmapIter
 
 	// Lookup avoid the construction of a map and provides
