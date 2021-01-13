@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/benoitkugler/pdf/fonts/type1"
+	"github.com/benoitkugler/fonts/type1"
 )
 
 func TestEmbed(t *testing.T) {

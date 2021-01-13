@@ -3,11 +3,12 @@ package fonts
 import (
 	"log"
 
+	"github.com/benoitkugler/fonts/simpleencodings"
+	"github.com/benoitkugler/fonts/type1"
+	"github.com/benoitkugler/fonts/type1C"
 	"github.com/benoitkugler/pdf/fonts/cmaps"
-	"github.com/benoitkugler/pdf/fonts/simpleencodings"
 	"github.com/benoitkugler/pdf/fonts/standardcmaps"
-	"github.com/benoitkugler/pdf/fonts/type1"
-	"github.com/benoitkugler/pdf/fonts/type1C"
+	"github.com/benoitkugler/pdf/fonts/standardfonts"
 	"github.com/benoitkugler/pdf/model"
 )
 
@@ -29,9 +30,9 @@ func resolveSimpleEncoding(font model.FontSimple) simpleencodings.Encoding {
 	enc := font.SimpleEncoding()
 	if predefEnc, ok := enc.(model.SimpleEncodingPredefined); ok {
 		// the font dict overide the font builtin encoding
-		baseEnc = simpleencodings.PredefinedEncodings[predefEnc]
+		baseEnc = standardfonts.PredefinedEncodings[predefEnc]
 	} else if encDict, ok := enc.(*model.SimpleEncodingDict); ok && encDict.BaseEncoding != "" {
-		baseEnc = simpleencodings.PredefinedEncodings[encDict.BaseEncoding]
+		baseEnc = standardfonts.PredefinedEncodings[encDict.BaseEncoding]
 	} else {
 		// check embedded font file for base encoding
 		// (only for Type 1 fonts - trying to get an encoding out of a
@@ -77,7 +78,7 @@ func buildSimpleFromUnicode(enc *simpleencodings.Encoding, toUnicode map[model.C
 // func resolveCharMapType1(t model.FontType1, userCharMap map[string]rune) map[rune]byte {
 // 	if enc, ok := t.Encoding.(model.SimpleEncodingPredefined); ok {
 // 		// the font dict overide the font builtin encoding
-// 		return simpleencodings.PredefinedEncodings[enc].RuneToByte()
+// 		return simpleencodings.standardfonts.PredefinedEncodings[enc].RuneToByte()
 // 	}
 // 	var (
 // 		base  *simpleencodings.Encoding
@@ -87,7 +88,7 @@ func buildSimpleFromUnicode(enc *simpleencodings.Encoding, toUnicode map[model.C
 // 	if enc, ok := t.Encoding.(*model.SimpleEncodingDict); ok { // the font modifies an encoding
 // 		// resolve the base encoding
 // 		if enc.BaseEncoding != "" {
-// 			base = simpleencodings.PredefinedEncodings[enc.BaseEncoding]
+// 			base = simpleencodings.standardfonts.PredefinedEncodings[enc.BaseEncoding]
 // 		} else { // try and fetch the embedded font information
 // 			base = builtinType1Encoding(t.FontDescriptor)
 // 		}
@@ -214,7 +215,7 @@ func builtinType1Encoding(desc model.FontDescriptor) *simpleencodings.Encoding {
 // 		} else if dict, ok := f.Encoding.(*model.SimpleEncodingDict); ok {
 // 			var base *simpleencodings.Encoding
 // 			if dict.BaseEncoding != "" {
-// 				base = simpleencodings.PredefinedEncodings[dict.BaseEncoding]
+// 				base = simpleencodings.standardfonts.PredefinedEncodings[dict.BaseEncoding]
 // 			} else {
 // 				base = &simpleencodings.Standard
 // 			}
@@ -302,11 +303,11 @@ func builtinType1Encoding(desc model.FontDescriptor) *simpleencodings.Encoding {
 // func resolveCharMapType3(f model.FontType3, userCharMap map[string]rune) map[rune]byte {
 // 	switch enc := f.Encoding.(type) {
 // 	case model.SimpleEncodingPredefined:
-// 		return simpleencodings.PredefinedEncodings[enc].RuneToByte()
+// 		return simpleencodings.standardfonts.PredefinedEncodings[enc].RuneToByte()
 // 	case *model.SimpleEncodingDict:
 // 		base := &simpleencodings.Standard
 // 		if enc.BaseEncoding != "" {
-// 			base = simpleencodings.PredefinedEncodings[enc.BaseEncoding]
+// 			base = simpleencodings.standardfonts.PredefinedEncodings[enc.BaseEncoding]
 // 		}
 // 		return applyDifferences(enc.Differences, userCharMap, base)
 // 	default: // should not happen according to the spec

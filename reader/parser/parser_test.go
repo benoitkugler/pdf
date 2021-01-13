@@ -5,7 +5,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/benoitkugler/pdf/reader/parser/tokenizer"
+	tokenizer "github.com/benoitkugler/pstokenizer"
 )
 
 func doTestParseObjectOK(parseString string, t *testing.T) {

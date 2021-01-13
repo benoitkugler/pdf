@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/benoitkugler/pdf/model"
-	"github.com/benoitkugler/pdf/reader/parser/tokenizer"
+	tokenizer "github.com/benoitkugler/pstokenizer"
 )
 
 type cmapObject interface {

@@ -23,10 +23,9 @@ import (
 	"fmt"
 	"log"
 
+	"github.com/benoitkugler/fonts/truetype"
 	"github.com/benoitkugler/pdf/fonts/cmaps"
 	"github.com/benoitkugler/pdf/fonts/standardfonts"
-	"github.com/benoitkugler/pdf/fonts/truetype"
-	"github.com/benoitkugler/pdf/fonts/type1"
 	"github.com/benoitkugler/pdf/model"
 )
 
@@ -267,7 +266,7 @@ func buildType3FontDesc(tf model.FontType3) model.FontDescriptor {
 	return out
 }
 
-var fallbacks = [...]*type1.Metrics{
+var fallbacks = [...]*standardfonts.Metrics{
 	&standardfonts.Courier, // archetype of fixed width
 	&standardfonts.Courier_Oblique,
 	&standardfonts.Courier_Bold,
@@ -285,7 +284,7 @@ var fallbacks = [...]*type1.Metrics{
 // this should never be used: the font dict must specify
 // the widths, but certain PDF generators
 // apparently don't include widths for Arial and TimesNewRoman
-func fallbackWidths(ft model.FontDescriptor) *type1.Metrics {
+func fallbackWidths(ft model.FontDescriptor) *standardfonts.Metrics {
 	var i uint8
 	if ft.Flags&model.FixedPitch != 0 {
 		i = 0

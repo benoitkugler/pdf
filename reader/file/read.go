@@ -11,7 +11,7 @@ import (
 	"strings"
 
 	"github.com/benoitkugler/pdf/reader/parser"
-	tok "github.com/benoitkugler/pdf/reader/parser/tokenizer"
+	tok "github.com/benoitkugler/pstokenizer"
 )
 
 // freeHeadGeneration is the predefined generation number for the head of the free list.

@@ -8,7 +8,7 @@ import (
 	"fmt"
 
 	"github.com/benoitkugler/pdf/model"
-	tkn "github.com/benoitkugler/pdf/reader/parser/tokenizer"
+	tkn "github.com/benoitkugler/pstokenizer"
 	"github.com/pdfcpu/pdfcpu/pkg/log"
 )
 

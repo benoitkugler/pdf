@@ -8,8 +8,100 @@ import (
 	"os/exec"
 	"strings"
 
-	"github.com/benoitkugler/pdf/fonts/type1"
+	"github.com/benoitkugler/fonts/type1"
+	"github.com/benoitkugler/pdf/fonts/standardfonts"
+	"github.com/benoitkugler/pdf/model"
 )
+
+// only widths
+func simplifiedMetrics(f type1.AFMFont) map[string]int {
+	out := make(map[string]int, len(f.CharMetrics))
+	for name, m := range f.CharMetrics {
+		out[name] = m.Width
+	}
+	return out
+}
+
+// Metrics returns the essential information from the font.
+func metrics(f type1.AFMFont) standardfonts.Metrics {
+	return standardfonts.Metrics{
+		Descriptor:  fontDescriptor(f),
+		CharsWidths: simplifiedMetrics(f),
+		Builtin:     f.CharCodeToCharName,
+		KernPairs:   f.KernPairs,
+	}
+}
+
+type Fl = model.Fl
+
+// widthsStats collect the mean and the maximum values
+// of the glyphs width
+func widthsStats(f type1.AFMFont) (mean, max Fl) {
+	for _, c := range f.CharMetrics {
+		w := Fl(c.Width)
+		if w > max {
+			max = w
+		}
+		mean += w
+	}
+	mean /= Fl(len(f.CharMetrics))
+	return mean, max
+}
+
+// synthetize a fontDescriptor from various
+// font metrics.
+func fontDescriptor(f type1.AFMFont) model.FontDescriptor {
+	if f.CapHeight == 0 {
+		f.CapHeight = f.Ascender
+	}
+	isSymbolic := f.FontName == "Symbol" || f.FontName == "ZapfDingbats"
+
+	flag := model.Nonsymbolic
+	if isSymbolic {
+		flag = model.Symbolic
+	}
+
+	if f.IsFixedPitch {
+		flag |= model.FixedPitch
+	}
+	if f.ItalicAngle != 0 {
+		flag |= model.Italic
+	}
+	if f.StdVw == 0 {
+		isBold := f.Weight == "bold" || f.Weight == "black"
+		if isBold {
+			f.StdVw = 120
+		} else {
+			f.StdVw = 80
+		}
+	}
+
+	out := model.FontDescriptor{
+		FontName:    model.ObjName(f.FontName),
+		FontFamily:  f.FamilyName,
+		Flags:       flag,
+		FontBBox:    model.Rectangle{Llx: f.Llx, Lly: f.Lly, Urx: f.Urx, Ury: f.Ury},
+		ItalicAngle: f.ItalicAngle,
+		Ascent:      f.Ascender,
+		Descent:     f.Descender,
+		Leading:     0, // unknown
+		CapHeight:   f.CapHeight,
+		XHeight:     Fl(f.XHeight),
+		StemV:       Fl(f.StdVw),
+		StemH:       Fl(f.StdHw),
+	}
+
+	// use its width as missing width
+	if notdef, ok := f.CharMetrics[type1.Notdef]; ok {
+		out.MissingWidth = notdef.Width
+	}
+
+	out.AvgWidth, out.MaxWidth = widthsStats(f)
+
+	out.CharSet = f.CharSet()
+
+	return out
+}
 
 // dumpFontDescriptor creates a go source file containing
 // the description of the fonts `fs`
@@ -21,12 +113,12 @@ func dumpFontDescriptor(fs []type1.AFMFont) error {
 	var sumupMap strings.Builder
 
 	sumupMap.WriteString("// Fonts is a convenient mapping from a font name to its descriptor.\n")
-	sumupMap.WriteString("var Fonts = map[string]type1.Metrics{\n")
+	sumupMap.WriteString("var Fonts = map[string]Metrics{\n")
 
 	for _, f := range fs {
-		metrics := f.Metrics()
+		metrics := metrics(f)
 		goFontName := strings.ReplaceAll(f.FontName, "-", "_")
-		code.WriteString("var " + goFontName + " = type1.Metrics{\n")
+		code.WriteString("var " + goFontName + " = Metrics{\n")
 		code.WriteString(fmt.Sprintf("Descriptor: %#v,\n", metrics.Descriptor))
 		code.WriteString(fmt.Sprintf("Builtin: %#v,\n", metrics.Builtin))
 		code.WriteString(fmt.Sprintf("// %d characters\n", len(metrics.CharsWidths)))

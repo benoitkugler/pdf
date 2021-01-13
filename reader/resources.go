@@ -6,7 +6,6 @@ import (
 
 	"errors"
 
-	"github.com/benoitkugler/pdf/fonts/simpleencodings"
 	"github.com/benoitkugler/pdf/fonts/standardfonts"
 	"github.com/benoitkugler/pdf/model"
 	"github.com/pdfcpu/pdfcpu/pkg/pdfcpu"
@@ -191,10 +190,10 @@ func (r resolver) resolveFontTT1orTT(font pdfcpu.Dict) (out model.FontType1, err
 		var names [256]string
 		switch enc := out.Encoding.(type) {
 		case model.SimpleEncodingPredefined: // enc is validated by resolveEncoding
-			names = *simpleencodings.PredefinedEncodings[enc]
+			names = *standardfonts.PredefinedEncodings[enc]
 		case *model.SimpleEncodingDict:
 			if enc.BaseEncoding != "" { // baseEncoding is validated by resolveEncoding
-				names = *simpleencodings.PredefinedEncodings[enc.BaseEncoding]
+				names = *standardfonts.PredefinedEncodings[enc.BaseEncoding]
 			} else {
 				names = standard.Builtin
 			}

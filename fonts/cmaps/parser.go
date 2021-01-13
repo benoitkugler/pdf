@@ -9,7 +9,7 @@ import (
 	"io"
 
 	"github.com/benoitkugler/pdf/model"
-	"github.com/benoitkugler/pdf/reader/parser/tokenizer"
+	tokenizer "github.com/benoitkugler/pstokenizer"
 )
 
 // parser parses CMap files, which represents either a character code to unicode mapping or
