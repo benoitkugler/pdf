@@ -1,6 +1,7 @@
 package bitmap
 
 import (
+	"bytes"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -8,8 +9,8 @@ import (
 
 // parser for .pcf bitmap fonts
 
-// ported from https://github.com/stumpycr/pcf-parser
-// https://fontforge.org/docs/techref/pcf-format.html
+// inspired by from https://github.com/stumpycr/pcf-parser
+// and https://fontforge.org/docs/techref/pcf-format.html
 
 const (
 	properties = 1 << iota
@@ -24,64 +25,43 @@ const (
 )
 
 const (
-	PCF_DEFAULT_FORMAT     = 0x00000000
-	PCF_INKBOUNDS          = 0x00000200
-	PCF_ACCEL_W_INKBOUNDS  = 0x00000100
-	PCF_COMPRESSED_METRICS = 0x00000100
+	defaultFormat      = 0x00000000
+	inkbounds          = 0x00000200
+	accelWInkbounds    = 0x00000100
+	COMPRESSED_METRICS = 0x00000100
 
 	// modifiers
-	PCF_GLYPH_PAD_MASK = 3 << 0 /* See the bitmap table for explanation */
-	PCF_BYTE_MASK      = 1 << 2 /* If set then Most Sig Byte First */
-	PCF_BIT_MASK       = 1 << 3 /* If set then Most Sig Bit First */
-	PCF_SCAN_UNIT_MASK = 3 << 4 /* See the bitmap table for explanation */
+	glyphPadMask = 3 << 0 /* See the bitmap table for explanation */
+	byteMask     = 1 << 2 /* If set then Most Sig Byte First */
+	bitMask      = 1 << 3 /* If set then Most Sig Bit First */
+	scanUnitMask = 3 << 4 /* See the bitmap table for explanation */
 
 	formatMask = ^uint32(0xFF) // keep the higher bits
 )
 
-const HEADER = "\x01fcp"
+// implementations limits to protect
+// against malicious files
+// see freetype/pcf for rationale
+const (
+	nbTablesMax     = 20
+	nbPropertiesMax = 512
+	nbMetricsMax    = 65536 // same for bitmaps and widths
+)
+
+const header = "\x01fcp"
 
 type Font struct {
 	properties          propertiesTable
 	bitmap              bitmapTable
 	metrics, inkMetrics metricsTable
 	encoding            encodingTable
+	accelerator         *acceleratorTable // BDF accelerator if present, normal if not
+	scalableWidths      scalableWidthsTable
+	names               namesTable
 }
-
-type tocEntry struct {
-	kind, format, size, offset uint32
-}
-
-type prop struct {
-	nameOffset   uint32
-	isStringProp bool
-	value        uint32
-}
-
-type propertiesTable struct {
-	props   []prop
-	rawData []byte
-}
-
-type bitmapTable struct {
-	data []byte
-}
-
-// we use int16 even for compressed for simplicity
-type metric struct {
-	leftSidedBearing    int16
-	rightSidedBearing   int16
-	characterWidth      int16
-	characterAscent     int16
-	characterDescent    int16
-	characterAttributes uint16
-}
-
-type metricsTable []metric
-
-type encodingTable map[uint16]uint16
 
 func getOrder(format uint32) binary.ByteOrder {
-	if format&PCF_BYTE_MASK != 0 {
+	if format&byteMask != 0 {
 		return binary.BigEndian
 	}
 	return binary.LittleEndian
@@ -110,6 +90,10 @@ func (p *parser) u16(order binary.ByteOrder) (uint16, error) {
 	return out, nil
 }
 
+type tocEntry struct {
+	kind, format, size, offset uint32
+}
+
 func (p *parser) tocEntry() (out tocEntry, err error) {
 	if len(p.data) < p.pos+16 {
 		return out, errors.New("corrupted toc entry")
@@ -124,6 +108,12 @@ func (p *parser) tocEntry() (out tocEntry, err error) {
 
 const propSize = 9
 
+type prop struct {
+	nameOffset   uint32
+	isStringProp bool
+	value        uint32 // offset or value
+}
+
 func (pr *parser) prop(order binary.ByteOrder) (prop, error) {
 	if len(pr.data) < pr.pos+propSize {
 		return prop{}, errors.New("invalid property")
@@ -136,28 +126,46 @@ func (pr *parser) prop(order binary.ByteOrder) (prop, error) {
 	return out, nil
 }
 
+func getCString(data []byte, start uint32) (string, error) {
+	if int(start) > len(data) {
+		return "", errors.New("invalid offset in property")
+	}
+	// the srings are null terminated
+	end := bytes.IndexByte(data[start:], 0)
+	if end == -1 {
+		return "", errors.New("invalid property")
+	}
+	name := string(data[start : int(start)+end]) // left the 0 off
+	return name, nil
+}
+
+type propertiesTable map[string]Property
+
 func (pr *parser) propertiesTable() (propertiesTable, error) {
 	format, err := pr.u32(binary.LittleEndian)
 	if err != nil {
-		return propertiesTable{}, err
+		return nil, err
 	}
 
 	order := getOrder(format)
 
 	nprops, err := pr.u32(order)
 	if err != nil {
-		return propertiesTable{}, err
+		return nil, err
 	}
-	var out propertiesTable
+	if nprops > nbPropertiesMax {
+		return nil, fmt.Errorf("number of properties (%d) exceeds implementation limit (%d)",
+			nprops, nbPropertiesMax)
+	}
 
 	if len(pr.data) < pr.pos+int(nprops)*propSize {
-		return propertiesTable{}, errors.New("invalid properties table")
+		return nil, errors.New("invalid properties table")
 	}
-	out.props = make([]prop, nprops)
-	for i := range out.props {
-		out.props[i], err = pr.prop(order)
+	props := make([]prop, nprops)
+	for i := range props {
+		props[i], err = pr.prop(order)
 		if err != nil {
-			return propertiesTable{}, err
+			return nil, err
 		}
 	}
 
@@ -167,77 +175,46 @@ func (pr *parser) propertiesTable() (propertiesTable, error) {
 
 	stringsLength, err := pr.u32(order)
 	if err != nil {
-		return propertiesTable{}, err
+		return nil, err
 	}
 
 	if len(pr.data) < pr.pos+int(stringsLength) {
-		return propertiesTable{}, errors.New("invalid properties table")
+		return nil, errors.New("invalid properties table")
 	}
+	rawData := pr.data[pr.pos : pr.pos+int(stringsLength)]
 
-	out.rawData = pr.data[pr.pos : pr.pos+int(stringsLength)]
+	out := make(propertiesTable, len(props))
+
+	// we resolve the name properties and their values
+	for _, prop := range props {
+		name, err := getCString(rawData, prop.nameOffset)
+		if err != nil {
+			return nil, err
+		}
+		if prop.isStringProp {
+			val, err := getCString(rawData, prop.value)
+			if err != nil {
+				return nil, err
+			}
+			out[name] = Atom(val)
+		} else {
+			out[name] = Int(prop.value)
+		}
+	}
 	return out, nil
 }
 
-//   class PropertiesTable
-//     getter properties : Hash(String, (String | Int32))
-
-//     def initialize(io)
-//       @properties = {} of String => (String | Int32)
-
-//       format = io.read_bytes(Int32, IO::ByteFormat::LittleEndian)
-//       byte_mask = (format & 4) != 0 # set => most significant byte first
-//       bit_mask = (format & 8) != 0  # set => most significant bit first
-
-//       unless bit_mask
-//         puts "Unsupported bit_mask: #{bit_mask}"
-//       end
-
-//       byte_format = byte_mask ? IO::ByteFormat::BigEndian : IO::ByteFormat::BigEndian
-
-//       # :compressed_metrics is equiv. to :accel_w_inkbounds
-//       main_format = [:default, :inkbounds, :compressed_metrics][format >> 8]
-
-//       size = io.read_bytes(Int32, byte_format)
-//       props = [] of Prop
-//       size.times do
-//         props << Prop.new(io, byte_format)
-//       end
-
-//       padding = (size & 3) == 0 ? 0 : 4 - (size & 3)
-//       io.skip(padding)
-
-//       string_size = io.read_bytes(Int32, byte_format)
-
-//       # Start of the strings array
-//       strings = io.pos
-//       props.each do |prop|
-//         name = nil
-//         io.seek(strings + prop.name_offset) do
-//           name = io.gets('\0', true)
-//         end
-
-//         raise "Could not read property name" if name.nil?
-
-//         offset = prop.value
-//         if prop.is_string_prop
-//           io.seek(strings + offset) do
-//             value = io.gets('\0', true)
-//             raise "Could not read property value" if value.nil?
-//             @properties[name] = value
-//           end
-//         else
-//           @properties[name] = offset
-//         end
-//       end
-//     end
-//   end
+type bitmapTable struct {
+	offsets []uint32
+	data    []byte
+}
 
 func (p *parser) bitmap() (bitmapTable, error) {
 	format, err := p.u32(binary.LittleEndian)
 	if err != nil {
 		return bitmapTable{}, err
 	}
-	if format&formatMask != PCF_DEFAULT_FORMAT {
+	if format&formatMask != defaultFormat {
 		return bitmapTable{}, fmt.Errorf("invalid bitmap format: %d", format)
 	}
 
@@ -246,6 +223,10 @@ func (p *parser) bitmap() (bitmapTable, error) {
 	count, err := p.u32(order)
 	if err != nil {
 		return bitmapTable{}, err
+	}
+	if count > nbMetricsMax {
+		return bitmapTable{}, fmt.Errorf("number of glyphs (%d) exceeds implementation limit (%d)",
+			count, nbMetricsMax)
 	}
 
 	if len(p.data) < p.pos+int(count)*4 {
@@ -274,7 +255,7 @@ func (p *parser) bitmap() (bitmapTable, error) {
 	data := p.data[p.pos : p.pos+bitmapLength]
 	p.pos += bitmapLength
 
-	return bitmapTable{data: data}, nil
+	return bitmapTable{data: data, offsets: offsets}, nil
 }
 
 //   class BitmapTable
@@ -282,7 +263,7 @@ func (p *parser) bitmap() (bitmapTable, error) {
 //     getter padding_bytes : Int32
 //     getter data_bytes : Int32
 
-//     # TODO: Raise if format != PCF_DEFAULT
+//     # TODO: Raise if format != DEFAULT
 //     def initialize(io)
 //       format = io.read_bytes(Int32, IO::ByteFormat::LittleEndian)
 
@@ -341,10 +322,25 @@ func (p *parser) bitmap() (bitmapTable, error) {
 //     end
 //   end
 
+// we use int16 even for compressed for simplicity
+type metric struct {
+	leftSidedBearing    int16
+	rightSidedBearing   int16
+	characterWidth      int16
+	characterAscent     int16
+	characterDescent    int16
+	characterAttributes uint16
+}
+
+const (
+	metricCompressedSize   = 5
+	metricUncompressedSize = 12
+)
+
 func (pr *parser) metric(compressed bool, order binary.ByteOrder) (metric, error) {
 	var out metric
 	if compressed {
-		if len(pr.data) < pr.pos+5 {
+		if len(pr.data) < pr.pos+metricCompressedSize {
 			return out, fmt.Errorf("invalid compressed metric data")
 		}
 		out.leftSidedBearing = int16(pr.data[pr.pos] - 0x80)
@@ -352,9 +348,9 @@ func (pr *parser) metric(compressed bool, order binary.ByteOrder) (metric, error
 		out.characterWidth = int16(pr.data[pr.pos+2] - 0x80)
 		out.characterAscent = int16(pr.data[pr.pos+3] - 0x80)
 		out.characterDescent = int16(pr.data[pr.pos+4] - 0x80)
-		pr.pos += 5
+		pr.pos += metricCompressedSize
 	} else {
-		if len(pr.data) < pr.pos+12 {
+		if len(pr.data) < pr.pos+metricUncompressedSize {
 			return out, fmt.Errorf("invalid uncompressed metric data")
 		}
 		out.leftSidedBearing = int16(order.Uint16(pr.data[pr.pos:]))
@@ -363,10 +359,12 @@ func (pr *parser) metric(compressed bool, order binary.ByteOrder) (metric, error
 		out.characterAscent = int16(order.Uint16(pr.data[pr.pos+6:]))
 		out.characterDescent = int16(order.Uint16(pr.data[pr.pos+8:]))
 		out.characterAttributes = order.Uint16(pr.data[pr.pos+10:])
-		pr.pos += 12
+		pr.pos += metricUncompressedSize
 	}
 	return out, nil
 }
+
+type metricsTable []metric
 
 func (pr *parser) metricTable() (metricsTable, error) {
 	format, err := pr.u32(binary.LittleEndian)
@@ -376,7 +374,7 @@ func (pr *parser) metricTable() (metricsTable, error) {
 
 	order := getOrder(format)
 
-	compressed := format&formatMask == PCF_COMPRESSED_METRICS&formatMask
+	compressed := format&formatMask == COMPRESSED_METRICS&formatMask
 	var count int
 	if compressed {
 		c, er := pr.u16(order)
@@ -387,6 +385,11 @@ func (pr *parser) metricTable() (metricsTable, error) {
 	}
 	if err != nil {
 		return nil, err
+	}
+
+	if count > nbMetricsMax {
+		return nil, fmt.Errorf("number of glyphs (%d) exceeds implementation limit (%d)",
+			count, nbMetricsMax)
 	}
 
 	out := make(metricsTable, count)
@@ -400,13 +403,15 @@ func (pr *parser) metricTable() (metricsTable, error) {
 	return out, nil
 }
 
+type encodingTable map[uint16]uint16
+
 func (pr *parser) encodingTable() (encodingTable, error) {
 	format, err := pr.u32(binary.LittleEndian)
 	if err != nil {
 		return nil, err
 	}
 
-	if format&formatMask != PCF_DEFAULT_FORMAT {
+	if format&formatMask != defaultFormat {
 		return nil, fmt.Errorf("invalid encoding table format: %d", format)
 	}
 
@@ -435,7 +440,7 @@ func (pr *parser) encodingTable() (encodingTable, error) {
 			value := order.Uint16(pr.data[pr.pos:])
 			pr.pos += 2
 
-			full := mi | ma<<8
+			full := ma<<8 | mi
 			if value != 0xffff {
 				out[full] = value
 			} else {
@@ -447,8 +452,191 @@ func (pr *parser) encodingTable() (encodingTable, error) {
 	return out, nil
 }
 
+type acceleratorTable struct {
+	// true if for all i:
+	// max(metrics[i].rightSideBearing - metrics[i].characterWidth)  <= minbounds.leftSideBearing
+	noOverlap       bool
+	constantMetrics bool // Means the perchar field of the XFontStruct can be nil
+
+	// constantMetrics true and forall characters:
+	//      the left side bearing==0
+	//      the right side bearing== the character's width
+	//      the character's ascent==the font's ascent
+	//      the character's descent==the font's descent
+	terminalFont  bool
+	constantWidth bool // monospace font like courier
+	// Means that all inked bits are within the rectangle with x between [0,charwidth]
+	//  and y between [-descent,ascent]. So no ink overlaps another char when drawing
+	inkInside        bool
+	inkMetrics       bool // true if the ink metrics differ from the metrics somewhere
+	drawDirectionRTL bool // false:left to right, true:right to left
+	// padding                      byte
+	fontAscent                 int32
+	fontDescent                int32
+	maxOverlap                 int32
+	minbounds, maxbounds       metric
+	inkMinbounds, inkMaxbounds metric // If format is default, same as minbounds,maxbounds
+}
+
+func (pr *parser) accelerator() (*acceleratorTable, error) {
+	format, err := pr.u32(binary.LittleEndian)
+	if err != nil {
+		return nil, err
+	}
+
+	order := getOrder(format)
+
+	const length = 8 + 3*4 // before metrics
+	if len(pr.data) < pr.pos+length {
+		return nil, errors.New("invalid accelerator table")
+	}
+
+	var out acceleratorTable
+
+	out.noOverlap = pr.data[pr.pos] == 1
+	out.constantMetrics = pr.data[pr.pos+1] == 1
+	out.terminalFont = pr.data[pr.pos+2] == 1
+	out.constantWidth = pr.data[pr.pos+3] == 1
+	out.inkInside = pr.data[pr.pos+4] == 1
+	out.inkMetrics = pr.data[pr.pos+5] == 1
+	out.drawDirectionRTL = pr.data[pr.pos+6] == 1
+	// padding byte
+	out.fontAscent = int32(order.Uint32(pr.data[pr.pos+8:]))
+	out.fontDescent = int32(order.Uint32(pr.data[pr.pos+12:]))
+	out.maxOverlap = int32(order.Uint32(pr.data[pr.pos+16:]))
+	pr.pos += length
+
+	out.minbounds, err = pr.metric(false, order)
+	if err != nil {
+		return nil, err
+	}
+	out.maxbounds, err = pr.metric(false, order)
+	if err != nil {
+		return nil, err
+	}
+
+	if format&formatMask == accelWInkbounds {
+		out.inkMinbounds, err = pr.metric(false, order)
+		if err != nil {
+			return nil, err
+		}
+		out.inkMaxbounds, err = pr.metric(false, order)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		out.inkMinbounds, out.inkMaxbounds = out.minbounds, out.maxbounds
+	}
+
+	return &out, nil
+}
+
+// byte offsets to bitmap data
+type scalableWidthsTable []uint32
+
+func (pr *parser) scalableWidths() (scalableWidthsTable, error) {
+	format, err := pr.u32(binary.LittleEndian)
+	if err != nil {
+		return nil, err
+	}
+
+	order := getOrder(format)
+
+	count, err := pr.u32(order)
+	if err != nil {
+		return nil, err
+	}
+
+	if count > nbMetricsMax {
+		return nil, fmt.Errorf("number of glyphs (%d) exceeds implementation limit (%d)",
+			count, nbMetricsMax)
+	}
+
+	if len(pr.data) < pr.pos+int(count)*4 {
+		return nil, errors.New("invalid accelerator table")
+	}
+
+	out := make(scalableWidthsTable, count)
+	for i := range out {
+		out[i] = order.Uint32(pr.data[pr.pos+4*i:])
+	}
+	pr.pos += int(count) * 4
+
+	return out, nil
+}
+
+type namesTable []string // indexed by the glyph index
+
+func (pr *parser) names() (namesTable, error) {
+	format, err := pr.u32(binary.LittleEndian)
+	if err != nil {
+		return nil, err
+	}
+
+	order := getOrder(format)
+
+	count, err := pr.u32(order)
+	if err != nil {
+		return nil, err
+	}
+
+	if count > nbMetricsMax {
+		return nil, fmt.Errorf("number of glyphs (%d) exceeds implementation limit (%d)",
+			count, nbMetricsMax)
+	}
+
+	if len(pr.data) < pr.pos+int(count)*4 {
+		return nil, errors.New("invalid names table")
+	}
+
+	offsets := make([]uint32, count)
+	for i := range offsets {
+		offsets[i] = order.Uint32(pr.data[pr.pos+4*i:])
+	}
+	pr.pos += int(count) * 4
+
+	stringSize, err := pr.u32(order)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(pr.data) < pr.pos+int(stringSize) {
+		return nil, errors.New("invalid names table")
+	}
+	stringData := pr.data[pr.pos : pr.pos+int(stringSize)]
+
+	out := make(namesTable, count)
+	for i, offset := range offsets {
+		out[i], err = getCString(stringData, offset)
+		if err != nil {
+			return nil, err
+		}
+	}
+	pr.pos += int(stringSize)
+
+	return out, nil
+}
+
+// checking the coherence between tables
+func (f Font) validate() error {
+	nbGlyphs := len(f.bitmap.offsets)
+	if L := len(f.scalableWidths); f.scalableWidths != nil && L != nbGlyphs {
+		return fmt.Errorf("invalid number of widths: expected %d, got %d", nbGlyphs, L)
+	}
+	if L := len(f.names); f.names != nil && L != nbGlyphs {
+		return fmt.Errorf("invalid number of names: expected %d, got %d", nbGlyphs, L)
+	}
+	if L := len(f.metrics); f.metrics != nil && L != nbGlyphs {
+		return fmt.Errorf("invalid number of metrics: expected %d, got %d", nbGlyphs, L)
+	}
+	if f.accelerator == nil {
+		return fmt.Errorf("missing accelerator table")
+	}
+	return nil
+}
+
 func parse(data []byte) (*Font, error) {
-	if len(data) < 4 || string(data[0:4]) != HEADER {
+	if len(data) < 4 || string(data[0:4]) != header {
 		return nil, errors.New("not a PCF file")
 	}
 
@@ -464,8 +652,11 @@ func parse(data []byte) (*Font, error) {
 			return nil, err
 		}
 	}
-	fmt.Println(tocEntries)
-	var out Font
+
+	var (
+		out      Font
+		bdfAccel *acceleratorTable
+	)
 	for _, tc := range tocEntries {
 		pr.pos = int(tc.offset) // seek
 		switch tc.kind {
@@ -479,13 +670,27 @@ func parse(data []byte) (*Font, error) {
 			out.inkMetrics, err = pr.metricTable()
 		case bdfEncodings:
 			out.encoding, err = pr.encodingTable()
+		case accelerators:
+			out.accelerator, err = pr.accelerator()
+		case bdfAccelerators:
+			bdfAccel, err = pr.accelerator()
+		case sWidths:
+			out.scalableWidths, err = pr.scalableWidths()
+		case glyphNames:
+			out.names, err = pr.names()
+
 		}
 		if err != nil {
 			return nil, err
 		}
 	}
 
-	return &out, nil
+	if bdfAccel != nil {
+		out.accelerator = bdfAccel
+	}
+
+	err = out.validate()
+	return &out, err
 }
 
 //       bitmap_table = nil
@@ -615,84 +820,3 @@ func parse(data []byte) (*Font, error) {
 //       end
 //     end
 //   end
-
-//   class tocEntry
-//     getter type : TableType
-//     getter format : Int32
-//     getter size : Int32
-//     getter offset : Int32
-
-//     def initialize(io)
-//       @type = TableType.new(io.read_bytes(Int32, IO::ByteFormat::LittleEndian))
-//       @format = io.read_bytes(Int32, IO::ByteFormat::LittleEndian)
-//       @size   = io.read_bytes(Int32, IO::ByteFormat::LittleEndian)
-//       @offset = io.read_bytes(Int32, IO::ByteFormat::LittleEndian)
-//     end
-//   end
-
-//   class Prop
-//     getter name_offset : Int32
-//     getter is_string_prop : Bool
-//     getter value : Int32
-
-//     def initialize(io, byte_format)
-//       @name_offset = io.read_bytes(Int32, byte_format)
-//       @is_string_prop = io.read_bytes(Int8, byte_format) == 1
-//       @value = io.read_bytes(Int32, byte_format)
-//     end
-//   end
-
-//   class PropertiesTable
-//     getter properties : Hash(String, (String | Int32))
-
-//     def initialize(io)
-//       @properties = {} of String => (String | Int32)
-
-//       format = io.read_bytes(Int32, IO::ByteFormat::LittleEndian)
-//       byte_mask = (format & 4) != 0 # set => most significant byte first
-//       bit_mask = (format & 8) != 0  # set => most significant bit first
-
-//       unless bit_mask
-//         puts "Unsupported bit_mask: #{bit_mask}"
-//       end
-
-//       byte_format = byte_mask ? IO::ByteFormat::BigEndian : IO::ByteFormat::BigEndian
-
-//       # :compressed_metrics is equiv. to :accel_w_inkbounds
-//       main_format = [:default, :inkbounds, :compressed_metrics][format >> 8]
-
-//       size = io.read_bytes(Int32, byte_format)
-//       props = [] of Prop
-//       size.times do
-//         props << Prop.new(io, byte_format)
-//       end
-
-//       padding = (size & 3) == 0 ? 0 : 4 - (size & 3)
-//       io.skip(padding)
-
-//       string_size = io.read_bytes(Int32, byte_format)
-
-//       # Start of the strings array
-//       strings = io.pos
-//       props.each do |prop|
-//         name = nil
-//         io.seek(strings + prop.name_offset) do
-//           name = io.gets('\0', true)
-//         end
-
-//         raise "Could not read property name" if name.nil?
-
-//         offset = prop.value
-//         if prop.is_string_prop
-//           io.seek(strings + offset) do
-//             value = io.gets('\0', true)
-//             raise "Could not read property value" if value.nil?
-//             @properties[name] = value
-//           end
-//         else
-//           @properties[name] = offset
-//         end
-//       end
-//     end
-//   end
-// end
