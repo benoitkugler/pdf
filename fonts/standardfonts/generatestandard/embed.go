@@ -81,7 +81,7 @@ func fontDescriptor(f type1.AFMFont) model.FontDescriptor {
 		FontFamily:  f.FamilyName,
 		Flags:       flag,
 		FontBBox:    model.Rectangle{Llx: f.Llx, Lly: f.Lly, Urx: f.Urx, Ury: f.Ury},
-		ItalicAngle: f.ItalicAngle,
+		ItalicAngle: Fl(f.ItalicAngle),
 		Ascent:      f.Ascender,
 		Descent:     f.Descender,
 		Leading:     0, // unknown
