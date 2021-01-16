@@ -3,9 +3,9 @@ package standardfonts
 import (
 	"log"
 
-	"github.com/benoitkugler/fonts/simpleencodings"
-	"github.com/benoitkugler/fonts/type1"
 	"github.com/benoitkugler/pdf/model"
+	"github.com/benoitkugler/textlayout/fonts/simpleencodings"
+	"github.com/benoitkugler/textlayout/fonts/type1"
 )
 
 var PredefinedEncodings = map[model.SimpleEncodingPredefined]*simpleencodings.Encoding{

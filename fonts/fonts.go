@@ -23,10 +23,10 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/benoitkugler/fonts/truetype"
 	"github.com/benoitkugler/pdf/fonts/cmaps"
 	"github.com/benoitkugler/pdf/fonts/standardfonts"
 	"github.com/benoitkugler/pdf/model"
+	"github.com/benoitkugler/textlayout/fonts/truetype"
 )
 
 type Fl = model.Fl

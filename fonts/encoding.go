@@ -3,13 +3,13 @@ package fonts
 import (
 	"log"
 
-	"github.com/benoitkugler/fonts/simpleencodings"
-	"github.com/benoitkugler/fonts/type1"
-	"github.com/benoitkugler/fonts/type1C"
 	"github.com/benoitkugler/pdf/fonts/cmaps"
 	"github.com/benoitkugler/pdf/fonts/standardcmaps"
 	"github.com/benoitkugler/pdf/fonts/standardfonts"
 	"github.com/benoitkugler/pdf/model"
+	"github.com/benoitkugler/textlayout/fonts/simpleencodings"
+	"github.com/benoitkugler/textlayout/fonts/type1"
+	"github.com/benoitkugler/textlayout/fonts/type1C"
 )
 
 // We follow here the logic from poppler, which itself is based on the PDF spec.

@@ -8,9 +8,9 @@ import (
 	"os/exec"
 	"strings"
 
-	"github.com/benoitkugler/fonts/type1"
 	"github.com/benoitkugler/pdf/fonts/standardfonts"
 	"github.com/benoitkugler/pdf/model"
+	"github.com/benoitkugler/textlayout/fonts/type1"
 )
 
 // only widths
