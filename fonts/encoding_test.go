@@ -19,7 +19,7 @@ func TestDefinedEnc(t *testing.T) {
 		t.Error()
 	}
 
-	content, err := ioutil.ReadFile("../../fonts/type1/test/CalligrapherRegular.pfb")
+	content, err := ioutil.ReadFile("test/CalligrapherRegular.pfb")
 	if err != nil {
 		t.Fatal(err)
 	}

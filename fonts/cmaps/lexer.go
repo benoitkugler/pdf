@@ -29,7 +29,7 @@ func (p *parser) parseObject() (cmapObject, error) {
 		case tokenizer.Name:
 			return model.ObjName(token.Value), nil
 		case tokenizer.String:
-			return token.Value, nil
+			return string(token.Value), nil
 		case tokenizer.StringHex:
 			return cmapHexString(token.Value), nil
 		case tokenizer.StartArray:
@@ -99,7 +99,7 @@ func (p *parser) parseDict() (cmapDict, error) {
 			if err != nil {
 				return nil, err
 			}
-			if token.Kind == tokenizer.Other && token.Value == "def" {
+			if token.IsOther("def") {
 				_, _ = p.tokenizer.NextToken() // consume it
 			}
 		case tokenizer.EndDic:

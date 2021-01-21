@@ -238,7 +238,7 @@ func (ctx *Context) buildXRefTableStartingAt(offset int64) (err error) {
 			return fmt.Errorf("invalid xref table: %s", err)
 		}
 
-		if start == (tok.Token{Kind: tok.Other, Value: "xref"}) { // xref section
+		if start.IsOther("xref") { // xref section
 			_, _ = tk.NextToken() // consume keyword
 			offset, ssCount, err = ctx.parseXRefSection(tk, ssCount)
 			if err != nil {
@@ -277,7 +277,7 @@ func (ctx *Context) parseXRefSection(tk *tok.Tokenizer, ssCount int) (int64, int
 		}
 		ssCount++
 
-		if next, _ := tk.PeekToken(); next == (tok.Token{Kind: tok.Other, Value: "trailer"}) {
+		if next, _ := tk.PeekToken(); next.IsOther("trailer") {
 			break
 		}
 	}
@@ -331,7 +331,7 @@ func (xrefTable xrefTable) parseXRefTableEntry(tk *tok.Tokenizer, objectNumber i
 	if err != nil {
 		return err
 	}
-	offset, err := strconv.ParseInt(offsetTk.Value, 10, 64)
+	offset, err := strconv.ParseInt(string(offsetTk.Value), 10, 64)
 	if err != nil {
 		return fmt.Errorf("parseXRefTableEntry: invalid offset: %s", err)
 	}
@@ -345,12 +345,13 @@ func (xrefTable xrefTable) parseXRefTableEntry(tk *tok.Tokenizer, objectNumber i
 	if err != nil {
 		return err
 	}
-	if entryType.Kind != tok.Other || (entryType.Value != "f" && entryType.Value != "n") {
+	v := string(entryType.Value)
+	if entryType.Kind != tok.Other || (v != "f" && v != "n") {
 		return errors.New("parseXRefTableEntry: corrupt xref subsection entry")
 	}
 
 	entry := xrefEntry{
-		free:       entryType.Value == "f",
+		free:       v == "f",
 		offset:     offset,
 		generation: generation,
 	}
@@ -563,11 +564,11 @@ func (ctx *Context) bypassXrefSection() error {
 		firstToken, _ := tk.PeekToken()
 
 		if withinObj { // lookfor "endobj"
-			if firstToken.Kind == tok.Other && firstToken.Value == "endobj" {
+			if firstToken.IsOther("endobj") {
 				withinObj = false
 			}
 		} else if withinXref {
-			if firstToken.Kind == tok.Other && firstToken.Value == "trailer" {
+			if firstToken.IsOther("trailer") {
 				// consume the token and read the end of the file
 				_, _ = tk.NextToken()
 				pos := lineOffset + int64(tk.CurrentPosition())
@@ -580,7 +581,7 @@ func (ctx *Context) bypassXrefSection() error {
 				return err
 			}
 			// Ignore all until "trailer".
-		} else if firstToken.Kind == tok.Other && firstToken.Value == "xref" {
+		} else if firstToken.IsOther("xref") {
 			withinXref = true
 		} else { // look for a declaration object XXX XX obj
 			objNr, generation, err := parseObjectDeclaration(tk)
@@ -611,7 +612,7 @@ func parseObjectDeclaration(tk *tok.Tokenizer) (objectNumber, generationNumber i
 	if err != nil {
 		return
 	}
-	if !(objTk.Kind == tok.Other && objTk.Value == "obj") {
+	if !objTk.IsOther("obj") {
 		err = fmt.Errorf("parseObjectDeclaration: unexpected token %v", objTk)
 	}
 	return
@@ -647,7 +648,7 @@ func (ctx *Context) parseXRefStream(offset int64) (int64, error) {
 	if err != nil {
 		return 0, err
 	}
-	if streamStart != (tok.Token{Kind: tok.Other, Value: "stream"}) {
+	if !streamStart.IsOther("stream") {
 		return 0, fmt.Errorf("unexpected token %s", streamStart)
 	}
 

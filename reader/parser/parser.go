@@ -204,8 +204,8 @@ func (p *Parser) parseDict(relaxed bool) (Dict, error) {
 	return nil, err
 }
 
-func (p Parser) parseOther(l string) (Object, error) {
-	switch l {
+func (p Parser) parseOther(l []byte) (Object, error) {
+	switch string(l) {
 	case "null": // null, absent object
 		return model.ObjNull{}, nil
 	case "true": // boolean true
@@ -220,8 +220,6 @@ func (p Parser) parseOther(l string) (Object, error) {
 		}
 	}
 }
-
-var tokenReference = tkn.Token{Kind: tkn.Other, Value: "R"}
 
 func (p *Parser) parseNumericOrIndRef(currentToken tkn.Token) (Object, error) {
 	// if this object is an integer we need to check for an indirect reference eg. 1 0 R
@@ -259,7 +257,7 @@ func (p *Parser) parseNumericOrIndRef(currentToken tkn.Token) (Object, error) {
 
 	// if only 2 token, can't be indirect reference.
 	// if not followed by whitespace return sole integer value.
-	if nextNext, _ := p.tokens.PeekPeekToken(); nextNext != tokenReference { // adjourn error checking
+	if nextNext, _ := p.tokens.PeekPeekToken(); !nextNext.IsOther("R") { // adjourn error checking
 		log.Parse.Printf("parseNumericOrIndRef: 2 objects => value is numeric int: %d\n", i)
 		return Integer(i), nil
 	}
@@ -302,7 +300,7 @@ func ParseObjectDefinition(line []byte, headerOnly bool) (objectNumber int, gene
 	if err != nil {
 		return 0, 0, nil, errors.New("pdfcpu: ParseObjectDefinition: can't find \"obj\"")
 	}
-	if tok != (tkn.Token{Kind: tkn.Other, Value: "obj"}) {
+	if !tok.IsOther("obj") {
 		return 0, 0, nil, errors.New("pdfcpu: ParseObjectDefinition: can't find \"obj\"")
 	}
 

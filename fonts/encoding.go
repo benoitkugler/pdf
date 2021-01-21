@@ -1,6 +1,7 @@
 package fonts
 
 import (
+	"bytes"
 	"log"
 
 	"github.com/benoitkugler/pdf/fonts/cmaps"
@@ -152,7 +153,7 @@ func builtinType1Encoding(desc model.FontDescriptor) *simpleencodings.Encoding {
 	}
 	isCFF := desc.FontFile.Subtype == "Type1C"
 	if isCFF {
-		info, err := type1C.ParseCFF(content)
+		info, err := type1C.Parse(bytes.NewReader(content))
 		if err != nil {
 			log.Printf("invalid Type1C embedded font file: %s\n", err)
 		}
@@ -170,7 +171,7 @@ func builtinType1Encoding(desc model.FontDescriptor) *simpleencodings.Encoding {
 		}
 		return info.Encoding
 	} else {
-		info, err := type1.ParsePFBFile(content)
+		info, err := type1.Parse(bytes.NewReader(content))
 		if err != nil {
 			log.Printf("invalid Type1 embedded font file: %s\n", err)
 			return &simpleencodings.Standard
