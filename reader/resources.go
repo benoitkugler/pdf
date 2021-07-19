@@ -1,10 +1,9 @@
 package reader
 
 import (
+	"errors"
 	"fmt"
 	"log"
-
-	"errors"
 
 	"github.com/benoitkugler/pdf/fonts/standardfonts"
 	"github.com/benoitkugler/pdf/model"
@@ -97,7 +96,7 @@ func (r resolver) resolveOneFont(font pdfcpu.Object) (*model.FontDict, error) {
 	if err != nil {
 		return nil, err
 	}
-	if isFontRef { //write back to the cache
+	if isFontRef { // write back to the cache
 		r.fonts[fontRef] = fontModel
 	}
 	return fontModel, nil
@@ -188,6 +187,7 @@ func (r resolver) resolveFontTT1orTT(font pdfcpu.Dict) (out model.FontType1, err
 	// add it, taking into account the encoding
 	if standard, ok := standardfonts.Fonts[string(out.BaseFont)]; ok {
 		var names [256]string
+		fmt.Println(out.Encoding)
 		switch enc := out.Encoding.(type) {
 		case model.SimpleEncodingPredefined: // enc is validated by resolveEncoding
 			names = *standardfonts.PredefinedEncodings[enc]
@@ -198,6 +198,8 @@ func (r resolver) resolveFontTT1orTT(font pdfcpu.Dict) (out model.FontType1, err
 				names = standard.Builtin
 			}
 			names = enc.Differences.Apply(names)
+		default:
+			names = standard.Builtin
 		}
 		f, w := standard.WidthsWithEncoding(names)
 		out.FirstChar = f

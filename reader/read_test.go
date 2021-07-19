@@ -253,16 +253,19 @@ func TestReWrite(t *testing.T) {
 }
 
 func TestImportPage(t *testing.T) {
-	const file = "test/Venez le célébrer.pdf"
+	// const file = "test/Venez le célébrer.pdf"
+	const file = "test/Prince-de-paix (Dieu tu es saint).pdf"
 	doc, _, err := ParsePDFFile(file, Options{})
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	for _, p := range doc.Catalog.Pages.Flatten() {
-		fmt.Println(p.Resources.XObject["Im1"].(*model.XObjectImage).Filter)
-		fmt.Println(p.Resources.XObject["Im0"].(*model.XObjectImage).Filter)
-	}
+	// for _, p := range doc.Catalog.Pages.Flatten() {
+	// b, _ := p.DecodeAllContents()
+	// fmt.Println(string(b))
+	// fmt.Println(p.Resources.XObject["Im1"].(*model.XObjectImage).Filter)
+	// fmt.Println(p.Resources.XObject["Im0"].(*model.XObjectImage).Filter)
+	// }
 
 	err = reWrite(doc, file+".pdf")
 	if err != nil {
