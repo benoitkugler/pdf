@@ -163,6 +163,11 @@ func (ap *Appearance) MoveText(x, y Fl) {
 // ShowText shows the `text`, after encoding it
 // according to the current font.
 // And error is returned (only) if a font has not been setup.
+// A typical text drawing should apply the following methods ;
+//	- BeginText
+//	- SetFontAndSize
+//	- ShowText
+//	- EndText
 func (ap *Appearance) ShowText(text string) error {
 	if ap.State.Font == nil {
 		return errNoFont

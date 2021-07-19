@@ -28,19 +28,19 @@ import (
 // information, which are added via a tranformation matrix
 // associated to the image.
 type RenderingDims struct {
-	Width, Height RenderingSize
+	Width, Height RenderingSize // See EffectiveSize()
 }
 
 // EffectiveSize performs automatic width and height calculation.
 //
-// `intrasecWidth`, `intrasecHeight` are the dimensions of the image
-// in terms of columns and rows.
+// Only the width and height (in terms of columns and rows) of `img` are used.
 //
 // If both `Width` and `Height` are nil, the image is rendered at 96 dpi.
 // If either `Width` or `Height` is nil, it will be
 // calculated from the other dimension so that the aspect ratio is maintained.
 // Otherwise, `Width` or `Height` may be a dpi or a length.
-func (r RenderingDims) EffectiveSize(intrasecWidth, intrasecHeight int) (width Fl, height Fl) {
+func (r RenderingDims) EffectiveSize(img *model.XObjectImage) (width Fl, height Fl) {
+	intrasecWidth, intrasecHeight := img.Width, img.Height
 	if r.Width == nil && r.Height == nil { // Put image at 96 dpi
 		r.Width = RenderingDPI(96)
 		r.Height = RenderingDPI(96)
@@ -415,7 +415,8 @@ func parsePNG(r io.Reader) (img *model.XObjectImage, dpi float64, err error) {
 							"Predictor": 15,
 							"Colors":    1,
 							"Columns":   img.Width,
-						}}},
+						}},
+					},
 				},
 				Width:            img.Width,
 				Height:           img.Height,

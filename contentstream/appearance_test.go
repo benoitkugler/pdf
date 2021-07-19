@@ -53,9 +53,9 @@ func TestImages(t *testing.T) {
 		}
 		a := NewAppearance(600, 600)
 		// default dpi
-		w, h := RenderingDims{}.EffectiveSize(img.Width, img.Height)
+		w, h := RenderingDims{}.EffectiveSize(img)
 		a.AddXObject(img, 50, 50, w, h)
-		w2, h2 := RenderingDims{Width: RenderingLength(200)}.EffectiveSize(img.Width, img.Height)
+		w2, h2 := RenderingDims{Width: RenderingLength(200)}.EffectiveSize(img)
 		a.AddXObject(img, 300, 300, w2, h2)
 
 		// one image per page
