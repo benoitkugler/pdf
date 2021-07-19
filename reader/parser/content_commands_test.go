@@ -237,7 +237,8 @@ func createImageStream(fi model.Name) (contentstream.OpBeginImage, error) {
 	if fi == model.DCT {
 		content, err := randJPEG(30)
 		return contentstream.OpBeginImage{
-			Image: model.Image{Stream: model.Stream{Filter: l, Content: content}, BitsPerComponent: 8,
+			Image: model.Image{
+				Stream: model.Stream{Filter: l, Content: content}, BitsPerComponent: 8,
 				Height: 30, Width: 30,
 			},
 			ColorSpace: contentstream.ImageColorSpaceName{ColorSpaceName: model.ColorSpaceRGB},
@@ -245,10 +246,12 @@ func createImageStream(fi model.Name) (contentstream.OpBeginImage, error) {
 	}
 	in := make([]byte, 30*30)
 	rand.Read(in)
-	out, err := model.NewStream(in, l)
+	out, err := model.NewStream(in, l...)
 	return contentstream.OpBeginImage{
-		Image: model.Image{Stream: out, BitsPerComponent: 8,
-			Height: 30, Width: 30}, ColorSpace: contentstream.ImageColorSpaceName{ColorSpaceName: model.ColorSpaceGray},
+		Image: model.Image{
+			Stream: out, BitsPerComponent: 8,
+			Height: 30, Width: 30,
+		}, ColorSpace: contentstream.ImageColorSpaceName{ColorSpaceName: model.ColorSpaceGray},
 	}, err
 }
 

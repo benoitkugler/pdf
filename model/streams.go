@@ -104,7 +104,7 @@ type Stream struct {
 // applying them in the given order, and storing them in the returned object
 // following the PDF order (that is, reversed).
 // Be aware that not all PDF filters are supported (see filters.List).
-func NewStream(content []byte, filters Filters) (Stream, error) {
+func NewStream(content []byte, filters ...Filter) (Stream, error) {
 	var r io.Reader = bytes.NewReader(content)
 	L := len(filters)
 	reversed := make(Filters, L)

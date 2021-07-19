@@ -263,6 +263,8 @@ func (r resolver) resolvePageTree(node pdfcpu.Dict) (*model.PageTree, error) {
 		}
 		page.Resources = &resources
 	}
+	page.MediaBox = r.rectangleFromArray(node["MediaBox"])
+
 	kids, _ := r.resolveArray(node["Kids"])
 	for _, node := range kids {
 		kid, err := r.processPageNode(node)

@@ -20,8 +20,11 @@ func (*PageObject) isPageNode() {}
 // PageTree describe the page hierarchy
 // of a PDF file.
 type PageTree struct {
-	Kids      []PageNode
+	Kids []PageNode
+
+	// TODO: complete the inheritable fields
 	Resources *ResourcesDict // if nil, will be inherited from the parent
+	MediaBox  *Rectangle     // if nil, will be inherited from the parent
 
 	parent *PageTree // cache, set up during pre-allocation
 }
@@ -39,7 +42,7 @@ func (p *PageTree) Count() int {
 // Flatten returns all the leaf of the tree,
 // respecting the indexing convention for pages (0-based):
 // the page with index i is Flatten()[i].
-// Be aware that inherited resource are not resolved
+// Be aware that inherited resource are not resolved (see FlattenInherit)
 func (p PageTree) Flatten() []*PageObject {
 	var out []*PageObject
 	for _, kid := range p.Kids {
@@ -48,6 +51,40 @@ func (p PageTree) Flatten() []*PageObject {
 			out = append(out, kid.Flatten()...)
 		case *PageObject:
 			out = append(out, kid)
+		}
+	}
+	return out
+}
+
+// FlattenInherit returns all the leaf of the tree,
+// respecting the indexing convention for pages (0-based):
+// the page with index i is FlattenInherit()[i].
+// The inherited resources are resolved, and the page returned page
+// objects are copied and updated with it.
+func (p PageTree) FlattenInherit() []PageObject {
+	var out []PageObject
+	for _, kid := range p.Kids {
+		switch kid := kid.(type) {
+		case *PageTree:
+			copied := *kid
+			// inherit
+			if copied.Resources == nil {
+				copied.Resources = p.Resources
+			}
+			if copied.MediaBox == nil {
+				copied.MediaBox = nil
+			}
+			out = append(out, copied.FlattenInherit()...)
+		case *PageObject:
+			copied := *kid
+			// inherit
+			if copied.Resources == nil {
+				copied.Resources = p.Resources
+			}
+			if copied.MediaBox == nil {
+				copied.MediaBox = nil
+			}
+			out = append(out, copied)
 		}
 	}
 	return out
@@ -105,6 +142,9 @@ func (pages *PageTree) pdfString(pdf pdfWriter) string {
 		pdf.WriteObject(pages.Resources.pdfString(pdf, refResources), nil, refResources)
 		res = fmt.Sprintf("/Resources %s", refResources)
 	}
+	if pages.MediaBox != nil {
+		res += fmt.Sprintf("/MediaBox %s", pages.MediaBox.String())
+	}
 	content := fmt.Sprintf("<</Type/Pages/Count %d/Kids %s%s%s>>",
 		pages.Count(), writeRefArray(kidRefs), parent, res)
 	return content
@@ -157,6 +197,21 @@ func (p *PageObject) AddFormFieldWidget(f *FormFieldDict, base BaseAnnotation, w
 	annot := FormFieldWidget{AnnotationDict: &AnnotationDict{BaseAnnotation: base, Subtype: widget}}
 	p.Annots = append(p.Annots, annot.AnnotationDict)
 	f.Widgets = append(f.Widgets, annot)
+}
+
+// DecodeAllContents read each content stream and returns the
+// aggregated one.
+func (p *PageObject) DecodeAllContents() ([]byte, error) {
+	var totalPageContent []byte
+	for _, ct := range p.Contents {
+		ctContent, err := ct.Decode()
+		if err != nil {
+			return nil, err
+		}
+		totalPageContent = append(totalPageContent, ctContent...)
+	}
+
+	return totalPageContent, nil
 }
 
 // the pdf page map is used to fetch the object number

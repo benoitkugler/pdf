@@ -56,7 +56,7 @@ func AddAttachments(doc *model.Document, enc *model.Encrypt, w io.Writer, files 
 		emb.Params.ModDate = fi.ModTime()
 
 		// compression with flate, optional
-		emb.Stream, err = model.NewStream(content, []model.Filter{{Name: model.Flate}, {Name: model.ASCIIHex}})
+		emb.Stream, err = model.NewStream(content, model.Filter{Name: model.Flate}, model.Filter{Name: model.ASCIIHex})
 		if err != nil {
 			return fmt.Errorf("can't compress file : %w", err)
 		}

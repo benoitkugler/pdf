@@ -19,6 +19,8 @@ import (
 
 type Fl = model.Fl
 
+const debug = false
+
 // maintain tables mapping PDF indirect object numbers
 // to model objects
 type resolver struct {
@@ -278,7 +280,7 @@ func (r resolver) processCryptFilter(crypt pdfcpu.Object) model.CrypFilter {
 
 // Options enables greater control
 // on the processing.
-// The zero value is the valid default configuration.
+// The zero value is a valid default configuration.
 type Options struct {
 	UserPassword         string
 	CustomObjectResolver CustomObjectResolver
@@ -318,7 +320,9 @@ func ParsePDFReader(source io.ReadSeeker, options Options) (model.Document, *mod
 		return model.Document{}, nil, fmt.Errorf("can't read PDF: %w", err)
 	}
 
-	fmt.Printf("pdfcpu processing: %s\n", time.Since(ti))
+	if debug {
+		fmt.Printf("pdfcpu processing: %s\n", time.Since(ti))
+	}
 	ti = time.Now()
 
 	r := newResolver()
@@ -326,7 +330,10 @@ func ParsePDFReader(source io.ReadSeeker, options Options) (model.Document, *mod
 	r.customResolve = options.CustomObjectResolver
 
 	out, enc, err := r.processContext()
-	fmt.Printf("model processing: %s\n", time.Since(ti))
+
+	if debug {
+		fmt.Printf("model processing: %s\n", time.Since(ti))
+	}
 
 	return out, enc, err
 }

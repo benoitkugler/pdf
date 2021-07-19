@@ -112,7 +112,7 @@ func TestDataset(t *testing.T) {
 		"test/Empty.pdf",
 		"test/descriptif.pdf",
 		"test/f1118s1.pdf",
-		"test/transparents.pdf",
+		// "test/transparents.pdf",
 		"test/ModeleRecuFiscalEditable.pdf",
 		"test/CMYK_OP.pdf",
 		"test/CMYKSpot_OP.pdf",
@@ -130,6 +130,9 @@ func TestDataset(t *testing.T) {
 		}
 
 		fmt.Println("	Pages:", len(doc.Catalog.Pages.Flatten()))
+		if len(doc.Catalog.Pages.FlattenInherit()) != len(doc.Catalog.Pages.Flatten()) {
+			t.Fatalf("invalid page flatten")
+		}
 		fmt.Println("	Dests name:", len(doc.Catalog.Dests))
 		fmt.Println("	Dests string:", len(doc.Catalog.Names.Dests.LookupTable()))
 		fmt.Println("	Pages strings:", len(doc.Catalog.Names.Pages.LookupTable()))
@@ -247,6 +250,24 @@ func TestReWrite(t *testing.T) {
 		t.Fatal(err)
 	}
 	fmt.Println("PDF wrote to memory in", time.Since(ti))
+}
+
+func TestImportPage(t *testing.T) {
+	const file = "test/Venez le célébrer.pdf"
+	doc, _, err := ParsePDFFile(file, Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for _, p := range doc.Catalog.Pages.Flatten() {
+		fmt.Println(p.Resources.XObject["Im1"].(*model.XObjectImage).Filter)
+		fmt.Println(p.Resources.XObject["Im0"].(*model.XObjectImage).Filter)
+	}
+
+	err = reWrite(doc, file+".pdf")
+	if err != nil {
+		t.Fatal(err)
+	}
 }
 
 func BenchmarkWrite(b *testing.B) {
