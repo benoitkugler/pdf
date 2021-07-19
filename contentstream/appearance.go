@@ -210,7 +210,7 @@ func (ap *Appearance) RestoreState() error {
 	return nil
 }
 
-// check is the image or content is in the resources map or generate a new name and add the object
+// check if the image or content is in the resources map or generate a new name and add the object
 func (ap *Appearance) addXobject(xobj model.XObject) model.Name {
 	for name, obj := range ap.resources.XObject {
 		if obj == xobj {
@@ -223,10 +223,10 @@ func (ap *Appearance) addXobject(xobj model.XObject) model.Name {
 	return name
 }
 
-// ImageOptions puts an image in the current page, at the given position,
+// AddXObject puts an image or an XObjectForm in the current page, at the given position,
 // with the given dimentions.
 // See `RenderingDims` for several ways of specifying image dimentions.
-func (ap *Appearance) AddImage(img *model.XObjectImage, x, y, width, height Fl) {
+func (ap *Appearance) AddXObject(img model.XObject, x, y, width, height Fl) {
 	imgName := ap.addXobject(img)
 	ap.Ops(
 		OpSave{},

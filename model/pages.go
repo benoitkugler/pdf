@@ -133,15 +133,17 @@ func (p *PageTree) clone(cache cloneCache) PageNode {
 // (it will be done automatically when writing the PDF).
 type PageObject struct {
 	// TODO: complete fields
-	Resources                 *ResourcesDict    // if nil, will be inherited from the parent
-	MediaBox                  *Rectangle        // if nil, will be inherited from the parent
-	CropBox                   *Rectangle        // if nil, will be inherited. if still nil, default to MediaBox
-	BleedBox, TrimBox, ArtBox *Rectangle        // if nil, default to CropBox
-	Rotate                    Rotation          // if nil, will be inherited from the parent. Only multiple of 90 are allowed
-	Annots                    []*AnnotationDict // optional, should not contain annotation widget
-	Contents                  []ContentStream   // array of stream (often of length 1)
-	StructParents             MaybeInt          // Required if the page contains structural content items
-	Tabs                      Name              // optional, one of R , C or S
+	Resources                 *ResourcesDict // if nil, will be inherited from the parent
+	MediaBox                  *Rectangle     // if nil, will be inherited from the parent
+	CropBox                   *Rectangle     // if nil, will be inherited. if still nil, default to MediaBox
+	BleedBox, TrimBox, ArtBox *Rectangle     // if nil, default to CropBox
+	// If nil, will be inherited from the parent.
+	// Only multiple of 90 are allowed (see the constants)
+	Rotate        Rotation
+	Annots        []*AnnotationDict // optional, should not contain annotation widget
+	Contents      []ContentStream   // array of stream (often of length 1)
+	StructParents MaybeInt          // Required if the page contains structural content items
+	Tabs          Name              // optional, one of R , C or S
 
 	// cache, set up during pre-allocation
 	// a nil value indicates a template page
