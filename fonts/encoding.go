@@ -10,7 +10,7 @@ import (
 	"github.com/benoitkugler/pdf/model"
 	"github.com/benoitkugler/textlayout/fonts/simpleencodings"
 	"github.com/benoitkugler/textlayout/fonts/type1"
-	"github.com/benoitkugler/textlayout/fonts/type1C"
+	type1c "github.com/benoitkugler/textlayout/fonts/type1C"
 )
 
 // We follow here the logic from poppler, which itself is based on the PDF spec.
@@ -47,7 +47,7 @@ func resolveSimpleEncoding(font model.FontSimple) simpleencodings.Encoding {
 		if _, ok := font.(model.FontTrueType); ok {
 			baseEnc = &simpleencodings.WinAnsi
 		} else {
-			baseEnc = &simpleencodings.Standard
+			baseEnc = &simpleencodings.AdobeStandard
 		}
 	}
 
@@ -144,16 +144,16 @@ func builtinType1Encoding(desc model.FontDescriptor) *simpleencodings.Encoding {
 	}
 
 	if desc.FontFile == nil {
-		return &simpleencodings.Standard
+		return &simpleencodings.AdobeStandard
 	}
 	content, err := desc.FontFile.Decode()
 	if err != nil {
 		log.Printf("unable to decode embedded font file: %s\n", err)
-		return &simpleencodings.Standard
+		return &simpleencodings.AdobeStandard
 	}
 	isCFF := desc.FontFile.Subtype == "Type1C"
 	if isCFF {
-		info, err := type1C.Parse(bytes.NewReader(content))
+		info, err := type1c.Parse(bytes.NewReader(content))
 		if err != nil {
 			log.Printf("invalid Type1C embedded font file: %s\n", err)
 		}
@@ -163,7 +163,7 @@ func builtinType1Encoding(desc model.FontDescriptor) *simpleencodings.Encoding {
 		// the accents in the encoding), so we fill in any gaps from
 		// StandardEncoding
 		if info.Encoding != nil {
-			for i, std := range simpleencodings.Standard {
+			for i, std := range simpleencodings.AdobeStandard {
 				if info.Encoding[i] == "" {
 					info.Encoding[i] = std
 				}
@@ -174,12 +174,9 @@ func builtinType1Encoding(desc model.FontDescriptor) *simpleencodings.Encoding {
 		info, err := type1.Parse(bytes.NewReader(content))
 		if err != nil {
 			log.Printf("invalid Type1 embedded font file: %s\n", err)
-			return &simpleencodings.Standard
+			return &simpleencodings.AdobeStandard
 		}
-		if info.Encoding.Standard {
-			return &simpleencodings.Standard
-		}
-		return &info.Encoding.Custom
+		return info.Encoding
 	}
 }
 
@@ -218,11 +215,11 @@ func builtinType1Encoding(desc model.FontDescriptor) *simpleencodings.Encoding {
 // 			if dict.BaseEncoding != "" {
 // 				base = simpleencodings.standardfonts.PredefinedEncodings[dict.BaseEncoding]
 // 			} else {
-// 				base = &simpleencodings.Standard
+// 				base = &simpleencodings.AdobeStandard
 // 			}
 // 			out := applyDifferences(dict.Differences, userCharMap, base)
 // 			// Finally, any undefined entries in the table shall be filled using StandardEncoding.
-// 			for r, bStd := range simpleencodings.Standard.RuneToByte() {
+// 			for r, bStd := range simpleencodings.AdobeStandard.RuneToByte() {
 // 				if _, ok := out[r]; !ok { // missing rune
 // 					out[r] = bStd
 // 				}
@@ -231,7 +228,7 @@ func builtinType1Encoding(desc model.FontDescriptor) *simpleencodings.Encoding {
 // 		}
 // 	}
 // 	// default value
-// 	return simpleencodings.Standard.RuneToByte()
+// 	return simpleencodings.AdobeStandard.RuneToByte()
 // }
 
 // // may return nil
@@ -258,22 +255,22 @@ func builtinType1Encoding(desc model.FontDescriptor) *simpleencodings.Encoding {
 
 // func builtinTrueTypeEncoding(desc model.FontDescriptor) *simpleencodings.Encoding {
 // 	if desc.FontFile == nil { // we choose an arbitrary encoding
-// 		return &simpleencodings.Standard
+// 		return &simpleencodings.AdobeStandard
 // 	}
 // 	content, err := desc.FontFile.Decode()
 // 	if err != nil {
 // 		log.Printf("unable to decode embedded font file: %s\n", err)
-// 		return &simpleencodings.Standard
+// 		return &simpleencodings.AdobeStandard
 // 	}
 // 	font, err := sfnt.Parse(bytes.NewReader(content))
 // 	if err != nil {
 // 		log.Printf("invalid TrueType embedded font file: %s\n", err)
-// 		return &simpleencodings.Standard
+// 		return &simpleencodings.AdobeStandard
 // 	}
 // 	cmap, err := font.CmapTable()
 // 	if err != nil {
 // 		log.Printf("invalid encoding in TrueType embedded font file: %s\n", err)
-// 		return &simpleencodings.Standard
+// 		return &simpleencodings.AdobeStandard
 // 	}
 // 	fontChars := cmap.Compile()
 
@@ -306,13 +303,13 @@ func builtinType1Encoding(desc model.FontDescriptor) *simpleencodings.Encoding {
 // 	case model.SimpleEncodingPredefined:
 // 		return simpleencodings.standardfonts.PredefinedEncodings[enc].RuneToByte()
 // 	case *model.SimpleEncodingDict:
-// 		base := &simpleencodings.Standard
+// 		base := &simpleencodings.AdobeStandard
 // 		if enc.BaseEncoding != "" {
 // 			base = simpleencodings.standardfonts.PredefinedEncodings[enc.BaseEncoding]
 // 		}
 // 		return applyDifferences(enc.Differences, userCharMap, base)
 // 	default: // should not happen according to the spec
-// 		return simpleencodings.Standard.RuneToByte()
+// 		return simpleencodings.AdobeStandard.RuneToByte()
 // 	}
 // }
 

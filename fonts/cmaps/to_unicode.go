@@ -20,8 +20,8 @@ func (p ToUnicodePair) MergeTo(simple map[model.CID]rune) {
 // ToUnicodeArray is a compact mapping
 // of [From, To] to Runes
 type ToUnicodeArray struct {
-	From, To model.CID
 	Runes    []rune // length To - From + 1
+	From, To model.CID
 }
 
 func (arr ToUnicodeArray) MergeTo(simple map[model.CID]rune) {

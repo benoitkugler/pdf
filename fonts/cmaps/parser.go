@@ -18,20 +18,20 @@ import (
 //  https://www.adobe.com/content/dam/acom/en/devnet/acrobat/pdfs/5411.ToUnicode.pdf
 //  https://github.com/adobe-type-tools/cmap-resources/releases
 type parser struct {
-	tokenizer tokenizer.Tokenizer
+	version string
 
 	// a cmap may contain either CIDs or Unicodes
-	cids    CMap
 	unicode UnicodeCMap
+	cids    CMap
 
-	version string
+	tokenizer tokenizer.Tokenizer
 }
 
 // parser creates a new instance of the PDF CMap parser from input data.
 func newparser(content []byte) *parser {
-	parser := parser{}
-	parser.tokenizer = *tokenizer.NewTokenizer(content)
-	return &parser
+	ps := parser{}
+	ps.tokenizer = *tokenizer.NewTokenizer(content)
+	return &ps
 }
 
 // parse parses the CMap file and loads into the CMap structure.
@@ -151,7 +151,6 @@ func (cmap *parser) addName() error {
 // parseType parses a cmap type and adds it to `cmap`.
 // cmap names are defined like this:/CMapType 1 def
 func (cmap *parser) parseType() error {
-
 	ctype := 0
 	done := false
 	for i := 0; i < 3 && !done; i++ {
@@ -180,7 +179,6 @@ func (cmap *parser) parseType() error {
 // We don't need the version. We do this to eat up the version code in the cmap definition
 // to reduce unhandled parse object warnings.
 func (cmap *parser) parseVersion() error {
-
 	version := ""
 	done := false
 	for i := 0; i < 3 && !done; i++ {
@@ -455,7 +453,8 @@ func (cmap *parser) parseBfchar() error {
 		}
 
 		cmap.unicode.Mappings = append(cmap.unicode.Mappings, ToUnicodePair{
-			From: code, Dest: target})
+			From: code, Dest: target,
+		})
 	}
 
 	return nil

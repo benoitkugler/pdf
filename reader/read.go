@@ -167,8 +167,8 @@ func (r resolver) info() model.Info {
 		out.Author = decodeTextString(author)
 		out.Keywords = decodeTextString(keywords)
 		out.Creator = decodeTextString(creator)
-		out.CreationDate, _ = pdfcpu.DateTime(creationDate)
-		out.ModDate, _ = pdfcpu.DateTime(modDate)
+		out.CreationDate, _ = pdfcpu.DateTime(creationDate, true)
+		out.ModDate, _ = pdfcpu.DateTime(modDate, true)
 	}
 	return out
 }

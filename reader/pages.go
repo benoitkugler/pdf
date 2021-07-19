@@ -195,7 +195,7 @@ func (r resolver) resolveBaseAnnotation(annotDict pdfcpu.Dict) (out model.BaseAn
 	out.NM = decodeTextString(nm)
 
 	if m, ok := isString(r.resolve(annotDict["M"])); ok {
-		if mt, ok := pdfcpu.DateTime(m); ok {
+		if mt, ok := pdfcpu.DateTime(m, true); ok {
 			out.M = mt
 		}
 	}
@@ -488,7 +488,7 @@ func (r resolver) resolveAnnotationMarkup(annot pdfcpu.Dict) (out model.Annotati
 	out.RC = r.textOrStream(annot["RC"])
 
 	cd, _ := isString(r.resolve(annot["CreationDate"]))
-	out.CreationDate, _ = pdfcpu.DateTime(cd)
+	out.CreationDate, _ = pdfcpu.DateTime(cd, true)
 
 	subj, _ := isString(r.resolve(annot["Subj"]))
 	out.Subj = decodeTextString(subj)
@@ -708,10 +708,10 @@ func (r resolver) resolveFileContent(fileEntry pdfcpu.Object) (*model.EmbeddedFi
 	out.Params.CheckSum = checkSum
 
 	if cd, ok := isString(r.resolve(paramsDict["CreationDate"])); ok {
-		out.Params.CreationDate, _ = pdfcpu.DateTime(cd)
+		out.Params.CreationDate, _ = pdfcpu.DateTime(cd, true)
 	}
 	if md, ok := isString(r.resolve(paramsDict["ModDate"])); ok {
-		out.Params.ModDate, _ = pdfcpu.DateTime(md)
+		out.Params.ModDate, _ = pdfcpu.DateTime(md, true)
 	}
 
 	cs, ok, err := r.resolveStream(stream)

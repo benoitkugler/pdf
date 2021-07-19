@@ -318,13 +318,15 @@ func fetchSimpleTrueTypeKerning(file *model.FontFile, charMap map[rune]byte) (ma
 		return nil, fmt.Errorf("invalid embedded font file: %s", err)
 	}
 
-	kerns, err := font.KernTable(false)
-	if err != nil { // we consider kerns as optional
-		log.Printf("missing kern table: %s", err)
-		return nil, nil
-	}
+	// TODO:
+	// kerns, err := font.KernTable(false)
+	// if err != nil { // we consider kerns as optional
+	// 	log.Printf("missing kern table: %s", err)
+	// 	return nil, nil
+	// }
+	var kerns truetype.SimpleKerns = truetype.Kern0{}
 
-	cmap, err := font.CmapTable()
+	cmap, _ := font.Cmap.BestEncoding()
 	if err != nil {
 		return nil, fmt.Errorf("invalid cmap table: %s", err)
 	}
@@ -334,7 +336,7 @@ func fetchSimpleTrueTypeKerning(file *model.FontFile, charMap map[rune]byte) (ma
 		left := cmap.Lookup(r)
 		for r2, b2 := range charMap {
 			right := cmap.Lookup(r2)
-			if kern, ok := kerns.KernPair(left, right); ok {
+			if kern := kerns.KernPair(left, right); kern != 0 {
 				out[uint16(b)<<8|uint16(b2)] = int(kern)
 			}
 		}
