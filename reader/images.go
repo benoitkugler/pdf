@@ -78,8 +78,7 @@ func (r resolver) resolveOneXObjectImage(img pdfcpu.Object) (*model.XObjectImage
 		if err != nil {
 			return nil, err
 		}
-	} else { // nil or colour mask
-		mask, _ := r.resolveArray(stream.Dict["Mask"])
+	} else if mask, ok := r.resolveArray(stream.Dict["Mask"]); ok { // colour mask
 		if len(mask)%2 != 0 {
 			return nil, fmt.Errorf("expected even length for array, got %v", mask)
 		}
@@ -90,7 +89,7 @@ func (r resolver) resolveOneXObjectImage(img pdfcpu.Object) (*model.XObjectImage
 			outMask[i] = [2]int{a, b}
 		}
 		out.Mask = outMask
-	}
+	} // else nil
 
 	alts, _ := r.resolveArray(stream.Dict["Alternates"])
 	out.Alternates = make([]model.AlternateImage, len(alts))
