@@ -672,7 +672,7 @@ func (f AnnotationCircle) clone(cache cloneCache) Annotation {
 
 // -------------------------------------------------------------------------
 
-//TODO: add and check the remaining annotation
+// TODO: add and check the remaining annotation
 
 type AnnotationFileAttachment struct {
 	T  string
@@ -747,7 +747,7 @@ type AppearanceCharacteristics struct {
 func (a AppearanceCharacteristics) pdfString(pdf pdfWriter, ref Reference) string {
 	b := newBuffer()
 	b.WriteString("<<")
-	if a.R != 0 {
+	if a.R != Unset && a.R != Zero {
 		b.fmt("/R %d", a.R.Degrees())
 	}
 	if len(a.BC) != 0 {

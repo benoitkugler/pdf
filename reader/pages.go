@@ -573,9 +573,7 @@ func (r resolver) resolveAnnotationMK(o pdfcpu.Object) (*model.AppearanceCharact
 	}
 	var out model.AppearanceCharacteristics
 	rt, _ := r.resolveInt(dict["R"])
-	if r := model.NewRotation(rt); r != nil {
-		out.R = *r
-	}
+	out.R = model.NewRotation(rt)
 
 	bc, _ := r.resolveArray(dict["BC"])
 	out.BC = r.processFloatArray(bc)

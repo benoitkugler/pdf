@@ -137,7 +137,7 @@ type PageObject struct {
 	MediaBox                  *Rectangle        // if nil, will be inherited from the parent
 	CropBox                   *Rectangle        // if nil, will be inherited. if still nil, default to MediaBox
 	BleedBox, TrimBox, ArtBox *Rectangle        // if nil, default to CropBox
-	Rotate                    *Rotation         // if nil, will be inherited from the parent. Only multiple of 90 are allowed
+	Rotate                    Rotation          // if nil, will be inherited from the parent. Only multiple of 90 are allowed
 	Annots                    []*AnnotationDict // optional, should not contain annotation widget
 	Contents                  []ContentStream   // array of stream (often of length 1)
 	StructParents             MaybeInt          // Required if the page contains structural content items
@@ -190,7 +190,7 @@ func (p *PageObject) pdfString(pdf pdfWriter) string {
 	if p.ArtBox != nil {
 		b.line("/ArtBox %s", p.ArtBox.String())
 	}
-	if p.Rotate != nil {
+	if p.Rotate != Unset {
 		b.line("/Rotate %d", p.Rotate.Degrees())
 	}
 	if len(p.Annots) != 0 {
@@ -256,10 +256,7 @@ func (po *PageObject) clone(cache cloneCache) PageNode {
 		r := *po.ArtBox
 		out.ArtBox = &r
 	}
-	if po.Rotate != nil {
-		r := *po.Rotate
-		out.Rotate = &r
-	}
+	out.Rotate = po.Rotate
 	if po.Annots != nil { // preserve reflect.DeepEqual
 		out.Annots = make([]*AnnotationDict, len(po.Annots))
 	}

@@ -290,26 +290,30 @@ func (r Rectangle) Width() Fl {
 	return w
 }
 
-// Rotation encodes a clock-wise rotation
+// Rotation encodes an optional clock-wise rotation.
 type Rotation uint8
 
 const (
-	Zero Rotation = iota
+	Unset Rotation = iota // use the inherited value
+	Zero
 	Quarter
 	Half
 	ThreeQuarter
 )
 
 // NewRotation validate the input and returns
-// a rotation, which may be nil
-func NewRotation(degrees int) *Rotation {
+// a rotation, which may be unset.
+func NewRotation(degrees int) Rotation {
 	if degrees%90 != 0 {
-		return nil
+		return Unset
 	}
 	r := Rotation((degrees / 90) % 4)
-	return &r
+	return r + 1
 }
 
 func (r Rotation) Degrees() int {
-	return 90 * int(r)
+	if r == Unset {
+		return 0
+	}
+	return 90 * int(r-1)
 }
