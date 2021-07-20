@@ -414,8 +414,8 @@ func (o OpCloseEOFillStroke) Add(out *bytes.Buffer) { out.WriteString("b*") }
 
 // BMC or BDC depending on Properties
 type OpBeginMarkedContent struct {
-	Tag        model.ObjName
 	Properties PropertyList
+	Tag        model.ObjName
 }
 
 func (o OpBeginMarkedContent) Add(out *bytes.Buffer) {
@@ -474,7 +474,7 @@ type OpShowText struct {
 }
 
 func (o OpShowText) Add(out *bytes.Buffer) {
-	out.WriteString(model.EspaceByteString([]byte(o.Text)) + "Tj")
+	out.WriteString(model.EscapeByteString([]byte(o.Text)) + "Tj")
 }
 
 // TJ - OpShowSpaceText enables font kerning
@@ -487,7 +487,7 @@ type OpShowSpaceText struct {
 func (o OpShowSpaceText) Add(out *bytes.Buffer) {
 	out.WriteRune('[')
 	for _, ts := range o.Texts {
-		out.WriteString(model.EspaceByteString([]byte(ts.Text)))
+		out.WriteString(model.EscapeByteString([]byte(ts.Text)))
 		if ts.SpaceSubtractedAfter != 0 {
 			fmt.Fprintf(out, "%d", ts.SpaceSubtractedAfter)
 		}
@@ -501,17 +501,17 @@ type OpMoveShowText struct {
 }
 
 func (o OpMoveShowText) Add(out *bytes.Buffer) {
-	out.WriteString(model.EspaceByteString([]byte(o.Text)) + "'")
+	out.WriteString(model.EscapeByteString([]byte(o.Text)) + "'")
 }
 
 // \"
 type OpMoveSetShowText struct {
-	WordSpacing, CharacterSpacing Fl
 	Text                          string // unescaped
+	WordSpacing, CharacterSpacing Fl
 }
 
 func (o OpMoveSetShowText) Add(out *bytes.Buffer) {
-	fmt.Fprintf(out, "%g %g %s \"", o.WordSpacing, o.CharacterSpacing, model.EspaceByteString([]byte(o.Text)))
+	fmt.Fprintf(out, "%g %g %s \"", o.WordSpacing, o.CharacterSpacing, model.EscapeByteString([]byte(o.Text)))
 }
 
 // Tm
@@ -618,8 +618,8 @@ func (o OpSetStrokeColor) Add(out *bytes.Buffer) {
 
 // scn
 type OpSetFillColorN struct {
-	Color   []Fl
 	Pattern model.ObjName // optional
+	Color   []Fl
 }
 
 func (o OpSetFillColorN) Add(out *bytes.Buffer) {
@@ -680,8 +680,8 @@ func (o OpSetRenderingIntent) Add(out *bytes.Buffer) {
 
 // MP or DP depending on Properties
 type OpMarkPoint struct {
-	Tag        model.ObjName
 	Properties PropertyList // optional
+	Tag        model.ObjName
 }
 
 func (o OpMarkPoint) Add(out *bytes.Buffer) {
@@ -718,8 +718,8 @@ func (c ImageColorSpaceName) Write() string {
 // [/Indexed base hival lookup ]
 type ImageColorSpaceIndexed struct {
 	Base   model.ColorSpaceName // required, must be a Device CS
-	Hival  uint8
 	Lookup model.ColorTableBytes
+	Hival  uint8
 }
 
 func (c ImageColorSpaceIndexed) Write() string {
@@ -733,8 +733,8 @@ func (c ImageColorSpaceIndexed) ToColorSpace() model.ColorSpace {
 
 // BI ... ID ... EI
 type OpBeginImage struct {
-	Image      model.Image
 	ColorSpace ImageColorSpace
+	Image      model.Image
 }
 
 func (o OpBeginImage) Add(out *bytes.Buffer) {

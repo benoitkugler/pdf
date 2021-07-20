@@ -101,7 +101,7 @@ func (s ObjStringLiteral) Clone() Object { return s }
 
 func (s ObjStringLiteral) Write(w PDFWritter, r Reference) string {
 	if w == nil { // content stream mode
-		return EspaceByteString([]byte(s))
+		return EscapeByteString([]byte(s))
 	}
 	return w.EncodeString(string(s), ByteString, r)
 }

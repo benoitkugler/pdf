@@ -122,7 +122,7 @@ type SoftwareIdentifier struct {
 }
 
 func (s SoftwareIdentifier) Write(pdf PDFWritter, context Reference) string {
-	out := "<</U " + EspaceByteString([]byte(s.U))
+	out := "<</U " + EscapeByteString([]byte(s.U))
 	if len(s.L) != 0 {
 		out += "/L " + writeIntArray(s.L)
 	}
