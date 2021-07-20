@@ -104,28 +104,31 @@ func (r resolver) resolveOneXObjectForm(obj pdfcpu.Object) (*model.XObjectForm, 
 		return out, nil
 	}
 
-	out, err := r.resolveXFormObjectFields(obj)
+	// some PDF have Object form with ressources pointing to themselves
+	// thus, we first register the current object
+	out := new(model.XObjectForm)
+	if isRef {
+		r.xObjectForms[xObjRef] = out
+	}
+
+	err := r.resolveXFormObjectFields(obj, out)
 	if err != nil {
 		return nil, err
 	}
 
-	if isRef {
-		r.xObjectForms[xObjRef] = &out
-	}
-	return &out, nil
+	return out, nil
 }
 
 // return an error if resolved obj is nil
 // do not register the ref
-func (r resolver) resolveXFormObjectFields(obj pdfcpu.Object) (model.XObjectForm, error) {
-	var out model.XObjectForm
+func (r resolver) resolveXFormObjectFields(obj pdfcpu.Object, out *model.XObjectForm) error {
 	obj = r.resolve(obj)
 	cs, ok, err := r.resolveStream(obj)
 	if err != nil {
-		return out, err
+		return err
 	}
 	if !ok {
-		return out, errors.New("missing Form XObject")
+		return errors.New("missing Form XObject")
 	}
 	out.ContentStream = model.ContentStream{Stream: cs}
 
@@ -140,7 +143,7 @@ func (r resolver) resolveXFormObjectFields(obj pdfcpu.Object) (model.XObjectForm
 		var err error
 		out.Resources, err = r.resolveOneResourceDict(res)
 		if err != nil {
-			return out, err
+			return err
 		}
 	}
 	if st, ok := r.resolveInt(stream.Dict["StructParent"]); ok {
@@ -149,7 +152,7 @@ func (r resolver) resolveXFormObjectFields(obj pdfcpu.Object) (model.XObjectForm
 		out.StructParents = model.ObjInt(st)
 	}
 
-	return out, nil
+	return nil
 }
 
 // The value of this entry shall be a dictionary in which

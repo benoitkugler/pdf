@@ -108,6 +108,7 @@ func BenchmarkProcess(b *testing.B) {
 
 func TestDataset(t *testing.T) {
 	files := [...]string{
+		"test/CarnetChantPage.pdf",
 		"test/Links.pdf",
 		"test/Empty.pdf",
 		"test/descriptif.pdf",

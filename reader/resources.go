@@ -187,7 +187,6 @@ func (r resolver) resolveFontTT1orTT(font pdfcpu.Dict) (out model.FontType1, err
 	// add it, taking into account the encoding
 	if standard, ok := standardfonts.Fonts[string(out.BaseFont)]; ok {
 		var names [256]string
-		fmt.Println(out.Encoding)
 		switch enc := out.Encoding.(type) {
 		case model.SimpleEncodingPredefined: // enc is validated by resolveEncoding
 			names = *standardfonts.PredefinedEncodings[enc]
@@ -777,7 +776,8 @@ func (r resolver) resolveSoftMaskDict(obj pdfcpu.Object) (model.SoftMaskDict, er
 	case pdfcpu.Dict:
 		out.S, _ = r.resolveName(obj["S"])
 		gObj := obj["G"]
-		g, err := r.resolveXFormObjectFields(gObj)
+		var g model.XObjectForm
+		err := r.resolveXFormObjectFields(gObj, &g)
 		if err != nil {
 			return out, err
 		}
