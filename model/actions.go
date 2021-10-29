@@ -199,6 +199,8 @@ func (d DestinationExplicitExtern) pdfDestination(pdfWriter, Reference) string {
 // concrete type is DestinationExplicitExtern
 func (d DestinationExplicitExtern) clone(cache cloneCache) Destination { return d }
 
+// DestinationString refers to a destination in the Dests entry of
+// the document catalog
 type DestinationName Name
 
 func (n DestinationName) pdfDestination(pdfWriter, Reference) string {
@@ -207,6 +209,8 @@ func (n DestinationName) pdfDestination(pdfWriter, Reference) string {
 
 func (d DestinationName) clone(cloneCache) Destination { return d }
 
+// DestinationString refers to a destination in the Dests entry of
+// the document name dictionnary
 type DestinationString string
 
 func (s DestinationString) pdfDestination(pdf pdfWriter, context Reference) string {

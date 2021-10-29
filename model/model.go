@@ -28,6 +28,7 @@ import (
 // making easier to analyse and mutate a document.
 // See the package `reader` to create a new `Document`
 // from an existing PDF file.
+// The zero value represents an empty PDF file.
 type Document struct {
 	Trailer Trailer
 	Catalog Catalog
@@ -336,7 +337,7 @@ func (p ViewerPreferences) pdfString(pdf pdfWriter) string {
 }
 
 type Trailer struct {
-	//TODO: check Prev field
+	// TODO: check Prev field
 	// Encrypt Encrypt
 	Info Info
 	ID   [2]string // optional (must be not crypted, direct objects)

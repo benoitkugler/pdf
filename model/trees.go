@@ -83,9 +83,13 @@ func (n NameToDest) clone(cache cloneCache) NameToDest {
 
 // DestTree links a serie of arbitrary name
 // to explicit destination, enabling `NamedDestination`
-// to reference them
+// to reference them.
+// In may be found as a tree in PDF files, but
+// a linear representation may be enough for many use cases.
 type DestTree struct {
-	Kids  []DestTree
+	Kids []DestTree
+
+	// Names must be sorted by .Name fields
 	Names []NameToDest
 }
 
@@ -304,6 +308,7 @@ func (f NameToFile) clone(cache cloneCache) NameToFile {
 // EmbeddedFileTree is written as a Name Tree in PDF,
 // but, since it generally won't be big, is
 // represented here as a flat list.
+// It must be sorted by .Name field.
 type EmbeddedFileTree []NameToFile
 
 func (d EmbeddedFileTree) names() []string {

@@ -38,8 +38,8 @@ import (
 
 // Border is written in PDF as an array of 3 or 4 elements
 type Border struct {
-	HCornerRadius, VCornerRadius, BorderWidth Fl
 	DashArray                                 []Fl // optional (nil not to specify it)
+	HCornerRadius, VCornerRadius, BorderWidth Fl
 }
 
 func (b Border) pdfString() string {
@@ -150,19 +150,19 @@ const (
 )
 
 type BaseAnnotation struct {
-	Rect     Rectangle
-	Contents string          // optional
-	NM       string          // optional
-	M        time.Time       // optional
-	AP       *AppearanceDict // optional
+	M            time.Time       // optional
+	StructParent MaybeInt        // required if the annotation is a structural content item
+	AP           *AppearanceDict // optional
+	Border       *Border         // optional
+	Contents     string          // optional
+	NM           string          // optional
 	// Appearance state (key of the AP.N subDictionary).
 	// Required if the appearance dictionary AP contains one or more
 	// subdictionaries
-	AS           Name
-	F            AnnotationFlag // optional
-	Border       *Border        // optional
-	C            []Fl           // 0, 1, 3 or 4 numbers in the range 0.0 to 1.0
-	StructParent MaybeInt       // required if the annotation is a structural content item
+	AS   Name
+	C    []Fl // 0, 1, 3 or 4 numbers in the range 0.0 to 1.0
+	Rect Rectangle
+	F    AnnotationFlag // optional
 }
 
 func (ba BaseAnnotation) fields(pdf pdfWriter, ref Reference) string {

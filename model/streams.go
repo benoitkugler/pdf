@@ -89,13 +89,10 @@ func (fs Filters) DecodeReader(r io.Reader) (io.Reader, error) {
 //
 // A new stream can be created
 // by applying the filters described
-// in `StreamDict.Filters` to the non-filtered data
+// in `Stream.Filters` to the non-filtered data
 // to obtain `Content`.
 type Stream struct {
-	// Length      int
 	Filter Filters
-
-	// DecodeParms DecodeParms
 
 	Content []byte // such as read/writen, not decoded
 }
@@ -141,9 +138,7 @@ func (s Stream) Decode() ([]byte, error) {
 	return ioutil.ReadAll(r)
 }
 
-func (c Stream) Length() int {
-	return len(c.Content)
-}
+func (c Stream) Length() int { return len(c.Content) }
 
 // Clone returns a deep copy of the stream
 func (c Stream) Clone() Stream {
