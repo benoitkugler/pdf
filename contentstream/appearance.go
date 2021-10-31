@@ -19,9 +19,12 @@ type GraphicState struct {
 	Font     fonts.Font // the current usable font
 	FontSize Fl
 
-	XTLM    Fl // The x position of the text line matrix.
-	YTLM    Fl // The y position of the text line matrix.
-	Leading Fl // The current text leading.
+	XTLM        Fl // The x position of the text line matrix.
+	YTLM        Fl // The y position of the text line matrix.
+	Leading     Fl // The current text leading.
+	Matrix      model.Matrix
+	strokeColor OpSetStrokeRGBColor
+	fillColor   OpSetFillRGBColor
 }
 
 // Appearance is a buffer of graphics operation,
@@ -29,14 +32,11 @@ type GraphicState struct {
 // to ease the creation of a content stream.
 // Once ready, it can be transformed to an XObjectForm.
 type Appearance struct {
-	ops []Operation
-
-	bBox model.Rectangle
-	// matrix    model.Matrix
 	resources model.ResourcesDict
-
-	State     GraphicState
+	ops       []Operation
 	stateList []GraphicState
+	State     GraphicState
+	bBox      model.Rectangle
 }
 
 // NewAppearance setup the BBox and initialize the
@@ -51,6 +51,7 @@ func NewAppearance(width, height Fl) Appearance {
 			ExtGState: make(map[model.ObjName]*model.GraphicState),
 			Pattern:   make(map[model.ObjName]model.Pattern),
 		},
+		State: GraphicState{Matrix: model.Matrix{1, 0, 0, 1, 0, 0}},
 	}
 }
 
@@ -92,12 +93,22 @@ func (ap *Appearance) Ops(op ...Operation) {
 
 func (app *Appearance) SetColorFill(c color.Color) {
 	r, g, b := colorRGB(c)
-	app.Ops(OpSetFillRGBColor{R: r, G: g, B: b})
+	op := OpSetFillRGBColor{R: r, G: g, B: b}
+	if app.State.fillColor == op {
+		return
+	}
+	app.State.fillColor = op
+	app.Ops(op)
 }
 
 func (app *Appearance) SetColorStroke(c color.Color) {
 	r, g, b := colorRGB(c)
-	app.Ops(OpSetStrokeRGBColor{R: r, G: g, B: b})
+	op := OpSetStrokeRGBColor{R: r, G: g, B: b}
+	if app.State.strokeColor == op {
+		return
+	}
+	app.State.strokeColor = op
+	app.Ops(op)
 }
 
 // check is the font is in the resources map or generate a new name and add the font
@@ -188,6 +199,13 @@ func (ap *Appearance) NewlineShowText(text string) error {
 	return nil
 }
 
+// Transform changes the current matrix, by applying a Concat Op and
+// updating the current state.
+func (ap *Appearance) Transform(mat model.Matrix) {
+	ap.State.Matrix = mat.Multiply(ap.State.Matrix)
+	ap.Ops(OpConcat{Matrix: mat})
+}
+
 // SetTextMatrix changes the text matrix.
 // This operation also initializes the current point position.
 func (ap *Appearance) SetTextMatrix(a, b, c, d, x, y Fl) {
@@ -203,7 +221,7 @@ func (ap *Appearance) SaveState() {
 }
 
 // RestoreState restores the graphic state.
-// An error is returned (only) if the call are not balanced.
+// An error is returned (only) if the calls of SaveState and RestoreState are not balanced.
 func (ap *Appearance) RestoreState() error {
 	idx := len(ap.stateList) - 1
 	if idx < 0 {
@@ -228,17 +246,22 @@ func (ap *Appearance) addXobject(xobj model.XObject) model.Name {
 	return name
 }
 
-// AddXObject puts an image or an XObjectForm in the current page, at the given position,
+// AddXObjectDims puts an image or an XObjectForm in the current page, at the given position,
 // with the given dimentions.
 // See `RenderingDims` for several ways of specifying image dimentions.
-func (ap *Appearance) AddXObject(img model.XObject, x, y, width, height Fl) {
-	imgName := ap.addXobject(img)
+func (ap *Appearance) AddXObjectDims(obj model.XObject, x, y, width, height Fl) {
+	xObjectName := ap.addXobject(obj)
 	ap.Ops(
 		OpSave{},
 		OpConcat{Matrix: model.Matrix{width, 0, 0, height, x, y}},
-		OpXObject{XObject: imgName},
+		OpXObject{XObject: xObjectName},
 		OpRestore{},
 	)
+}
+
+// AddXObject is the same as AddXObjectDims, but do not change the CTM.
+func (ap *Appearance) AddXObject(obj *model.XObjectForm) {
+	ap.AddXObjectDims(obj, 0, 0, 1, 1)
 }
 
 // approximate arc for border radius
