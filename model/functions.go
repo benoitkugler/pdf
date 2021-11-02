@@ -78,6 +78,7 @@ func (pdf pdfWriter) writeFunctions(fns []FunctionDict) []Reference {
 	return refs
 }
 
+// FunctionSampled (type 0)
 type FunctionSampled struct {
 	Stream
 
@@ -121,7 +122,7 @@ func (f FunctionSampled) Clone() Function {
 	return out
 }
 
-// FunctionExpInterpolation defines an exponential interpolation of one input
+// FunctionExpInterpolation (type 2) defines an exponential interpolation of one input
 // value and n output values
 type FunctionExpInterpolation struct {
 	C0 []Fl // length n, optional, default to 0
@@ -150,12 +151,21 @@ func (f FunctionExpInterpolation) Clone() Function {
 	return out
 }
 
-// FunctionStitching defines a stitching of the subdomains of several 1-input functions
+// FunctionStitching (type 3) defines a stitching of the subdomains of several 1-input functions
 // to produce a single new 1-input function
 type FunctionStitching struct {
 	Functions []FunctionDict // array of k 1-input functions
 	Bounds    []Fl           // array of k − 1 numbers
 	Encode    [][2]Fl        // length k
+}
+
+// FunctionEncodeRepeat return a slice of k [0,1] encode domains.
+func FunctionEncodeRepeat(k int) [][2]Fl {
+	out := make([][2]Fl, k)
+	for i := range out {
+		out[i][1] = 1
+	}
+	return out
 }
 
 // adds to the common arguments the specificities of a `StitchingFunction`.
@@ -179,7 +189,7 @@ func (f FunctionStitching) Clone() Function {
 	return out
 }
 
-// FunctionPostScriptCalculator is stream
+// FunctionPostScriptCalculator (type 4) is stream
 // containing code written in a small subset of the PostScript language
 type FunctionPostScriptCalculator Stream
 

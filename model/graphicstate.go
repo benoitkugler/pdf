@@ -89,6 +89,7 @@ func (f *FunctionDict) functionTransferPDFString(pdf pdfWriter) string {
 	ref := pdf.addItem(f)
 	return ref.String()
 }
+
 func (f *FunctionDict) cloneFunctionTransfer(cache cloneCache) FunctionTransfer {
 	return cache.checkOrClone(f).(*FunctionDict)
 }
@@ -158,7 +159,7 @@ type GraphicState struct {
 	// and Table 137 – Standard nonseparable blend modes
 	BM    []Name       // 1-element array are written in PDF as a singlename
 	SMask SoftMaskDict // optional
-	CA    MaybeFloat   // optional, >= 0
+	CA    MaybeFloat   // stroking, optional, >= 0
 	Ca    MaybeFloat   // non-stroking, optional, >= 0
 	AIS   bool
 }
@@ -273,7 +274,8 @@ func (t *PatternTiling) clone(cache cloneCache) Referenceable {
 	return &out
 }
 
-// Shading may FunctionBased, Axial, Radial, FreeForm,
+// Shading is the kind of shading and
+// may be FunctionBased, Axial, Radial, FreeForm,
 // Lattice, Coons, TensorProduct
 type Shading interface {
 	shadingPDFContent(shadingFields string, pdf pdfWriter) (string, []byte)

@@ -2,6 +2,8 @@ package contentstream
 
 import (
 	"fmt"
+	"image"
+	"os"
 	"testing"
 )
 
@@ -24,5 +26,19 @@ func TestImportImages(t *testing.T) {
 			t.Fatal(err)
 		}
 		fmt.Printf("%T\n", img.ColorSpace)
+	}
+}
+
+func TestImageFormat(t *testing.T) {
+	for _, file := range imagesFiles {
+		f, err := os.Open(file)
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, format, err := image.DecodeConfig(f)
+		if err != nil {
+			t.Fatal(err)
+		}
+		fmt.Println(file, format)
 	}
 }

@@ -215,7 +215,7 @@ func sliceUncompress(data []byte) (outData []byte, err error) {
 
 // the potential compression of the palette (for indexed color space)
 // is not done here
-// we wan't use the standard library because of the tRNS information
+// we won't use the standard library because of the tRNS information
 // which is not exposed (and seems to modify the value of the pixels color ?)
 // so we have to write a custom png parser...
 func parsePNG(r io.Reader) (img *model.XObjectImage, dpi float64, err error) {

@@ -91,8 +91,7 @@ func (ap *Appearance) FillLinearGradientRGB(from, to GradientPointRGB) {
 			Coords:       [4]Fl{from.X, from.Y, to.X, to.Y},
 		},
 	}
-	name := ap.AddShading(sh)
-	ap.Ops(OpShFill{Shading: name})
+	ap.Shading(sh)
 }
 
 // AddRadialGradientRGB builds a radial gradient shading dictionnary,
@@ -111,8 +110,7 @@ func (ap *Appearance) FillRadialGradientRGB(from, to GradientPointRGB, radius Fl
 			Coords:       [6]Fl{from.X, from.Y, 0, to.X, to.Y, radius},
 		},
 	}
-	name := ap.AddShading(sh)
-	ap.Ops(OpShFill{Shading: name})
+	ap.Shading(sh)
 }
 
 // AddExtGState checks if the graphic state is in the resources map or

@@ -19,12 +19,16 @@ type GraphicState struct {
 	Font     fonts.Font // the current usable font
 	FontSize Fl
 
-	XTLM        Fl // The x position of the text line matrix.
-	YTLM        Fl // The y position of the text line matrix.
-	Leading     Fl // The current text leading.
-	Matrix      model.Matrix
-	strokeColor OpSetStrokeRGBColor
-	fillColor   OpSetFillRGBColor
+	XTLM    Fl // The x position of the text line matrix.
+	YTLM    Fl // The y position of the text line matrix.
+	Leading Fl // The current text leading.
+	Matrix  model.Matrix
+
+	// current state to avoid unecessary instructions
+
+	strokeColor            OpSetStrokeRGBColor
+	fillColor              OpSetFillRGBColor
+	strokeAlpha, fillAlpha Fl
 }
 
 // Appearance is a buffer of graphics operation,
@@ -109,6 +113,35 @@ func (app *Appearance) SetColorStroke(c color.Color) {
 	}
 	app.State.strokeColor = op
 	app.Ops(op)
+}
+
+func (app *Appearance) SetFillAlpha(alpha Fl) {
+	if app.State.fillAlpha == alpha {
+		return
+	}
+	app.State.fillAlpha = alpha
+	app.SetGraphicState(&model.GraphicState{Ca: model.ObjFloat(alpha)})
+}
+
+func (app *Appearance) SetStrokeAlpha(alpha Fl) {
+	if app.State.strokeAlpha == alpha {
+		return
+	}
+	app.State.strokeAlpha = alpha
+	app.SetGraphicState(&model.GraphicState{CA: model.ObjFloat(alpha)})
+}
+
+// SetGraphicState register the given state and write it on the stream
+func (app *Appearance) SetGraphicState(state *model.GraphicState) {
+	name := app.AddExtGState(state)
+	app.Ops(OpSetExtGState{Dict: name})
+}
+
+// Shading register the given shading and apply it on the stream.
+// It is a shortcut for `AddShading` followed by `Ops(OpShFill)`.
+func (app *Appearance) Shading(sh *model.ShadingDict) {
+	name := app.AddShading(sh)
+	app.Ops(OpShFill{Shading: name})
 }
 
 // check is the font is in the resources map or generate a new name and add the font
