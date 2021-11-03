@@ -8,6 +8,13 @@ import (
 	"github.com/benoitkugler/pdf/model"
 )
 
+// toPageObject returns a page object.
+func (ap Appearance) toPageObject() *model.PageObject {
+	var page model.PageObject
+	ap.ApplyToPageObject(&page, false)
+	return &page
+}
+
 func TestKerning(t *testing.T) {
 	fontDict := model.FontDict{Subtype: standardfonts.Helvetica.WesternType1Font()}
 	font, err := fonts.BuildFont(&fontDict)
@@ -35,7 +42,7 @@ func TestKerning(t *testing.T) {
 	var doc model.Document
 
 	doc.Catalog.Pages.Kids = []model.PageNode{
-		a.ToPageObject(false),
+		a.toPageObject(),
 	}
 	err = doc.WriteFile("test/kerning.pdf", nil)
 	if err != nil {
@@ -59,7 +66,7 @@ func TestImages(t *testing.T) {
 		a.AddXObjectDims(img, 300, 300, w2, h2)
 
 		// one image per page
-		doc.Catalog.Pages.Kids = append(doc.Catalog.Pages.Kids, a.ToPageObject(false))
+		doc.Catalog.Pages.Kids = append(doc.Catalog.Pages.Kids, a.toPageObject())
 	}
 
 	err := doc.WriteFile("test/images.pdf", nil)
@@ -81,7 +88,7 @@ func TestRoundedRect(t *testing.T) {
 		OpFillStroke{},
 	)
 
-	doc.Catalog.Pages.Kids = append(doc.Catalog.Pages.Kids, a.ToPageObject(false))
+	doc.Catalog.Pages.Kids = append(doc.Catalog.Pages.Kids, a.toPageObject())
 
 	err := doc.WriteFile("test/rectangles.pdf", nil)
 	if err != nil {

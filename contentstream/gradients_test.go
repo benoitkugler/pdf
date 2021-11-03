@@ -45,7 +45,7 @@ func TestGradient(t *testing.T) {
 	}, 100)
 	a.Ops(OpRestore{})
 
-	doc.Catalog.Pages.Kids = append(doc.Catalog.Pages.Kids, a.ToPageObject(false))
+	doc.Catalog.Pages.Kids = append(doc.Catalog.Pages.Kids, a.toPageObject())
 
 	err := doc.WriteFile("test/gradients.pdf", nil)
 	if err != nil {
@@ -104,7 +104,7 @@ func TestGradientTransform(t *testing.T) {
 	)
 	a.FillRadialGradientRGB(from, to, radius)
 
-	doc.Catalog.Pages.Kids = append(doc.Catalog.Pages.Kids, a.ToPageObject(false))
+	doc.Catalog.Pages.Kids = append(doc.Catalog.Pages.Kids, a.toPageObject())
 
 	err := doc.WriteFile("test/gradient_transform.pdf", nil)
 	if err != nil {
@@ -182,7 +182,7 @@ func TestMultiGradient(t *testing.T) {
 		OpRestore{},
 	)
 
-	doc.Catalog.Pages.Kids = append(doc.Catalog.Pages.Kids, a.ToPageObject(false))
+	doc.Catalog.Pages.Kids = append(doc.Catalog.Pages.Kids, a.toPageObject())
 
 	err := doc.WriteFile("test/gradient_multi.pdf", nil)
 	if err != nil {

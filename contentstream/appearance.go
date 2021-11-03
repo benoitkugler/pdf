@@ -75,18 +75,14 @@ func (ap Appearance) ToXFormObject(compress bool) *model.XObjectForm {
 	return out
 }
 
-// ToPageObject return a page with a single Content,
+// ApplyToPageObject update the given page with a single Content,
 // build from the appearance.
 // The content is optionaly compressed with the Flater filter.
-func (ap Appearance) ToPageObject(compress bool) *model.PageObject {
+func (ap Appearance) ApplyToPageObject(page *model.PageObject, compress bool) {
 	fo := ap.ToXFormObject(compress)
-	return &model.PageObject{
-		Contents: []model.ContentStream{
-			fo.ContentStream,
-		},
-		MediaBox:  &fo.BBox,
-		Resources: &fo.Resources,
-	}
+	page.Contents = []model.ContentStream{fo.ContentStream}
+	page.MediaBox = &fo.BBox
+	page.Resources = &fo.Resources
 }
 
 // Ops adds one or more graphic command. Some commands usually need
@@ -293,7 +289,7 @@ func (ap *Appearance) AddXObjectDims(obj model.XObject, x, y, width, height Fl) 
 }
 
 // AddXObject is the same as AddXObjectDims, but do not change the CTM.
-func (ap *Appearance) AddXObject(obj *model.XObjectForm) {
+func (ap *Appearance) AddXObject(obj model.XObject) {
 	ap.AddXObjectDims(obj, 0, 0, 1, 1)
 }
 
