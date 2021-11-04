@@ -85,6 +85,14 @@ func (ap Appearance) ApplyToPageObject(page *model.PageObject, compress bool) {
 	page.Resources = &fo.Resources
 }
 
+// ApplyToTilling update the fields BBox, ContentStream and Resources
+// of the given pattern.
+func (ap Appearance) ApplyToTilling(pattern *model.PatternTiling) {
+	pattern.BBox = ap.bBox
+	pattern.Resources = ap.resources.ShallowCopy()
+	pattern.ContentStream.Content = WriteOperations(ap.ops...)
+}
+
 // Ops adds one or more graphic command. Some commands usually need
 // to also update the state: see the other methods.
 func (ap *Appearance) Ops(op ...Operation) {
@@ -116,6 +124,7 @@ func (app *Appearance) SetFillAlpha(alpha Fl) {
 		return
 	}
 	app.State.fillAlpha = alpha
+	// TODO cache to optimized output
 	app.SetGraphicState(&model.GraphicState{Ca: model.ObjFloat(alpha)})
 }
 

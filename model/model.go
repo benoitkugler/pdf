@@ -165,7 +165,7 @@ func (cat *Catalog) pdfString(pdf pdfWriter, catalog Reference) string {
 		pdf.WriteObject(ac.pdfString(pdf, catalog, ref), nil, ref)
 		b.line("/AcroForm %s", ref)
 	}
-	if outline := cat.Outlines; outline != nil {
+	if outline := cat.Outlines; outline != nil && outline.First != nil {
 		outlineRef := pdf.CreateObject()
 		pdf.WriteObject(outline.pdfString(pdf, outlineRef), nil, outlineRef)
 		b.line("/Outlines %s", outlineRef)

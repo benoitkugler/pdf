@@ -678,7 +678,8 @@ func (c CIDSystemInfo) pdfString(pdf pdfWriter, ref Reference) string {
 // It is not the same as an Unicode point.
 type CID uint16 // See Table C.1 – Architectural limits for the 2^16 limit.
 
-// CIDWidth groups the two ways of defining widths for CID
+// CIDWidth groups the two ways of defining widths for CID :
+// either CIDWidthRange or CIDWidthArray
 type CIDWidth interface {
 	// Widths accumulate the widths for each character, defined in user units
 	Widths(map[CID]int)
@@ -709,7 +710,7 @@ func (c CIDWidthRange) String() string {
 func (c CIDWidthRange) Clone() CIDWidth { return c }
 
 // CIDWidthArray is written in PDF as
-//	c [ w_1 w_2 ... w_n ]
+//	start [ w_1 w_2 ... w_n ]
 type CIDWidthArray struct {
 	Start CID
 	W     []int
