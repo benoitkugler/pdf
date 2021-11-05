@@ -120,10 +120,10 @@ func parseTextSpaces(stack []Object) (cs.OpShowSpaceText, error) {
 			if last == 2 {
 				// add the last and start a new TextSpaced
 				out.Texts = append(out.Texts, current)
-				current = fonts.TextSpaced{Text: s}
+				current = fonts.TextSpaced{CharCodes: []byte(s)}
 			} else {
 				// we concatenat the strings
-				current.Text += s
+				current.CharCodes = append(current.CharCodes, s...)
 			}
 			last = 1
 		} else if f, ok := model.IsNumber(arg); ok { // we accept float
@@ -133,7 +133,7 @@ func parseTextSpaces(stack []Object) (cs.OpShowSpaceText, error) {
 			return out, fmt.Errorf("invalid type in TJ array: %v %T", arg, arg)
 		}
 	}
-	if current != (fonts.TextSpaced{}) {
+	if current.CharCodes != nil || current.SpaceSubtractedAfter != 0 {
 		out.Texts = append(out.Texts, current)
 	}
 	return out, nil
@@ -386,8 +386,10 @@ func parseCommand(command string, stack []Object) (cs.Operation, error) {
 		if err != nil {
 			return nil, err
 		}
-		return cs.OpSetCacheDevice{WX: int(nbs[0]), WY: int(nbs[1]),
-			LLX: int(nbs[2]), LLY: int(nbs[3]), URX: int(nbs[4]), URY: int(nbs[5])}, nil
+		return cs.OpSetCacheDevice{
+			WX: int(nbs[0]), WY: int(nbs[1]),
+			LLX: int(nbs[2]), LLY: int(nbs[3]), URX: int(nbs[4]), URY: int(nbs[5]),
+		}, nil
 	case "f":
 		err := assertLength(stack, 0)
 		return cs.OpFill{}, err

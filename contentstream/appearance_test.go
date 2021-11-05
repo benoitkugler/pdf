@@ -1,6 +1,7 @@
 package contentstream
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/benoitkugler/pdf/fonts"
@@ -21,25 +22,29 @@ func TestKerning(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
+	enc := func(s string) []byte { return font.Encode([]rune(s)) }
 	a := NewAppearance(400, 400)
 	a.SetFontAndSize(font, 12)
 	a.BeginText()
 	// a.ShowText("ceci est un test avec des è)=àéà=é")
 	a.Ops(OpShowSpaceText{Texts: []fonts.TextSpaced{
-		{Text: "aaaaa", SpaceSubtractedAfter: -400},
-		{Text: "bbbbb", SpaceSubtractedAfter: 200},
-		{Text: "ccccc", SpaceSubtractedAfter: 0},
-		{Text: "ddddd"},
+		{CharCodes: enc("aaaaa"), SpaceSubtractedAfter: -400},
+		{CharCodes: enc("bbbbb"), SpaceSubtractedAfter: 200},
+		{CharCodes: enc("ccccc"), SpaceSubtractedAfter: 0},
+		{CharCodes: enc("ddddd")},
 	}})
 	a.Ops(OpTextNextLine{})
 	a.MoveText(0, 40)
 	a.Ops(OpShowSpaceText{Texts: []fonts.TextSpaced{
-		{Text: "aaaaa", SpaceSubtractedAfter: -400},
-		{Text: "bbbbb", SpaceSubtractedAfter: 200},
-		{Text: "cccccddddd"},
+		{CharCodes: enc("éaaaa"), SpaceSubtractedAfter: -400},
+		{CharCodes: enc("bbbbb"), SpaceSubtractedAfter: 200},
+		{CharCodes: enc("cccccddddd")},
 	}})
 	a.EndText()
 	var doc model.Document
+
+	fmt.Println(font.Encode([]rune("éaaaa")))
 
 	doc.Catalog.Pages.Kids = []model.PageNode{
 		a.toPageObject(),

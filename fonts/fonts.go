@@ -34,8 +34,9 @@ type Fl = model.Fl
 // TextSpaced subtracts space after showing the text
 // See 9.4.3 - Text-Showing Operators
 type TextSpaced struct {
-	Text                 string // unescaped
-	SpaceSubtractedAfter int    // value in thousands of text space unit
+	// unescaped content. required a font to interpret the codes
+	CharCodes            []byte
+	SpaceSubtractedAfter int // value in thousands of text space unit
 }
 
 // BuiltFont associate the built font

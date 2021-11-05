@@ -12,8 +12,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/benoitkugler/pdf/fonts"
+	pdfFonts "github.com/benoitkugler/pdf/fonts"
 	"github.com/benoitkugler/pdf/model"
+	"github.com/benoitkugler/textlayout/fonts"
 )
 
 type Fl = model.Fl
@@ -481,15 +482,44 @@ func (o OpShowText) Add(out *bytes.Buffer) {
 type OpShowSpaceText struct {
 	// Texts store a "normalized version" of texts and spaces
 	// SpaceSubtractedAfter fields of 0 are ignored.
-	Texts []fonts.TextSpaced
+	Texts []pdfFonts.TextSpaced
 }
 
 func (o OpShowSpaceText) Add(out *bytes.Buffer) {
-	out.WriteRune('[')
+	out.WriteByte('[')
 	for _, ts := range o.Texts {
-		out.WriteString(model.EscapeByteString([]byte(ts.Text)))
+		out.WriteString(model.EscapeByteString([]byte(ts.CharCodes)))
 		if ts.SpaceSubtractedAfter != 0 {
 			fmt.Fprintf(out, "%d", ts.SpaceSubtractedAfter)
+		}
+	}
+	out.WriteString("]TJ")
+}
+
+// TJ - OpShowSpaceGlyphs enables font kerning
+type SpacedGlyph struct {
+	SpaceSubtractedBefore int
+	GID                   fonts.GID // will be hex encoded in the content stream
+	SpaceSubtractedAfter  int
+}
+
+// TJ - OpShowSpaceGlyph is the same as OpShowSpaceText
+// but with input specified as glyph number.
+// This should be used in conjonction with a font using
+// an identity encoding
+type OpShowSpaceGlyph struct {
+	Glyphs []SpacedGlyph
+}
+
+func (o OpShowSpaceGlyph) Add(out *bytes.Buffer) {
+	out.WriteByte('[')
+	for _, ts := range o.Glyphs {
+		if ts.SpaceSubtractedBefore != 0 {
+			fmt.Fprintf(out, "%d ", ts.SpaceSubtractedBefore)
+		}
+		out.WriteString(fmt.Sprintf("<%04x>", ts.GID))
+		if ts.SpaceSubtractedAfter != 0 {
+			fmt.Fprintf(out, " %d ", ts.SpaceSubtractedAfter)
 		}
 	}
 	out.WriteString("]TJ")

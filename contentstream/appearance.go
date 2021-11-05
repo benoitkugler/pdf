@@ -16,7 +16,7 @@ var (
 )
 
 type GraphicState struct {
-	Font     fonts.Font // the current usable font
+	Font     fonts.BuiltFont // the current usable font
 	FontSize Fl
 
 	XTLM    Fl // The x position of the text line matrix.
@@ -164,7 +164,11 @@ func (ap Appearance) addFont(newFont *model.FontDict) model.ObjName {
 
 // SetFontAndSize sets the font and the size (in points) for the subsequent text writing.
 func (ap *Appearance) SetFontAndSize(font fonts.BuiltFont, size Fl) {
-	ap.State.Font = font.Font // usable part
+	if ap.State.Font.Meta == font.Meta && ap.State.FontSize == size {
+		return
+	}
+
+	ap.State.Font = font
 	ap.State.FontSize = size
 	name := ap.addFont(font.Meta) // store and add the PDF name
 	ap.Ops(OpSetFont{Font: name, Size: size})
@@ -218,7 +222,7 @@ func (ap *Appearance) MoveText(x, y Fl) {
 //	- ShowText
 //	- EndText
 func (ap *Appearance) ShowText(text string) error {
-	if ap.State.Font == nil {
+	if ap.State.Font.Font == nil {
 		return errNoFont
 	}
 	s := string(ap.State.Font.Encode([]rune(text)))
@@ -228,7 +232,7 @@ func (ap *Appearance) ShowText(text string) error {
 
 // NewlineShowText moves to the next line and shows text.
 func (ap *Appearance) NewlineShowText(text string) error {
-	if ap.State.Font == nil {
+	if ap.State.Font.Font == nil {
 		return errNoFont
 	}
 	ap.State.YTLM -= ap.State.Leading

@@ -107,6 +107,8 @@ func (s ObjStringLiteral) Write(w PDFWritter, r Reference) string {
 }
 
 // ObjHexLiteral represents a PDF hex literal object.
+// Its content is stored not encoded, and will be transformed
+// when writting to a PDF file.
 // When required, text strings must be encoded and encrypted
 // in a first step.
 type ObjHexLiteral string

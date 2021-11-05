@@ -2,6 +2,7 @@ package parser
 
 import (
 	"bytes"
+	"fmt"
 	"image"
 	"image/jpeg"
 	"math/rand"
@@ -62,10 +63,10 @@ var ops = [...]contentstream.Operation{
 	contentstream.OpTextMoveSet{},
 	contentstream.OpShowSpaceText{
 		Texts: []fonts.TextSpaced{
-			{Text: "msdùlùd", SpaceSubtractedAfter: 12},
-			{Text: "AB", SpaceSubtractedAfter: -5},
-			{Text: "c", SpaceSubtractedAfter: 2},
-			{Text: "('')\\", SpaceSubtractedAfter: 0},
+			{CharCodes: []byte("msdùlùd"), SpaceSubtractedAfter: 12},
+			{CharCodes: []byte("AB"), SpaceSubtractedAfter: -5},
+			{CharCodes: []byte("c"), SpaceSubtractedAfter: 2},
+			{CharCodes: []byte("('')\\"), SpaceSubtractedAfter: 0},
 		},
 	},
 	contentstream.OpSetTextLeading{},
@@ -187,9 +188,9 @@ func TestTextSpaced(t *testing.T) {
 		t.Error()
 	}
 	expected := contentstream.OpShowSpaceText{Texts: []fonts.TextSpaced{
-		{Text: "", SpaceSubtractedAfter: 45},
-		{Text: "A", SpaceSubtractedAfter: 40},
-		{Text: "B"},
+		{CharCodes: nil, SpaceSubtractedAfter: 45},
+		{CharCodes: []byte("A"), SpaceSubtractedAfter: 40},
+		{CharCodes: []byte("B")},
 	}}
 	if !reflect.DeepEqual(tj, expected) {
 		t.Errorf("expected %v got %v", expected, tj)
@@ -213,8 +214,8 @@ func TestNormalizeSpacedText(t *testing.T) {
 	}
 	exp := contentstream.OpShowSpaceText{
 		Texts: []fonts.TextSpaced{
-			{Text: "ABCD", SpaceSubtractedAfter: 10},
-			{Text: "AB", SpaceSubtractedAfter: 5},
+			{CharCodes: []byte("ABCD"), SpaceSubtractedAfter: 10},
+			{CharCodes: []byte("AB"), SpaceSubtractedAfter: 5},
 		},
 	}
 	if !reflect.DeepEqual(ops[0], exp) {
@@ -331,4 +332,20 @@ func TestForgePDFInlineData(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+}
+
+func TestHexText(t *testing.T) {
+	op := contentstream.OpShowSpaceGlyph{
+		Glyphs: []contentstream.SpacedGlyph{
+			{GID: 78, SpaceSubtractedBefore: -9},
+			{GID: 45, SpaceSubtractedAfter: 10},
+			{GID: 25, SpaceSubtractedBefore: -12, SpaceSubtractedAfter: 10},
+		},
+	}
+	content := contentstream.WriteOperations(op)
+	out, err := ParseContent(content, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fmt.Println(out)
 }
