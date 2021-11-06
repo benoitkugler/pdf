@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"strconv"
 	"strings"
 
 	"github.com/pdfcpu/pdfcpu/pkg/filter"
@@ -169,10 +170,10 @@ func (c Stream) Clone() Stream {
 // PDFCommonArgs returns the content of the Dictionary of `s`
 // without the enclosing << >>.
 // It will usually be used in combination with other fields.
-func (s Stream) PDFCommonFields(withLength bool) string {
-	b := newBuffer()
+func (s Stream) PDFCommonFields(withLength bool) StreamHeader {
+	b := make(StreamHeader)
 	if withLength {
-		b.fmt("/Length %d", s.Length())
+		b["Length"] = strconv.Itoa(s.Length())
 	}
 	if len(s.Filter) != 0 {
 		fs := make([]string, len(s.Filter))
@@ -193,17 +194,17 @@ func (s Stream) PDFCommonFields(withLength bool) string {
 			}
 			st.WriteString(" >> ")
 		}
-		b.fmt("/Filter [%s]/DecodeParms [ %s]", strings.Join(fs, " "), st.String())
+		b["Filter"] = fmt.Sprintf("[%s]", strings.Join(fs, " "))
+		b["DecodeParms"] = fmt.Sprintf("[ %s]", st.String())
 	}
-	return b.String()
+	return b
 }
 
 // PDFContent return the stream object content.
 // Often, additional arguments will be needed, so `PDFCommonFields`
 // should be used instead.
-func (s Stream) PDFContent() (string, []byte) {
-	arg := s.PDFCommonFields(true)
-	return fmt.Sprintf("<<%s>>", arg), s.Content
+func (s Stream) PDFContent() (StreamHeader, []byte) {
+	return s.PDFCommonFields(true), s.Content
 }
 
 // Content stream is a PDF stream object whose data consists
@@ -250,27 +251,27 @@ func (a *XObjectForm) GetStructParent() MaybeInt {
 }
 
 // inner dict fields
-func (f XObjectForm) commonFields(pdf pdfWriter, ref Reference) string {
+func (f XObjectForm) commonFields(pdf pdfWriter, ref Reference) StreamHeader {
 	args := f.ContentStream.PDFCommonFields(true)
-	b := newBuffer()
-	b.fmt("/Subtype/Form %s/BBox %s", args, f.BBox.String())
+	args["Subtype"] = "/Form"
+	args["BBox"] = f.BBox.String()
 	if f.Matrix != (Matrix{}) {
-		b.fmt("/Matrix %s", f.Matrix)
+		args["Matrix"] = f.Matrix.String()
 	}
 	if !f.Resources.IsEmpty() {
-		b.line("/Resources %s", f.Resources.pdfString(pdf, ref))
+		args["Resources"] = f.Resources.pdfString(pdf, ref)
 	}
 	if f.StructParent != nil {
-		b.fmt("/StructParent %d", f.StructParent.(ObjInt))
+		args["StructParent"] = f.StructParent.(ObjInt).Write(nil, 0)
 	} else if f.StructParents != nil {
-		b.fmt("/StructParents %d", f.StructParent.(ObjInt))
+		args["StructParents"] = f.StructParent.(ObjInt).Write(nil, 0)
 	}
-	return b.String()
+	return args
 }
 
-func (f *XObjectForm) pdfContent(pdf pdfWriter, ref Reference) (string, []byte) {
+func (f *XObjectForm) pdfContent(pdf pdfWriter, ref Reference) (StreamHeader, string, []byte) {
 	base := f.commonFields(pdf, ref)
-	return "<<" + base + ">>", f.Content
+	return base, "", f.Content
 }
 
 // clone returns a deep copy of the form
@@ -335,22 +336,21 @@ type Image struct {
 	Interpolate bool // optional
 }
 
-// PDFFields return a succession of key/value pairs,
-// describing the image characteristics.
-func (img Image) PDFFields(inline bool) string {
-	b := newBuffer()
+// PDFFields return the image characteristics.
+func (img Image) PDFFields(inline bool) StreamHeader {
 	base := img.PDFCommonFields(!inline)
-	b.line("%s /Width %d /Height %d /BitsPerComponent %d",
-		base, img.Width, img.Height, img.BitsPerComponent)
-	b.fmt("/ImageMask %v", img.ImageMask)
+	base["Width"] = strconv.Itoa(img.Width)
+	base["Height"] = strconv.Itoa(img.Height)
+	base["BitsPerComponent"] = strconv.Itoa(int(img.BitsPerComponent))
+	base["ImageMask"] = strconv.FormatBool(img.ImageMask)
 	if img.Intent != "" {
-		b.fmt("/Intent %s", img.Intent)
+		base["Intent"] = img.Intent.String()
 	}
 	if len(img.Decode) != 0 {
-		b.fmt("/Decode %s", writePointsArray(img.Decode))
+		base["Decode"] = writePointsArray(img.Decode)
 	}
-	b.line("/Interpolate %v", img.Interpolate)
-	return b.String()
+	base["Interpolate"] = strconv.FormatBool(img.Interpolate)
+	return base
 }
 
 // Clone returns a deep copy
@@ -368,10 +368,12 @@ type ImageSMask struct {
 	Matte []Fl // optional, length: number of color components in the parent image
 }
 
-func (f *ImageSMask) pdfContent(pdf pdfWriter, _ Reference) (string, []byte) {
+func (f *ImageSMask) pdfContent(pdf pdfWriter, _ Reference) (StreamHeader, string, []byte) {
 	base := f.Image.PDFFields(false)
-	s := "<</Subtype/Image/ColorSpace" + Name(ColorSpaceGray).String() + base + ">>"
-	return s, f.Content
+	base["Subtype"] = "/Image"
+	base["ColorSpace"] = Name(ColorSpaceGray).String()
+	base["Matte"] = writeFloatArray(f.Matte)
+	return base, "", f.Content
 }
 
 func (img *ImageSMask) clone(cache cloneCache) Referenceable {
@@ -402,17 +404,16 @@ func (img *XObjectImage) GetStructParent() MaybeInt {
 	return img.StructParent
 }
 
-func (f *XObjectImage) pdfContent(pdf pdfWriter, ref Reference) (string, []byte) {
-	b := newBuffer()
+func (f *XObjectImage) pdfContent(pdf pdfWriter, ref Reference) (StreamHeader, string, []byte) {
 	base := f.Image.PDFFields(false)
-	b.fmt("<</Subtype/Image" + base)
+	base["Subtype"] = "/Image"
 
 	if f.ColorSpace != nil {
-		b.fmt("/ColorSpace %s", f.ColorSpace.colorSpaceWrite(pdf, ref))
+		base["ColorSpace"] = f.ColorSpace.colorSpaceWrite(pdf, ref)
 	}
 
 	if f.Mask != nil {
-		b.WriteString("/Mask " + f.Mask.maskPDFString(pdf))
+		base["Mask"] = f.Mask.maskPDFString(pdf)
 	}
 
 	if len(f.Alternates) != 0 {
@@ -420,18 +421,17 @@ func (f *XObjectImage) pdfContent(pdf pdfWriter, ref Reference) (string, []byte)
 		for i, alt := range f.Alternates {
 			chunks[i] = alt.pdfString(pdf)
 		}
-		b.line("/Alternates [%s]", strings.Join(chunks, " "))
+		base["Alternates"] = fmt.Sprintf("[%s]", strings.Join(chunks, " "))
 	}
-	b.fmt("/SMaskInData %d", f.SMaskInData)
+	base["SMaskInData"] = strconv.Itoa(int(f.SMaskInData))
 	if f.SMask != nil {
 		ref := pdf.addItem(f.SMask)
-		b.fmt("/SMask %s", ref)
+		base["SMask"] = ref.String()
 	}
 	if f.StructParent != nil {
-		b.fmt("/StructParent %d", f.StructParent.(ObjInt))
+		base["StructParent"] = f.StructParent.(ObjInt).Write(nil, 0)
 	}
-	b.WriteString(">>")
-	return b.String(), f.Content
+	return base, "", f.Content
 }
 
 func (img *XObjectImage) clone(cache cloneCache) Referenceable {

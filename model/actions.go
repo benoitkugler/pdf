@@ -230,7 +230,7 @@ type ActionRemoteGoTo struct {
 func (ac ActionRemoteGoTo) actionParams(pdf pdfWriter, ref Reference) string {
 	fs := ""
 	if ac.F != nil {
-		fs, _ := ac.F.pdfContent(pdf, ref)
+		_, fs, _ := ac.F.pdfContent(pdf, ref)
 		fs = "/F " + fs
 	}
 	name, dest := Name("Launch"), ""
@@ -333,7 +333,7 @@ func (ac ActionEmbeddedGoTo) actionParams(pdf pdfWriter, ref Reference) string {
 	out := fmt.Sprintf("/S/GoToE/D %s/NewWindow %v",
 		ac.D.pdfDestination(pdf, ref), ac.NewWindow)
 	if ac.F != nil {
-		fs, _ := ac.F.pdfContent(pdf, ref)
+		_, fs, _ := ac.F.pdfContent(pdf, ref)
 		out += "/F " + fs
 	}
 	if ac.T != nil {

@@ -3,6 +3,7 @@ package model
 import (
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 )
 
@@ -85,7 +86,7 @@ func (f FontDescriptor) pdfString(pdf pdfWriter, font Font, context Reference) s
 				key = "FontFile2"
 			}
 		}
-		ref := pdf.addObject(f.FontFile.pdfContent())
+		ref := pdf.addStream(f.FontFile.pdfContent())
 		b.fmt("%s %s ", key, ref)
 	}
 	if f.CharSet != "" {
@@ -142,13 +143,12 @@ func (p UnicodeCMap) clone() UnicodeCMapBase { return *p.Clone() }
 
 func (c UnicodeCMap) pdfString(pdf pdfWriter) string {
 	ref := pdf.CreateObject()
-	base := c.Stream.PDFCommonFields(true)
-	dict := "<</Type/CMap " + base
+	dict := c.Stream.PDFCommonFields(true)
+	dict["Type"] = "/CMap"
 	if c.UseCMap != nil {
-		dict += fmt.Sprintf("/UseCMap %s", c.UseCMap.pdfString(pdf))
+		dict["UseCMap"] = c.UseCMap.pdfString(pdf)
 	}
-	dict += ">>"
-	pdf.WriteObject(dict, c.Content, ref)
+	pdf.WriteStream(dict, c.Content, ref)
 	return ref.String()
 }
 
@@ -163,12 +163,12 @@ type FontDict struct {
 	ToUnicode *UnicodeCMap
 }
 
-func (f *FontDict) pdfContent(pdf pdfWriter, _ Reference) (string, []byte) {
+func (f *FontDict) pdfContent(pdf pdfWriter, _ Reference) (StreamHeader, string, []byte) {
 	sub := f.Subtype.fontPDFFields(pdf)
 	if f.ToUnicode != nil {
 		sub += "/ToUnicode " + f.ToUnicode.pdfString(pdf)
 	}
-	return "<<" + sub + ">>", nil
+	return nil, "<<" + sub + ">>", nil
 }
 
 // clone returns a deep copy, with concrete type `*Font`
@@ -233,7 +233,7 @@ func t1orttWrite(font Font, pdf pdfWriter) string {
 		subtype = "TrueType"
 	}
 	fd := pdf.CreateObject()
-	pdf.WriteObject(t.FontDescriptor.pdfString(pdf, font, fd), nil, fd) // FontDescriptor need the type of font
+	pdf.WriteObject(t.FontDescriptor.pdfString(pdf, font, fd), fd) // FontDescriptor need the type of font
 	b := newBuffer()
 	b.line("/Type/Font/Subtype %s/FirstChar %d/LastChar %d",
 		subtype, t.FirstChar, t.LastChar())
@@ -308,21 +308,21 @@ func (f FontType3) fontPDFFields(pdf pdfWriter) string {
 		f.FontBBox.String(), f.FontMatrix.String())
 	chunks := make([]string, 0, len(f.CharProcs))
 	for name, stream := range f.CharProcs {
-		ref := pdf.addObject(stream.PDFContent())
+		ref := pdf.addStream(stream.PDFContent())
 		chunks = append(chunks, fmt.Sprintf("%s %s", name, ref))
 	}
 	b.line("/CharProcs <<%s>>", strings.Join(chunks, ""))
-	widthsRef := pdf.addObject(writeIntArray(f.Widths), nil)
+	widthsRef := pdf.addObject(writeIntArray(f.Widths))
 	b.line("/Encoding %s/FirstChar %d/LastChar %d/Widths %s",
 		f.Encoding.simpleEncodingWrite(pdf), f.FirstChar, f.LastChar(), widthsRef)
 	if f.FontDescriptor != nil {
 		fdRef := pdf.CreateObject()
-		pdf.WriteObject(f.FontDescriptor.pdfString(pdf, f, fdRef), nil, fdRef)
+		pdf.WriteObject(f.FontDescriptor.pdfString(pdf, f, fdRef), fdRef)
 		b.fmt("/FontDescriptor %s", fdRef)
 	}
 	if !f.Resources.IsEmpty() {
 		refResources := pdf.CreateObject()
-		pdf.WriteObject(f.Resources.pdfString(pdf, refResources), nil, refResources)
+		pdf.WriteObject(f.Resources.pdfString(pdf, refResources), refResources)
 		b.fmt("/Resources %s", refResources)
 	}
 	return b.String()
@@ -436,7 +436,7 @@ type SimpleEncodingDict struct {
 	Differences  Differences              // optionnal
 }
 
-func (e *SimpleEncodingDict) pdfContent(pdfWriter pdfWriter, _ Reference) (string, []byte) {
+func (e *SimpleEncodingDict) pdfContent(pdfWriter pdfWriter, _ Reference) (StreamHeader, string, []byte) {
 	out := "<<"
 	if e.BaseEncoding != "" {
 		out += "/BaseEncoding " + Name(e.BaseEncoding).String()
@@ -445,7 +445,7 @@ func (e *SimpleEncodingDict) pdfContent(pdfWriter pdfWriter, _ Reference) (strin
 		out += "/Differences " + e.Differences.Write()
 	}
 	out += ">>"
-	return out, nil
+	return nil, out, nil
 }
 
 func (enc *SimpleEncodingDict) simpleEncodingWrite(pdf pdfWriter) string {
@@ -481,7 +481,7 @@ func (f FontType0) FontName() Name {
 
 func (f FontType0) fontPDFFields(pdf pdfWriter) string {
 	desc := pdf.CreateObject()
-	pdf.WriteObject(f.DescendantFonts.pdfString(pdf, desc), nil, desc)
+	pdf.WriteObject(f.DescendantFonts.pdfString(pdf, desc), desc)
 	out := fmt.Sprintf("/Type/Font/Subtype/Type0/BaseFont %s/DescendantFonts [%s]",
 		f.BaseFont, desc)
 	if f.Encoding != nil {
@@ -536,16 +536,16 @@ func (p CMapEncodingEmbedded) Clone() CMapEncoding {
 func (c CMapEncodingEmbedded) cMapEncodingWrite(pdf pdfWriter) string {
 	ref := pdf.CreateObject()
 	base := c.Stream.PDFCommonFields(true)
-	dict := fmt.Sprintf("<</Type/CMap /CMapName %s/CIDSystemInfo %s %s",
-		c.CMapName, c.CIDSystemInfo.pdfString(pdf, ref), base)
+	base["Type"] = "/CMap"
+	base["CMapName"] = c.CMapName.String()
+	base["CIDSystemInfo"] = c.CIDSystemInfo.pdfString(pdf, ref)
 	if c.WMode {
-		dict += "/WMode 1"
+		base["WMode"] = "1"
 	}
 	if c.UseCMap != nil {
-		dict += fmt.Sprintf("/UseCMap %s", c.UseCMap.cMapEncodingWrite(pdf))
+		base["UseCMap"] = c.UseCMap.cMapEncodingWrite(pdf)
 	}
-	dict += ">>"
-	pdf.WriteObject(dict, c.Content, ref)
+	pdf.WriteStream(base, c.Content, ref)
 	return ref.String()
 }
 
@@ -569,7 +569,7 @@ type CIDToGIDMapStream struct {
 }
 
 func (c CIDToGIDMapStream) cidToGIDMapString(pdf pdfWriter) string {
-	ref := pdf.addObject(c.Stream.PDFContent())
+	ref := pdf.addStream(c.Stream.PDFContent())
 	return ref.String()
 }
 
@@ -602,7 +602,7 @@ func (c CIDFontDictionary) Widths() map[CID]int {
 func (c CIDFontDictionary) pdfString(pdf pdfWriter, ref Reference) string {
 	b := newBuffer()
 	fD := pdf.CreateObject()
-	pdf.WriteObject(c.FontDescriptor.pdfString(pdf, FontType0{}, fD), nil, fD)
+	pdf.WriteObject(c.FontDescriptor.pdfString(pdf, FontType0{}, fD), fD)
 	b.line("<</Type/Font/Subtype %s/BaseFont %s/CIDSystemInfo %s/FontDescriptor %s",
 		c.Subtype, c.BaseFont, c.CIDSystemInfo.pdfString(pdf, ref), fD)
 	if c.DW != 0 {
@@ -810,14 +810,14 @@ type FontFile struct {
 	Subtype Name // optional, one of Type1C for Type 1 compact fonts, CIDFontType0C for Type 0 compact CIDFonts, or OpenType
 }
 
-func (f *FontFile) pdfContent() (string, []byte) {
-	args := f.Stream.PDFCommonFields(true)
-	out := fmt.Sprintf("<<%s/Length1 %d/Length2 %d/Length3 %d",
-		args, f.Length1, f.Length2, f.Length3)
+func (f *FontFile) pdfContent() (StreamHeader, []byte) {
+	out := f.Stream.PDFCommonFields(true)
+	out["Length1"] = strconv.Itoa(f.Length1)
+	out["Length2"] = strconv.Itoa(f.Length2)
+	out["Length3"] = strconv.Itoa(f.Length3)
 	if f.Subtype != "" {
-		out += fmt.Sprintf("/Subtype %s", f.Subtype)
+		out["Subtype"] = f.Subtype.String()
 	}
-	out += ">>"
 	return out, f.Content
 }
 

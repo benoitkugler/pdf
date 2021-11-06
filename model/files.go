@@ -3,7 +3,6 @@ package model
 import (
 	"crypto/md5"
 	"encoding/hex"
-	"fmt"
 	"time"
 )
 
@@ -18,7 +17,7 @@ type FileSpec struct {
 
 // returns the dictionnay, with a nil content `pdf` is used
 // to create the EmbeddedFileStream object.
-func (f *FileSpec) pdfContent(pdf pdfWriter, ref Reference) (string, []byte) {
+func (f *FileSpec) pdfContent(pdf pdfWriter, ref Reference) (StreamHeader, string, []byte) {
 	b := newBuffer()
 	b.fmt("<</Type/Filespec")
 	if f.UF != "" {
@@ -26,14 +25,15 @@ func (f *FileSpec) pdfContent(pdf pdfWriter, ref Reference) (string, []byte) {
 			pdf.EncodeString(f.UF, ByteString, ref))
 	}
 	if f.EF != nil {
-		ref := pdf.addObject(f.EF.pdfContent(pdf, ref))
+		s, _, by := f.EF.pdfContent(pdf, ref)
+		ref := pdf.addStream(s, by)
 		b.fmt("/EF <</F %s>>", ref)
 	}
 	if f.Desc != "" {
 		b.fmt("/Desc %s", pdf.EncodeString(f.Desc, TextString, ref))
 	}
 	b.fmt(">>")
-	return b.String(), nil
+	return nil, b.String(), nil
 }
 
 func (f *FileSpec) clone(cache cloneCache) Referenceable {
@@ -84,10 +84,11 @@ type EmbeddedFileStream struct {
 	Params EmbeddedFileParams // optional
 }
 
-func (emb *EmbeddedFileStream) pdfContent(pdf pdfWriter, ref Reference) (string, []byte) {
+func (emb *EmbeddedFileStream) pdfContent(pdf pdfWriter, ref Reference) (StreamHeader, string, []byte) {
 	args := emb.PDFCommonFields(true)
-	out := fmt.Sprintf("<</Type/EmbeddedFile %s/Params %s>>", args, emb.Params.pdfString(pdf, ref))
-	return out, emb.Content
+	args["Type"] = "/EmbeddedFile"
+	args["Params"] = emb.Params.pdfString(pdf, ref)
+	return args, "", emb.Content
 }
 
 // clone returns a deep copy, with concrete type `*EmbeddedFileStream`

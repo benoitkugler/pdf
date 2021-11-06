@@ -64,13 +64,13 @@ func (doc *Document) Write(output io.Writer, encryption *Encrypt) error {
 	wr.writeHeader()
 
 	root := wr.CreateObject()
-	wr.WriteObject(doc.Catalog.pdfString(wr, root), nil, root)
+	wr.WriteObject(doc.Catalog.pdfString(wr, root), root)
 	info := wr.CreateObject()
-	wr.WriteObject(doc.Trailer.Info.pdfString(wr, info), nil, info)
+	wr.WriteObject(doc.Trailer.Info.pdfString(wr, info), info)
 
 	var encRef Reference
 	if encryption != nil {
-		encRef = wr.addObject(encryption.pdfString(), nil)
+		encRef = wr.addObject(encryption.pdfString())
 	}
 
 	wr.writeFooter(doc.Trailer, root, info, encRef)
@@ -132,12 +132,12 @@ func (cat *Catalog) pdfString(pdf pdfWriter, catalog Reference) string {
 	b := newBuffer()
 	b.line("<<\n/Type/Catalog")
 	pageRef := pdf.pages[&cat.Pages]
-	pdf.WriteObject(cat.Pages.pdfString(pdf), nil, pageRef)
+	pdf.WriteObject(cat.Pages.pdfString(pdf), pageRef)
 	b.line("/Pages %s", pageRef)
 
 	if pLabel := cat.PageLabels; pLabel != nil {
 		labelsRef := pdf.CreateObject()
-		pdf.WriteObject(pLabel.pdfString(pdf, labelsRef), nil, labelsRef)
+		pdf.WriteObject(pLabel.pdfString(pdf, labelsRef), labelsRef)
 		b.line("/PageLabels %s", labelsRef)
 	}
 
@@ -151,7 +151,7 @@ func (cat *Catalog) pdfString(pdf pdfWriter, catalog Reference) string {
 		b.line(">>")
 	}
 	if viewerPref := cat.ViewerPreferences; viewerPref != nil {
-		ref := pdf.addObject(viewerPref.pdfString(pdf), nil)
+		ref := pdf.addObject(viewerPref.pdfString(pdf))
 		b.line("/ViewerPreferences %s", ref)
 	}
 	if p := cat.PageLayout; p != "" {
@@ -162,17 +162,17 @@ func (cat *Catalog) pdfString(pdf pdfWriter, catalog Reference) string {
 	}
 	if ac := cat.AcroForm; len(ac.Fields) != 0 {
 		ref := pdf.CreateObject()
-		pdf.WriteObject(ac.pdfString(pdf, catalog, ref), nil, ref)
+		pdf.WriteObject(ac.pdfString(pdf, catalog, ref), ref)
 		b.line("/AcroForm %s", ref)
 	}
 	if outline := cat.Outlines; outline != nil && outline.First != nil {
 		outlineRef := pdf.CreateObject()
-		pdf.WriteObject(outline.pdfString(pdf, outlineRef), nil, outlineRef)
+		pdf.WriteObject(outline.pdfString(pdf, outlineRef), outlineRef)
 		b.line("/Outlines %s", outlineRef)
 	}
 	if cat.StructTreeRoot != nil {
 		stRef := pdf.CreateObject()
-		pdf.WriteObject(cat.StructTreeRoot.pdfString(pdf, stRef), nil, stRef)
+		pdf.WriteObject(cat.StructTreeRoot.pdfString(pdf, stRef), stRef)
 		b.line("/StructTreeRoot %s", stRef)
 	}
 	if m := cat.MarkInfo; m != nil {
@@ -280,27 +280,27 @@ func (n NameDictionary) pdfString(pdf pdfWriter) string {
 	b.WriteString("<<")
 	if dests := n.Dests; !dests.IsEmpty() {
 		ref := pdf.CreateObject()
-		pdf.WriteObject(dests.pdfString(pdf, ref), nil, ref)
+		pdf.WriteObject(dests.pdfString(pdf, ref), ref)
 		b.fmt("/Dests %s", ref)
 	}
 	if emb := n.EmbeddedFiles; len(emb) != 0 {
 		ref := pdf.CreateObject()
-		pdf.WriteObject(emb.pdfString(pdf, ref), nil, ref)
+		pdf.WriteObject(emb.pdfString(pdf, ref), ref)
 		b.fmt("/EmbeddedFiles %s", ref)
 	}
 	if aps := n.AP; !aps.IsEmpty() {
 		ref := pdf.CreateObject()
-		pdf.WriteObject(aps.pdfString(pdf, ref), nil, ref)
+		pdf.WriteObject(aps.pdfString(pdf, ref), ref)
 		b.fmt("/AP %s", ref)
 	}
 	if pages := n.Pages; !pages.IsEmpty() {
 		ref := pdf.CreateObject()
-		pdf.WriteObject(pages.pdfString(pdf, ref), nil, ref)
+		pdf.WriteObject(pages.pdfString(pdf, ref), ref)
 		b.fmt("/Pages %s", ref)
 	}
 	if templates := n.Templates; !templates.IsEmpty() {
 		ref := pdf.CreateObject()
-		pdf.WriteObject(templates.pdfString(pdf, ref), nil, ref)
+		pdf.WriteObject(templates.pdfString(pdf, ref), ref)
 		b.fmt("/Templates %s", ref)
 	}
 	b.WriteString(">>")

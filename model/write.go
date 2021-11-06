@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
+	"strconv"
 	"strings"
 
 	"golang.org/x/text/encoding/unicode"
@@ -135,6 +136,28 @@ var (
 	utf16Enc = unicode.UTF16(unicode.BigEndian, unicode.UseBOM)
 )
 
+// WrittenObject represents a PDF object to write on a file.
+// This intermediate representation makes to possible to
+// modify object just before writting them, as needed for instance
+// for the Length attribute of encrypted streams.
+type StreamHeader map[Name]string
+
+func (w StreamHeader) PDFContent() []byte {
+	var out bytes.Buffer
+	out.WriteString("<<")
+	for i, o := range w {
+		out.WriteString(i.String() + " " + o)
+	}
+	out.WriteString(">>")
+	return out.Bytes()
+}
+
+func (w StreamHeader) updateWith(other StreamHeader) {
+	for k, v := range other {
+		w[k] = v
+	}
+}
+
 // PDFWritter abstracts away the complexity of writting PDF files.
 // It used internally by the package, but is also exposed
 // to ease the use of custom types implementing `Object`.
@@ -154,10 +177,12 @@ type PDFWritter interface {
 	// WriteObject add the objects content to the output, under the
 	// `ref` object number.
 	// This method should be called at most once for each reference.
-	// For stream object, `content` will contain the dictionary,
-	// and `stream` the inner stream bytes. For other objects, `stream` will be nil.
-	// Stream content will be encrypted if needed.
-	WriteObject(content string, stream []byte, ref Reference)
+	WriteObject(content string, ref Reference)
+
+	// WriteStream write the content of the object `ref`, and update the offsets.
+	// This method will be called at most once for each reference.
+	// Stream content will be encrypted if needed and the Length field adjusted.
+	WriteStream(header StreamHeader, stream []byte, ref Reference)
 }
 
 // EscapeByteString return a pdf compatible litteral string, by
@@ -223,18 +248,30 @@ func (p pdfWriter) EncodeString(s string, mode PDFStringEncoding, context Refere
 // For stream object, `content` will contain the dictionary,
 // and `stream` the inner stream bytes. For other objects, `stream` will be nil.
 // Stream content will be encrypted if needed.
-func (w pdfWriter) WriteObject(content string, stream []byte, ref Reference) {
+func (w pdfWriter) WriteObject(content string, ref Reference) {
 	w.objOffsets[ref] = w.written
 	w.bytes([]byte(fmt.Sprintf("%d 0 obj\n", ref)))
 	w.bytes([]byte(content))
+	w.bytes([]byte("\nendobj\n"))
+}
+
+// WriteStream write the content of the object `ref`, and update the offsets.
+// This method will be called at most once for each reference.
+// Stream content will be encrypted if needed and the Length field adjusted.
+func (w pdfWriter) WriteStream(content StreamHeader, stream []byte, ref Reference) {
+	w.objOffsets[ref] = w.written
+	w.bytes([]byte(fmt.Sprintf("%d 0 obj\n", ref)))
+	// we first need to adjust the Length
+	if w.encrypt != nil && w.encrypt.EncryptionHandler != nil {
+		// we must ensure we dont modify the original stream
+		// which may be a Stream.Content slice
+		stream = append([]byte(nil), stream...)
+		w.encrypt.EncryptionHandler.crypt(ref, stream)
+	}
+	content["Length"] = strconv.Itoa(len(stream))
+	w.bytes(content.PDFContent())
 	if stream != nil {
 		w.bytes([]byte("\nstream\n"))
-		if w.encrypt != nil && w.encrypt.EncryptionHandler != nil {
-			// we must ensure we dont modify the original stream
-			// which may be a Stream.Content slice
-			stream = append([]byte(nil), stream...)
-			w.encrypt.EncryptionHandler.crypt(ref, stream)
-		}
 		w.bytes(stream)
 		// There should be an end-of-line marker after the data and before endstream
 		w.bytes([]byte("\nendstream"))
@@ -244,9 +281,17 @@ func (w pdfWriter) WriteObject(content string, stream []byte, ref Reference) {
 
 // addObject is a convenience shortcut to write `content` into a new object
 // and return the created reference
-func (p pdfWriter) addObject(content string, stream []byte) Reference {
+func (p pdfWriter) addObject(content string) Reference {
 	ref := p.CreateObject()
-	p.WriteObject(content, stream, ref)
+	p.WriteObject(content, ref)
+	return ref
+}
+
+// addStream is a convenience shortcut to write `content` and `stream` into a new stream
+// and return the created reference
+func (p pdfWriter) addStream(content StreamHeader, stream []byte) Reference {
+	ref := p.CreateObject()
+	p.WriteStream(content, stream, ref)
 	return ref
 }
 
@@ -259,12 +304,17 @@ func (p pdfWriter) addObject(content string, stream []byte) Reference {
 // object number, avoiding unnecessary duplications.
 type Referenceable interface {
 	IsReferenceable()
+
 	// clone returns a deep copy, preserving the concrete type
 	// it will use the `cache` for child items which are themselves
 	// `Referenceable`
 	// see cloneCache.checkOrClone to avoid unwanted allocations
 	clone(cache cloneCache) Referenceable
-	pdfContent(pdf pdfWriter, objectRef Reference) (content string, stream []byte)
+
+	// pdfContent returns the content to write to the PDF file
+	// Stream object will return a non nil `header` and `content` will be ignored
+	// Regular object will return a nil `header` and `stream` will be ignored
+	pdfContent(pdf pdfWriter, objectRef Reference) (header StreamHeader, content string, stream []byte)
 }
 
 func (*FontDict) IsReferenceable()                 {}
@@ -291,7 +341,11 @@ func (pdf pdfWriter) addItem(item Referenceable) Reference {
 	}
 	ref := pdf.CreateObject()
 	pdf.cache[item] = ref
-	s, b := item.pdfContent(pdf, ref)
-	pdf.WriteObject(s, b, ref)
+	header, obj, s := item.pdfContent(pdf, ref)
+	if header != nil {
+		pdf.WriteStream(header, s, ref)
+	} else {
+		pdf.WriteObject(obj, ref)
+	}
 	return ref
 }

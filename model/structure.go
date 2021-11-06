@@ -19,9 +19,10 @@ func (m MetadataStream) Clone() Object {
 
 func (m MetadataStream) Write(w PDFWritter, _ Reference) string {
 	base := m.Stream.PDFCommonFields(true)
-	s := fmt.Sprintf("<</Type/Metadata/Subtype/XML %s>>", base)
+	base["Type"] = "/Metadata"
+	base["Subtype"] = "/XML"
 	ref := w.CreateObject()
-	w.WriteObject(s, m.Content, ref)
+	w.WriteStream(base, m.Content, ref)
 	return ref.String()
 }
 
@@ -191,7 +192,7 @@ func (s StructureTree) pdfString(pdf pdfWriter, ref Reference) string {
 	refs := make([]Reference, len(s.K))
 	for i, k := range s.K {
 		kidRef := pdf.CreateObject()
-		pdf.WriteObject(k.pdfString(pdf, kidRef, 0), nil, kidRef)
+		pdf.WriteObject(k.pdfString(pdf, kidRef, 0), kidRef)
 		refs[i] = kidRef
 	}
 
@@ -209,7 +210,7 @@ func (s StructureTree) pdfString(pdf pdfWriter, ref Reference) string {
 	}
 
 	idTreeRef := pdf.CreateObject()
-	pdf.WriteObject(s.IDTree.pdfString(pdf, idTreeRef), nil, idTreeRef)
+	pdf.WriteObject(s.IDTree.pdfString(pdf, idTreeRef), idTreeRef)
 
 	b.line("<</Type/StructTreeRoot/K %s/IDTree %s/ParentTree %s/ParentTreeNextKey %d",
 		writeRefArray(refs), idTreeRef, s.ParentTree.pdfString(pdf), s.ParentTreeNextKey())
@@ -351,7 +352,7 @@ func writeContentItem(c ContentItem, pdf pdfWriter, parent Reference) string {
 	switch c := c.(type) {
 	case *StructureElement:
 		ownRef := pdf.CreateObject()
-		pdf.WriteObject(c.pdfString(pdf, ownRef, parent), nil, ownRef)
+		pdf.WriteObject(c.pdfString(pdf, ownRef, parent), ownRef)
 		return ownRef.String()
 	case ContentItemMarkedReference:
 		return c.pdfString(pdf)

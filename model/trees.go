@@ -146,7 +146,7 @@ func (p DestTree) pdfString(pdf pdfWriter, ref Reference) string {
 		b.fmt("/Kids [")
 		for _, kid := range p.Kids {
 			kidRef := pdf.CreateObject()
-			pdf.WriteObject(kid.pdfString(pdf, kidRef), nil, kidRef)
+			pdf.WriteObject(kid.pdfString(pdf, kidRef), kidRef)
 			b.fmt("%s ", kidRef)
 		}
 		b.line("]")
@@ -258,7 +258,7 @@ func (p AppearanceTree) pdfString(pdf pdfWriter, ref Reference) string {
 		b.fmt("/Kids [")
 		for _, kid := range p.Kids {
 			kidRef := pdf.CreateObject()
-			pdf.WriteObject(kid.pdfString(pdf, kidRef), nil, kidRef)
+			pdf.WriteObject(kid.pdfString(pdf, kidRef), kidRef)
 			b.fmt("%s ", kidRef)
 		}
 		b.line("]")
@@ -426,7 +426,7 @@ func (p PageLabelsTree) pdfString(pdf pdfWriter, ref Reference) string {
 		b.fmt("/Kids [")
 		for _, kid := range p.Kids {
 			kidRef := pdf.CreateObject()
-			pdf.WriteObject(kid.pdfString(pdf, kidRef), nil, kidRef)
+			pdf.WriteObject(kid.pdfString(pdf, kidRef), kidRef)
 			b.fmt("%s ", kidRef)
 		}
 		b.line("]")
@@ -606,7 +606,7 @@ func (d IDTree) pdfString(pdf pdfWriter, ref Reference) string {
 		b.fmt("/Kids [")
 		for _, kid := range d.Kids {
 			kidRef := pdf.CreateObject()
-			pdf.WriteObject(kid.pdfString(pdf, kidRef), nil, kidRef)
+			pdf.WriteObject(kid.pdfString(pdf, kidRef), kidRef)
 			b.fmt("%s ", kidRef)
 		}
 		b.line("]")
@@ -770,7 +770,7 @@ func (d ParentTree) pdfString(pdf pdfWriter) string {
 	if len(d.Kids) != 0 {
 		b.fmt("/Kids [")
 		for _, kid := range d.Kids {
-			kidRef := pdf.addObject(kid.pdfString(pdf), nil)
+			kidRef := pdf.addObject(kid.pdfString(pdf))
 			b.fmt("%s ", kidRef)
 		}
 		b.line("]")
@@ -798,7 +798,7 @@ type NameToPage struct {
 func (n NameToPage) pdfString(pdf pdfWriter, ref Reference) string {
 	pageRef, ok := pdf.pages[n.Page]
 	if !ok { // template
-		pageRef = pdf.addObject(n.Page.pdfString(pdf), nil)
+		pageRef = pdf.addObject(n.Page.pdfString(pdf))
 	}
 	return fmt.Sprintf("%s %s", pdf.EncodeString(n.Name, ByteString, ref), pageRef)
 }
@@ -877,7 +877,7 @@ func (d TemplateTree) pdfString(pdf pdfWriter, ref Reference) string {
 		b.fmt("/Kids [")
 		for _, kid := range d.Kids {
 			kidRef := pdf.CreateObject()
-			pdf.WriteObject(kid.pdfString(pdf, kidRef), nil, kidRef)
+			pdf.WriteObject(kid.pdfString(pdf, kidRef), kidRef)
 			b.fmt("%s ", kidRef)
 		}
 		b.line("]")

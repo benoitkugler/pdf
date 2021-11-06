@@ -129,7 +129,7 @@ func (pages *PageTree) pdfString(pdf pdfWriter) string {
 	kidRefs := make([]Reference, len(pages.Kids))
 	for i, page := range pages.Kids {
 		kidRef := pdf.pages[page]
-		pdf.WriteObject(page.pdfString(pdf), nil, kidRef)
+		pdf.WriteObject(page.pdfString(pdf), kidRef)
 		kidRefs[i] = kidRef
 	}
 	parent := ""
@@ -139,7 +139,7 @@ func (pages *PageTree) pdfString(pdf pdfWriter) string {
 	res := ""
 	if !pages.Resources.IsEmpty() {
 		refResources := pdf.CreateObject()
-		pdf.WriteObject(pages.Resources.pdfString(pdf, refResources), nil, refResources)
+		pdf.WriteObject(pages.Resources.pdfString(pdf, refResources), refResources)
 		res = fmt.Sprintf("/Resources %s", refResources)
 	}
 	if pages.MediaBox != nil {
@@ -229,7 +229,7 @@ func (p *PageObject) pdfString(pdf pdfWriter) string {
 	}
 	if !p.Resources.IsEmpty() {
 		refResources := pdf.CreateObject()
-		pdf.WriteObject(p.Resources.pdfString(pdf, refResources), nil, refResources)
+		pdf.WriteObject(p.Resources.pdfString(pdf, refResources), refResources)
 		b.line("/Resources %s", refResources)
 	}
 	if p.MediaBox != nil {
@@ -259,7 +259,7 @@ func (p *PageObject) pdfString(pdf pdfWriter) string {
 	}
 	contents := make([]Reference, len(p.Contents))
 	for i, c := range p.Contents {
-		contents[i] = pdf.addObject(c.PDFContent())
+		contents[i] = pdf.addStream(c.PDFContent())
 	}
 	if len(contents) != 0 {
 		b.line("/Contents %s", writeRefArray(contents))
@@ -459,7 +459,7 @@ func (r *ResourcesDict) pdfString(pdf pdfWriter, context Reference) string {
 		b.fmt("/Properties <<")
 		for n, item := range r.Properties {
 			ref := pdf.CreateObject()
-			pdf.WriteObject(item.Write(pdf, ref), nil, ref)
+			pdf.WriteObject(item.Write(pdf, ref), ref)
 			b.fmt("%s %s", n, ref)
 		}
 		b.line(">>")
@@ -550,11 +550,11 @@ func (o *Outline) Flatten() []*OutlineItem {
 func (o *Outline) pdfString(pdf pdfWriter, ref Reference) string {
 	firstRef := pdf.CreateObject()
 	pdf.outlines[o.First] = firstRef
-	pdf.WriteObject(o.First.pdfString(pdf, firstRef, ref), nil, firstRef)
+	pdf.WriteObject(o.First.pdfString(pdf, firstRef, ref), firstRef)
 	lastRef := pdf.CreateObject()
 	last := o.Last()
 	pdf.outlines[last] = lastRef
-	pdf.WriteObject(last.pdfString(pdf, lastRef, ref), nil, lastRef)
+	pdf.WriteObject(last.pdfString(pdf, lastRef, ref), lastRef)
 	return fmt.Sprintf("<</First %s/Last %s/Count %d>>", firstRef, lastRef, o.Count())
 }
 
@@ -660,7 +660,7 @@ func (pdf pdfWriter) addOutlineItem(item *OutlineItem, parent Reference) Referen
 	if !has {
 		nextRef = pdf.CreateObject()
 		pdf.outlines[item] = nextRef
-		pdf.WriteObject(item.pdfString(pdf, nextRef, parent), nil, nextRef)
+		pdf.WriteObject(item.pdfString(pdf, nextRef, parent), nextRef)
 	}
 	return nextRef
 }

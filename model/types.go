@@ -183,6 +183,14 @@ func (d ObjDict) Write(w PDFWritter, r Reference) string {
 	return "<<\n" + strings.Join(chunks, "\n") + "\n>>"
 }
 
+func (d ObjDict) AsStreamHeader(w PDFWritter, r Reference) StreamHeader {
+	out := make(StreamHeader, len(d))
+	for i, o := range d {
+		out[i] = o.Write(w, r)
+	}
+	return out
+}
+
 // ObjStream is a stream
 type ObjStream struct {
 	Args    ObjDict
@@ -201,7 +209,7 @@ func (stream ObjStream) Write(w PDFWritter, r Reference) string {
 		return ""
 	}
 	ref := w.CreateObject()
-	w.WriteObject(stream.Args.Write(w, ref), stream.Content, ref)
+	w.WriteStream(stream.Args.AsStreamHeader(w, ref), stream.Content, ref)
 	return ref.String()
 }
 

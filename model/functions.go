@@ -1,8 +1,7 @@
 package model
 
 import (
-	"bytes"
-	"fmt"
+	"strconv"
 )
 
 // Function is one of FunctionSample, FunctionExpInterpolation,
@@ -29,27 +28,24 @@ type FunctionDict struct {
 
 // pdfContent return the object content of `f`
 // `pdf` is used to write and reference the sub-functions of a `StitchingFunction`
-func (f *FunctionDict) pdfContent(pdf pdfWriter, _ Reference) (string, []byte) {
-	baseArgs := fmt.Sprintf("/Domain %s", writeRangeArray(f.Domain))
+func (f *FunctionDict) pdfContent(pdf pdfWriter, ref Reference) (StreamHeader, string, []byte) {
+	baseArgs := StreamHeader{"Domain": writeRangeArray(f.Domain)}
 	if len(f.Range) != 0 {
-		baseArgs += fmt.Sprintf("/Range %s", writeRangeArray(f.Range))
+		baseArgs["Range"] = writeRangeArray(f.Range)
 	}
-	var (
-		content string
-		stream  []byte
-	)
+	var stream []byte
 	switch ft := f.FunctionType.(type) {
 	case FunctionSampled:
-		content, stream = ft.pdfContent(baseArgs)
+		stream = ft.pdfContent(baseArgs)
 	case FunctionExpInterpolation:
-		content = ft.pdfString(baseArgs)
+		ft.pdfString(baseArgs)
 	case FunctionStitching:
 		// start by writing the "child" functions
-		content = ft.pdfString(baseArgs, pdf)
+		ft.pdfString(baseArgs, pdf)
 	case FunctionPostScriptCalculator:
-		content, stream = ft.pdfContent(baseArgs)
+		stream = ft.pdfContent(baseArgs)
 	}
-	return content, stream
+	return baseArgs, "", stream
 }
 
 // Clone returns a deep copy of the function
@@ -73,7 +69,8 @@ func (f *FunctionDict) clone(cloneCache) Referenceable {
 func (pdf pdfWriter) writeFunctions(fns []FunctionDict) []Reference {
 	refs := make([]Reference, len(fns))
 	for i, f := range fns {
-		refs[i] = pdf.addObject(f.pdfContent(pdf, 0))
+		sh, _, sb := f.pdfContent(pdf, 0)
+		refs[i] = pdf.addStream(sh, sb)
 	}
 	return refs
 }
@@ -90,25 +87,21 @@ type FunctionSampled struct {
 }
 
 // adds to the common arguments the specificities of a `SampledFunction`
-func (f FunctionSampled) pdfContent(baseArgs string) (string, []byte) {
-	var b bytes.Buffer
-	b.WriteString("<</FunctionType 0 ")
-	b.WriteString(baseArgs)
-	b.WriteString(f.Stream.PDFCommonFields(true))
-	b.WriteString(fmt.Sprintf("/Size %s/BitsPerSample %d", writeIntArray(f.Size), f.BitsPerSample))
+func (f FunctionSampled) pdfContent(b StreamHeader) []byte {
+	b["FunctionType"] = "0"
+	b.updateWith(f.Stream.PDFCommonFields(true))
+	b["Size"] = writeIntArray(f.Size)
+	b["BitsPerSample"] = strconv.Itoa(int(f.BitsPerSample))
 	if f.Order != 0 {
-		b.WriteString(fmt.Sprintf("/Order %d", f.Order))
+		b["Order"] = strconv.Itoa(int(f.Order))
 	}
 	if len(f.Encode) != 0 {
-		b.WriteString("/Encode ")
-		b.WriteString(writePointsArray(f.Encode))
+		b["Encode"] = writePointsArray(f.Encode)
 	}
 	if len(f.Decode) != 0 {
-		b.WriteString("/Decode ")
-		b.WriteString(writePointsArray(f.Decode))
+		b["Decode"] = writePointsArray(f.Decode)
 	}
-	b.WriteString(" >>")
-	return b.String(), f.Content
+	return f.Content
 }
 
 // Clone returns a deep copy of the function
@@ -131,15 +124,15 @@ type FunctionExpInterpolation struct {
 }
 
 // adds to the common arguments the specificities of a `ExpInterpolationFunction`
-func (f FunctionExpInterpolation) pdfString(baseArgs string) string {
-	c0, c1 := "", ""
+func (f FunctionExpInterpolation) pdfString(baseArgs StreamHeader) {
 	if len(f.C0) != 0 {
-		c0 = "/C0 " + writeFloatArray(f.C0)
+		baseArgs["C0"] = writeFloatArray(f.C0)
 	}
 	if len(f.C1) != 0 {
-		c1 = "/C1 " + writeFloatArray(f.C1)
+		baseArgs["C1"] = writeFloatArray(f.C1)
 	}
-	return fmt.Sprintf("<</FunctionType 2 %s%s%s/N %d>>", baseArgs, c0, c1, f.N)
+	baseArgs["FunctionType"] = "2"
+	baseArgs["N"] = strconv.Itoa(f.N)
 }
 
 // Clone returns a deep copy of the function
@@ -169,11 +162,13 @@ func FunctionEncodeRepeat(k int) [][2]Fl {
 }
 
 // adds to the common arguments the specificities of a `StitchingFunction`.
-func (f FunctionStitching) pdfString(baseArgs string, pdf pdfWriter) string {
+func (f FunctionStitching) pdfString(baseArgs StreamHeader, pdf pdfWriter) {
 	// start by writing the "child" functions
 	refs := pdf.writeFunctions(f.Functions)
-	return fmt.Sprintf("<</FunctionType 3 %s/Functions %s/Bounds %s/Encode %s>>",
-		baseArgs, writeRefArray(refs), writeFloatArray(f.Bounds), writePointArray(f.Encode))
+	baseArgs["FunctionType"] = "3"
+	baseArgs["Functions"] = writeRefArray(refs)
+	baseArgs["Bounds"] = writeFloatArray(f.Bounds)
+	baseArgs["Encode"] = writePointArray(f.Encode)
 }
 
 // Clone returns a deep copy of the function
@@ -194,9 +189,10 @@ func (f FunctionStitching) Clone() Function {
 type FunctionPostScriptCalculator Stream
 
 // adds to the common arguments the specificities of a `PostScriptCalculatorFunction`.
-func (f FunctionPostScriptCalculator) pdfContent(baseArgs string) (string, []byte) {
-	s := Stream(f).PDFCommonFields(true)
-	return fmt.Sprintf("<</FunctionType 4 %s %s>>\n", baseArgs, s), f.Content
+func (f FunctionPostScriptCalculator) pdfContent(baseArgs StreamHeader) []byte {
+	baseArgs.updateWith(Stream(f).PDFCommonFields(true))
+	baseArgs["FunctionType"] = "4"
+	return f.Content
 }
 
 // Clone returns a deep copy of the function

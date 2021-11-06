@@ -254,7 +254,7 @@ func (a AnnotationMarkup) pdfFields(pdf pdfWriter, context Reference) string {
 	}
 	if a.Popup != nil {
 		// the context is also the parent
-		ref := pdf.addObject(a.Popup.pdfString(pdf, context), nil)
+		ref := pdf.addObject(a.Popup.pdfString(pdf, context))
 		b.fmt("/Popup %s", ref)
 	}
 	if a.CA != nil {
@@ -308,10 +308,10 @@ func (a *AnnotationDict) GetStructParent() MaybeInt {
 }
 
 // pdfContent implements IsReferenceable
-func (a *AnnotationDict) pdfContent(pdf pdfWriter, ref Reference) (string, []byte) {
+func (a *AnnotationDict) pdfContent(pdf pdfWriter, ref Reference) (StreamHeader, string, []byte) {
 	base := a.BaseAnnotation.fields(pdf, ref)
 	subtype := a.Subtype.annotationFields(pdf, ref)
-	return fmt.Sprintf("<<%s %s >>", base, subtype), nil
+	return nil, fmt.Sprintf("<<%s %s >>", base, subtype), nil
 }
 
 func (a *AnnotationDict) clone(cache cloneCache) Referenceable {

@@ -768,7 +768,10 @@ type OpBeginImage struct {
 }
 
 func (o OpBeginImage) Add(out *bytes.Buffer) {
-	out.WriteString("BI " + o.Image.PDFFields(true))
+	out.WriteString("BI ")
+	for k, v := range o.Image.PDFFields(true) {
+		out.WriteString(k.String() + " " + v)
+	}
 	if o.ColorSpace != nil {
 		out.WriteString(" /CS " + o.ColorSpace.Write())
 	}

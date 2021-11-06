@@ -2,6 +2,7 @@ package model
 
 import (
 	"fmt"
+	"strconv"
 )
 
 // ----------------------- colors spaces -----------------------
@@ -35,15 +36,17 @@ func (res ResourcesColorSpace) Resolve(cs Name) (ColorSpace, error) {
 
 // check conformity with either Referenceable or directColorSpace
 
-var _ Referenceable = (*ColorSpaceICCBased)(nil)
-var _ directColorSpace = ColorSpaceSeparation{}
-var _ directColorSpace = ColorSpaceDeviceN{}
-var _ directColorSpace = ColorSpaceName("")
-var _ directColorSpace = ColorSpaceCalGray{}
-var _ directColorSpace = ColorSpaceCalRGB{}
-var _ directColorSpace = ColorSpaceLab{}
-var _ directColorSpace = ColorSpaceIndexed{}
-var _ directColorSpace = ColorSpaceUncoloredPattern{}
+var (
+	_ Referenceable    = (*ColorSpaceICCBased)(nil)
+	_ directColorSpace = ColorSpaceSeparation{}
+	_ directColorSpace = ColorSpaceDeviceN{}
+	_ directColorSpace = ColorSpaceName("")
+	_ directColorSpace = ColorSpaceCalGray{}
+	_ directColorSpace = ColorSpaceCalRGB{}
+	_ directColorSpace = ColorSpaceLab{}
+	_ directColorSpace = ColorSpaceIndexed{}
+	_ directColorSpace = ColorSpaceUncoloredPattern{}
+)
 
 // check conformity with the ColorSpace interface
 
@@ -200,18 +203,16 @@ func (cs ColorSpaceICCBased) NbColorComponents() int { return cs.N }
 
 // returns the stream object. `pdf` is used
 // to write potential alternate space.
-func (c *ColorSpaceICCBased) pdfContent(pdf pdfWriter, ref Reference) (string, []byte) {
+func (c *ColorSpaceICCBased) pdfContent(pdf pdfWriter, ref Reference) (StreamHeader, string, []byte) {
 	baseArgs := c.PDFCommonFields(true)
-	b := newBuffer()
-	b.fmt("<</N %d %s", c.N, baseArgs)
+	baseArgs["N"] = strconv.Itoa(c.N)
 	if c.Alternate != nil {
-		b.fmt("/Alternate %s", c.Alternate.colorSpaceWrite(pdf, ref))
+		baseArgs["Alternate"] = c.Alternate.colorSpaceWrite(pdf, ref)
 	}
 	if len(c.Range) != 0 {
-		b.fmt("/Range %s", writePointsArray(c.Range))
+		baseArgs["Range"] = writePointsArray(c.Range)
 	}
-	b.fmt(">>")
-	return b.String(), c.Content
+	return baseArgs, "", c.Content
 }
 
 func (cs *ColorSpaceICCBased) colorSpaceWrite(pdf pdfWriter, _ Reference) string {
@@ -283,8 +284,9 @@ func (ColorTableBytes) isColorTable()   {}
 type ColorTableStream Stream
 
 // pdfContent return the content of the stream.
-func (table *ColorTableStream) pdfContent(pdfWriter, Reference) (string, []byte) {
-	return (*Stream)(table).PDFContent()
+func (table *ColorTableStream) pdfContent(pdfWriter, Reference) (StreamHeader, string, []byte) {
+	h, b := (*Stream)(table).PDFContent()
+	return h, "", b
 }
 
 func (table *ColorTableStream) clone(cloneCache) Referenceable {
@@ -332,7 +334,8 @@ func (s ColorSpaceSeparation) colorSpaceWrite(pdf pdfWriter, ref Reference) stri
 	if s.AlternateSpace != nil {
 		cs = s.AlternateSpace.colorSpaceWrite(pdf, ref)
 	}
-	funcRef := pdf.addObject(s.TintTransform.pdfContent(pdf, ref))
+	header, _, bytes := s.TintTransform.pdfContent(pdf, ref)
+	funcRef := pdf.addStream(header, bytes)
 	return fmt.Sprintf("[/Separation %s %s %s]", s.Name, cs, funcRef)
 }
 
@@ -436,8 +439,8 @@ func (c ColorSpaceDeviceNMixingHints) pdfString(pdf pdfWriter) string {
 		b.WriteString("/DotGain <<")
 		for name, f := range c.DotGain {
 			ref := pdf.CreateObject()
-			st, by := f.pdfContent(pdf, ref)
-			pdf.WriteObject(st, by, ref)
+			st, _, by := f.pdfContent(pdf, ref)
+			pdf.WriteStream(st, by, ref)
 			b.fmt("%s %s", name, ref)
 		}
 		b.WriteString(">>")
@@ -485,7 +488,8 @@ func (n ColorSpaceDeviceN) colorSpaceWrite(pdf pdfWriter, ref Reference) string 
 	if n.AlternateSpace != nil {
 		alt = n.AlternateSpace.colorSpaceWrite(pdf, ref)
 	}
-	tint := pdf.addObject(n.TintTransform.pdfContent(pdf, ref))
+	sh, _, sb := n.TintTransform.pdfContent(pdf, ref)
+	tint := pdf.addStream(sh, sb)
 	attr := ""
 	if n.Attributes != nil {
 		attr = n.Attributes.pdfString(pdf, ref)

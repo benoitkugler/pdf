@@ -158,7 +158,7 @@ func (f *FormFieldDict) pdfString(pdf pdfWriter, catalog Reference) string {
 		for i, kid := range f.Kids {
 			kidS := kid.pdfString(pdf, catalog)
 			kidRef := pdf.fields[kid] // now valid
-			pdf.WriteObject(kidS, nil, kidRef)
+			pdf.WriteObject(kidS, kidRef)
 			refs[i] = kidRef
 		}
 		b.fmt("/Kids %s", writeRefArray(refs))
@@ -379,11 +379,11 @@ func (f FormFieldSignature) formFieldAttrs(pdf pdfWriter, catalog, fieldRef Refe
 		out += fmt.Sprintf("/V %s", f.V.pdfString(pdf, catalog, fieldRef))
 	}
 	if lock := f.Lock; lock != nil {
-		ref := pdf.addObject(f.Lock.pdfString(pdf, fieldRef), nil)
+		ref := pdf.addObject(f.Lock.pdfString(pdf, fieldRef))
 		out += fmt.Sprintf("/Lock %s", ref)
 	}
 	if sv := f.SV; sv != nil {
-		ref := pdf.addObject(f.SV.pdfString(pdf, fieldRef), nil)
+		ref := pdf.addObject(f.SV.pdfString(pdf, fieldRef))
 		out += fmt.Sprintf("/SV %s", ref)
 	}
 	return out
@@ -871,7 +871,7 @@ func (a AcroForm) pdfString(pdf pdfWriter, catalog, acroRef Reference) string {
 	for i, f := range a.Fields {
 		s := f.pdfString(pdf, catalog)
 		fieldRef := pdf.fields[f] // add to the cache
-		pdf.WriteObject(s, nil, fieldRef)
+		pdf.WriteObject(s, fieldRef)
 		refs[i] = fieldRef
 	}
 	b.fmt("<</Fields %s", writeRefArray(refs))
@@ -887,7 +887,7 @@ func (a AcroForm) pdfString(pdf pdfWriter, catalog, acroRef Reference) string {
 		b.fmt("/CO %s", writeRefArray(refs))
 	}
 	if !a.DR.IsEmpty() {
-		ref := pdf.addObject(a.DR.pdfString(pdf, acroRef), nil)
+		ref := pdf.addObject(a.DR.pdfString(pdf, acroRef))
 		b.fmt("/DR %s", ref)
 	}
 	if a.DA != "" {
