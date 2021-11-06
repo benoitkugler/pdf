@@ -163,13 +163,25 @@ func processIndexedCS(arr Array) (contentstream.ImageColorSpaceIndexed, error) {
 
 var filtersCorrupted = errors.New("corrupted filter expression")
 
-// ParseDirectFilters process the given filters, which must be direct objects.
+// ParseDirectFiltersis the same as ParseFilters, but for direct objects.
 // It is the case in image inline parameters and xRefStream dicts.
-// An empty list may be returned if the filters are nil.
 func ParseDirectFilters(filters, decodeParams Object) (model.Filters, error) {
+	return ParseFilters(filters, decodeParams, func(o Object) (Object, error) { return o, nil })
+}
+
+// ParseFilters process the given filters and their (optionnal) parameters.
+// `resolver` is called to resolve the potential indirect objects
+// An empty list may be returned if the filters are nil.
+func ParseFilters(filters, decodeParams Object, resolver func(Object) (Object, error)) (model.Filters, error) {
+	var err error
+	filters, err = resolver(filters)
+	if err != nil {
+		return nil, err
+	}
 	if filters == nil {
 		return nil, nil
 	}
+
 	if filterName, isName := filters.(Name); isName {
 		filters = Array{filterName}
 	}
@@ -179,6 +191,11 @@ func ParseDirectFilters(filters, decodeParams Object) (model.Filters, error) {
 	}
 	var out model.Filters
 	for _, name := range ar {
+		name, err = resolver(name)
+		if err != nil {
+			return nil, err
+		}
+
 		if filterName, isName := name.(Name); isName {
 			out = append(out, model.Filter{Name: model.ObjName(filterName)})
 		} else {
@@ -186,19 +203,28 @@ func ParseDirectFilters(filters, decodeParams Object) (model.Filters, error) {
 		}
 	}
 
-	switch decode := decodeParams.(type) {
+	decodeParams, err = resolver(decodeParams)
+	if err != nil {
+		return nil, err
+	}
+
+	switch decodeParams := decodeParams.(type) {
 	case Array: // one dict param per filter
-		if len(decode) != len(out) {
-			return nil, fmt.Errorf("unexpected length for DecodeParms array: %d", len(decode))
+		if len(decodeParams) != len(out) {
+			return nil, fmt.Errorf("unexpected length for DecodeParms array: %d", len(decodeParams))
 		}
-		for i, parms := range decode {
+		for i, parms := range decodeParams {
+			parms, err = resolver(parms)
+			if err != nil {
+				return nil, err
+			}
 			out[i].DecodeParms = processOneDecodeParms(parms)
 		}
 	case Dict: // one filter and one dict param
 		if len(out) != 1 {
 			return nil, fmt.Errorf("DecodeParms as dict only supported for one filter, got %d", len(out))
 		}
-		out[0].DecodeParms = processOneDecodeParms(decode)
+		out[0].DecodeParms = processOneDecodeParms(decodeParams)
 	case nil: // OK
 	default:
 		return nil, filtersCorrupted

@@ -19,27 +19,8 @@ const freeHeadGeneration = 65535
 
 var errCorruptHeader = errors.New("headerVersion: corrupt pdf stream - no header version available")
 
-func Read(rs io.ReadSeeker, conf *Configuration) error {
-	ctx, err := newContext(rs, conf)
-	if err != nil {
-		return err
-	}
-
-	o, err := ctx.offsetLastXRefSection(0)
-	if err != nil {
-		return err
-	}
-
-	err = ctx.buildXRefTableStartingAt(o)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-// Context represents an environment for processing PDF files.
-type Context struct {
+// context represents an environment for processing PDF files.
+type context struct {
 	rs       io.ReadSeeker
 	fileSize int64
 
@@ -55,12 +36,12 @@ type Context struct {
 	AdditionalStreams parser.Array
 }
 
-func newContext(rs io.ReadSeeker, conf *Configuration) (*Context, error) {
+func newContext(rs io.ReadSeeker, conf *Configuration) (*context, error) {
 	if conf == nil {
 		conf = NewDefaultConfiguration()
 	}
 
-	rdCtx := &Context{
+	rdCtx := &context{
 		rs: rs,
 		// ObjectStreams: intSet{},
 		// XRefStreams:   intSet{},
@@ -77,7 +58,14 @@ func newContext(rs io.ReadSeeker, conf *Configuration) (*Context, error) {
 	return rdCtx, nil
 }
 
+// object number -> entry
 type xrefTable map[int]xrefEntry
+
+// func (xref xrefTable) resolve(o parser.Object) parser.Object  {
+// 	if ref, ok := o.(parser.IndirectRef); ok {
+// 		return
+// 	}
+// }
 
 type xrefEntry struct {
 	free       bool
@@ -92,21 +80,15 @@ type xrefEntry struct {
 type trailer struct {
 	encrypt parser.Object // indirect ref or dict
 
-	size int // Object count from PDF trailer dict.
 	root *parser.IndirectRef
 	info *parser.IndirectRef // optional
 	id   parser.Array        // required in encrypted docs
-}
-
-type Configuration struct{}
-
-func NewDefaultConfiguration() *Configuration {
-	return &Configuration{}
+	size int                 // Object count from PDF trailer dict.
 }
 
 // allocate a slice with length `size` and read at `offset`
 // into it
-func (ctx *Context) readAt(size int, offset int64) ([]byte, error) {
+func (ctx *context) readAt(size int, offset int64) ([]byte, error) {
 	_, err := ctx.rs.Seek(offset, io.SeekStart)
 	if err != nil {
 		return nil, err
@@ -119,8 +101,7 @@ func (ctx *Context) readAt(size int, offset int64) ([]byte, error) {
 // Get the file offset of the last XRefSection.
 // Go to end of file and search backwards for the first occurrence of startxref {offset} %%EOF
 // xref at 114172
-func (ctx *Context) offsetLastXRefSection(skip int64) (int64, error) {
-
+func (ctx *context) offsetLastXRefSection(skip int64) (int64, error) {
 	rs := ctx.rs
 
 	var (
@@ -178,7 +159,6 @@ func (ctx *Context) offsetLastXRefSection(skip int64) (int64, error) {
 // Save PDF Version from header to xrefTable.
 // The header version comes as the first line of the file.
 func headerVersion(rs io.ReadSeeker) (v string, err error) {
-
 	// Get first line of file which holds the version of this PDFFile.
 	// We call this the header version.
 	if _, err = rs.Seek(0, io.SeekStart); err != nil {
@@ -202,7 +182,7 @@ func headerVersion(rs io.ReadSeeker) (v string, err error) {
 }
 
 // Build XRefTable by reading XRef streams or XRef sections.
-func (ctx *Context) buildXRefTableStartingAt(offset int64) (err error) {
+func (ctx *context) buildXRefTableStartingAt(offset int64) (err error) {
 	rs := ctx.rs
 
 	ctx.HeaderVersion, err = headerVersion(rs)
@@ -266,11 +246,9 @@ func (ctx *Context) buildXRefTableStartingAt(offset int64) (err error) {
 }
 
 // Parse xRef section into corresponding number of xRef table entries.
-func (ctx *Context) parseXRefSection(tk *tok.Tokenizer, ssCount int) (int64, int, error) {
+func (ctx *context) parseXRefSection(tk *tok.Tokenizer, ssCount int) (int64, int, error) {
 	// Process all sub sections of this xRef section.
 	for {
-		fmt.Println(ssCount, string(tk.Bytes())[0:20])
-
 		err := ctx.xrefTable.parseXRefTableSubSection(tk)
 		if err != nil {
 			return 0, 0, err
@@ -300,12 +278,12 @@ func parseInt(tk *tok.Tokenizer) (int, error) {
 func (xrefTable *xrefTable) parseXRefTableSubSection(tk *tok.Tokenizer) error {
 	startObjNumber, err := parseInt(tk)
 	if err != nil {
-		return err
+		return fmt.Errorf("parseXRefTableSubSection: invalid start object number %s", err)
 	}
 
 	objCount, err := parseInt(tk)
 	if err != nil {
-		return err
+		return fmt.Errorf("parseXRefTableSubSection: invalid object count %s", err)
 	}
 
 	// Process all entries of this subsection into xrefTable entries.
@@ -321,12 +299,6 @@ func (xrefTable *xrefTable) parseXRefTableSubSection(tk *tok.Tokenizer) error {
 
 // Read next subsection entry and generate corresponding xref table entry.
 func (xrefTable xrefTable) parseXRefTableEntry(tk *tok.Tokenizer, objectNumber int) error {
-	// since we read the last xref table first, we skip potential
-	// older object definition
-	if _, exists := xrefTable[objectNumber]; exists {
-		return nil
-	}
-
 	offsetTk, err := tk.NextToken()
 	if err != nil {
 		return err
@@ -338,7 +310,7 @@ func (xrefTable xrefTable) parseXRefTableEntry(tk *tok.Tokenizer, objectNumber i
 
 	generation, err := parseInt(tk)
 	if err != nil {
-		return err
+		return fmt.Errorf("parseXRefTableEntry: invalid generation number: %s", err)
 	}
 
 	entryType, err := tk.NextToken()
@@ -360,11 +332,17 @@ func (xrefTable xrefTable) parseXRefTableEntry(tk *tok.Tokenizer, objectNumber i
 		return nil
 	}
 
+	// since we read the last xref table first, we skip potential
+	// older object definition
+	if _, exists := xrefTable[objectNumber]; exists {
+		return nil
+	}
+
 	xrefTable[objectNumber] = entry
 	return nil
 }
 
-func (ctx *Context) processTrailer(tk *tok.Tokenizer) (int64, error) {
+func (ctx *context) processTrailer(tk *tok.Tokenizer) (int64, error) {
 	p := parser.NewParserFromTokenizer(tk)
 	o, err := p.ParseObject()
 	if err != nil {
@@ -395,8 +373,7 @@ func offsetFromObject(o parser.Object) (int64, bool) {
 
 // Parse trailer dict and return any offset of a previous xref section.
 // An offset of 0 means no prev entry
-func (ctx *Context) parseTrailerDict(trailerDict parser.Dict) (int64, error) {
-
+func (ctx *context) parseTrailerDict(trailerDict parser.Dict) (int64, error) {
 	err := ctx.trailer.parseTrailerInfo(trailerDict)
 	if err != nil {
 		return 0, err
@@ -446,7 +423,6 @@ func (ctx *Context) parseTrailerDict(trailerDict parser.Dict) (int64, error) {
 // entry (if present) from the previous trailer, whether modified or not.
 // We are a bit more liberal, allowing individual field update
 func (current *trailer) parseTrailerInfo(d parser.Dict) error {
-
 	if enc := d["Encrypt"]; enc != nil {
 		current.encrypt = enc
 	}
@@ -489,15 +465,15 @@ func (current *trailer) parseTrailerInfo(d parser.Dict) error {
 }
 
 // Parse an xRefStream for a hybrid PDF file.
-func (ctx *Context) parseHybridXRefStream(offset int64) error {
+func (ctx *context) parseHybridXRefStream(offset int64) error {
 	_, err := ctx.parseXRefStream(offset)
 	return err
 }
 
 type lineReader struct {
 	src    *bufio.Reader
-	offset int64
 	buf    []byte // avoid allocations
+	offset int64
 }
 
 func newLineReader(f io.Reader) lineReader {
@@ -538,7 +514,7 @@ func (l *lineReader) readLine() ([]byte, int64) {
 // bypassXrefSection is a hack for digesting corrupt xref sections.
 // It populates the xRefTable by reading in all indirect objects line by line
 // and works on the assumption of a single xref section - meaning no incremental updates have been made.
-func (ctx *Context) bypassXrefSection() error {
+func (ctx *context) bypassXrefSection() error {
 	ctx.xrefTable[0] = xrefEntry{
 		free:       true,
 		offset:     0,
@@ -618,8 +594,45 @@ func parseObjectDeclaration(tk *tok.Tokenizer) (objectNumber, generationNumber i
 	return
 }
 
+type streamDictHeader struct {
+	dict                           parser.Dict
+	objectNumber, generationNumber int
+	contentOffset                  int
+}
+
+func parseStreamDict(tk *tok.Tokenizer) (out streamDictHeader, err error) {
+	out.objectNumber, out.generationNumber, err = parseObjectDeclaration(tk)
+	if err != nil {
+		return out, err
+	}
+
+	// parse this object
+	pr := parser.NewParserFromTokenizer(tk)
+	o, err := pr.ParseObject()
+	if err != nil {
+		return out, fmt.Errorf("parseStreamDict: no object: %s", err)
+	}
+
+	d, ok := o.(parser.Dict)
+	if !ok {
+		return out, fmt.Errorf("parseStreamDict: expected dict, got %T", o)
+	}
+
+	streamStart, err := tk.NextToken()
+	if err != nil {
+		return out, err
+	}
+	if !streamStart.IsOther("stream") {
+		return out, fmt.Errorf("parseStreamDict: unexpected token %s", streamStart)
+	}
+
+	out.dict = d
+	out.contentOffset = tk.StreamPosition()
+	return out, nil
+}
+
 // return the previous offset (0 if it does not exists)
-func (ctx *Context) parseXRefStream(offset int64) (int64, error) {
+func (ctx *context) parseXRefStream(offset int64) (int64, error) {
 	_, err := ctx.rs.Seek(offset, io.SeekStart)
 	if err != nil {
 		return 0, err
@@ -627,39 +640,20 @@ func (ctx *Context) parseXRefStream(offset int64) (int64, error) {
 
 	tk := tok.NewTokenizerFromReader(ctx.rs)
 
-	objectNumber, generationNumber, err := parseObjectDeclaration(tk)
-	if err != nil {
-		return 0, err
-	}
-
 	// parse this object
-	pr := parser.NewParserFromTokenizer(tk)
-	o, err := pr.ParseObject()
-	if err != nil {
-		return 0, fmt.Errorf("parseXRefStream: no object: %s", err)
-	}
-
-	d, ok := o.(parser.Dict)
-	if !ok {
-		return 0, fmt.Errorf("xRefStreamDict: expected dict, got %T", o)
-	}
-
-	streamStart, err := tk.NextToken()
-	if err != nil {
-		return 0, err
-	}
-	if !streamStart.IsOther("stream") {
-		return 0, fmt.Errorf("unexpected token %s", streamStart)
-	}
-
-	streamOffset := offset + int64(tk.StreamPosition())
-
-	sd, decoded, err := ctx.xRefStreamDict(d, streamOffset)
+	streamHeader, err := parseStreamDict(tk)
 	if err != nil {
 		return 0, err
 	}
 
-	err = ctx.trailer.parseTrailerInfo(d)
+	streamOffset := offset + int64(streamHeader.contentOffset)
+
+	sd, decoded, err := ctx.xRefStreamDict(streamHeader.dict, streamOffset)
+	if err != nil {
+		return 0, err
+	}
+
+	err = ctx.trailer.parseTrailerInfo(streamHeader.dict)
 	if err != nil {
 		return 0, err
 	}
@@ -671,21 +665,20 @@ func (ctx *Context) parseXRefStream(offset int64) (int64, error) {
 	}
 
 	// Skip entry if already assigned
-	if _, has := ctx.xrefTable[objectNumber]; !has {
+	if _, has := ctx.xrefTable[streamHeader.objectNumber]; !has {
 		// Create xRefTableEntry for XRefStreamDict.
-		entry := xrefEntry{
+		ctx.xrefTable[streamHeader.objectNumber] = xrefEntry{
 			free:       false,
 			offset:     offset,
-			generation: generationNumber,
+			generation: streamHeader.generationNumber,
 		}
-		ctx.xrefTable[objectNumber] = entry
 		// ctx.XRefStreams[*objectNumber] = true // TODO: check
 	}
 
 	return sd.prev, nil
 }
 
-func (ctx *Context) xRefStreamDict(d parser.Dict, streamOffset int64) (xrefStreamDict, []byte, error) {
+func (ctx *context) xRefStreamDict(d parser.Dict, streamOffset int64) (xrefStreamDict, []byte, error) {
 	details, err := parseXRefStreamDict(d)
 	if err != nil {
 		return details, nil, err
@@ -696,15 +689,15 @@ func (ctx *Context) xRefStreamDict(d parser.Dict, streamOffset int64) (xrefStrea
 		return details, nil, err
 	}
 
-	// we do not trust the stream length; instead we either
-	//		- use count
-	// 		- buffer a maximum of length and read until EOD of a filter is found (image filters are not supported,
-	//			but should never be used here)
+	// we do not really trust the stream length; instead we either
+	// - use count
+	// - buffer a maximum of length and read until EOD if a filter is found (image filters are not supported,
+	// 	but should never be used here)
 
 	var content []byte
 	if len(filterPipeline) == 0 {
-		length := details.count() * details.entrySize()
-		content, err = ctx.readAt(length, streamOffset)
+		expectedLength := details.count() * details.entrySize()
+		content, err = ctx.readAt(expectedLength, streamOffset)
 		if err != nil {
 			return details, nil, err
 		}
@@ -737,8 +730,17 @@ func (ctx *Context) xRefStreamDict(d parser.Dict, streamOffset int64) (xrefStrea
 	return details, decoded, nil
 }
 
+// bufToInt64 interprets the content of buf as an int64.
+func bufToInt64(buf []byte) (i int64) {
+	for _, b := range buf {
+		i <<= 8
+		i |= int64(b)
+	}
+	return i
+}
+
 // For each object embedded in this xRefStream create the corresponding xRef table entry.
-func (ctx *Context) extractXRefTableEntriesFromXRefStream(buf []byte, xrefDict xrefStreamDict) error {
+func (ctx *context) extractXRefTableEntriesFromXRefStream(buf []byte, xrefDict xrefStreamDict) error {
 	// Note:
 	// A value of zero for an element in the W array indicates that the corresponding field shall not be present in the stream,
 	// and the default value shall be used, if there is one.
@@ -756,15 +758,6 @@ func (ctx *Context) extractXRefTableEntriesFromXRefStream(buf []byte, xrefDict x
 	i1 := xrefDict.w[0]
 	i2 := xrefDict.w[1]
 	i3 := xrefDict.w[2]
-
-	// bufToInt64 interprets the content of buf as an int64.
-	bufToInt64 := func(buf []byte) (i int64) {
-		for _, b := range buf {
-			i <<= 8
-			i |= int64(b)
-		}
-		return i
-	}
 
 	j := 0 // current index of object (0 <= j < count)
 	for _, subsection := range xrefDict.index {
@@ -811,10 +804,10 @@ func (ctx *Context) extractXRefTableEntriesFromXRefStream(buf []byte, xrefDict x
 }
 
 type xrefStreamDict struct {
-	length int
-	size   int
 	index  [][2]int
 	w      [3]int
+	length int
+	size   int
 	prev   int64
 }
 

@@ -99,17 +99,17 @@ func TestBypass(t *testing.T) {
 
 func TestCorpus(t *testing.T) {
 	files := [...]string{
-		// "../test/Links.pdf",
-		// "../test/Empty.pdf",
-		// "../test/descriptif.pdf",
-		// "../test/f1118s1.pdf",
-		// "../test/transparents.pdf",
+		"../test/Links.pdf",
+		"../test/Empty.pdf",
+		"../test/descriptif.pdf",
+		"../test/f1118s1.pdf",
+		"../test/transparents.pdf",
 		"../test/ModeleRecuFiscalEditable.pdf",
-		// "../test/CMYK_OP.pdf",
-		// "../test/CMYKSpot_OP.pdf",
-		// "../test/Shading.pdf",
-		// "../test/Shading4.pdf",
-		// "../test/Font_Substitution.pdf",
+		"../test/CMYK_OP.pdf",
+		"../test/CMYKSpot_OP.pdf",
+		"../test/Shading.pdf",
+		"../test/Shading4.pdf",
+		"../test/Font_Substitution.pdf",
 	}
 	for _, file := range files {
 		f, err := os.Open(file)
@@ -133,5 +133,4 @@ func TestCorpus(t *testing.T) {
 		fmt.Println(len(ctx.xrefTable))
 		f.Close()
 	}
-
 }
