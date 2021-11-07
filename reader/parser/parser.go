@@ -9,28 +9,29 @@ import (
 
 	"github.com/benoitkugler/pdf/model"
 	tkn "github.com/benoitkugler/pstokenizer"
-	"github.com/pdfcpu/pdfcpu/pkg/log"
 )
 
 var (
-	errArrayNotTerminated      = errors.New("pdfcpu: parse: unterminated array")
-	errDictionaryCorrupt       = errors.New("pdfcpu: parse: corrupt dictionary")
-	errDictionaryDuplicateKey  = errors.New("pdfcpu: parse: duplicate key")
-	errDictionaryNotTerminated = errors.New("pdfcpu: parse: unterminated dictionary")
-	errBufNotAvailable         = errors.New("pdfcpu: parse: no buffer available")
+	errArrayNotTerminated      = errors.New("parse: unterminated array")
+	errDictionaryCorrupt       = errors.New("parse: corrupted dictionary")
+	errDictionaryDuplicateKey  = errors.New("parse: duplicate key")
+	errDictionaryNotTerminated = errors.New("parse: unterminated dictionary")
+	errBufNotAvailable         = errors.New("parse: no buffer available")
 )
 
-type Object = model.Object
-type Name = model.Name
-type Integer = model.ObjInt
-type Float = model.ObjFloat
-type StringLiteral = model.ObjStringLiteral
-type HexLiteral = model.ObjHexLiteral
-type Array = model.ObjArray
-type Dict = model.ObjDict
-type Bool = model.ObjBool
-type Command = model.ObjCommand
-type IndirectRef = model.ObjIndirectRef
+type (
+	Object        = model.Object
+	Name          = model.Name
+	Integer       = model.ObjInt
+	Float         = model.ObjFloat
+	StringLiteral = model.ObjStringLiteral
+	HexLiteral    = model.ObjHexLiteral
+	Array         = model.ObjArray
+	Dict          = model.ObjDict
+	Bool          = model.ObjBool
+	Command       = model.ObjCommand
+	IndirectRef   = model.ObjIndirectRef
+)
 
 // Standalone implementation of a PDF parser.
 // The parser only handles chunks of PDF files
@@ -61,7 +62,6 @@ func NewParserFromTokenizer(tokens *tkn.Tokenizer) *Parser {
 // ParseObject tokenizes and parses the input,
 // expecting a valid PDF object.
 func ParseObject(data []byte) (Object, error) {
-	log.Parse.Printf("ParseObject: buf= <%s>\n", data)
 	p := NewParser(data)
 	return p.ParseObject()
 }
@@ -81,20 +81,15 @@ func (p *Parser) ParseObject() (Object, error) {
 		err = errBufNotAvailable
 	case tkn.Name:
 		value = Name(tk.Value)
-		log.Parse.Printf("ParseObject: value = Name Object : %s\n", value)
 	case tkn.String:
 		value = StringLiteral(tk.Value)
-		log.Parse.Printf("ParseObject: value = String Literal: <%s>\n", value)
 	case tkn.StringHex:
 		value = HexLiteral(tk.Value)
-		log.Parse.Printf("ParseObject: value = Hex Literal: <%s>\n", value)
 	case tkn.StartArray:
-		log.Parse.Println("ParseObject: value = Array")
 		arr, err := p.parseArray()
 		if err != nil {
 			return nil, err
 		}
-		log.Parse.Printf("ParseArray: returning array (len=%d): %v\n", len(arr), arr)
 		value = arr
 	case tkn.StartDic:
 		// Hack for #252: we start by parsing according to the SPEC
@@ -109,7 +104,6 @@ func (p *Parser) ParseObject() (Object, error) {
 		if err != nil {
 			return nil, err
 		}
-		log.Parse.Printf("ParseDict: returning dict (len=%d): %v\n", len(dict), dict)
 		value = dict
 	case tkn.Float:
 		// We have a Float!
@@ -117,11 +111,9 @@ func (p *Parser) ParseObject() (Object, error) {
 		if err != nil {
 			return nil, err
 		}
-		log.Parse.Printf("ParseObject: value = Float: %f\n", f)
 		value = Float(f)
 	case tkn.Other:
 		value, err = p.parseOther(tk.Value)
-		log.Parse.Println("parseOther: returning: %v", value)
 	default:
 		// Must be numeric or indirect reference:
 		// int 0 r
@@ -130,7 +122,6 @@ func (p *Parser) ParseObject() (Object, error) {
 		value, err = p.parseNumericOrIndRef(tk)
 	}
 
-	log.Parse.Printf("ParseObject returning %v\n", value)
 	return value, err
 }
 
@@ -149,7 +140,6 @@ func (p *Parser) parseArray() (Array, error) {
 			if err != nil {
 				return nil, err
 			}
-			log.Parse.Printf("ParseArray: new array obj=%v\n", obj)
 			a = append(a, obj)
 		}
 	}
@@ -170,7 +160,6 @@ func (p *Parser) parseDict(relaxed bool) (Dict, error) {
 			return nil, errDictionaryNotTerminated
 		case tkn.Name:
 			key := tk.Value
-			log.Parse.Printf("ParseDict: key = %s\n", key)
 			_, _ = p.tokens.NextToken() // consume the key
 
 			var obj Object
@@ -190,7 +179,6 @@ func (p *Parser) parseDict(relaxed bool) (Dict, error) {
 			// Specifying the null object as the value of a dictionary entry (7.3.7, "Dictionary Objects")
 			// shall be equivalent to omitting the entry entirely.
 			if obj != nil {
-				log.Parse.Printf("ParseDict: dict[%s]=%v\n", key, obj)
 				if _, has := d[Name(key)]; has {
 					return nil, errDictionaryDuplicateKey
 				} else {
@@ -248,7 +236,6 @@ func (p *Parser) parseNumericOrIndRef(currentToken tkn.Token) (Object, error) {
 	// if not followed by whitespace return sole integer value.
 	gen, err := next.Int()
 	if next.Kind != tkn.Integer || err != nil {
-		log.Parse.Printf("parseNumericOrIndRef: value is numeric int: %d\n", i)
 		return Integer(i), nil
 	}
 
@@ -258,7 +245,6 @@ func (p *Parser) parseNumericOrIndRef(currentToken tkn.Token) (Object, error) {
 	// if only 2 token, can't be indirect reference.
 	// if not followed by whitespace return sole integer value.
 	if nextNext, _ := p.tokens.PeekPeekToken(); !nextNext.IsOther("R") { // adjourn error checking
-		log.Parse.Printf("parseNumericOrIndRef: 2 objects => value is numeric int: %d\n", i)
 		return Integer(i), nil
 	}
 
@@ -272,8 +258,6 @@ func (p *Parser) parseNumericOrIndRef(currentToken tkn.Token) (Object, error) {
 // ParseObjectDefinition parses an object definition.
 // If `headerOnly`, stops after the X X obj header and return a nil object.
 func ParseObjectDefinition(line []byte, headerOnly bool) (objectNumber int, generationNumber int, o Object, err error) {
-	log.Parse.Printf("ParseObjectDefinition: buf=<%s>\n", line)
-
 	tokens := tkn.NewTokenizer(line)
 
 	// object number

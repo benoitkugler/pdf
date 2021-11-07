@@ -1,6 +1,7 @@
 package parser
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 
@@ -316,7 +317,7 @@ func (pr *Parser) parseImageData(img *contentstream.OpBeginImage, fils, decodePa
 		if err != nil {
 			return err
 		}
-		encodedLength, err := skipper.Skip(input)
+		encodedLength, err := skipper.Skip(bytes.NewReader(input))
 		if err != nil {
 			return fmt.Errorf("can't read compressed inline image data: %s", err)
 		}

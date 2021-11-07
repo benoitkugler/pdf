@@ -18,7 +18,6 @@ func unexpectedEOF(err error) error {
 }
 
 func (f SkipperRunLength) decode(w io.ByteWriter, src io.ByteReader) error {
-
 	for b, err := src.ReadByte(); ; b, err = src.ReadByte() {
 		// EOF is an error since we expect the EOD marker
 		if err != nil {
@@ -50,9 +49,9 @@ func (f SkipperRunLength) decode(w io.ByteWriter, src io.ByteReader) error {
 }
 
 // Skip implements Skipper for an RunLengthDecode filter.
-func (f SkipperRunLength) Skip(encoded []byte) (int, error) {
+func (f SkipperRunLength) Skip(encoded io.Reader) (int, error) {
 	// we make sure not to read passed EOD
-	r := bytes.NewReader(encoded)
+	r := newCountReader(encoded)
 	err := f.decode(&bytes.Buffer{}, r)
-	return len(encoded) - r.Len(), err
+	return r.totalRead, err
 }

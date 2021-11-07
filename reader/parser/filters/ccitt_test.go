@@ -26,7 +26,7 @@ func TestCCITT(t *testing.T) {
 	}
 	b = append(b, "dlsm"...)
 	re := cr{bytes.NewReader(b)}
-	r, err := ccitt.NewReader(re, ccitt.CCITTParams{Columns: 153, Rows: 55})
+	r, err := ccitt.NewReader(re, ccitt.CCITTParams{Columns: 153, Rows: 55, EndOfBlock: true})
 	if err != nil {
 		t.Fatal(err)
 	}

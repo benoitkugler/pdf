@@ -12,3 +12,5 @@ require (
 	golang.org/x/image v0.0.0-20211028202545-6944b10bf410
 	golang.org/x/text v0.3.7
 )
+
+replace github.com/benoitkugler/pstokenizer => ../pstokenizer

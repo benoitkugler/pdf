@@ -10,20 +10,19 @@ import (
 type SkipperDCT struct{}
 
 // Skip implements Skipper for DCT filter (JPEG).
-func (d SkipperDCT) Skip(encoded []byte) (int, error) {
-	r := bytes.NewReader(encoded)
+func (d SkipperDCT) Skip(encoded io.Reader) (int, error) {
+	r := newCountReader(encoded)
 	re := &jpegLimitedReader{source: r, scratch: &bytes.Buffer{}}
 	_, err := ioutil.ReadAll(re)
-	return len(encoded) - r.Len(), err
+	return r.totalRead, err
 }
 
-// implement a reader which don't read passed the EOD
-// we jump from markers to markers and save the data
-// into a temporary buffer
-// we follow the sketch described at
+// implement a reader which don't read passed the EOD.
+// We jump from markers to markers and save the data into a temporary buffer,
+// following the sketch described at
 // https://stackoverflow.com/questions/4585527/detect-eof-for-jpg-images
 type jpegLimitedReader struct {
-	source  *bytes.Reader
+	source  *countReader
 	scratch *bytes.Buffer // nil means EOD is reached
 }
 

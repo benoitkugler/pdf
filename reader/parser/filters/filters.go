@@ -6,6 +6,11 @@
 // to also encode data.
 package filters
 
+import (
+	"bufio"
+	"io"
+)
+
 // PDF defines the following filters. See also 7.4 in the PDF spec,
 // and 8.9.7 - Inline Images
 const (
@@ -18,11 +23,34 @@ const (
 	CCITTFax  = "CCITTFaxDecode"
 )
 
-// Skipper reads the input data and stop exactly after
-// the EOD marker. It returns the number of bytes read (including EOD).
+// Skipper is able to detect the end of a filtered content.
 // Since some filters take additional parameters, skippers should
 // be directly created by their concrete types, but this interface is exposed as a
 // convenience.
 type Skipper interface {
-	Skip([]byte) (int, error)
+	// Skip reads the input data and look for an EOD marker.
+	// It returns the number of bytes read to go right after EOD.
+	// Note that, due to buferring, the given reader may actually have read a bit more.
+	Skip(io.Reader) (int, error)
+}
+
+type countReader struct {
+	src       bufio.Reader
+	totalRead int
+}
+
+func newCountReader(src io.Reader) *countReader {
+	return &countReader{src: *bufio.NewReader(src)}
+}
+
+func (c *countReader) Read(p []byte) (n int, err error) {
+	n, err = c.src.Read(p)
+	c.totalRead += n
+	return n, err
+}
+
+func (c *countReader) ReadByte() (byte, error) {
+	b, err := c.src.ReadByte()
+	c.totalRead += 1
+	return b, err
 }

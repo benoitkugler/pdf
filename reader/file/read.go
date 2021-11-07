@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/benoitkugler/pdf/model"
 	"github.com/benoitkugler/pdf/reader/parser"
 	tok "github.com/benoitkugler/pstokenizer"
 )
@@ -28,12 +29,14 @@ type context struct {
 
 	// PDF Version
 	HeaderVersion string // The PDF version the source is claiming to us as per its header.
-	xrefTable     xrefTable
+	xrefTable     xRefTable
 	trailer       trailer
 
 	// AdditionalStreams (array of IndirectRef) is not described in the spec,
 	// but may be found in the trailer :e.g., Oasis "Open Doc"
-	AdditionalStreams parser.Array
+	additionalStreams parser.Array
+
+	tok tok.Tokenizer // buffer
 }
 
 func newContext(rs io.ReadSeeker, conf *Configuration) (*context, error) {
@@ -42,11 +45,9 @@ func newContext(rs io.ReadSeeker, conf *Configuration) (*context, error) {
 	}
 
 	rdCtx := &context{
-		rs: rs,
-		// ObjectStreams: intSet{},
-		// XRefStreams:   intSet{},
+		rs:            rs,
 		Configuration: *conf,
-		xrefTable:     make(map[int]xrefEntry),
+		xrefTable:     newXRefTable(),
 	}
 
 	fileSize, err := rs.Seek(0, io.SeekEnd)
@@ -56,25 +57,6 @@ func newContext(rs io.ReadSeeker, conf *Configuration) (*context, error) {
 	rdCtx.fileSize = fileSize
 
 	return rdCtx, nil
-}
-
-// object number -> entry
-type xrefTable map[int]xrefEntry
-
-// func (xref xrefTable) resolve(o parser.Object) parser.Object  {
-// 	if ref, ok := o.(parser.IndirectRef); ok {
-// 		return
-// 	}
-// }
-
-type xrefEntry struct {
-	free       bool
-	offset     int64
-	generation int
-
-	// for object in object streams
-	streamObjectNumber int // The object number of the object stream in which this object is stored.
-	streamObjectIndex  int // The index of this object within the object stream.
 }
 
 type trailer struct {
@@ -94,8 +76,26 @@ func (ctx *context) readAt(size int, offset int64) ([]byte, error) {
 		return nil, err
 	}
 	p := make([]byte, size)
-	_, err = ctx.rs.Read(p)
+	_, err = io.ReadFull(ctx.rs, p)
 	return p, err
+}
+
+// return a tokenizer positionned at `offset`
+func (ctx *context) tokenizerAt(offset int64) (*tok.Tokenizer, error) {
+	_, err := ctx.rs.Seek(offset, io.SeekStart)
+	if err != nil {
+		return nil, err
+	}
+
+	ctx.tok.ResetFromReader(ctx.rs)
+
+	return &ctx.tok, nil
+}
+
+func (ctx *context) tokenizerBytes(data []byte) *tok.Tokenizer {
+	ctx.tok.Reset(data)
+
+	return &ctx.tok
 }
 
 // Get the file offset of the last XRefSection.
@@ -211,7 +211,7 @@ func (ctx *context) buildXRefTableStartingAt(offset int64) (err error) {
 			return err
 		}
 
-		tk := tok.NewTokenizer(buf)
+		tk := ctx.tokenizerBytes(buf)
 
 		start, err := tk.PeekToken()
 		if err != nil {
@@ -235,11 +235,13 @@ func (ctx *context) buildXRefTableStartingAt(offset int64) (err error) {
 
 	// A friendly 🤢 to the devs of the HP Scanner & Printer software utility.
 	// Hack for #250: If exactly one xref subsection ensure it starts with object #0 instead #1.
-	if _, hasZero := ctx.xrefTable[0]; ssCount == 1 && !hasZero {
+	if _, hasZero := ctx.xrefTable.objects[0]; ssCount == 1 && !hasZero {
 		for i := 1; i <= ctx.trailer.size; i++ {
-			ctx.xrefTable[i-1] = ctx.xrefTable[i]
+			if ctx.xrefTable.objects[i] != nil {
+				ctx.xrefTable.objects[i-1] = ctx.xrefTable.objects[i]
+			}
 		}
-		delete(ctx.xrefTable, ctx.trailer.size)
+		delete(ctx.xrefTable.objects, ctx.trailer.size)
 	}
 
 	return nil
@@ -275,7 +277,7 @@ func parseInt(tk *tok.Tokenizer) (int, error) {
 }
 
 // Process xRef table subsection and create corrresponding xRef table entries.
-func (xrefTable *xrefTable) parseXRefTableSubSection(tk *tok.Tokenizer) error {
+func (xrefTable *xRefTable) parseXRefTableSubSection(tk *tok.Tokenizer) error {
 	startObjNumber, err := parseInt(tk)
 	if err != nil {
 		return fmt.Errorf("parseXRefTableSubSection: invalid start object number %s", err)
@@ -298,7 +300,7 @@ func (xrefTable *xrefTable) parseXRefTableSubSection(tk *tok.Tokenizer) error {
 }
 
 // Read next subsection entry and generate corresponding xref table entry.
-func (xrefTable xrefTable) parseXRefTableEntry(tk *tok.Tokenizer, objectNumber int) error {
+func (xrefTable xRefTable) parseXRefTableEntry(tk *tok.Tokenizer, objectNumber int) error {
 	offsetTk, err := tk.NextToken()
 	if err != nil {
 		return err
@@ -322,23 +324,26 @@ func (xrefTable xrefTable) parseXRefTableEntry(tk *tok.Tokenizer, objectNumber i
 		return errors.New("parseXRefTableEntry: corrupt xref subsection entry")
 	}
 
+	if v == "f" {
+		return nil // ignore free entry
+	}
+
 	entry := xrefEntry{
-		free:       v == "f",
 		offset:     offset,
 		generation: generation,
 	}
 
-	if !entry.free && offset == 0 { // Skip entry for in use object with offset 0
+	if offset == 0 { // skip entry for in use object with offset 0
 		return nil
 	}
 
 	// since we read the last xref table first, we skip potential
 	// older object definition
-	if _, exists := xrefTable[objectNumber]; exists {
+	if _, exists := xrefTable.objects[objectNumber]; exists {
 		return nil
 	}
 
-	xrefTable[objectNumber] = entry
+	xrefTable.objects[objectNumber] = &entry
 	return nil
 }
 
@@ -386,7 +391,7 @@ func (ctx *context) parseTrailerDict(trailerDict parser.Dict) (int64, error) {
 				arr = append(arr, v)
 			}
 		}
-		ctx.AdditionalStreams = arr
+		ctx.additionalStreams = arr
 	}
 
 	// Prev entry
@@ -515,11 +520,7 @@ func (l *lineReader) readLine() ([]byte, int64) {
 // It populates the xRefTable by reading in all indirect objects line by line
 // and works on the assumption of a single xref section - meaning no incremental updates have been made.
 func (ctx *context) bypassXrefSection() error {
-	ctx.xrefTable[0] = xrefEntry{
-		free:       true,
-		offset:     0,
-		generation: freeHeadGeneration,
-	}
+	ctx.xrefTable = newXRefTable()
 
 	_, err := ctx.rs.Seek(0, io.SeekStart)
 	if err != nil {
@@ -536,7 +537,7 @@ func (ctx *context) bypassXrefSection() error {
 		if len(line) == 0 {
 			return nil
 		}
-		tk := tok.NewTokenizer(line)
+		tk := ctx.tokenizerBytes(line)
 		firstToken, _ := tk.PeekToken()
 
 		if withinObj { // lookfor "endobj"
@@ -552,7 +553,7 @@ func (ctx *context) bypassXrefSection() error {
 				if err != nil {
 					return err
 				}
-				tk = tok.NewTokenizer(buf)
+				tk = ctx.tokenizerBytes(buf)
 				_, err = ctx.processTrailer(tk)
 				return err
 			}
@@ -562,8 +563,7 @@ func (ctx *context) bypassXrefSection() error {
 		} else { // look for a declaration object XXX XX obj
 			objNr, generation, err := parseObjectDeclaration(tk)
 			if err == nil {
-				ctx.xrefTable[objNr] = xrefEntry{
-					free: false,
+				ctx.xrefTable.objects[objNr] = &xrefEntry{
 					// we do not account for potential whitespace
 					// is this an issue ?
 					offset:     lineOffset,
@@ -597,10 +597,15 @@ func parseObjectDeclaration(tk *tok.Tokenizer) (objectNumber, generationNumber i
 type streamDictHeader struct {
 	dict                           parser.Dict
 	objectNumber, generationNumber int
-	contentOffset                  int
+	contentOffset                  int64 // start of the actual content (from the start of the file)
 }
 
-func parseStreamDict(tk *tok.Tokenizer) (out streamDictHeader, err error) {
+func (ctx *context) parseStreamDictAt(offset int64) (out streamDictHeader, err error) {
+	tk, err := ctx.tokenizerAt(offset)
+	if err != nil {
+		return out, err
+	}
+
 	out.objectNumber, out.generationNumber, err = parseObjectDeclaration(tk)
 	if err != nil {
 		return out, err
@@ -627,26 +632,19 @@ func parseStreamDict(tk *tok.Tokenizer) (out streamDictHeader, err error) {
 	}
 
 	out.dict = d
-	out.contentOffset = tk.StreamPosition()
+	out.contentOffset = offset + int64(tk.StreamPosition())
 	return out, nil
 }
 
 // return the previous offset (0 if it does not exists)
 func (ctx *context) parseXRefStream(offset int64) (int64, error) {
-	_, err := ctx.rs.Seek(offset, io.SeekStart)
-	if err != nil {
-		return 0, err
-	}
-
-	tk := tok.NewTokenizerFromReader(ctx.rs)
-
 	// parse this object
-	streamHeader, err := parseStreamDict(tk)
+	streamHeader, err := ctx.parseStreamDictAt(offset)
 	if err != nil {
 		return 0, err
 	}
 
-	streamOffset := offset + int64(streamHeader.contentOffset)
+	streamOffset := streamHeader.contentOffset
 
 	sd, decoded, err := ctx.xRefStreamDict(streamHeader.dict, streamOffset)
 	if err != nil {
@@ -665,10 +663,9 @@ func (ctx *context) parseXRefStream(offset int64) (int64, error) {
 	}
 
 	// Skip entry if already assigned
-	if _, has := ctx.xrefTable[streamHeader.objectNumber]; !has {
+	if _, has := ctx.xrefTable.objects[streamHeader.objectNumber]; !has {
 		// Create xRefTableEntry for XRefStreamDict.
-		ctx.xrefTable[streamHeader.objectNumber] = xrefEntry{
-			free:       false,
+		ctx.xrefTable.objects[streamHeader.objectNumber] = &xrefEntry{
 			offset:     offset,
 			generation: streamHeader.generationNumber,
 		}
@@ -676,6 +673,39 @@ func (ctx *context) parseXRefStream(offset int64) (int64, error) {
 	}
 
 	return sd.prev, nil
+}
+
+func (ctx *context) decodeStreamContent(filters model.Filters, offset int64, expectedLengthPlain int) (content []byte, err error) {
+	if len(filters) == 0 {
+		content, err = ctx.readAt(expectedLengthPlain, offset)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		skipper, err := parser.SkipperFromFilter(filters[0])
+		if err != nil {
+			return nil, err
+		}
+		_, err = ctx.rs.Seek(offset, io.SeekStart)
+		if err != nil {
+			return nil, err
+		}
+		trueLength, err := skipper.Skip(ctx.rs)
+		if err != nil {
+			return nil, err
+		}
+		content, err = ctx.readAt(trueLength, offset)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	// Decode stream content
+	r, err := filters.DecodeReader(bytes.NewReader(content))
+	if err != nil {
+		return nil, err
+	}
+	return ioutil.ReadAll(r)
 }
 
 func (ctx *context) xRefStreamDict(d parser.Dict, streamOffset int64) (xrefStreamDict, []byte, error) {
@@ -691,38 +721,10 @@ func (ctx *context) xRefStreamDict(d parser.Dict, streamOffset int64) (xrefStrea
 
 	// we do not really trust the stream length; instead we either
 	// - use count
-	// - buffer a maximum of length and read until EOD if a filter is found (image filters are not supported,
-	// 	but should never be used here)
+	// - read until EOD if a filter is found (image filters are not supported,
+	// but should never be used here)
 
-	var content []byte
-	if len(filterPipeline) == 0 {
-		expectedLength := details.count() * details.entrySize()
-		content, err = ctx.readAt(expectedLength, streamOffset)
-		if err != nil {
-			return details, nil, err
-		}
-	} else {
-		skipper, err := parser.SkipperFromFilter(filterPipeline[0])
-		if err != nil {
-			return details, nil, err
-		}
-		content, err = ctx.readAt(details.length, streamOffset)
-		if err != nil && err != io.EOF {
-			return details, nil, err
-		}
-		read, err := skipper.Skip(content)
-		if err != nil {
-			return details, nil, err
-		}
-		content = content[:read]
-	}
-
-	// Decode xrefstream content
-	r, err := filterPipeline.DecodeReader(bytes.NewReader(content))
-	if err != nil {
-		return details, nil, err
-	}
-	decoded, err := ioutil.ReadAll(r)
+	decoded, err := ctx.decodeStreamContent(filterPipeline, streamOffset, details.count()*details.entrySize())
 	if err != nil {
 		return details, nil, err
 	}
@@ -771,21 +773,14 @@ func (ctx *context) extractXRefTableEntriesFromXRefStream(buf []byte, xrefDict x
 
 			var xRefTableEntry xrefEntry
 			switch buf[offsetEntry] {
-			case 0x00: // free object
-				xRefTableEntry = xrefEntry{
-					free:       true,
-					offset:     c2,
-					generation: int(c3),
-				}
+			case 0x00: // free object, ignore
 			case 0x01: // in use object
 				xRefTableEntry = xrefEntry{
-					free:       false,
 					offset:     c2,
 					generation: int(c3),
 				}
 			case 0x02: // compressed object; generation always 0.
 				xRefTableEntry = xrefEntry{
-					free:               false,
 					streamObjectNumber: int(c2),
 					streamObjectIndex:  int(c3),
 				}
@@ -794,8 +789,8 @@ func (ctx *context) extractXRefTableEntriesFromXRefStream(buf []byte, xrefDict x
 			}
 
 			// skip already assigned
-			if _, has := ctx.xrefTable[objectNumber]; !has {
-				ctx.xrefTable[objectNumber] = xRefTableEntry
+			if _, has := ctx.xrefTable.objects[objectNumber]; !has {
+				ctx.xrefTable.objects[objectNumber] = &xRefTableEntry
 			}
 			j++
 		}

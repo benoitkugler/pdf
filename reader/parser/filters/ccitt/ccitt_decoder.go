@@ -123,7 +123,7 @@ func (st *CCITTDecoder) eatBits(n int32) {
 }
 
 // return an error only if the underlying reader error is different from EOF
-// return a maximum of 16 bits
+// n must be <= 32
 func (st *CCITTDecoder) lookBits(n int32) (short, error) {
 	for st.inputBits < n {
 		c, err := st.src.ReadByte()

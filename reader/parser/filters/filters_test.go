@@ -19,8 +19,9 @@ var skippers = map[string]Skipper{
 	DCT:       SkipperDCT{},
 	CCITTFax: SkipperCCITT{
 		Params: ccitt.CCITTParams{
-			Columns: 153,
-			Rows:    55,
+			Columns:    153,
+			Rows:       55,
+			EndOfBlock: true,
 		},
 	},
 }
@@ -79,7 +80,7 @@ func TestDontPassEOD(t *testing.T) {
 		additionalBytes := []byte("')(à'(ààç454658")
 		filteredPadded := append(filtered, additionalBytes...)
 
-		read1, err := fil.Skip(filteredPadded)
+		read1, err := fil.Skip(bytes.NewReader(filteredPadded))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -115,7 +116,7 @@ func TestInvalid(t *testing.T) {
 			}
 
 			fil := skippers[fi]
-			_, err := fil.Skip(input)
+			_, err := fil.Skip(bytes.NewReader(input))
 			if err == nil {
 				t.Fatalf("filter %s: expected error on random data %v", fi, input)
 			}

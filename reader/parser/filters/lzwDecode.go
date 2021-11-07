@@ -1,7 +1,7 @@
 package filters
 
 import (
-	"bytes"
+	"io"
 	"io/ioutil"
 
 	"github.com/hhrutter/lzw"
@@ -12,8 +12,8 @@ type SkipperLZW struct {
 }
 
 // Skip implements Skipper for an LZWDecode filter.
-func (f SkipperLZW) Skip(encoded []byte) (int, error) {
-	r := bytes.NewReader(encoded)
+func (f SkipperLZW) Skip(encoded io.Reader) (int, error) {
+	r := newCountReader(encoded)
 
 	rc := lzw.NewReader(r, f.EarlyChange)
 	_, err := ioutil.ReadAll(rc)
@@ -22,5 +22,5 @@ func (f SkipperLZW) Skip(encoded []byte) (int, error) {
 	}
 	err = rc.Close()
 
-	return len(encoded) - r.Len(), err
+	return r.totalRead, err
 }

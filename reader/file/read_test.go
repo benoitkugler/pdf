@@ -2,7 +2,6 @@ package file
 
 import (
 	"bytes"
-	"fmt"
 	"os"
 	"testing"
 )
@@ -25,19 +24,19 @@ func TestOffset(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if L := len(ctx.xrefTable); L != 126989 {
+	if L := len(ctx.xrefTable.objects); L != 126989 {
 		t.Errorf("expected 126989 objects, got %d", L)
 	}
 }
 
-func BenchmarkReadXRef(b *testing.B) {
+func BenchmarkReadSpec(b *testing.B) {
 	f, err := os.Open("../test/PDF_SPEC.pdf")
 	if err != nil {
 		b.Fatal(err)
 	}
 
 	for i := 0; i < b.N; i++ {
-		err = Read(f, nil)
+		_, err = Read(f, nil)
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -92,14 +91,13 @@ func TestBypass(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if L := len(ctx.xrefTable); L != 126989 {
-		t.Errorf("expected 126989 objects, got %d", L)
+	if L := len(ctx.xrefTable.objects); L != 126988 {
+		t.Errorf("expected 126988 objects, got %d", L)
 	}
 }
 
 func TestCorpus(t *testing.T) {
 	files := [...]string{
-		"../test/Links.pdf",
 		"../test/Empty.pdf",
 		"../test/descriptif.pdf",
 		"../test/f1118s1.pdf",
@@ -117,7 +115,7 @@ func TestCorpus(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		err = Read(f, nil)
+		_, err = Read(f, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -130,7 +128,14 @@ func TestCorpus(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		fmt.Println(len(ctx.xrefTable))
+
+		for on := range ctx.xrefTable.objects {
+			_, err := ctx.resolveObjectNumber(on)
+			if err != nil {
+				t.Fatal(file, err)
+			}
+		}
+
 		f.Close()
 	}
 }
