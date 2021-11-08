@@ -6,11 +6,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"strconv"
 	"strings"
 
-	"github.com/benoitkugler/pdf/model"
 	"github.com/benoitkugler/pdf/reader/parser"
 	tok "github.com/benoitkugler/pstokenizer"
 )
@@ -37,6 +35,8 @@ type context struct {
 	additionalStreams parser.Array
 
 	tok tok.Tokenizer // buffer
+
+	enc *encrypt // nil for plain document
 }
 
 func newContext(rs io.ReadSeeker, conf *Configuration) (*context, error) {
@@ -594,48 +594,6 @@ func parseObjectDeclaration(tk *tok.Tokenizer) (objectNumber, generationNumber i
 	return
 }
 
-type streamDictHeader struct {
-	dict                           parser.Dict
-	objectNumber, generationNumber int
-	contentOffset                  int64 // start of the actual content (from the start of the file)
-}
-
-func (ctx *context) parseStreamDictAt(offset int64) (out streamDictHeader, err error) {
-	tk, err := ctx.tokenizerAt(offset)
-	if err != nil {
-		return out, err
-	}
-
-	out.objectNumber, out.generationNumber, err = parseObjectDeclaration(tk)
-	if err != nil {
-		return out, err
-	}
-
-	// parse this object
-	pr := parser.NewParserFromTokenizer(tk)
-	o, err := pr.ParseObject()
-	if err != nil {
-		return out, fmt.Errorf("parseStreamDict: no object: %s", err)
-	}
-
-	d, ok := o.(parser.Dict)
-	if !ok {
-		return out, fmt.Errorf("parseStreamDict: expected dict, got %T", o)
-	}
-
-	streamStart, err := tk.NextToken()
-	if err != nil {
-		return out, err
-	}
-	if !streamStart.IsOther("stream") {
-		return out, fmt.Errorf("parseStreamDict: unexpected token %s", streamStart)
-	}
-
-	out.dict = d
-	out.contentOffset = offset + int64(tk.StreamPosition())
-	return out, nil
-}
-
 // return the previous offset (0 if it does not exists)
 func (ctx *context) parseXRefStream(offset int64) (int64, error) {
 	// parse this object
@@ -675,40 +633,11 @@ func (ctx *context) parseXRefStream(offset int64) (int64, error) {
 	return sd.prev, nil
 }
 
-func (ctx *context) decodeStreamContent(filters model.Filters, offset int64, expectedLengthPlain int) (content []byte, err error) {
-	if len(filters) == 0 {
-		content, err = ctx.readAt(expectedLengthPlain, offset)
-		if err != nil {
-			return nil, err
-		}
-	} else {
-		skipper, err := parser.SkipperFromFilter(filters[0])
-		if err != nil {
-			return nil, err
-		}
-		_, err = ctx.rs.Seek(offset, io.SeekStart)
-		if err != nil {
-			return nil, err
-		}
-		trueLength, err := skipper.Skip(ctx.rs)
-		if err != nil {
-			return nil, err
-		}
-		content, err = ctx.readAt(trueLength, offset)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	// Decode stream content
-	r, err := filters.DecodeReader(bytes.NewReader(content))
-	if err != nil {
-		return nil, err
-	}
-	return ioutil.ReadAll(r)
-}
-
 func (ctx *context) xRefStreamDict(d parser.Dict, streamOffset int64) (xrefStreamDict, []byte, error) {
+	// The values of all entries shown in Table 17 shall be direct objects; indirect references shall not be
+	// permitted. For arrays (the Index and W entries), all of their elements shall be direct objects as well. If the
+	// stream is encoded, the Filter and DecodeParms entries in Table 5 shall also be direct objects.
+
 	details, err := parseXRefStreamDict(d)
 	if err != nil {
 		return details, nil, err
@@ -718,11 +647,6 @@ func (ctx *context) xRefStreamDict(d parser.Dict, streamOffset int64) (xrefStrea
 	if err != nil {
 		return details, nil, err
 	}
-
-	// we do not really trust the stream length; instead we either
-	// - use count
-	// - read until EOD if a filter is found (image filters are not supported,
-	// but should never be used here)
 
 	decoded, err := ctx.decodeStreamContent(filterPipeline, streamOffset, details.count()*details.entrySize())
 	if err != nil {

@@ -28,10 +28,7 @@ func (ctx *context) processObjectStream(on int) (objectStream, error) {
 		return nil, fmt.Errorf("invalid stream at %d; %s", entry.offset, err)
 	}
 
-	filters, err := parser.ParseFilters(streamHeader.dict["Filter"], streamHeader.dict["DecodeParms"], func(o parser.Object) (parser.Object, error) {
-		// TODO: actually resolve using xref
-		return o, nil
-	})
+	filters, err := parser.ParseFilters(streamHeader.dict["Filter"], streamHeader.dict["DecodeParms"], ctx.resolve)
 	if err != nil {
 		return nil, fmt.Errorf("invalid object stream: %s", err)
 	}

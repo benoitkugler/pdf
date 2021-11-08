@@ -87,6 +87,8 @@ func (ctx *context) resolveObjectNumber(objectNumber int) (parser.Object, error)
 		if err != nil {
 			return nil, fmt.Errorf("invalid object (%d): %s", objectNumber, err)
 		}
+
+		// decompress strings
 	}
 
 	return entry.object, nil

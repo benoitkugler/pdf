@@ -76,11 +76,6 @@ type Filters []Filter
 // DecodeReader accumulate the filters to produce a Reader,
 // decoding `r`.
 func (fs Filters) DecodeReader(r io.Reader) (io.Reader, error) {
-	// Special case if the "Identity" crypt filter is used: we do not need to decrypt.
-	if len(fs) == 1 && fs[0].Name == "Crypt" {
-		return r, nil
-	}
-
 	var err error
 	for _, fi := range fs {
 		r, err = fi.DecodeReader(r)
