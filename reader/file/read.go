@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"strconv"
 	"strings"
 
@@ -643,12 +644,27 @@ func (ctx *context) xRefStreamDict(d parser.Dict, streamOffset int64) (xrefStrea
 		return details, nil, err
 	}
 
-	filterPipeline, err := parser.ParseDirectFilters(d["Filter"], d["DecodeParms"])
+	filters, err := parser.ParseDirectFilters(d["Filter"], d["DecodeParms"])
 	if err != nil {
 		return details, nil, err
 	}
 
-	decoded, err := ctx.decodeStreamContent(filterPipeline, streamOffset, details.count()*details.entrySize())
+	// we do not use decodeStreamContent since :
+	// 1) The cross-reference stream shall not be encrypted and strings appearing in the cross-reference stream
+	// dictionary shall not be encrypted. It shall not have a Filter entry that specifies a Crypt filter (see 7.4.10,
+	// "Crypt Filter").
+	// 2) there is no object number for xref stream
+	content, err := ctx.extractStreamContent(filters, streamOffset, details.count()*details.entrySize())
+	if err != nil {
+		return details, nil, err
+	}
+
+	// Decode stream content:
+	r, err := filters.DecodeReader(bytes.NewReader(content))
+	if err != nil {
+		return details, nil, err
+	}
+	decoded, err := ioutil.ReadAll(r)
 	if err != nil {
 		return details, nil, err
 	}

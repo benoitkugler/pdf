@@ -183,14 +183,6 @@ func (d ObjDict) Write(w PDFWritter, r Reference) string {
 	return "<<\n" + strings.Join(chunks, "\n") + "\n>>"
 }
 
-func (d ObjDict) AsStreamHeader(w PDFWritter, r Reference) StreamHeader {
-	out := make(StreamHeader, len(d))
-	for i, o := range d {
-		out[i] = o.Write(w, r)
-	}
-	return out
-}
-
 // ObjStream is a stream
 type ObjStream struct {
 	Args    ObjDict
@@ -204,12 +196,26 @@ func (stream ObjStream) Clone() Object {
 	}
 }
 
+func (stream ObjStream) bypassEncrypt() bool {
+	fs := stream.Args["Filter"]
+	if fs, ok := fs.(ObjArray); ok {
+		return len(fs) == 1 && fs[1] == ObjName("Crypt")
+	}
+	return fs == ObjName("Crypt")
+}
+
 func (stream ObjStream) Write(w PDFWritter, r Reference) string {
 	if w == nil { // shoud never happen
 		return ""
 	}
 	ref := w.CreateObject()
-	w.WriteStream(stream.Args.AsStreamHeader(w, ref), stream.Content, ref)
+
+	streamDict := make(map[Name]string, len(stream.Args))
+	for i, o := range stream.Args {
+		streamDict[i] = o.Write(w, r)
+	}
+
+	w.WriteStream(StreamHeader{Fields: streamDict, BypassCrypt: stream.bypassEncrypt()}, stream.Content, ref)
 	return ref.String()
 }
 

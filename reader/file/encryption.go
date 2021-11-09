@@ -10,28 +10,35 @@ import (
 	"github.com/benoitkugler/pdf/model"
 )
 
-type encrypt struct{}
+type encrypt struct {
+	key []byte
+	aes bool
+}
 
 // TODO:
 // read the trailer and the Config to build
 // the data needed to decode the document
 func (ctx *context) setupEncryption() error {
+	// encryptDict, err := ctx.resolve(ctx.trailer.encrypt)
+	// if err != nil {
+	// 	return  err
+	// }
 	return nil
 }
 
-func decryptKey(objNumber, generationNumber int, key []byte, aes bool) []byte {
-	b := append(key,
+func (enc encrypt) decryptKey(objNumber, generationNumber int) []byte {
+	b := append(enc.key,
 		byte(objNumber), byte(objNumber>>8), byte(objNumber>>16),
 		byte(generationNumber), byte(generationNumber>>8),
 	)
 
-	if aes {
+	if enc.aes {
 		b = append(b, "sAlT"...)
 	}
 
 	dk := md5.Sum(b)
 
-	l := len(key) + 5
+	l := len(enc.key) + 5
 	if l < 16 {
 		return dk[:l]
 	}
@@ -39,16 +46,17 @@ func decryptKey(objNumber, generationNumber int, key []byte, aes bool) []byte {
 	return dk[:]
 }
 
-func (ctx *context) decryptStream(content []byte, ref model.ObjIndirectRef, AES bool, key []byte) ([]byte, error) {
-	if AES {
-		key = decryptKey(ref.ObjectNumber, ref.GenerationNumber, key, true)
+func (ctx *context) decryptStream(content []byte, ref model.ObjIndirectRef) ([]byte, error) {
+	key := ctx.enc.decryptKey(ref.ObjectNumber, ref.GenerationNumber)
+
+	if ctx.enc.aes {
 		return decryptAESBytes(content, key)
 	}
 
-	return applyRC4Bytes(content, key)
+	return decryptRC4Bytes(content, key)
 }
 
-func applyRC4Bytes(buf, key []byte) ([]byte, error) {
+func decryptRC4Bytes(buf, key []byte) ([]byte, error) {
 	c, err := rc4.NewCipher(key)
 	if err != nil {
 		return nil, err

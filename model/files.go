@@ -33,7 +33,7 @@ func (f *FileSpec) pdfContent(pdf pdfWriter, ref Reference) (StreamHeader, strin
 		b.fmt("/Desc %s", pdf.EncodeString(f.Desc, TextString, ref))
 	}
 	b.fmt(">>")
-	return nil, b.String(), nil
+	return StreamHeader{}, b.String(), nil
 }
 
 func (f *FileSpec) clone(cache cloneCache) Referenceable {
@@ -86,8 +86,8 @@ type EmbeddedFileStream struct {
 
 func (emb *EmbeddedFileStream) pdfContent(pdf pdfWriter, ref Reference) (StreamHeader, string, []byte) {
 	args := emb.PDFCommonFields(true)
-	args["Type"] = "/EmbeddedFile"
-	args["Params"] = emb.Params.pdfString(pdf, ref)
+	args.Fields["Type"] = "/EmbeddedFile"
+	args.Fields["Params"] = emb.Params.pdfString(pdf, ref)
 	return args, "", emb.Content
 }
 

@@ -144,9 +144,9 @@ func (p UnicodeCMap) clone() UnicodeCMapBase { return *p.Clone() }
 func (c UnicodeCMap) pdfString(pdf pdfWriter) string {
 	ref := pdf.CreateObject()
 	dict := c.Stream.PDFCommonFields(true)
-	dict["Type"] = "/CMap"
+	dict.Fields["Type"] = "/CMap"
 	if c.UseCMap != nil {
-		dict["UseCMap"] = c.UseCMap.pdfString(pdf)
+		dict.Fields["UseCMap"] = c.UseCMap.pdfString(pdf)
 	}
 	pdf.WriteStream(dict, c.Content, ref)
 	return ref.String()
@@ -168,7 +168,7 @@ func (f *FontDict) pdfContent(pdf pdfWriter, _ Reference) (StreamHeader, string,
 	if f.ToUnicode != nil {
 		sub += "/ToUnicode " + f.ToUnicode.pdfString(pdf)
 	}
-	return nil, "<<" + sub + ">>", nil
+	return StreamHeader{}, "<<" + sub + ">>", nil
 }
 
 // clone returns a deep copy, with concrete type `*Font`
@@ -445,7 +445,7 @@ func (e *SimpleEncodingDict) pdfContent(pdfWriter pdfWriter, _ Reference) (Strea
 		out += "/Differences " + e.Differences.Write()
 	}
 	out += ">>"
-	return nil, out, nil
+	return StreamHeader{}, out, nil
 }
 
 func (enc *SimpleEncodingDict) simpleEncodingWrite(pdf pdfWriter) string {
@@ -536,14 +536,14 @@ func (p CMapEncodingEmbedded) Clone() CMapEncoding {
 func (c CMapEncodingEmbedded) cMapEncodingWrite(pdf pdfWriter) string {
 	ref := pdf.CreateObject()
 	base := c.Stream.PDFCommonFields(true)
-	base["Type"] = "/CMap"
-	base["CMapName"] = c.CMapName.String()
-	base["CIDSystemInfo"] = c.CIDSystemInfo.pdfString(pdf, ref)
+	base.Fields["Type"] = "/CMap"
+	base.Fields["CMapName"] = c.CMapName.String()
+	base.Fields["CIDSystemInfo"] = c.CIDSystemInfo.pdfString(pdf, ref)
 	if c.WMode {
-		base["WMode"] = "1"
+		base.Fields["WMode"] = "1"
 	}
 	if c.UseCMap != nil {
-		base["UseCMap"] = c.UseCMap.cMapEncodingWrite(pdf)
+		base.Fields["UseCMap"] = c.UseCMap.cMapEncodingWrite(pdf)
 	}
 	pdf.WriteStream(base, c.Content, ref)
 	return ref.String()
@@ -812,11 +812,11 @@ type FontFile struct {
 
 func (f *FontFile) pdfContent() (StreamHeader, []byte) {
 	out := f.Stream.PDFCommonFields(true)
-	out["Length1"] = strconv.Itoa(f.Length1)
-	out["Length2"] = strconv.Itoa(f.Length2)
-	out["Length3"] = strconv.Itoa(f.Length3)
+	out.Fields["Length1"] = strconv.Itoa(f.Length1)
+	out.Fields["Length2"] = strconv.Itoa(f.Length2)
+	out.Fields["Length3"] = strconv.Itoa(f.Length3)
 	if f.Subtype != "" {
-		out["Subtype"] = f.Subtype.String()
+		out.Fields["Subtype"] = f.Subtype.String()
 	}
 	return out, f.Content
 }

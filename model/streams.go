@@ -154,6 +154,11 @@ func (c Stream) Clone() Stream {
 	return s
 }
 
+// returns `true` unless the "Identity" crypt filter is used
+func (s Stream) bypassEncrypt() bool {
+	return len(s.Filter) == 1 && s.Filter[0].Name == "Crypt"
+}
+
 // ParamsForFilter is a convenience which returns
 // the additionnal arguments of the i-th filter
 // func (dc DecodeParms) ParamsForFilter(index int) map[string]int {
@@ -171,7 +176,7 @@ func (c Stream) Clone() Stream {
 // without the enclosing << >>.
 // It will usually be used in combination with other fields.
 func (s Stream) PDFCommonFields(withLength bool) StreamHeader {
-	b := make(StreamHeader)
+	b := make(map[Name]string)
 	if withLength {
 		b["Length"] = strconv.Itoa(s.Length())
 	}
@@ -197,7 +202,7 @@ func (s Stream) PDFCommonFields(withLength bool) StreamHeader {
 		b["Filter"] = fmt.Sprintf("[%s]", strings.Join(fs, " "))
 		b["DecodeParms"] = fmt.Sprintf("[ %s]", st.String())
 	}
-	return b
+	return StreamHeader{Fields: b, BypassCrypt: s.bypassEncrypt()}
 }
 
 // PDFContent return the stream object content.
@@ -253,18 +258,18 @@ func (a *XObjectForm) GetStructParent() MaybeInt {
 // inner dict fields
 func (f XObjectForm) commonFields(pdf pdfWriter, ref Reference) StreamHeader {
 	args := f.ContentStream.PDFCommonFields(true)
-	args["Subtype"] = "/Form"
-	args["BBox"] = f.BBox.String()
+	args.Fields["Subtype"] = "/Form"
+	args.Fields["BBox"] = f.BBox.String()
 	if f.Matrix != (Matrix{}) {
-		args["Matrix"] = f.Matrix.String()
+		args.Fields["Matrix"] = f.Matrix.String()
 	}
 	if !f.Resources.IsEmpty() {
-		args["Resources"] = f.Resources.pdfString(pdf, ref)
+		args.Fields["Resources"] = f.Resources.pdfString(pdf, ref)
 	}
 	if f.StructParent != nil {
-		args["StructParent"] = f.StructParent.(ObjInt).Write(nil, 0)
+		args.Fields["StructParent"] = f.StructParent.(ObjInt).Write(nil, 0)
 	} else if f.StructParents != nil {
-		args["StructParents"] = f.StructParent.(ObjInt).Write(nil, 0)
+		args.Fields["StructParents"] = f.StructParent.(ObjInt).Write(nil, 0)
 	}
 	return args
 }
@@ -339,17 +344,17 @@ type Image struct {
 // PDFFields return the image characteristics.
 func (img Image) PDFFields(inline bool) StreamHeader {
 	base := img.PDFCommonFields(!inline)
-	base["Width"] = strconv.Itoa(img.Width)
-	base["Height"] = strconv.Itoa(img.Height)
-	base["BitsPerComponent"] = strconv.Itoa(int(img.BitsPerComponent))
-	base["ImageMask"] = strconv.FormatBool(img.ImageMask)
+	base.Fields["Width"] = strconv.Itoa(img.Width)
+	base.Fields["Height"] = strconv.Itoa(img.Height)
+	base.Fields["BitsPerComponent"] = strconv.Itoa(int(img.BitsPerComponent))
+	base.Fields["ImageMask"] = strconv.FormatBool(img.ImageMask)
 	if img.Intent != "" {
-		base["Intent"] = img.Intent.String()
+		base.Fields["Intent"] = img.Intent.String()
 	}
 	if len(img.Decode) != 0 {
-		base["Decode"] = writePointsArray(img.Decode)
+		base.Fields["Decode"] = writePointsArray(img.Decode)
 	}
-	base["Interpolate"] = strconv.FormatBool(img.Interpolate)
+	base.Fields["Interpolate"] = strconv.FormatBool(img.Interpolate)
 	return base
 }
 
@@ -370,9 +375,9 @@ type ImageSMask struct {
 
 func (f *ImageSMask) pdfContent(pdf pdfWriter, _ Reference) (StreamHeader, string, []byte) {
 	base := f.Image.PDFFields(false)
-	base["Subtype"] = "/Image"
-	base["ColorSpace"] = Name(ColorSpaceGray).String()
-	base["Matte"] = writeFloatArray(f.Matte)
+	base.Fields["Subtype"] = "/Image"
+	base.Fields["ColorSpace"] = Name(ColorSpaceGray).String()
+	base.Fields["Matte"] = writeFloatArray(f.Matte)
 	return base, "", f.Content
 }
 
@@ -406,14 +411,14 @@ func (img *XObjectImage) GetStructParent() MaybeInt {
 
 func (f *XObjectImage) pdfContent(pdf pdfWriter, ref Reference) (StreamHeader, string, []byte) {
 	base := f.Image.PDFFields(false)
-	base["Subtype"] = "/Image"
+	base.Fields["Subtype"] = "/Image"
 
 	if f.ColorSpace != nil {
-		base["ColorSpace"] = f.ColorSpace.colorSpaceWrite(pdf, ref)
+		base.Fields["ColorSpace"] = f.ColorSpace.colorSpaceWrite(pdf, ref)
 	}
 
 	if f.Mask != nil {
-		base["Mask"] = f.Mask.maskPDFString(pdf)
+		base.Fields["Mask"] = f.Mask.maskPDFString(pdf)
 	}
 
 	if len(f.Alternates) != 0 {
@@ -421,15 +426,15 @@ func (f *XObjectImage) pdfContent(pdf pdfWriter, ref Reference) (StreamHeader, s
 		for i, alt := range f.Alternates {
 			chunks[i] = alt.pdfString(pdf)
 		}
-		base["Alternates"] = fmt.Sprintf("[%s]", strings.Join(chunks, " "))
+		base.Fields["Alternates"] = fmt.Sprintf("[%s]", strings.Join(chunks, " "))
 	}
-	base["SMaskInData"] = strconv.Itoa(int(f.SMaskInData))
+	base.Fields["SMaskInData"] = strconv.Itoa(int(f.SMaskInData))
 	if f.SMask != nil {
 		ref := pdf.addItem(f.SMask)
-		base["SMask"] = ref.String()
+		base.Fields["SMask"] = ref.String()
 	}
 	if f.StructParent != nil {
-		base["StructParent"] = f.StructParent.(ObjInt).Write(nil, 0)
+		base.Fields["StructParent"] = f.StructParent.(ObjInt).Write(nil, 0)
 	}
 	return base, "", f.Content
 }

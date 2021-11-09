@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strconv"
 
+	"github.com/benoitkugler/pdf/model"
 	"github.com/benoitkugler/pdf/reader/parser"
 )
 
@@ -42,8 +43,8 @@ func (ctx *context) processObjectStream(on int) (objectStream, error) {
 		return nil, fmt.Errorf("invalid object stream Length: expected integer, got %T", lengthO)
 	}
 
-	// TODO: handle encryption
-	decoded, err := ctx.decodeStreamContent(filters, streamHeader.contentOffset, int(length))
+	// The generation number of an object stream and of any compressed object shall be zero.
+	decoded, err := ctx.decodeStreamContent(model.ObjIndirectRef{ObjectNumber: on}, filters, streamHeader.contentOffset, int(length))
 	if err != nil {
 		return nil, fmt.Errorf("invalid object stream: %s", err)
 	}

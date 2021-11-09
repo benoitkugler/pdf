@@ -205,12 +205,12 @@ func (cs ColorSpaceICCBased) NbColorComponents() int { return cs.N }
 // to write potential alternate space.
 func (c *ColorSpaceICCBased) pdfContent(pdf pdfWriter, ref Reference) (StreamHeader, string, []byte) {
 	baseArgs := c.PDFCommonFields(true)
-	baseArgs["N"] = strconv.Itoa(c.N)
+	baseArgs.Fields["N"] = strconv.Itoa(c.N)
 	if c.Alternate != nil {
-		baseArgs["Alternate"] = c.Alternate.colorSpaceWrite(pdf, ref)
+		baseArgs.Fields["Alternate"] = c.Alternate.colorSpaceWrite(pdf, ref)
 	}
 	if len(c.Range) != 0 {
-		baseArgs["Range"] = writePointsArray(c.Range)
+		baseArgs.Fields["Range"] = writePointsArray(c.Range)
 	}
 	return baseArgs, "", c.Content
 }

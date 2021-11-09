@@ -206,7 +206,7 @@ type EncryptionStandard struct {
 }
 
 // UseStandardEncryptionHandler create a Standard security handler
-// and install it on the returned encrypt dict..
+// and install it on the returned encrypt dict.
 // The field V and P of the encrypt dict must be setup previously.
 // `userPassword` and `ownerPassword` are used to generate the encryption keys
 // and will be needed to decrypt the document.

@@ -19,8 +19,8 @@ func (m MetadataStream) Clone() Object {
 
 func (m MetadataStream) Write(w PDFWritter, _ Reference) string {
 	base := m.Stream.PDFCommonFields(true)
-	base["Type"] = "/Metadata"
-	base["Subtype"] = "/XML"
+	base.Fields["Type"] = "/Metadata"
+	base.Fields["Subtype"] = "/XML"
 	ref := w.CreateObject()
 	w.WriteStream(base, m.Content, ref)
 	return ref.String()

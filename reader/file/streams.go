@@ -85,7 +85,8 @@ func (ctx *context) extractStreamContent(filters model.Filters, offset int64, ex
 }
 
 // extract, decrypt, and decode a stream at `offset`
-func (ctx *context) decodeStreamContent(filters model.Filters, offset int64, expectedLengthPlain int) (content []byte, err error) {
+// ref if used for decryption
+func (ctx *context) decodeStreamContent(ref model.ObjIndirectRef, filters model.Filters, offset int64, expectedLengthPlain int) (content []byte, err error) {
 	content, err = ctx.extractStreamContent(filters, offset, expectedLengthPlain)
 	if err != nil {
 		return nil, err
@@ -96,7 +97,7 @@ func (ctx *context) decodeStreamContent(filters model.Filters, offset int64, exp
 		if len(filters) == 1 && filters[0].Name == "Crypt" {
 		} else {
 			// TODO:
-			content, err = ctx.decryptStream(content)
+			content, err = ctx.decryptStream(content, ref)
 			if err != nil {
 				return nil, err
 			}

@@ -65,7 +65,7 @@ func (tg *XObjectTransparencyGroup) pdfContent(pdf pdfWriter, ref Reference) (St
 		gDict += "/K true"
 	}
 	gDict += ">>"
-	base["Group"] = gDict
+	base.Fields["Group"] = gDict
 	return base, "", tg.Content
 }
 
@@ -216,7 +216,7 @@ func (g *GraphicState) pdfContent(pdf pdfWriter, _ Reference) (StreamHeader, str
 		b.fmt("/AIS %v", g.AIS)
 	}
 	b.WriteString(">>")
-	return nil, b.String(), nil
+	return StreamHeader{}, b.String(), nil
 }
 
 func (g *GraphicState) clone(cache cloneCache) Referenceable {
@@ -257,15 +257,15 @@ type PatternTiling struct {
 
 func (t *PatternTiling) pdfContent(pdf pdfWriter, ref Reference) (StreamHeader, string, []byte) {
 	out := t.ContentStream.PDFCommonFields(true)
-	out["PatternType"] = "1"
-	out["PaintType"] = strconv.Itoa(int(t.PaintType))
-	out["TilingType"] = strconv.Itoa(int(t.TilingType))
-	out["BBox"] = t.BBox.String()
-	out["XStep"] = ObjFloat(t.XStep).Write(nil, 0)
-	out["YStep"] = ObjFloat(t.YStep).Write(nil, 0)
-	out["Resources"] = t.Resources.pdfString(pdf, ref)
+	out.Fields["PatternType"] = "1"
+	out.Fields["PaintType"] = strconv.Itoa(int(t.PaintType))
+	out.Fields["TilingType"] = strconv.Itoa(int(t.TilingType))
+	out.Fields["BBox"] = t.BBox.String()
+	out.Fields["XStep"] = ObjFloat(t.XStep).Write(nil, 0)
+	out.Fields["YStep"] = ObjFloat(t.YStep).Write(nil, 0)
+	out.Fields["Resources"] = t.Resources.pdfString(pdf, ref)
 	if t.Matrix != (Matrix{}) {
-		out["Matrix"] = t.Matrix.String()
+		out.Fields["Matrix"] = t.Matrix.String()
 	}
 	return out, "", t.Content
 }
@@ -285,7 +285,7 @@ func (t *PatternTiling) clone(cache cloneCache) Referenceable {
 // Lattice, Coons, TensorProduct
 type Shading interface {
 	// update `shadingFields` and returns the content stream
-	shadingPDFContent(shadingFields StreamHeader, pdf pdfWriter) []byte
+	shadingPDFContent(shadingFields map[Name]string, pdf pdfWriter) (StreamHeader, []byte)
 	Clone() Shading
 }
 
@@ -295,7 +295,7 @@ type ShadingFunctionBased struct {
 	Function []FunctionDict // either one 2 -> n function, or n 2 -> 1 functions
 }
 
-func (s ShadingFunctionBased) shadingPDFContent(shadingFields StreamHeader, pdf pdfWriter) []byte {
+func (s ShadingFunctionBased) shadingPDFContent(shadingFields map[Name]string, pdf pdfWriter) (StreamHeader, []byte) {
 	fns := pdf.writeFunctions(s.Function)
 	shadingFields["ShadingType"] = "1"
 	shadingFields["Function"] = writeRefArray(fns)
@@ -305,7 +305,7 @@ func (s ShadingFunctionBased) shadingPDFContent(shadingFields StreamHeader, pdf 
 	if (s.Matrix != Matrix{}) {
 		shadingFields["Matrix"] = s.Matrix.String()
 	}
-	return nil
+	return StreamHeader{Fields: shadingFields}, nil
 }
 
 // Clone returns a deep copy with concrete type `FunctionBased`
@@ -326,7 +326,7 @@ type BaseGradient struct {
 
 //	update out
 // `pdf` is used to write the functions
-func (g BaseGradient) pdfString(pdf pdfWriter, out StreamHeader) {
+func (g BaseGradient) pdfString(pdf pdfWriter, out map[Name]string) {
 	fns := pdf.writeFunctions(g.Function)
 	out["Function"] = writeRefArray(fns)
 	if g.Domain != [2]Fl{} {
@@ -354,11 +354,11 @@ type ShadingAxial struct {
 	Coords [4]Fl // x0, y0, x1, y1
 }
 
-func (s ShadingAxial) shadingPDFContent(shadingFields StreamHeader, pdf pdfWriter) []byte {
+func (s ShadingAxial) shadingPDFContent(shadingFields map[Name]string, pdf pdfWriter) (StreamHeader, []byte) {
 	s.BaseGradient.pdfString(pdf, shadingFields)
 	shadingFields["ShadingType"] = "2"
 	shadingFields["Coords"] = writeFloatArray(s.Coords[:])
-	return nil
+	return StreamHeader{Fields: shadingFields}, nil
 }
 
 // Clone returns a deep copy with concrete type `Axial`
@@ -373,11 +373,11 @@ type ShadingRadial struct {
 	Coords [6]Fl // x0, y0, r0, x1, y1, r1
 }
 
-func (s ShadingRadial) shadingPDFContent(shadingFields StreamHeader, pdf pdfWriter) []byte {
+func (s ShadingRadial) shadingPDFContent(shadingFields map[Name]string, pdf pdfWriter) (StreamHeader, []byte) {
 	s.BaseGradient.pdfString(pdf, shadingFields)
 	shadingFields["ShadingType"] = "3"
 	shadingFields["Coords"] = writeFloatArray(s.Coords[:])
-	return nil
+	return StreamHeader{Fields: shadingFields}, nil
 }
 
 // Clone returns a deep copy with concrete type `Radial`
@@ -413,18 +413,18 @@ func (ss ShadingStream) Clone() ShadingStream {
 }
 
 // return the shared dict attributes
-func (ss ShadingStream) pdfFields(shadingFields StreamHeader, pdf pdfWriter, type_ uint8) []byte {
+func (ss ShadingStream) pdfFields(shadingFields map[Name]string, pdf pdfWriter, type_ uint8) (StreamHeader, []byte) {
 	args := ss.PDFCommonFields(true)
 	args.updateWith(shadingFields)
-	args["ShadingType"] = strconv.Itoa(int(type_))
-	args["BitsPerCoordinate"] = strconv.Itoa(int(ss.BitsPerCoordinate))
-	args["BitsPerComponent"] = strconv.Itoa(int(ss.BitsPerComponent))
-	args["Decode"] = writePointsArray(ss.Decode)
+	args.Fields["ShadingType"] = strconv.Itoa(int(type_))
+	args.Fields["BitsPerCoordinate"] = strconv.Itoa(int(ss.BitsPerCoordinate))
+	args.Fields["BitsPerComponent"] = strconv.Itoa(int(ss.BitsPerComponent))
+	args.Fields["Decode"] = writePointsArray(ss.Decode)
 	if len(ss.Function) != 0 {
 		fns := pdf.writeFunctions(ss.Function)
-		args["Function"] = writeRefArray(fns)
+		args.Fields["Function"] = writeRefArray(fns)
 	}
-	return ss.Content
+	return args, ss.Content
 }
 
 type ShadingFreeForm struct {
@@ -434,13 +434,13 @@ type ShadingFreeForm struct {
 
 // method shared with ShadingCoons and ShadingTensorProduct
 // type_ is 4, 6 or 7
-func (c ShadingFreeForm) pdfContentExt(shadingFields StreamHeader, pdf pdfWriter, type_ uint8) []byte {
-	content := c.ShadingStream.pdfFields(shadingFields, pdf, type_)
-	shadingFields["BitsPerFlag"] = strconv.Itoa(int(c.BitsPerFlag))
-	return content
+func (c ShadingFreeForm) pdfContentExt(shadingFields map[Name]string, pdf pdfWriter, type_ uint8) (StreamHeader, []byte) {
+	out, content := c.ShadingStream.pdfFields(shadingFields, pdf, type_)
+	out.Fields["BitsPerFlag"] = strconv.Itoa(int(c.BitsPerFlag))
+	return out, content
 }
 
-func (c ShadingFreeForm) shadingPDFContent(shadingFields StreamHeader, pdf pdfWriter) []byte {
+func (c ShadingFreeForm) shadingPDFContent(shadingFields map[Name]string, pdf pdfWriter) (StreamHeader, []byte) {
 	return c.pdfContentExt(shadingFields, pdf, 4)
 }
 
@@ -456,10 +456,10 @@ type ShadingLattice struct {
 	VerticesPerRow int // required
 }
 
-func (c ShadingLattice) shadingPDFContent(shadingFields StreamHeader, pdf pdfWriter) []byte {
-	content := c.ShadingStream.pdfFields(shadingFields, pdf, 5)
-	shadingFields["VerticesPerRow"] = strconv.Itoa(c.VerticesPerRow)
-	return content
+func (c ShadingLattice) shadingPDFContent(shadingFields map[Name]string, pdf pdfWriter) (StreamHeader, []byte) {
+	out, content := c.ShadingStream.pdfFields(shadingFields, pdf, 5)
+	out.Fields["VerticesPerRow"] = strconv.Itoa(c.VerticesPerRow)
+	return out, content
 }
 
 // Clone returns a deep copy with concrete type `ShadingLattice`
@@ -471,7 +471,7 @@ func (co ShadingLattice) Clone() Shading {
 
 type ShadingCoons ShadingFreeForm
 
-func (c ShadingCoons) shadingPDFContent(shadingFields StreamHeader, pdf pdfWriter) []byte {
+func (c ShadingCoons) shadingPDFContent(shadingFields map[Name]string, pdf pdfWriter) (StreamHeader, []byte) {
 	return ShadingFreeForm(c).pdfContentExt(shadingFields, pdf, 6)
 }
 
@@ -482,7 +482,7 @@ func (co ShadingCoons) Clone() Shading {
 
 type ShadingTensorProduct ShadingFreeForm
 
-func (c ShadingTensorProduct) shadingPDFContent(shadingFields StreamHeader, pdf pdfWriter) []byte {
+func (c ShadingTensorProduct) shadingPDFContent(shadingFields map[Name]string, pdf pdfWriter) (StreamHeader, []byte) {
 	return ShadingFreeForm(c).pdfContentExt(shadingFields, pdf, 7)
 }
 
@@ -503,7 +503,7 @@ type ShadingDict struct {
 }
 
 func (s *ShadingDict) pdfContent(pdf pdfWriter, ref Reference) (StreamHeader, string, []byte) {
-	b := make(StreamHeader)
+	b := make(map[Name]string)
 	if s.ColorSpace != nil {
 		b["ColorSpace"] = s.ColorSpace.colorSpaceWrite(pdf, ref)
 	}
@@ -514,8 +514,8 @@ func (s *ShadingDict) pdfContent(pdf pdfWriter, ref Reference) (StreamHeader, st
 		b["BBox"] = s.BBox.String()
 	}
 	b["AntiAlias"] = strconv.FormatBool(s.AntiAlias)
-	by := s.ShadingType.shadingPDFContent(b, pdf)
-	return b, "", by
+	out, by := s.ShadingType.shadingPDFContent(b, pdf)
+	return out, "", by
 }
 
 func (s *ShadingDict) clone(cache cloneCache) Referenceable {
@@ -554,7 +554,7 @@ func (s *PatternShading) pdfContent(pdf pdfWriter, _ Reference) (StreamHeader, s
 		b.fmt("/ExtGState %s", stateRef)
 	}
 	b.fmt(">>")
-	return nil, b.String(), nil
+	return StreamHeader{}, b.String(), nil
 }
 
 func (s *PatternShading) clone(cache cloneCache) Referenceable {

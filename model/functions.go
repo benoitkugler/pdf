@@ -29,23 +29,26 @@ type FunctionDict struct {
 // pdfContent return the object content of `f`
 // `pdf` is used to write and reference the sub-functions of a `StitchingFunction`
 func (f *FunctionDict) pdfContent(pdf pdfWriter, ref Reference) (StreamHeader, string, []byte) {
-	baseArgs := StreamHeader{"Domain": writeRangeArray(f.Domain)}
+	baseArgs := map[ObjName]string{"Domain": writeRangeArray(f.Domain)}
 	if len(f.Range) != 0 {
 		baseArgs["Range"] = writeRangeArray(f.Range)
 	}
-	var stream []byte
+	var (
+		header StreamHeader
+		stream []byte
+	)
 	switch ft := f.FunctionType.(type) {
 	case FunctionSampled:
-		stream = ft.pdfContent(baseArgs)
+		header, stream = ft.pdfContent(baseArgs)
 	case FunctionExpInterpolation:
-		ft.pdfString(baseArgs)
+		header = ft.pdfString(baseArgs)
 	case FunctionStitching:
 		// start by writing the "child" functions
-		ft.pdfString(baseArgs, pdf)
+		header = ft.pdfString(baseArgs, pdf)
 	case FunctionPostScriptCalculator:
-		stream = ft.pdfContent(baseArgs)
+		header, stream = ft.pdfContent(baseArgs)
 	}
-	return baseArgs, "", stream
+	return header, "", stream
 }
 
 // Clone returns a deep copy of the function
@@ -87,21 +90,22 @@ type FunctionSampled struct {
 }
 
 // adds to the common arguments the specificities of a `SampledFunction`
-func (f FunctionSampled) pdfContent(b StreamHeader) []byte {
-	b["FunctionType"] = "0"
-	b.updateWith(f.Stream.PDFCommonFields(true))
-	b["Size"] = writeIntArray(f.Size)
-	b["BitsPerSample"] = strconv.Itoa(int(f.BitsPerSample))
+func (f FunctionSampled) pdfContent(b map[Name]string) (StreamHeader, []byte) {
+	out := f.Stream.PDFCommonFields(true)
+	out.updateWith(b)
+	out.Fields["FunctionType"] = "0"
+	out.Fields["Size"] = writeIntArray(f.Size)
+	out.Fields["BitsPerSample"] = strconv.Itoa(int(f.BitsPerSample))
 	if f.Order != 0 {
-		b["Order"] = strconv.Itoa(int(f.Order))
+		out.Fields["Order"] = strconv.Itoa(int(f.Order))
 	}
 	if len(f.Encode) != 0 {
-		b["Encode"] = writePointsArray(f.Encode)
+		out.Fields["Encode"] = writePointsArray(f.Encode)
 	}
 	if len(f.Decode) != 0 {
-		b["Decode"] = writePointsArray(f.Decode)
+		out.Fields["Decode"] = writePointsArray(f.Decode)
 	}
-	return f.Content
+	return out, f.Content
 }
 
 // Clone returns a deep copy of the function
@@ -124,7 +128,7 @@ type FunctionExpInterpolation struct {
 }
 
 // adds to the common arguments the specificities of a `ExpInterpolationFunction`
-func (f FunctionExpInterpolation) pdfString(baseArgs StreamHeader) {
+func (f FunctionExpInterpolation) pdfString(baseArgs map[Name]string) StreamHeader {
 	if len(f.C0) != 0 {
 		baseArgs["C0"] = writeFloatArray(f.C0)
 	}
@@ -133,6 +137,7 @@ func (f FunctionExpInterpolation) pdfString(baseArgs StreamHeader) {
 	}
 	baseArgs["FunctionType"] = "2"
 	baseArgs["N"] = strconv.Itoa(f.N)
+	return StreamHeader{Fields: baseArgs}
 }
 
 // Clone returns a deep copy of the function
@@ -162,13 +167,14 @@ func FunctionEncodeRepeat(k int) [][2]Fl {
 }
 
 // adds to the common arguments the specificities of a `StitchingFunction`.
-func (f FunctionStitching) pdfString(baseArgs StreamHeader, pdf pdfWriter) {
+func (f FunctionStitching) pdfString(baseArgs map[Name]string, pdf pdfWriter) StreamHeader {
 	// start by writing the "child" functions
 	refs := pdf.writeFunctions(f.Functions)
 	baseArgs["FunctionType"] = "3"
 	baseArgs["Functions"] = writeRefArray(refs)
 	baseArgs["Bounds"] = writeFloatArray(f.Bounds)
 	baseArgs["Encode"] = writePointArray(f.Encode)
+	return StreamHeader{Fields: baseArgs}
 }
 
 // Clone returns a deep copy of the function
@@ -189,10 +195,11 @@ func (f FunctionStitching) Clone() Function {
 type FunctionPostScriptCalculator Stream
 
 // adds to the common arguments the specificities of a `PostScriptCalculatorFunction`.
-func (f FunctionPostScriptCalculator) pdfContent(baseArgs StreamHeader) []byte {
-	baseArgs.updateWith(Stream(f).PDFCommonFields(true))
-	baseArgs["FunctionType"] = "4"
-	return f.Content
+func (f FunctionPostScriptCalculator) pdfContent(baseArgs map[Name]string) (StreamHeader, []byte) {
+	out := Stream(f).PDFCommonFields(true)
+	out.updateWith(baseArgs)
+	out.Fields["FunctionType"] = "4"
+	return out, f.Content
 }
 
 // Clone returns a deep copy of the function

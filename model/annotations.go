@@ -311,7 +311,7 @@ func (a *AnnotationDict) GetStructParent() MaybeInt {
 func (a *AnnotationDict) pdfContent(pdf pdfWriter, ref Reference) (StreamHeader, string, []byte) {
 	base := a.BaseAnnotation.fields(pdf, ref)
 	subtype := a.Subtype.annotationFields(pdf, ref)
-	return nil, fmt.Sprintf("<<%s %s >>", base, subtype), nil
+	return StreamHeader{}, fmt.Sprintf("<<%s %s >>", base, subtype), nil
 }
 
 func (a *AnnotationDict) clone(cache cloneCache) Referenceable {
