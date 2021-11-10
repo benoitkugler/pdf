@@ -19,7 +19,7 @@ import (
 //	In this case, custom type may be used, but care should be taken to handle indirect objects:
 //	when implementing WriteToPDF, new objects must be created using CreateObject.
 //
-// Note thaht the PDF null object is represented by its own concrete type,
+// Note that the PDF null object is represented by its own concrete type,
 // so Object must never be nil.
 type Object interface {
 	// Write must return a PDF string representation

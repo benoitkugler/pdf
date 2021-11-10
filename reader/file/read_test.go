@@ -108,6 +108,7 @@ func TestCorpus(t *testing.T) {
 		"../test/Shading.pdf",
 		"../test/Shading4.pdf",
 		"../test/Font_Substitution.pdf",
+		"../test/Protected.pdf",
 	}
 	for _, file := range files {
 		f, err := os.Open(file)
@@ -120,22 +121,64 @@ func TestCorpus(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		ctx, err := newContext(f, nil)
-		if err != nil {
-			t.Fatal(err)
-		}
-		err = ctx.bypassXrefSection()
-		if err != nil {
-			t.Fatal(err)
-		}
+		// ctx, err := newContext(f, nil)
+		// if err != nil {
+		// 	t.Fatal(err)
+		// }
+		// err = ctx.bypassXrefSection()
+		// if err != nil {
+		// 	t.Fatal(err)
+		// }
 
-		for on := range ctx.xrefTable.objects {
-			_, err := ctx.resolveObjectNumber(on)
-			if err != nil {
-				t.Fatal(file, err)
-			}
-		}
+		// for on := range ctx.xrefTable.objects {
+		// 	_, err := ctx.resolveObjectNumber(on)
+		// 	if err != nil {
+		// 		t.Fatal(file, err)
+		// 	}
+		// }
 
 		f.Close()
+	}
+}
+
+func TestXrefTableOffsets(t *testing.T) {
+	f, err := os.Open("../test/Protected.pdf")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+
+	ctx, err := newContext(f, NewDefaultConfiguration())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	o, err := ctx.offsetLastXRefSection(0)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = ctx.buildXRefTableStartingAt(o)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	expectedOffsets := []int64{
+		0,
+		203,
+		290,
+		9,
+		87,
+		402,
+		534,
+		649,
+	}
+	if len(ctx.xrefTable.objects) != len(expectedOffsets) {
+		t.Fatal()
+	}
+	for i := range expectedOffsets {
+		if off := ctx.xrefTable.objects[i].offset; off != expectedOffsets[i] {
+			t.Fatalf("expected offset %d for %d, got %d", expectedOffsets[i], i, off)
+		}
 	}
 }

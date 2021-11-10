@@ -5,7 +5,6 @@
 package file
 
 import (
-	"errors"
 	"io"
 
 	"github.com/benoitkugler/pdf/model"
@@ -45,6 +44,18 @@ func (f *File) ResolveObject(o parser.Object) parser.Object {
 	return model.ObjNull{}
 }
 
+// IsString return the string and true if o is a StringLitteral (...) or a HexadecimalLitteral <...>
+func IsString(o model.Object) (string, bool) {
+	switch o := o.(type) {
+	case model.ObjStringLiteral:
+		return string(o), true
+	case model.ObjHexLiteral:
+		return string(o), true
+	default:
+		return "", false
+	}
+}
+
 type Configuration struct{}
 
 func NewDefaultConfiguration() *Configuration {
@@ -69,14 +80,19 @@ func Read(rs io.ReadSeeker, conf *Configuration) (File, error) {
 		return File{}, err
 	}
 
-	err = ctx.processAllObjects()
+	err = ctx.setupEncryption()
 	if err != nil {
 		return File{}, err
 	}
 
-	if ctx.trailer.root == nil {
-		return File{}, errors.New("missing Root entry")
-	}
+	// err = ctx.processAllObjects()
+	// if err != nil {
+	// 	return File{}, err
+	// }
+
+	// if ctx.trailer.root == nil {
+	// 	return File{}, errors.New("missing Root entry")
+	// }
 
 	out := File{
 		HeaderVersion:     ctx.HeaderVersion,

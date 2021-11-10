@@ -46,6 +46,7 @@ func (ctx *context) resolveObjectNumber(objectNumber int) (parser.Object, error)
 	// An indirect reference to an undefined object shall not be considered an error by a conforming reader;
 	// it shall be treated as a reference to the null object.
 	entry, ok := ctx.xrefTable.objects[objectNumber]
+	fmt.Println(entry, ok)
 	if !ok {
 		return model.ObjNull{}, nil
 	}

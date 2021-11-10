@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"log"
 	"strconv"
 	"strings"
 
@@ -228,6 +229,7 @@ func (ctx *context) buildXRefTableStartingAt(offset int64) (err error) {
 		} else { // xref stream
 			offset, err = ctx.parseXRefStream(offset)
 			if err != nil {
+				log.Printf("invalid xref stream (%s), trying fix\n", err)
 				// Try fix for corrupt single xref section.
 				return ctx.bypassXrefSection()
 			}
@@ -325,16 +327,12 @@ func (xrefTable xRefTable) parseXRefTableEntry(tk *tok.Tokenizer, objectNumber i
 		return errors.New("parseXRefTableEntry: corrupt xref subsection entry")
 	}
 
-	if v == "f" {
-		return nil // ignore free entry
-	}
-
 	entry := xrefEntry{
 		offset:     offset,
 		generation: generation,
 	}
 
-	if offset == 0 { // skip entry for in use object with offset 0
+	if offset == 0 && v == "n" { // skip entry for in use object with offset 0
 		return nil
 	}
 
@@ -365,16 +363,14 @@ func (ctx *context) processTrailer(tk *tok.Tokenizer) (int64, error) {
 
 // accept Int or XXX 0 R
 func offsetFromObject(o parser.Object) (int64, bool) {
-	var offset int64
 	switch pref := o.(type) {
 	case parser.Integer:
-		offset = int64(pref)
+		return int64(pref), true
 	case parser.IndirectRef:
-		offset = int64(pref.ObjectNumber)
+		return int64(pref.ObjectNumber), true
 	default:
 		return 0, false
 	}
-	return offset, true
 }
 
 // Parse trailer dict and return any offset of a previous xref section.
@@ -464,7 +460,7 @@ func (current *trailer) parseTrailerInfo(d parser.Dict) error {
 		if !ok && current.encrypt != nil {
 			return errors.New("parseTrailerInfo: missing entry \"ID\" in encrypted document")
 		}
-		current.encrypt = id
+		current.id = id
 	}
 
 	return nil
