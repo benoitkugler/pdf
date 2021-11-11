@@ -10,7 +10,7 @@ import (
 // xRefTable is the main access to PDF objects
 type xRefTable struct {
 	// object number -> entry
-	objects map[int]*xrefEntry
+	objects map[parser.IndirectRef]*xrefEntry
 
 	// object stream are special cases since we
 	// don't wan't to process them for each object they contain
@@ -18,7 +18,7 @@ type xRefTable struct {
 }
 
 func newXRefTable() xRefTable {
-	return xRefTable{objects: make(map[int]*xrefEntry), objectStreams: make(map[int]objectStream)}
+	return xRefTable{objects: make(map[parser.IndirectRef]*xrefEntry), objectStreams: make(map[int]objectStream)}
 }
 
 // populate object field of the xrefTable
@@ -38,15 +38,14 @@ func (ctx *context) resolve(o parser.Object) (parser.Object, error) {
 		return o, nil // return the direct object as it is
 	}
 
-	return ctx.resolveObjectNumber(ref.ObjectNumber)
+	return ctx.resolveObjectNumber(ref)
 }
 
-func (ctx *context) resolveObjectNumber(objectNumber int) (parser.Object, error) {
+func (ctx *context) resolveObjectNumber(objRef model.ObjIndirectRef) (parser.Object, error) {
 	// 7.3.10
 	// An indirect reference to an undefined object shall not be considered an error by a conforming reader;
 	// it shall be treated as a reference to the null object.
-	entry, ok := ctx.xrefTable.objects[objectNumber]
-	fmt.Println(entry, ok)
+	entry, ok := ctx.xrefTable.objects[objRef]
 	if !ok {
 		return model.ObjNull{}, nil
 	}
@@ -81,18 +80,47 @@ func (ctx *context) resolveObjectNumber(objectNumber int) (parser.Object, error)
 
 		_, _, err = parseObjectDeclaration(tk)
 		if err != nil {
-			return nil, fmt.Errorf("invalid object (%d): %s", objectNumber, err)
+			return nil, fmt.Errorf("invalid object (%d): %s", objRef.ObjectNumber, err)
 		}
 
 		entry.object, err = parser.NewParserFromTokenizer(tk).ParseObject()
 		if err != nil {
-			return nil, fmt.Errorf("invalid object (%d): %s", objectNumber, err)
+			return nil, fmt.Errorf("invalid object (%d): %s", objRef.ObjectNumber, err)
 		}
 
-		// decompress strings
+		// stream object are dict with an additional content : lookup up for them
+		nt, _ := tk.NextToken()
+		if streamHeader, ok := entry.object.(model.ObjDict); nt.IsOther("stream") && ok {
+			filters, err := parser.ParseFilters(streamHeader["Filter"], streamHeader["DecodeParms"], ctx.resolve)
+			if err != nil {
+				return nil, fmt.Errorf("invalid stream: %s", err)
+			}
+
+			lengthO, err := ctx.resolve(streamHeader["Length"])
+			if err != nil {
+				return nil, fmt.Errorf("invalid stream Length: %s", err)
+			}
+			length, ok := lengthO.(parser.Integer)
+			if !ok {
+				return nil, fmt.Errorf("invalid stream Length: expected integer, got %T", lengthO)
+			}
+
+			// we want the cryted not decoded content
+			content, err := ctx.extractStreamContent(filters, entry.offset+int64(tk.StreamPosition()), int(length))
+			if err != nil {
+				return nil, err
+			}
+
+			entry.object = model.ObjStream{Args: streamHeader, Content: content}
+		}
 	}
 
-	return entry.object, nil
+	var err error
+	if ctx.enc != nil {
+		entry.object, err = ctx.enc.decryptObject(entry.object, objRef)
+	}
+
+	return entry.object, err
 }
 
 // xrefEntry is an object entry in the xref table
@@ -101,8 +129,7 @@ func (ctx *context) resolveObjectNumber(objectNumber int) (parser.Object, error)
 type xrefEntry struct {
 	object parser.Object // initialy nil
 
-	offset     int64
-	generation int
+	offset int64
 
 	// for object in object streams
 	streamObjectNumber int // The object number of the object stream in which this object is stored.

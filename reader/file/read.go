@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/benoitkugler/pdf/model"
 	"github.com/benoitkugler/pdf/reader/parser"
 	tok "github.com/benoitkugler/pstokenizer"
 )
@@ -238,13 +239,13 @@ func (ctx *context) buildXRefTableStartingAt(offset int64) (err error) {
 
 	// A friendly 🤢 to the devs of the HP Scanner & Printer software utility.
 	// Hack for #250: If exactly one xref subsection ensure it starts with object #0 instead #1.
-	if _, hasZero := ctx.xrefTable.objects[0]; ssCount == 1 && !hasZero {
+	if _, hasZero := ctx.xrefTable.objects[model.ObjIndirectRef{GenerationNumber: 65535}]; ssCount == 1 && !hasZero {
 		for i := 1; i <= ctx.trailer.size; i++ {
-			if ctx.xrefTable.objects[i] != nil {
-				ctx.xrefTable.objects[i-1] = ctx.xrefTable.objects[i]
+			if ctx.xrefTable.objects[model.ObjIndirectRef{ObjectNumber: i}] != nil {
+				ctx.xrefTable.objects[model.ObjIndirectRef{ObjectNumber: i - 1}] = ctx.xrefTable.objects[model.ObjIndirectRef{ObjectNumber: i}]
 			}
 		}
-		delete(ctx.xrefTable.objects, ctx.trailer.size)
+		delete(ctx.xrefTable.objects, model.ObjIndirectRef{ObjectNumber: ctx.trailer.size})
 	}
 
 	return nil
@@ -327,22 +328,21 @@ func (xrefTable xRefTable) parseXRefTableEntry(tk *tok.Tokenizer, objectNumber i
 		return errors.New("parseXRefTableEntry: corrupt xref subsection entry")
 	}
 
-	entry := xrefEntry{
-		offset:     offset,
-		generation: generation,
-	}
+	entry := xrefEntry{offset: offset}
 
 	if offset == 0 && v == "n" { // skip entry for in use object with offset 0
 		return nil
 	}
 
+	ref := model.ObjIndirectRef{ObjectNumber: objectNumber, GenerationNumber: generation}
+
 	// since we read the last xref table first, we skip potential
 	// older object definition
-	if _, exists := xrefTable.objects[objectNumber]; exists {
+	if _, exists := xrefTable.objects[ref]; exists {
 		return nil
 	}
 
-	xrefTable.objects[objectNumber] = &entry
+	xrefTable.objects[ref] = &entry
 	return nil
 }
 
@@ -560,11 +560,10 @@ func (ctx *context) bypassXrefSection() error {
 		} else { // look for a declaration object XXX XX obj
 			objNr, generation, err := parseObjectDeclaration(tk)
 			if err == nil {
-				ctx.xrefTable.objects[objNr] = &xrefEntry{
+				ctx.xrefTable.objects[model.ObjIndirectRef{ObjectNumber: objNr, GenerationNumber: generation}] = &xrefEntry{
 					// we do not account for potential whitespace
 					// is this an issue ?
-					offset:     lineOffset,
-					generation: generation,
+					offset: lineOffset,
 				}
 				withinObj = true
 			}
@@ -618,13 +617,9 @@ func (ctx *context) parseXRefStream(offset int64) (int64, error) {
 	}
 
 	// Skip entry if already assigned
-	if _, has := ctx.xrefTable.objects[streamHeader.objectNumber]; !has {
+	if _, has := ctx.xrefTable.objects[streamHeader.ref]; !has {
 		// Create xRefTableEntry for XRefStreamDict.
-		ctx.xrefTable.objects[streamHeader.objectNumber] = &xrefEntry{
-			offset:     offset,
-			generation: streamHeader.generationNumber,
-		}
-		// ctx.XRefStreams[*objectNumber] = true // TODO: check
+		ctx.xrefTable.objects[streamHeader.ref] = &xrefEntry{offset: offset}
 	}
 
 	return sd.prev, nil
@@ -707,26 +702,28 @@ func (ctx *context) extractXRefTableEntriesFromXRefStream(buf []byte, xrefDict x
 			c2 := bufToInt64(buf[offsetEntry+i1 : offsetEntry+i1+i2])
 			c3 := bufToInt64(buf[offsetEntry+i1+i2 : offsetEntry+i1+i2+i3])
 
-			var xRefTableEntry xrefEntry
+			var (
+				xRefTableEntry xrefEntry
+				generation     int
+			)
 			switch buf[offsetEntry] {
 			case 0x00: // free object, ignore
 			case 0x01: // in use object
 				xRefTableEntry = xrefEntry{
-					offset:     c2,
-					generation: int(c3),
+					offset: c2,
 				}
+				generation = int(c3)
 			case 0x02: // compressed object; generation always 0.
 				xRefTableEntry = xrefEntry{
 					streamObjectNumber: int(c2),
 					streamObjectIndex:  int(c3),
 				}
-				// TODO: check
-				// ctx.ObjectStreams[objNumberRef] = true
 			}
 
+			ref := model.ObjIndirectRef{ObjectNumber: objectNumber, GenerationNumber: generation}
 			// skip already assigned
-			if _, has := ctx.xrefTable.objects[objectNumber]; !has {
-				ctx.xrefTable.objects[objectNumber] = &xRefTableEntry
+			if _, has := ctx.xrefTable.objects[ref]; !has {
+				ctx.xrefTable.objects[ref] = &xRefTableEntry
 			}
 			j++
 		}

@@ -1,12 +1,10 @@
 package file
 
 import (
-	"bytes"
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/md5"
 	"crypto/rc4"
-	"crypto/sha256"
 	"errors"
 	"fmt"
 
@@ -15,13 +13,15 @@ import (
 
 type encrypt struct {
 	enc model.Encrypt // found in the PDF file
+	ID  [2]string     // found in the PDF file
 
-	key []byte
-	aes bool
+	key                    []byte
+	aesStrings, aesStreams bool
 }
 
-// read the trailer and the Config to build
+// Read the trailer and the Config to build
 // the data needed to decode the document
+// In particular, authenticates the user provided passwords.
 func (ctx *context) setupEncryption() (err error) {
 	if ctx.trailer.encrypt == nil { // not encrypted
 		return nil
@@ -34,151 +34,63 @@ func (ctx *context) setupEncryption() (err error) {
 		return err
 	}
 
-	if info.enc.StmF != "" && info.enc.StmF != "Identiy" {
+	if info.enc.StmF != "" && info.enc.StmF != "Identity" {
 		d, ok := info.enc.CF[info.enc.StmF]
 		if !ok {
 			return fmt.Errorf("missing entry for StmF %s in CF encrypt dict", info.enc.StmF)
 		}
 
-		info.aes, err = supportedCFEntry(d)
+		info.aesStreams, err = supportedCFEntry(d)
 		if err != nil {
 			return err
 		}
 	}
-	fmt.Println(encrypt)
-	return nil
-}
 
-func validationSalt(bb []byte) []byte {
-	return bb[32:40]
-}
+	if info.enc.StrF != "" && info.enc.StrF != "Identity" {
+		d, ok := info.enc.CF[info.enc.StrF]
+		if !ok {
+			return fmt.Errorf("missing entry for StrF %s in CF encrypt dict", info.enc.StrF)
+		}
 
-func keySalt(bb []byte) []byte {
-	return bb[40:]
-}
-
-func validateOwnerPasswordAES256(ctx *Context) (ok bool, err error) {
-	if len(ctx.OwnerPW) == 0 {
-		return false, nil
-	}
-
-	// TODO Process PW with SASLPrep profile (RFC 4013) of stringprep (RFC 3454).
-	opw := []byte(ctx.OwnerPW)
-	if len(opw) > 127 {
-		opw = opw[:127]
-	}
-	// fmt.Printf("opw <%s> isValidUTF8String: %t\n", opw, utf8.Valid(opw))
-
-	// Algorithm 3.2a 3.
-	b := append(opw, validationSalt(ctx.E.O)...)
-	b = append(b, ctx.E.U...)
-	s := sha256.Sum256(b)
-
-	if !bytes.HasPrefix(ctx.E.O, s[:]) {
-		return false, nil
-	}
-
-	b = append(opw, keySalt(ctx.E.O)...)
-	b = append(b, ctx.E.U...)
-	key := sha256.Sum256(b)
-
-	cb, err := aes.NewCipher(key[:])
-	if err != nil {
-		return false, err
-	}
-
-	iv := make([]byte, 16)
-	ctx.EncKey = make([]byte, 32)
-
-	mode := cipher.NewCBCDecrypter(cb, iv)
-	mode.CryptBlocks(ctx.EncKey, ctx.E.OE)
-
-	return true, nil
-}
-
-func validateUserPasswordAES256(ctx *Context) (ok bool, err error) {
-	// TODO Process PW with SASLPrep profile (RFC 4013) of stringprep (RFC 3454).
-	upw := []byte(ctx.UserPW)
-	if len(upw) > 127 {
-		upw = upw[:127]
-	}
-	// fmt.Printf("upw <%s> isValidUTF8String: %t\n", upw, utf8.Valid(upw))
-
-	// Algorithm 3.2a 4,
-	s := sha256.Sum256(append(upw, validationSalt(ctx.E.U)...))
-
-	if !bytes.HasPrefix(ctx.E.U, s[:]) {
-		return false, nil
-	}
-
-	key := sha256.Sum256(append(upw, keySalt(ctx.E.U)...))
-
-	cb, err := aes.NewCipher(key[:])
-	if err != nil {
-		return false, err
-	}
-
-	iv := make([]byte, 16)
-	ctx.EncKey = make([]byte, 32)
-
-	mode := cipher.NewCBCDecrypter(cb, iv)
-	mode.CryptBlocks(ctx.EncKey, ctx.E.UE)
-
-	return true, nil
-}
-
-// ValidateOwnerPassword validates the owner password aka change permissions password.
-func (enc encrypt) validateOwnerPassword() (ok bool, err error) {}
-
-func validateOwnerPasswordRC4(enc model.EncryptionStandard) (ok bool, err error) {
-	e := ctx.E
-
-	// The PW string is generated from OS codepage characters by first converting the string to
-	// PDFDocEncoding. If input is Unicode, first convert to a codepage encoding , and then to
-	// PDFDocEncoding for backward compatibility.
-
-	ownerpw := ctx.OwnerPW
-	userpw := ctx.UserPW
-
-	// 7a: Alg.3 p62 a-d
-	key := key(ownerpw, userpw, e.R, e.L)
-
-	// 7b
-	upw := make([]byte, len(e.O))
-	copy(upw, e.O)
-
-	if enc.R <= 2 {
-		c, err := rc4.NewCipher(key)
+		info.aesStrings, err = supportedCFEntry(d)
 		if err != nil {
-			return false, err
-		}
-		c.XORKeyStream(upw, upw)
-	} else {
-		keynew := make([]byte, len(key))
-		for i := 19; i >= 0; i-- {
-			for j, b := range key {
-				keynew[j] = b ^ byte(i)
-			}
-
-			c, err := rc4.NewCipher(keynew)
-			if err != nil {
-				return false, err
-			}
-
-			c.XORKeyStream(upw, upw)
+			return err
 		}
 	}
 
-	// Save user pw
-	upws := ctx.UserPW
+	if info.enc.Filter != "Standard" {
+		return fmt.Errorf("unsupported encryption handler %s", info.enc.Filter)
+	}
+	if info.enc.SubFilter != "" {
+		return fmt.Errorf("unsupported encryption handler SubFilter %s", info.enc.SubFilter)
+	}
 
-	ctx.UserPW = string(upw)
-	ok, err = validateUserPassword(ctx)
+	if len(ctx.trailer.id) != 2 {
+		return fmt.Errorf("invalid ID entry for trailer, expected 2-length string array, got %v", ctx.trailer.id)
+	}
+	info.ID[0], _ = IsString(ctx.trailer.id[0])
+	info.ID[1], _ = IsString(ctx.trailer.id[1])
 
-	// Restore user pw
-	ctx.UserPW = upws
+	e, _ := info.enc.EncryptionHandler.(model.EncryptionStandard)
+	if e.R == 5 {
+		// TODO:
+	} else {
+		sh := info.enc.NewRC4SecurityHandler(info.ID[0], e.R, e.DontEncryptMetadata)
 
-	return ok, err
+		// first try with owner
+		var ok bool
+		info.key, ok = sh.AuthOwnerPassword(ctx.Configuration.Password, e.O, e.U)
+		if !ok {
+			info.key, ok = sh.AuthUserPassword(ctx.Configuration.Password, e.O, e.U)
+			if !ok {
+				return fmt.Errorf("incorrect password: %s", ctx.Configuration.Password)
+			}
+		}
+	}
+
+	ctx.enc = &info
+
+	return nil
 }
 
 // supportedCFEntry returns true if AES should be used,
@@ -201,19 +113,20 @@ func supportedCFEntry(d model.CrypFilter) (bool, error) {
 	return cfm == "AESV2" || cfm == "AESV3", nil
 }
 
-func (enc encrypt) decryptKey(objNumber, generationNumber int) []byte {
-	b := append(enc.key,
+// the returned key is 5 to 16 byte long
+func decryptKey(key []byte, objNumber, generationNumber int, useAES bool) []byte {
+	b := append(key,
 		byte(objNumber), byte(objNumber>>8), byte(objNumber>>16),
 		byte(generationNumber), byte(generationNumber>>8),
 	)
 
-	if enc.aes {
+	if useAES {
 		b = append(b, "sAlT"...)
 	}
 
 	dk := md5.Sum(b)
 
-	l := len(enc.key) + 5
+	l := len(key) + 5
 	if l < 16 {
 		return dk[:l]
 	}
@@ -221,10 +134,10 @@ func (enc encrypt) decryptKey(objNumber, generationNumber int) []byte {
 	return dk[:]
 }
 
-func (ctx *context) decryptStream(content []byte, ref model.ObjIndirectRef) ([]byte, error) {
-	key := ctx.enc.decryptKey(ref.ObjectNumber, ref.GenerationNumber)
-
-	if ctx.enc.aes {
+// content may be overwritten
+func decryptBytes(content []byte, ref model.ObjIndirectRef, useAES bool, key []byte) ([]byte, error) {
+	key = decryptKey(key, ref.ObjectNumber, ref.GenerationNumber, useAES)
+	if useAES {
 		return decryptAESBytes(content, key)
 	}
 
@@ -232,11 +145,7 @@ func (ctx *context) decryptStream(content []byte, ref model.ObjIndirectRef) ([]b
 }
 
 func decryptRC4Bytes(buf, key []byte) ([]byte, error) {
-	c, err := rc4.NewCipher(key)
-	if err != nil {
-		return nil, err
-	}
-
+	c, _ := rc4.NewCipher(key)
 	c.XORKeyStream(buf, buf)
 	return buf, nil
 }
@@ -272,31 +181,55 @@ func decryptAESBytes(b, key []byte) ([]byte, error) {
 	return data, nil
 }
 
-// recursively walk through the object and decrypt strings
-// streams are not handled
-func (ctx *context) decryptObject(o model.Object) (model.Object, error) {
+// recursively walk through the object and decrypt strings and streams
+func (enc *encrypt) decryptObject(o model.Object, contextRef model.ObjIndirectRef) (model.Object, error) {
 	var err error
-	switch o := o.(type) {
+	switch oT := o.(type) {
 	case model.ObjHexLiteral: // do the actual decryption
-		// TODO:
+		decrypted, err := decryptBytes([]byte(oT), contextRef, enc.aesStrings, enc.key)
+		if err != nil {
+			return nil, err
+		}
+		o = model.ObjHexLiteral(string(decrypted))
 	case model.ObjStringLiteral: // do the actual decryption
-		// TODO:
+		decrypted, err := decryptBytes([]byte(oT), contextRef, enc.aesStrings, enc.key)
+		if err != nil {
+			return nil, err
+		}
+		o = model.ObjStringLiteral(string(decrypted))
 	case model.ObjDict: // recurse
-		for k, v := range o {
-			o[k], err = ctx.decryptObject(v)
+		for k, v := range oT {
+			oT[k], err = enc.decryptObject(v, contextRef)
 			if err != nil {
 				return nil, err
 			}
 		}
+	case model.ObjStream: // recurse
+		argsO, err := enc.decryptObject(oT.Args, contextRef)
+		if err != nil {
+			return nil, err
+		}
+		content, err := enc.decryptStream(oT.Content, contextRef)
+		if err != nil {
+			return nil, err
+		}
+		// correct the Length args so that it matches the decrypted content
+		args := argsO.(model.ObjDict)
+		args["Length"] = model.ObjInt(len(content))
+		o = model.ObjStream{Args: args, Content: content}
 	case model.ObjArray: // recurse
-		for i, v := range o {
-			o[i], err = ctx.decryptObject(v)
+		for i, v := range oT {
+			oT[i], err = enc.decryptObject(v, contextRef)
 			if err != nil {
 				return nil, err
 			}
 		}
 	}
 	return o, nil
+}
+
+func (enc *encrypt) decryptStream(content []byte, ref model.ObjIndirectRef) ([]byte, error) {
+	return decryptBytes(content, ref, enc.aesStreams, enc.key)
 }
 
 // used only for the encrypt dict, where all object should probably be direct
@@ -323,6 +256,10 @@ func (ctx *context) processEncryptDict() (model.Encrypt, error) {
 	length, _ := ctx.res(d["Length"]).(model.ObjInt)
 	if length%8 != 0 {
 		return out, fmt.Errorf("field Length must be a multiple of 8")
+	}
+	// we accept up to 256, which is the limit of the RC4 cipher
+	if length < 0 || length > 256 {
+		return out, fmt.Errorf("field Length must be between 0 and 256, got %d", length)
 	}
 	out.Length = uint8(length / 8)
 
@@ -356,21 +293,36 @@ func (ctx *context) processStandardSecurityHandler(dict model.ObjDict) (model.En
 	r_, _ := ctx.res(dict["R"]).(model.ObjInt)
 	out.R = uint8(r_)
 
+	hashLength := 32
+	if out.R == 5 { // AES
+		hashLength = 48
+	}
 	o, _ := IsString(ctx.res(dict["O"]))
-	if len(o) != 32 {
-		return out, fmt.Errorf("expected 32-length byte string for entry O, got %v", o)
+	if len(o) != hashLength {
+		return out, fmt.Errorf("expected %d-length byte string for entry O, got %v", hashLength, o)
 	}
-	for i := 0; i < len(o); i++ {
-		out.O[i] = o[i]
-	}
+	copy(out.O[:], o)
 
 	u, _ := IsString(ctx.res(dict["U"]))
-	if len(u) != 32 {
-		return out, fmt.Errorf("expected 32-length byte string for entry U, got %v", u)
+	if len(u) != hashLength {
+		return out, fmt.Errorf("expected %d-length byte string for entry U, got %v", hashLength, u)
 	}
-	for i := 0; i < len(u); i++ {
-		out.U[i] = u[i]
+	copy(out.U[:], u)
+
+	if out.R == 5 {
+		ue, _ := IsString(ctx.res(dict["UE"]))
+		if len(ue) != 32 {
+			return out, fmt.Errorf("expected %d-length byte string for entry UE, got %v", 32, ue)
+		}
+		copy(out.UE[:], u)
+
+		oe, _ := IsString(ctx.res(dict["OE"]))
+		if len(oe) != 32 {
+			return out, fmt.Errorf("expected %d-length byte string for entry OE, got %v", 32, oe)
+		}
+		copy(out.OE[:], u)
 	}
+
 	if meta, ok := ctx.res(dict["EncryptMetadata"]).(model.ObjBool); ok {
 		out.DontEncryptMetadata = !bool(meta)
 	}

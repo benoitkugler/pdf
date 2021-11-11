@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"os"
 	"testing"
+
+	"github.com/benoitkugler/pdf/model"
 )
 
 func TestOffset(t *testing.T) {
@@ -24,7 +26,7 @@ func TestOffset(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if L := len(ctx.xrefTable.objects); L != 126989 {
+	if L := len(ctx.xrefTable.objects); L != 126990 {
 		t.Errorf("expected 126989 objects, got %d", L)
 	}
 }
@@ -142,7 +144,7 @@ func TestCorpus(t *testing.T) {
 }
 
 func TestXrefTableOffsets(t *testing.T) {
-	f, err := os.Open("../test/Protected.pdf")
+	f, err := os.Open("../test/ProtectedRC4.pdf")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -165,19 +167,23 @@ func TestXrefTableOffsets(t *testing.T) {
 
 	expectedOffsets := []int64{
 		0,
-		203,
-		290,
+		243,
+		330,
 		9,
 		87,
-		402,
-		534,
-		649,
+		442,
+		574,
+		689,
 	}
 	if len(ctx.xrefTable.objects) != len(expectedOffsets) {
-		t.Fatal()
+		t.Fatal(ctx.xrefTable.objects)
 	}
 	for i := range expectedOffsets {
-		if off := ctx.xrefTable.objects[i].offset; off != expectedOffsets[i] {
+		generation := 0
+		if i == 0 {
+			generation = 65535
+		}
+		if off := ctx.xrefTable.objects[model.ObjIndirectRef{ObjectNumber: i, GenerationNumber: generation}].offset; off != expectedOffsets[i] {
 			t.Fatalf("expected offset %d for %d, got %d", expectedOffsets[i], i, off)
 		}
 	}

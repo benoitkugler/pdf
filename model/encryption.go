@@ -55,10 +55,11 @@ type EncryptionAlgorithm uint8
 
 const (
 	_ EncryptionAlgorithm = iota
-	Key40
-	KeyExt // encryption key with length greater than 40
+	EaRC440
+	EaRC4Ext // encryption key with length greater than 40
 	_
-	KeySecurityHandler
+	EaRC4Custom
+	EaAES // AES is used for all content
 )
 
 // Encrypt stores the encryption-related information
@@ -195,12 +196,15 @@ func (e EncryptionPublicKey) Clone() EncryptionHandler {
 }
 
 type EncryptionStandard struct {
-	R uint8 // 2 ,3 or 4
-	O [32]byte
-	U [32]byte
+	R uint8    // 2, 3, 4 or 5
+	O [48]byte // only the first 32 bytes are used when R != 5
+	U [48]byte // only the first 32 bytes are used when R != 5
+
 	// optional, default value is false
 	// written in PDF under the key /EncryptMetadata
 	DontEncryptMetadata bool
+
+	UE, OE [32]byte // used for AES encryption
 
 	// needed to encrypt, but not written in the PDF
 	encryptionKey []byte
@@ -211,29 +215,48 @@ type EncryptionStandard struct {
 // The field V and P of the encrypt dict must be setup previously.
 // `userPassword` and `ownerPassword` are used to generate the encryption keys
 // and will be needed to decrypt the document.
-func (d Document) UseStandardEncryptionHandler(enc Encrypt, userPassword, ownerPassword string, encryptMetadata bool) Encrypt {
+func (d Document) UseStandardEncryptionHandler(enc Encrypt, ownerPassword, userPassword string, encryptMetadata bool) Encrypt {
 	enc.Filter = "Standard"
 	enc.SubFilter = ""
-	var out EncryptionStandard
-	out.DontEncryptMetadata = !encryptMetadata
+
+	var revision uint8
 	if enc.V < 2 && !enc.P.isRevision3() {
-		out.R = 2
+		revision = 2
 	} else if enc.V == 2 || enc.V == 3 || enc.P.isRevision3() {
-		out.R = 3
-	} else if enc.V == KeySecurityHandler {
-		out.R = 4
+		revision = 3
+	} else if enc.V == EaRC4Custom {
+		revision = 4
+	} else if enc.V == EaAES {
+		revision = 5
 	}
 
-	enc.generatePasswordDigests(ownerPassword, userPassword, &out, d.Trailer.ID[0])
+	s := enc.NewRC4SecurityHandler(d.Trailer.ID[0], revision, !encryptMetadata)
+
+	var out EncryptionStandard
+	out.R = s.revision
+	out.DontEncryptMetadata = s.dontEncryptMetadata
+
+	out.O = s.generateOwnerHash(userPassword, ownerPassword)
+	out.encryptionKey = s.generateEncryptionKey(userPassword, out.O)
+	out.U = s.generateUserHash(out.encryptionKey)
 
 	enc.EncryptionHandler = out
+
 	return enc
 }
 
 func (e EncryptionStandard) encryptionAddFields() string {
-	return fmt.Sprintf("/R %d /O %s /U %s /EncryptMetadata %v",
-		e.R, EscapeByteString(e.O[:]),
-		EscapeByteString(e.U[:]), !e.DontEncryptMetadata)
+	hashLength := 32
+	if e.R == 5 {
+		hashLength = 48
+	}
+	out := fmt.Sprintf("/R %d /O %s /U %s /EncryptMetadata %v",
+		e.R, EscapeByteString(e.O[:hashLength]),
+		EscapeByteString(e.U[:hashLength]), !e.DontEncryptMetadata)
+	if e.R == 5 {
+		out += fmt.Sprintf("/UE %s /OE %s", EspaceHexString(e.UE[:]), EspaceHexString(e.OE[:]))
+	}
+	return out
 }
 
 func (e EncryptionStandard) Clone() EncryptionHandler {
@@ -266,36 +289,17 @@ func objectEncrytionKey(baseKey []byte, n Reference, aes bool) []byte {
 	return s[0:size]
 }
 
-func generateOwnerHash(revision uint8, keyLength int, userPass, ownerPass [32]byte) (v [32]byte) {
-	tmp := md5.Sum(ownerPass[:])
-	if revision >= 3 {
-		for range [50]int{} {
-			tmp = md5.Sum(tmp[:])
-		}
-	}
-	firstEncKey := tmp[0:keyLength]
-	c, _ := rc4.NewCipher(firstEncKey)
-	c.XORKeyStream(v[:], userPass[:])
-
-	if revision >= 3 {
-		xor19Times(v[:], firstEncKey)
-	}
-	return v
+func padPassword(password string) (out [32]byte) {
+	copy(out[:], append([]byte(password), padding[:]...)[0:32])
+	return out
 }
 
-func generateUserPasswordHash(encryptionKey []byte, revision uint8, ID string) (v [32]byte) {
-	c, _ := rc4.NewCipher(encryptionKey)
-	if revision >= 3 {
-		buf := padding[:]
-		buf = append(buf, ID...)
-		hash := md5.Sum(buf)
-		c.XORKeyStream(hash[:], hash[:])
-		xor19Times(hash[:], encryptionKey)
-		copy(v[0:16], hash[:]) // padding with zeros
-	} else {
-		c.XORKeyStream(v[:], padding[:])
+// key length in bytes, between
+func (s *RC4SecurityHandler) keyLength() int {
+	if s.revision >= 3 && s.specifiedKeyLength != 0 {
+		return s.specifiedKeyLength
 	}
-	return v
+	return 5
 }
 
 // xor19Times performs the additional step required by security handlers with revision >= 3.
@@ -318,40 +322,6 @@ func xor19Times(content []byte, baseEncKey []byte) {
 	}
 }
 
-// generatePasswordDigests update the EncryptionStandard `O`, `U` and `encryptionKey` fields
-func (enc *Encrypt) generatePasswordDigests(ownerPassword, userPassword string, out *EncryptionStandard, ID string) {
-	var userPass, ownerPass [32]byte
-	copy(userPass[:], append([]byte(userPassword), padding[:]...)[0:32])
-	copy(ownerPass[:], append([]byte(ownerPassword), padding[:]...)[0:32])
-
-	keyLength := 5
-	if out.R >= 3 && enc.Length != 0 {
-		keyLength = int(enc.Length)
-	}
-
-	out.O = generateOwnerHash(out.R, keyLength, userPass, ownerPass)
-
-	// generate the encryption key
-
-	buf := append([]byte(nil), userPass[:]...)
-	buf = append(buf, out.O[:]...)
-	buf = append(buf, enc.P.bytes()...)
-	buf = append(buf, ID...)
-	if out.R >= 4 && out.DontEncryptMetadata {
-		buf = append(buf, 0xff, 0xff, 0xff, 0xff)
-	}
-	sum := md5.Sum(buf)
-
-	if out.R >= 3 {
-		for range [50]int{} {
-			sum = md5.Sum(sum[0:keyLength])
-		}
-	}
-	out.encryptionKey = sum[0:keyLength]
-
-	out.U = generateUserPasswordHash(out.encryptionKey, out.R, ID)
-}
-
 // ------------------------------------------------------------------------------------
 
 // crypt is not supported for the PublicKey security handler
@@ -359,50 +329,3 @@ func (enc *Encrypt) generatePasswordDigests(ownerPassword, userPassword string, 
 func (e EncryptionPublicKey) crypt(n Reference, data []byte) ([]byte, error) {
 	return data, nil
 }
-
-// func cryptAes(objectKey, data []byte) ([]byte, error) {
-// 	// pad data to aes.Blocksize
-// 	l := len(data) % aes.BlockSize
-// 	var c byte = 0x10
-// 	if l > 0 {
-// 		c = byte(aes.BlockSize - l)
-// 	}
-// 	data = append(data, bytes.Repeat([]byte{c}, aes.BlockSize-l)...)
-// 	// now, len(data) >= 16 and len(data)%16 == 0
-
-// 	block := make([]byte, aes.BlockSize+len(data)) // room for 16 random bytes
-// 	iv := block[:aes.BlockSize]
-
-// 	_, err := io.ReadFull(rand.Reader, iv)
-// 	if err != nil {
-// 		return nil, err
-// 	}
-
-// 	cb, err := aes.NewCipher(objectKey)
-// 	if err != nil {
-// 		return nil, err
-// 	}
-
-// 	mode := cipher.NewCBCEncrypter(cb, iv)
-// 	mode.CryptBlocks(block[aes.BlockSize:], data)
-
-// 	return block, nil
-// }
-
-// func (s EncryptionPublicKey) generateEncryptionKey(keyLength uint8, cryptMetadata bool) ([]byte, error) {
-// 	data := make([]byte, 20) // a)
-// 	_, err := io.ReadFull(rand.Reader, data)
-// 	if err != nil {
-// 		return nil, err
-// 	}
-
-// 	for _, rec := range s { // b)
-// 		data = append(data, rec...)
-// 	}
-
-// 	if !cryptMetadata { // c)
-// 		data = append(data, 0xff, 0xff, 0xff, 0xff)
-// 	}
-// 	sum := sha1.Sum(data)
-// 	return sum[0:keyLength], nil
-// }

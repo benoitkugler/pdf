@@ -14,3 +14,5 @@ require (
 )
 
 replace github.com/benoitkugler/pstokenizer => ../pstokenizer
+
+replace github.com/pdfcpu/pdfcpu => ../../pdfcpu/pdfcpu

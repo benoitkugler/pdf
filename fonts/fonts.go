@@ -1,5 +1,5 @@
 // This package provides tooling for exploiting the
-// fonts defined (and embedded) in a PDF file and (TODO) to add new ones.
+// fonts defined (and embedded) in a PDF file and ( TODO: ) to add new ones.
 //
 // PDF supports 4 kinds of fonts: the Simples (Type1, TrueType and Type3)
 // and the Composite (Type0) and divides the text representation

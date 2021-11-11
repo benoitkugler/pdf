@@ -25,9 +25,9 @@ func init() {
 	// the PDF spec is used in several tests, but is heavy
 	// so, when working on isolated test, you may want to avoid loading it
 	// by commenting this line
-	loadPDFSpec()
+	// loadPDFSpec()
 
-	// generatePDFs()
+	generatePDFs()
 }
 
 func loadPDFSpec() {
@@ -45,8 +45,11 @@ func loadPDFSpec() {
 
 func generatePDFs() {
 	f := gofpdf.New("", "", "", "")
+	f.SetCompression(false)
 	f.SetProtection(0, password, "aaaa")
-	if err := f.OutputFileAndClose("test/Protected.pdf"); err != nil {
+	f.AddPage()
+	f.Text(10, 10, "My secret content !")
+	if err := f.OutputFileAndClose("test/ProtectedRC4.pdf"); err != nil {
 		log.Fatal(err)
 	}
 
@@ -142,7 +145,7 @@ func TestDataset(t *testing.T) {
 }
 
 func TestProtected(t *testing.T) {
-	f, err := os.Open("test/Protected.pdf")
+	f, err := os.Open("test/ProtectedRC4.pdf")
 	if err != nil {
 		t.Fatal(err)
 	}

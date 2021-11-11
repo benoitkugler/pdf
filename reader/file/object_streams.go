@@ -19,7 +19,7 @@ func (ctx *context) processObjectStream(on int) (objectStream, error) {
 	}
 	// process the object stream
 
-	entry, ok := ctx.xrefTable.objects[on]
+	entry, ok := ctx.xrefTable.objects[model.ObjIndirectRef{ObjectNumber: on}]
 	if !ok {
 		return nil, fmt.Errorf("missing object stream for reference %d", on)
 	}

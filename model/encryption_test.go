@@ -29,7 +29,7 @@ func TestRC4Basic(t *testing.T) {
 		{Stream: Stream{Content: []byte(strings.Repeat("dlmskd", 10))}},
 	}}}
 	up, op := "dlà&#mks", "elmzk89.ek"
-	for _, v := range [...]EncryptionAlgorithm{Key40, KeyExt} {
+	for _, v := range [...]EncryptionAlgorithm{EaRC440, EaRC4Ext} {
 		for _, p := range [...]UserPermissions{
 			PermissionPrint,
 			PermissionModify,
@@ -41,7 +41,7 @@ func TestRC4Basic(t *testing.T) {
 			PermissionPrintDigital,
 		} {
 			enc := Encrypt{V: v, P: p}
-			enc = doc.UseStandardEncryptionHandler(enc, up, op, true)
+			enc = doc.UseStandardEncryptionHandler(enc, op, up, true)
 			f, err := os.Create("test/rc4.pdf")
 			if err != nil {
 				t.Fatal(err)

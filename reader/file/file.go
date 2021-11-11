@@ -5,6 +5,7 @@
 package file
 
 import (
+	"errors"
 	"io"
 
 	"github.com/benoitkugler/pdf/model"
@@ -26,6 +27,9 @@ type File struct {
 
 	// Reference to the Catalog root dictionnary
 	Root parser.IndirectRef
+
+	// ID is found in the trailer, and used for encryption
+	ID [2]string
 }
 
 // ResolveObject use the xref table to resolve indirect reference.
@@ -56,7 +60,12 @@ func IsString(o model.Object) (string, bool) {
 	}
 }
 
-type Configuration struct{}
+type Configuration struct {
+	// Either owner or user password.
+	// TODO: We don't support changing permissions,
+	// so both password acts the same.
+	Password string
+}
 
 func NewDefaultConfiguration() *Configuration {
 	return &Configuration{}
@@ -85,14 +94,14 @@ func Read(rs io.ReadSeeker, conf *Configuration) (File, error) {
 		return File{}, err
 	}
 
-	// err = ctx.processAllObjects()
-	// if err != nil {
-	// 	return File{}, err
-	// }
+	err = ctx.processAllObjects()
+	if err != nil {
+		return File{}, err
+	}
 
-	// if ctx.trailer.root == nil {
-	// 	return File{}, errors.New("missing Root entry")
-	// }
+	if ctx.trailer.root == nil {
+		return File{}, errors.New("missing Root entry")
+	}
 
 	out := File{
 		HeaderVersion:     ctx.HeaderVersion,
@@ -102,7 +111,11 @@ func Read(rs io.ReadSeeker, conf *Configuration) (File, error) {
 	}
 
 	for k, v := range ctx.xrefTable.objects {
-		out.xRefTable[k] = v.object
+		out.xRefTable[k.ObjectNumber] = v.object
+	}
+
+	if ctx.enc != nil {
+		out.ID = ctx.enc.ID
 	}
 
 	return out, nil

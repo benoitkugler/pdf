@@ -11,9 +11,9 @@ import (
 )
 
 type streamDictHeader struct {
-	dict                           parser.Dict
-	objectNumber, generationNumber int
-	contentOffset                  int64 // start of the actual content (from the start of the file)
+	dict          parser.Dict
+	ref           model.ObjIndirectRef
+	contentOffset int64 // start of the actual content (from the start of the file)
 }
 
 func (ctx *context) parseStreamDictAt(offset int64) (out streamDictHeader, err error) {
@@ -22,7 +22,7 @@ func (ctx *context) parseStreamDictAt(offset int64) (out streamDictHeader, err e
 		return out, err
 	}
 
-	out.objectNumber, out.generationNumber, err = parseObjectDeclaration(tk)
+	out.ref.ObjectNumber, out.ref.GenerationNumber, err = parseObjectDeclaration(tk)
 	if err != nil {
 		return out, err
 	}
@@ -96,8 +96,7 @@ func (ctx *context) decodeStreamContent(ref model.ObjIndirectRef, filters model.
 		// Special case if the "Identity" crypt filter is used: we do not need to decrypt.
 		if len(filters) == 1 && filters[0].Name == "Crypt" {
 		} else {
-			// TODO:
-			content, err = ctx.decryptStream(content, ref)
+			content, err = ctx.enc.decryptStream(content, ref)
 			if err != nil {
 				return nil, err
 			}
