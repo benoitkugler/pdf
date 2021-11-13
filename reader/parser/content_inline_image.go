@@ -7,7 +7,6 @@ import (
 
 	"github.com/benoitkugler/pdf/contentstream"
 	"github.com/benoitkugler/pdf/model"
-	"github.com/benoitkugler/pdf/reader/parser/filters"
 )
 
 var errBIExpressionCorrupt = errors.New("corrupt BI (inline image) expression")
@@ -256,34 +255,6 @@ func processOneDecodeParms(parms Object) map[string]int {
 		parmsModel[string(paramName)] = intVal
 	}
 	return parmsModel
-}
-
-// SkipperFromFilter select the right skipper.
-// An error is returned if the filter is not supported
-func SkipperFromFilter(fi model.Filter) (filters.Skipper, error) {
-	var skipper filters.Skipper
-	switch fi.Name {
-	case filters.ASCII85:
-		skipper = filters.SkipperAscii85{}
-	case filters.ASCIIHex:
-		skipper = filters.SkipperAsciiHex{}
-	case filters.Flate:
-		skipper = filters.SkipperFlate{}
-	case filters.RunLength:
-		skipper = filters.SkipperRunLength{}
-	case filters.DCT:
-		skipper = filters.SkipperDCT{}
-	case filters.LZW:
-		var earlyChange bool
-		ec, ok := fi.DecodeParms["EarlyChange"]
-		if !ok || ec == 1 {
-			earlyChange = true
-		}
-		skipper = filters.SkipperLZW{EarlyChange: earlyChange}
-	default:
-		return nil, fmt.Errorf("unsupported filter: %s", fi.Name)
-	}
-	return skipper, nil
 }
 
 // read the inline data, store its content in img, and skip EI command

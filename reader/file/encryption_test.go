@@ -17,8 +17,8 @@ func TestReadProtectedRC4(t *testing.T) {
 	defer f.Close()
 
 	_, err = Read(f, nil)
-	if err == nil {
-		t.Fatal("expected error for invalid password")
+	if _, ok := err.(IncorrectPasswordErr); !ok {
+		t.Fatalf("expected error for invalid password, got %v", err)
 	}
 
 	// we check that both passwords are valid
@@ -49,6 +49,11 @@ func TestReadProtectedAES(t *testing.T) {
 	defer f.Close()
 
 	_, err = Read(f, nil)
+	if _, ok := err.(IncorrectPasswordErr); !ok {
+		t.Fatalf("expected error for invalid password, got %v", err)
+	}
+
+	_, err = Read(f, &Configuration{Password: "aaaa"})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -23,7 +23,11 @@ func newXRefTable() xRefTable {
 
 // populate object field of the xrefTable
 func (ctx *context) processAllObjects() error {
-	for on := range ctx.xrefTable.objects {
+	for on, entry := range ctx.xrefTable.objects {
+		if entry.free {
+			continue
+		}
+
 		_, err := ctx.resolveObjectNumber(on)
 		if err != nil {
 			return err
@@ -54,6 +58,7 @@ func (ctx *context) resolveObjectNumber(objRef model.ObjIndirectRef) (parser.Obj
 		return entry.object, nil
 	}
 
+	isCompressedObject := entry.streamObjectNumber != 0
 	// Actually resolve the object. There are two cases:
 	//	- the object is compressed inside an object stream
 	// 	- the object is a regular object
@@ -61,7 +66,7 @@ func (ctx *context) resolveObjectNumber(objRef model.ObjIndirectRef) (parser.Obj
 	// so that malicious loops won't lead to infinite recursion
 	entry.object = model.ObjNull{}
 
-	if entry.streamObjectNumber != 0 {
+	if isCompressedObject {
 		ob, err := ctx.processObjectStream(entry.streamObjectNumber)
 		if err != nil {
 			return nil, err
@@ -80,17 +85,21 @@ func (ctx *context) resolveObjectNumber(objRef model.ObjIndirectRef) (parser.Obj
 
 		_, _, err = parseObjectDeclaration(tk)
 		if err != nil {
-			return nil, fmt.Errorf("invalid object (%d): %s", objRef.ObjectNumber, err)
+			return nil, fmt.Errorf("invalid object declaration (%v): %s", objRef, err)
 		}
 
 		entry.object, err = parser.NewParserFromTokenizer(tk).ParseObject()
 		if err != nil {
-			return nil, fmt.Errorf("invalid object (%d): %s", objRef.ObjectNumber, err)
+			return nil, fmt.Errorf("invalid object content (%v): %s", objRef, err)
 		}
 
 		// stream object are dict with an additional content : lookup up for them
 		nt, _ := tk.NextToken()
 		if streamHeader, ok := entry.object.(model.ObjDict); nt.IsOther("stream") && ok {
+			// before resolving, we need to save the current tokeniser position,
+			// since it may be used during resolution
+			streamPosition := entry.offset + int64(tk.StreamPosition())
+
 			filters, err := parser.ParseFilters(streamHeader["Filter"], streamHeader["DecodeParms"], ctx.resolve)
 			if err != nil {
 				return nil, fmt.Errorf("invalid stream: %s", err)
@@ -106,9 +115,9 @@ func (ctx *context) resolveObjectNumber(objRef model.ObjIndirectRef) (parser.Obj
 			}
 
 			// we want the cryted not decoded content
-			content, err := ctx.extractStreamContent(filters, entry.offset+int64(tk.StreamPosition()), int(length))
+			content, err := ctx.extractStreamContent(filters, streamPosition, int(length))
 			if err != nil {
-				return nil, err
+				return nil, fmt.Errorf("failed to resolve %v: %s", objRef, err)
 			}
 
 			entry.object = model.ObjStream{Args: streamHeader, Content: content}
@@ -116,7 +125,7 @@ func (ctx *context) resolveObjectNumber(objRef model.ObjIndirectRef) (parser.Obj
 	}
 
 	var err error
-	if ctx.enc != nil {
+	if ctx.enc != nil && !isCompressedObject { // object inside streams object shall not be encrypted
 		entry.object, err = ctx.enc.decryptObject(entry.object, objRef)
 	}
 
@@ -129,6 +138,7 @@ func (ctx *context) resolveObjectNumber(objRef model.ObjIndirectRef) (parser.Obj
 type xrefEntry struct {
 	object parser.Object // initialy nil
 
+	free   bool // if true, won't be resolved
 	offset int64
 
 	// for object in object streams

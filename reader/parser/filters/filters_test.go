@@ -77,7 +77,7 @@ func TestDontPassEOD(t *testing.T) {
 		fil := skippers[fi]
 
 		// add data passed EOD
-		additionalBytes := []byte("')(à'(ààç454658")
+		additionalBytes := bytes.Repeat([]byte("')(à'(ààç454658"), 1000)
 		filteredPadded := append(filtered, additionalBytes...)
 
 		read1, err := fil.Skip(bytes.NewReader(filteredPadded))

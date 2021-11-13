@@ -50,33 +50,37 @@ func generatePDFs() {
 	f.AddPage()
 	f.Text(10, 10, "My secret content !")
 	if err := f.OutputFileAndClose("test/ProtectedRC4.pdf"); err != nil {
-		log.Fatal(err)
+		panic(err)
 	}
 
 	g := gofpdf.New("", "", "", "")
+	// g.AddPage()
+	// a := gofpdf.Attachment{
+	// 	Filename:    "Test.txt",
+	// 	Content:     []byte("AOIEPOZNSLKDSD"),
+	// 	Description: "Nice file !",
+	// }
+	// g.AddAttachmentAnnotation(&a, 10, 10, 20, 20)
+	// g.SetAttachments([]gofpdf.Attachment{
+	// 	a, a,
+	// })
+
 	g.AddPage()
-	a := gofpdf.Attachment{
-		Filename:    "Test.txt",
-		Content:     []byte("AOIEPOZNSLKDSD"),
-		Description: "Nice file !",
-	}
-	g.AddAttachmentAnnotation(&a, 10, 10, 20, 20)
-	g.SetAttachments([]gofpdf.Attachment{
-		a, a,
-	})
-	g.AddPage()
+
 	l := g.AddLink()
 	g.SetLink(l, 10, 1)
 	g.Link(20, 30, 40, 50, l)
 	g.Rect(20, 30, 40, 50, "D")
 	if err := g.OutputFileAndClose("test/Links.pdf"); err != nil {
-		log.Fatal(err)
+		panic(err)
 	}
 
 	g = gofpdf.New("", "", "", "")
 	if err := g.OutputFileAndClose("test/Empty.pdf"); err != nil {
-		log.Fatal(err)
+		panic(err)
 	}
+
+	fmt.Println("Test PDF generated.")
 }
 
 func TestOpen(t *testing.T) {
@@ -116,7 +120,6 @@ func TestDataset(t *testing.T) {
 		"test/Empty.pdf",
 		"test/descriptif.pdf",
 		"test/f1118s1.pdf",
-		// "test/transparents.pdf",
 		"test/ModeleRecuFiscalEditable.pdf",
 		"test/CMYK_OP.pdf",
 		"test/CMYKSpot_OP.pdf",

@@ -7,6 +7,7 @@ package file
 import (
 	"errors"
 	"io"
+	"os"
 
 	"github.com/benoitkugler/pdf/model"
 	"github.com/benoitkugler/pdf/reader/parser"
@@ -69,6 +70,17 @@ type Configuration struct {
 
 func NewDefaultConfiguration() *Configuration {
 	return &Configuration{}
+}
+
+// ReadFile is the same as Read, but takes a file name as input.
+func ReadFile(file string, conf *Configuration) (File, error) {
+	f, err := os.Open(file)
+	if err != nil {
+		return File{}, err
+	}
+	defer f.Close()
+
+	return Read(f, conf)
 }
 
 // Read process a PDF file, reading the xref table and loading

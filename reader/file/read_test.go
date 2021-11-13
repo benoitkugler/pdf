@@ -3,12 +3,13 @@ package file
 import (
 	"bytes"
 	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/benoitkugler/pdf/model"
 )
 
-func TestOffset(t *testing.T) {
+func TestSpecOffset(t *testing.T) {
 	f, err := os.Open("../test/PDF_SPEC.pdf")
 	if err != nil {
 		t.Fatal(err)
@@ -26,8 +27,13 @@ func TestOffset(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if L := len(ctx.xrefTable.objects); L != 126990 {
+	if L := len(ctx.xrefTable.objects); L != 126989 {
 		t.Errorf("expected 126989 objects, got %d", L)
+	}
+
+	_, err = ReadFile("../test/PDF_SPEC.pdf", nil)
+	if err != nil {
+		t.Fatal(err)
 	}
 }
 
@@ -98,48 +104,38 @@ func TestBypass(t *testing.T) {
 	}
 }
 
-func TestCorpus(t *testing.T) {
-	files := [...]string{
-		"../test/Empty.pdf",
-		"../test/descriptif.pdf",
-		"../test/f1118s1.pdf",
-		"../test/transparents.pdf",
-		"../test/ModeleRecuFiscalEditable.pdf",
-		"../test/CMYK_OP.pdf",
-		"../test/CMYKSpot_OP.pdf",
-		"../test/Shading.pdf",
-		"../test/Shading4.pdf",
-		"../test/Font_Substitution.pdf",
-		"../test/Protected.pdf",
+func filesFromDir(dir string) []string {
+	files, err := os.ReadDir(dir)
+	if err != nil {
+		panic(err)
 	}
-	for _, file := range files {
-		f, err := os.Open(file)
+
+	var out []string
+	for _, f := range files {
+		if f.IsDir() {
+			continue
+		}
+		out = append(out, filepath.Join(dir, f.Name()))
+	}
+	return out
+}
+
+func TestCorpus(t *testing.T) {
+	for _, file := range filesFromDir("../test/corpus") {
+		_, err := ReadFile(file, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
+	}
+}
 
-		_, err = Read(f, nil)
+func TestCorpus2(t *testing.T) {
+	// this corpus is copied from pdfcpu
+	for _, file := range filesFromDir("../test/corpus/testdata") {
+		_, err := ReadFile(file, nil)
 		if err != nil {
-			t.Fatal(err)
+			t.Fatal(file, err)
 		}
-
-		// ctx, err := newContext(f, nil)
-		// if err != nil {
-		// 	t.Fatal(err)
-		// }
-		// err = ctx.bypassXrefSection()
-		// if err != nil {
-		// 	t.Fatal(err)
-		// }
-
-		// for on := range ctx.xrefTable.objects {
-		// 	_, err := ctx.resolveObjectNumber(on)
-		// 	if err != nil {
-		// 		t.Fatal(file, err)
-		// 	}
-		// }
-
-		f.Close()
 	}
 }
 
@@ -167,13 +163,13 @@ func TestXrefTableOffsets(t *testing.T) {
 
 	expectedOffsets := []int64{
 		0,
-		243,
-		330,
+		213,
+		300,
 		9,
 		87,
-		442,
-		574,
-		689,
+		412,
+		544,
+		659,
 	}
 	if len(ctx.xrefTable.objects) != len(expectedOffsets) {
 		t.Fatal(ctx.xrefTable.objects)

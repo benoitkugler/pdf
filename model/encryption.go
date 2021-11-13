@@ -17,6 +17,12 @@ var padding = [...]byte{
 	0x2F, 0x0C, 0xA9, 0xFE, 0x64, 0x53, 0x69, 0x7A,
 }
 
+type SecuriyHandler interface {
+	// compare the given passwords against the hash found in a PDF file,
+	// and return the encryption key and true if they are correct, or false
+	AuthenticatePasswords(ownerPassword, userPassword string, enc EncryptionStandard) ([]byte, bool)
+}
+
 // UserPermissions is a flag.
 // See Table 22 – User access permissions and Table 24 – Public-Key security handler user access permissions
 // in the PDF SPEC.
@@ -205,6 +211,7 @@ type EncryptionStandard struct {
 	DontEncryptMetadata bool
 
 	UE, OE [32]byte // used for AES encryption
+	Perms  [16]byte // used for AES encryption
 
 	// needed to encrypt, but not written in the PDF
 	encryptionKey []byte

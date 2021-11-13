@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"log"
 
 	"github.com/benoitkugler/pdf/model"
 	"github.com/benoitkugler/pdf/reader/parser"
@@ -60,28 +61,21 @@ func (ctx *context) parseStreamDictAt(offset int64) (out streamDictHeader, err e
 // 	- else we use the EOD of the filter (which if the most reliable method)
 func (ctx *context) extractStreamContent(filters model.Filters, offset int64, expectedLength int) ([]byte, error) {
 	if ctx.enc != nil || len(filters) == 0 {
-		if expectedLength == 0 || expectedLength > int(ctx.fileSize) {
-			// corrupted length
-			return ctx.readStreamBlindly(offset)
-		}
-		return ctx.readStreamMaxLength(offset, expectedLength)
+		// we can't use information provided by a potential filter
+		return ctx.readStreamFromLength(offset, expectedLength)
 	}
 
 	// rely on EOD
+	out, err := ctx.readStreamWithEOD(filters[0], offset)
+	if err != nil {
+		// if the filtered content is badly formatted, try again
+		// with the heuristic approaches
+		log.Printf("reading PDF filtered stream : %s. trying to fix\n", err)
 
-	skipper, err := parser.SkipperFromFilter(filters[0])
-	if err != nil {
-		return nil, err
+		return ctx.readStreamFromLength(offset, expectedLength)
 	}
-	_, err = ctx.rs.Seek(offset, io.SeekStart)
-	if err != nil {
-		return nil, err
-	}
-	trueLength, err := skipper.Skip(ctx.rs)
-	if err != nil {
-		return nil, err
-	}
-	return ctx.readAt(trueLength, offset)
+
+	return out, nil
 }
 
 // extract, decrypt, and decode a stream at `offset`
@@ -89,7 +83,7 @@ func (ctx *context) extractStreamContent(filters model.Filters, offset int64, ex
 func (ctx *context) decodeStreamContent(ref model.ObjIndirectRef, filters model.Filters, offset int64, expectedLengthPlain int) (content []byte, err error) {
 	content, err = ctx.extractStreamContent(filters, offset, expectedLengthPlain)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("invalid stream content: %s", err)
 	}
 
 	if ctx.enc != nil {
@@ -98,7 +92,7 @@ func (ctx *context) decodeStreamContent(ref model.ObjIndirectRef, filters model.
 		} else {
 			content, err = ctx.enc.decryptStream(content, ref)
 			if err != nil {
-				return nil, err
+				return nil, fmt.Errorf("invalid stream content: %s", err)
 			}
 		}
 	}
@@ -106,13 +100,25 @@ func (ctx *context) decodeStreamContent(ref model.ObjIndirectRef, filters model.
 	// Decode stream content:
 	r, err := filters.DecodeReader(bytes.NewReader(content))
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("invalid stream content: %s", err)
 	}
 	return ioutil.ReadAll(r)
 }
 
-// apply a weak heuristic : buffer content until we found "endstream"
+// readStreamFromLength try to locate the end of the stream using `expectedLength`,
+// which is not always realiable
+func (ctx *context) readStreamFromLength(offset int64, expectedLength int) ([]byte, error) {
+	if expectedLength == 0 || expectedLength > int(ctx.fileSize) {
+		// corrupted length
+		return ctx.readStreamBlindly(offset)
+	}
+
+	return ctx.readStreamMaxLength(offset, expectedLength)
+}
+
 func (ctx *context) readStreamBlindly(offset int64) ([]byte, error) {
+	// corrupted length => apply a weak heuristic :
+	// buffer content until we found "endstream"
 	_, err := ctx.rs.Seek(offset, io.SeekStart)
 	if err != nil {
 		return nil, err
@@ -170,4 +176,21 @@ func (ctx *context) readStreamMaxLength(offset int64, maxLength int) ([]byte, er
 	}
 
 	return buf, nil
+}
+
+// read starting from `offset` until the EOD marker expected by `filter` is reached
+func (ctx *context) readStreamWithEOD(filter model.Filter, offset int64) ([]byte, error) {
+	skipper, err := parser.SkipperFromFilter(filter)
+	if err != nil {
+		return nil, err
+	}
+	_, err = ctx.rs.Seek(offset, io.SeekStart)
+	if err != nil {
+		return nil, fmt.Errorf("invalid stream offset %d: %s", offset, err)
+	}
+	trueLength, err := skipper.Skip(ctx.rs)
+	if err != nil {
+		return nil, fmt.Errorf("failed to locate stream end: %s (filter: %s)", err, filter.Name)
+	}
+	return ctx.readAt(trueLength, offset)
 }

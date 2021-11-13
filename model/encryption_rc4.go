@@ -110,10 +110,10 @@ func (s RC4SecurityHandler) generateUserHash(encryptionKey []byte) (v [48]byte) 
 	return v
 }
 
-// AuthUserPassword compare the given password to the hash found in a PDF file.
+// authUserPassword compare the given password to the hash found in a PDF file.
 // It returns the encryption key and `true` if the password is correct, or `false`.
 // See - Algorithm 6: Authenticating the user password
-func (s *RC4SecurityHandler) AuthUserPassword(password string, ownerHash, userHash [48]byte) ([]byte, bool) {
+func (s *RC4SecurityHandler) authUserPassword(password string, ownerHash, userHash [48]byte) ([]byte, bool) {
 	encryptionKey := s.generateEncryptionKey(password, ownerHash)
 	gotHash := s.generateUserHash(encryptionKey)
 
@@ -128,10 +128,10 @@ func (s *RC4SecurityHandler) AuthUserPassword(password string, ownerHash, userHa
 	return encryptionKey, ok
 }
 
-// AuthOwnerPassword compare the given password to the hash found in a PDF file, returning
+// authOwnerPassword compare the given password to the hash found in a PDF file, returning
 // `true` if the owner password is correct, as well as the encryption key.
 // See - Algorithm 7: Authenticating the owner password
-func (s *RC4SecurityHandler) AuthOwnerPassword(password string, ownerHash, userHash [48]byte) ([]byte, bool) {
+func (s *RC4SecurityHandler) authOwnerPassword(password string, ownerHash, userHash [48]byte) ([]byte, bool) {
 	// step a)
 	encryptionKey := s.generateOwnerEncryptionKey(password)
 
@@ -143,9 +143,9 @@ func (s *RC4SecurityHandler) AuthOwnerPassword(password string, ownerHash, userH
 		c.XORKeyStream(decryptedPassword[:], decryptedPassword[:])
 	} else {
 		newKey := make([]byte, len(encryptionKey))
-		for i := byte(19); i >= 0; i-- {
+		for i := 19; i >= 0; i-- { // care with overflow
 			for j, b := range encryptionKey { // update `newKey`
-				newKey[j] = b ^ i
+				newKey[j] = b ^ byte(i)
 			}
 
 			c, _ := rc4.NewCipher(newKey)
@@ -154,5 +154,15 @@ func (s *RC4SecurityHandler) AuthOwnerPassword(password string, ownerHash, userH
 	}
 
 	// step c)
-	return s.AuthUserPassword(string(decryptedPassword[:]), ownerHash, userHash)
+	return s.authUserPassword(string(decryptedPassword[:]), ownerHash, userHash)
+}
+
+// AuthenticatePasswords compare the given passwords to the hash found in a PDF file, returning
+// `true` if one of the password is correct, as well as the encryption key.
+func (s *RC4SecurityHandler) AuthenticatePasswords(ownerPassword, userPassword string, enc EncryptionStandard) ([]byte, bool) {
+	key, ok := s.authOwnerPassword(ownerPassword, enc.O, enc.U)
+	if !ok {
+		key, ok = s.authUserPassword(userPassword, enc.O, enc.U)
+	}
+	return key, ok
 }

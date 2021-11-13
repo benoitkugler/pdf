@@ -8,7 +8,7 @@ require (
 	github.com/hhrutter/lzw v0.0.0-20190829144645-6f07a24e8650
 	github.com/pdfcpu/pdfcpu v0.3.12
 	github.com/phpdave11/gofpdf v1.4.2
-	golang.org/x/exp/errors v0.0.0-20211102154824-3b956f2825b8
+	golang.org/x/exp/errors v0.0.0-20211111183329-cb5df436b1a8
 	golang.org/x/image v0.0.0-20211028202545-6944b10bf410
 	golang.org/x/text v0.3.7
 )

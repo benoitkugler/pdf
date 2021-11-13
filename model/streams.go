@@ -42,6 +42,11 @@ func (f Filter) Clone() Filter {
 }
 
 func (fi Filter) DecodeReader(r io.Reader) (io.Reader, error) {
+	// special case for Crypt filters
+	if fi.Name == "Crypt" {
+		return r, nil
+	}
+
 	fil, err := filter.NewFilter(string(fi.Name), fi.DecodeParms)
 	if err != nil {
 		return nil, err

@@ -30,23 +30,6 @@ func TestDifferences(t *testing.T) {
 	}
 }
 
-func TestToUnicode(t *testing.T) {
-	doc, _, err := ParsePDFFile("test/transparents.pdf", Options{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, p := range doc.Catalog.Pages.Flatten() {
-		for _, font := range p.Resources.Font {
-			if font.ToUnicode == nil {
-				continue
-			}
-			fmt.Println(font.ToUnicode.Length())
-			b, _ := font.ToUnicode.Decode()
-			fmt.Println(string(b))
-		}
-	}
-}
-
 func TestGradients(t *testing.T) {
 	doc, _, err := ParsePDFFile("test/gradients.pdf", Options{})
 	if err != nil {
