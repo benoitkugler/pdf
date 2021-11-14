@@ -3,7 +3,7 @@ module github.com/benoitkugler/pdf
 go 1.16
 
 require (
-	github.com/benoitkugler/pstokenizer v1.0.0
+	github.com/benoitkugler/pstokenizer v1.0.1
 	github.com/benoitkugler/textlayout v0.0.3
 	github.com/hhrutter/lzw v0.0.0-20190829144645-6f07a24e8650
 	github.com/pdfcpu/pdfcpu v0.3.12
@@ -12,7 +12,5 @@ require (
 	golang.org/x/image v0.0.0-20211028202545-6944b10bf410
 	golang.org/x/text v0.3.7
 )
-
-replace github.com/benoitkugler/pstokenizer => ../pstokenizer
 
 replace github.com/pdfcpu/pdfcpu => ../../pdfcpu/pdfcpu

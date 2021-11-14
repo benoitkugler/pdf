@@ -41,6 +41,8 @@ type Appearance struct {
 	stateList []GraphicState
 	State     GraphicState
 	bBox      model.Rectangle
+
+	fillAlphaState, strokeAlphaState map[model.ObjFloat]*model.GraphicState
 }
 
 // NewAppearance setup the BBox and initialize the
@@ -55,7 +57,9 @@ func NewAppearance(width, height Fl) Appearance {
 			ExtGState: make(map[model.ObjName]*model.GraphicState),
 			Pattern:   make(map[model.ObjName]model.Pattern),
 		},
-		State: GraphicState{Matrix: model.Matrix{1, 0, 0, 1, 0, 0}},
+		State:            GraphicState{Matrix: model.Matrix{1, 0, 0, 1, 0, 0}},
+		fillAlphaState:   make(map[model.ObjFloat]*model.GraphicState),
+		strokeAlphaState: make(map[model.ObjFloat]*model.GraphicState),
 	}
 }
 
@@ -124,8 +128,13 @@ func (app *Appearance) SetFillAlpha(alpha Fl) {
 		return
 	}
 	app.State.fillAlpha = alpha
-	// TODO cache to optimized output
-	app.SetGraphicState(&model.GraphicState{Ca: model.ObjFloat(alpha)})
+
+	state, has := app.fillAlphaState[model.ObjFloat(alpha)]
+	if !has {
+		state = &model.GraphicState{Ca: model.ObjFloat(alpha)}
+		app.fillAlphaState[model.ObjFloat(alpha)] = state
+	}
+	app.SetGraphicState(state)
 }
 
 func (app *Appearance) SetStrokeAlpha(alpha Fl) {
@@ -133,7 +142,13 @@ func (app *Appearance) SetStrokeAlpha(alpha Fl) {
 		return
 	}
 	app.State.strokeAlpha = alpha
-	app.SetGraphicState(&model.GraphicState{CA: model.ObjFloat(alpha)})
+
+	state, has := app.strokeAlphaState[model.ObjFloat(alpha)]
+	if !has {
+		state = &model.GraphicState{CA: model.ObjFloat(alpha)}
+		app.strokeAlphaState[model.ObjFloat(alpha)] = state
+	}
+	app.SetGraphicState(state)
 }
 
 // SetGraphicState register the given state and write it on the stream
