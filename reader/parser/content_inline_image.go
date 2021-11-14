@@ -7,6 +7,7 @@ import (
 
 	"github.com/benoitkugler/pdf/contentstream"
 	"github.com/benoitkugler/pdf/model"
+	"github.com/benoitkugler/pdf/reader/parser/filters"
 )
 
 var errBIExpressionCorrupt = errors.New("corrupt BI (inline image) expression")
@@ -284,7 +285,7 @@ func (pr *Parser) parseImageData(img *contentstream.OpBeginImage, fils, decodePa
 
 		// we only apply the first filter
 		fi := img.Image.Stream.Filter[0]
-		skipper, err := SkipperFromFilter(fi)
+		skipper, err := filters.SkipperFromFilter(string(fi.Name), fi.DecodeParms)
 		if err != nil {
 			return err
 		}

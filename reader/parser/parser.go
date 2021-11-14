@@ -8,8 +8,6 @@ import (
 	"fmt"
 
 	"github.com/benoitkugler/pdf/model"
-	"github.com/benoitkugler/pdf/reader/parser/filters"
-	"github.com/benoitkugler/pdf/reader/parser/filters/ccitt"
 	tkn "github.com/benoitkugler/pstokenizer"
 )
 
@@ -297,56 +295,4 @@ func ParseObjectDefinition(line []byte, headerOnly bool) (objectNumber int, gene
 	pr := Parser{tokens: tokens}
 	obj, err := pr.ParseObject()
 	return objNr, genNr, obj, err
-}
-
-// SkipperFromFilter select the right skipper.
-// An error is returned if and only if the filter is not supported
-func SkipperFromFilter(fi model.Filter) (filters.Skipper, error) {
-	var skipper filters.Skipper
-	switch fi.Name {
-	case filters.ASCII85:
-		skipper = filters.SkipperAscii85{}
-	case filters.ASCIIHex:
-		skipper = filters.SkipperAsciiHex{}
-	case filters.Flate:
-		skipper = filters.SkipperFlate{}
-	case filters.RunLength:
-		skipper = filters.SkipperRunLength{}
-	case filters.DCT:
-		skipper = filters.SkipperDCT{}
-	case model.CCITTFax:
-		skipper = filters.SkipperCCITT{Params: processCCITTFaxParams(fi.DecodeParms)}
-	case filters.LZW:
-		var earlyChange bool
-		ec, ok := fi.DecodeParms["EarlyChange"]
-		if !ok || ec == 1 {
-			earlyChange = true
-		}
-		skipper = filters.SkipperLZW{EarlyChange: earlyChange}
-	default:
-		return nil, fmt.Errorf("unsupported filter: %s", fi.Name)
-	}
-	return skipper, nil
-}
-
-func processCCITTFaxParams(params map[string]int) ccitt.CCITTParams {
-	cols := 1728
-	col, ok := params["Columns"]
-	if ok {
-		cols = col
-	}
-
-	endOfBlock := true
-	if v, has := params["EndOfBlock"]; has && v != 1 {
-		endOfBlock = false
-	}
-	return ccitt.CCITTParams{
-		Encoding:   int32(params["K"]),
-		Columns:    int32(cols),
-		Rows:       int32(params["Rows"]),
-		EndOfBlock: endOfBlock,
-		EndOfLine:  params["EndOfLine"] == 1,
-		Black:      params["BlackIs1"] == 1,
-		ByteAlign:  params["EncodedByteAlign"] == 1,
-	}
 }

@@ -4,8 +4,6 @@
 package reader
 
 import (
-	"bytes"
-	"encoding/hex"
 	"fmt"
 	"io"
 	"log"
@@ -13,7 +11,7 @@ import (
 	"time"
 
 	"github.com/benoitkugler/pdf/model"
-	"github.com/pdfcpu/pdfcpu/pkg/pdfcpu"
+	"github.com/benoitkugler/pdf/reader/file"
 	"golang.org/x/text/encoding/unicode"
 )
 
@@ -24,59 +22,59 @@ const debug = false
 // maintain tables mapping PDF indirect object numbers
 // to model objects
 type resolver struct {
-	xref *pdfcpu.XRefTable
+	file file.File
 
-	// appearanceEntries map[pdfcpu.IndirectRef]*model.AppearanceEntry
-	formFields        map[pdfcpu.IndirectRef]*model.FormFieldDict
-	appearanceDicts   map[pdfcpu.IndirectRef]*model.AppearanceDict
-	resources         map[pdfcpu.IndirectRef]model.ResourcesDict
-	fonts             map[pdfcpu.IndirectRef]*model.FontDict
-	graphicsStates    map[pdfcpu.IndirectRef]*model.GraphicState
-	encodings         map[pdfcpu.IndirectRef]*model.SimpleEncodingDict
-	annotations       map[pdfcpu.IndirectRef]*model.AnnotationDict
-	fileSpecs         map[pdfcpu.IndirectRef]*model.FileSpec
-	fileContents      map[pdfcpu.IndirectRef]*model.EmbeddedFileStream
-	pages             map[pdfcpu.IndirectRef]*model.PageObject
-	shadings          map[pdfcpu.IndirectRef]*model.ShadingDict
-	functions         map[pdfcpu.IndirectRef]*model.FunctionDict
-	patterns          map[pdfcpu.IndirectRef]model.Pattern
-	xObjectForms      map[pdfcpu.IndirectRef]*model.XObjectForm
-	images            map[pdfcpu.IndirectRef]*model.XObjectImage
-	imageSMasks       map[pdfcpu.IndirectRef]*model.ImageSMask
-	iccs              map[pdfcpu.IndirectRef]*model.ColorSpaceICCBased
-	colorTableStreams map[pdfcpu.IndirectRef]*model.ColorTableStream
-	structure         map[pdfcpu.IndirectRef]*model.StructureElement
+	// appearanceEntries map[model.ObjIndirectRef]*model.AppearanceEntry
+	formFields        map[model.ObjIndirectRef]*model.FormFieldDict
+	appearanceDicts   map[model.ObjIndirectRef]*model.AppearanceDict
+	resources         map[model.ObjIndirectRef]model.ResourcesDict
+	fonts             map[model.ObjIndirectRef]*model.FontDict
+	graphicsStates    map[model.ObjIndirectRef]*model.GraphicState
+	encodings         map[model.ObjIndirectRef]*model.SimpleEncodingDict
+	annotations       map[model.ObjIndirectRef]*model.AnnotationDict
+	fileSpecs         map[model.ObjIndirectRef]*model.FileSpec
+	fileContents      map[model.ObjIndirectRef]*model.EmbeddedFileStream
+	pages             map[model.ObjIndirectRef]*model.PageObject
+	shadings          map[model.ObjIndirectRef]*model.ShadingDict
+	functions         map[model.ObjIndirectRef]*model.FunctionDict
+	patterns          map[model.ObjIndirectRef]model.Pattern
+	xObjectForms      map[model.ObjIndirectRef]*model.XObjectForm
+	images            map[model.ObjIndirectRef]*model.XObjectImage
+	imageSMasks       map[model.ObjIndirectRef]*model.ImageSMask
+	iccs              map[model.ObjIndirectRef]*model.ColorSpaceICCBased
+	colorTableStreams map[model.ObjIndirectRef]*model.ColorTableStream
+	structure         map[model.ObjIndirectRef]*model.StructureElement
 
 	customResolve CustomObjectResolver // optional, default is nil
 }
 
 func newResolver() resolver {
 	return resolver{
-		formFields:        make(map[pdfcpu.IndirectRef]*model.FormFieldDict),
-		appearanceDicts:   make(map[pdfcpu.IndirectRef]*model.AppearanceDict),
-		resources:         make(map[pdfcpu.IndirectRef]model.ResourcesDict),
-		fonts:             make(map[pdfcpu.IndirectRef]*model.FontDict),
-		graphicsStates:    make(map[pdfcpu.IndirectRef]*model.GraphicState),
-		encodings:         make(map[pdfcpu.IndirectRef]*model.SimpleEncodingDict),
-		annotations:       make(map[pdfcpu.IndirectRef]*model.AnnotationDict),
-		fileSpecs:         make(map[pdfcpu.IndirectRef]*model.FileSpec),
-		fileContents:      make(map[pdfcpu.IndirectRef]*model.EmbeddedFileStream),
-		pages:             make(map[pdfcpu.IndirectRef]*model.PageObject),
-		functions:         make(map[pdfcpu.IndirectRef]*model.FunctionDict),
-		shadings:          make(map[pdfcpu.IndirectRef]*model.ShadingDict),
-		patterns:          make(map[pdfcpu.IndirectRef]model.Pattern),
-		xObjectForms:      make(map[pdfcpu.IndirectRef]*model.XObjectForm),
-		images:            make(map[pdfcpu.IndirectRef]*model.XObjectImage),
-		imageSMasks:       make(map[pdfcpu.IndirectRef]*model.ImageSMask),
-		iccs:              make(map[pdfcpu.IndirectRef]*model.ColorSpaceICCBased),
-		colorTableStreams: make(map[pdfcpu.IndirectRef]*model.ColorTableStream),
-		structure:         make(map[pdfcpu.IndirectRef]*model.StructureElement),
+		formFields:        make(map[model.ObjIndirectRef]*model.FormFieldDict),
+		appearanceDicts:   make(map[model.ObjIndirectRef]*model.AppearanceDict),
+		resources:         make(map[model.ObjIndirectRef]model.ResourcesDict),
+		fonts:             make(map[model.ObjIndirectRef]*model.FontDict),
+		graphicsStates:    make(map[model.ObjIndirectRef]*model.GraphicState),
+		encodings:         make(map[model.ObjIndirectRef]*model.SimpleEncodingDict),
+		annotations:       make(map[model.ObjIndirectRef]*model.AnnotationDict),
+		fileSpecs:         make(map[model.ObjIndirectRef]*model.FileSpec),
+		fileContents:      make(map[model.ObjIndirectRef]*model.EmbeddedFileStream),
+		pages:             make(map[model.ObjIndirectRef]*model.PageObject),
+		functions:         make(map[model.ObjIndirectRef]*model.FunctionDict),
+		shadings:          make(map[model.ObjIndirectRef]*model.ShadingDict),
+		patterns:          make(map[model.ObjIndirectRef]model.Pattern),
+		xObjectForms:      make(map[model.ObjIndirectRef]*model.XObjectForm),
+		images:            make(map[model.ObjIndirectRef]*model.XObjectImage),
+		imageSMasks:       make(map[model.ObjIndirectRef]*model.ImageSMask),
+		iccs:              make(map[model.ObjIndirectRef]*model.ColorSpaceICCBased),
+		colorTableStreams: make(map[model.ObjIndirectRef]*model.ColorTableStream),
+		structure:         make(map[model.ObjIndirectRef]*model.StructureElement),
 	}
 }
 
 type incompleteDest struct {
 	destination *model.DestinationExplicitIntern
-	ref         pdfcpu.IndirectRef
+	ref         model.ObjIndirectRef
 }
 
 func isUTF16(b []byte) bool {
@@ -88,62 +86,31 @@ func isUTF16(b []byte) bool {
 }
 
 var (
-	utf16Dec  = unicode.UTF16(unicode.BigEndian, unicode.UseBOM)
+	utf16Dec  = unicode.UTF16(unicode.BigEndian, unicode.UseBOM).NewDecoder()
 	pdfDocDec = model.PDFDocEncoding
 )
-
-// pdfDocEncodingToString decodes PDFDocEncoded byte slice `b` to unicode string.
-func pdfDocEncodingToString(b []byte) string {
-	var buf bytes.Buffer
-	for _, bval := range b {
-		r := pdfDocDec[bval]
-		if r == 0 {
-			continue
-		}
-		buf.WriteRune(r)
-	}
-	return buf.String()
-}
 
 // decodeTextString expects a "text string" as defined in PDF spec,
 // that is, either a PDFDocEncoded string or a UTF-16BE string
 func decodeTextString(s string) string {
-	b, err := pdfcpu.Unescape(s)
-	if err != nil {
-		log.Printf("error %s unescaping string literal %s\n", err, s)
-		return ""
-	}
+	b := []byte(s)
 
 	// Check for UTF-16: we also accept LE, since text/encoding handles it
 	if isUTF16(b) {
-		out, err := utf16Dec.NewDecoder().Bytes(b)
+		out, err := utf16Dec.Bytes(b)
 		if err != nil {
-			log.Printf("error decoding UTF16 string literal %s \n", err)
+			log.Printf("error decoding UTF16 string literal %v: %s \n", b, err)
 		}
 		return string(out)
 	}
 
-	return pdfDocEncodingToString(b)
+	return model.PdfDocEncodingToString(b)
 }
 
 // var replacer = strings.NewReplacer("\\\\", "\\", "\\(", ")", "\\)", "(", "\\r", "\r")
 
-// return the string and true if o is a StringLitteral (...) or a HexadecimalLitteral <...>
-// the string is unespaced (for StringLitteral) and decoded (for Hexadecimal)
-func isString(o pdfcpu.Object) (string, bool) {
-	switch o := o.(type) {
-	case pdfcpu.StringLiteral:
-		return o.Value(), true
-	case pdfcpu.HexLiteral:
-		out, err := hex.DecodeString(o.Value())
-		return string(out), err == nil
-	default:
-		return "", false
-	}
-}
-
 // output has same length as input
-func (r resolver) processFloatArray(ar pdfcpu.Array) []Fl {
+func (r resolver) processFloatArray(ar model.ObjArray) []Fl {
 	out := make([]Fl, len(ar))
 	for i, v := range ar {
 		out[i], _ = r.resolveNumber(v)
@@ -153,137 +120,33 @@ func (r resolver) processFloatArray(ar pdfcpu.Array) []Fl {
 
 func (r resolver) info() model.Info {
 	var out model.Info
-	if info := r.xref.Info; info != nil {
-		d, _ := r.resolve(*info).(pdfcpu.Dict)
-		producer, _ := isString(r.resolve(d["Producer"]))
-		title, _ := isString(r.resolve(d["Title"]))
-		subject, _ := isString(r.resolve(d["Subject"]))
-		author, _ := isString(r.resolve(d["Author"]))
-		keywords, _ := isString(r.resolve(d["Keywords"]))
-		creator, _ := isString(r.resolve(d["Creator"]))
-		creationDate, _ := isString(r.resolve(d["CreationDate"]))
-		modDate, _ := isString(r.resolve(d["ModDate"]))
+	if info := r.file.Info; info != nil {
+		d, _ := r.resolve(*info).(model.ObjDict)
+		producer, _ := file.IsString(r.resolve(d["Producer"]))
+		title, _ := file.IsString(r.resolve(d["Title"]))
+		subject, _ := file.IsString(r.resolve(d["Subject"]))
+		author, _ := file.IsString(r.resolve(d["Author"]))
+		keywords, _ := file.IsString(r.resolve(d["Keywords"]))
+		creator, _ := file.IsString(r.resolve(d["Creator"]))
+		creationDate, _ := file.IsString(r.resolve(d["CreationDate"]))
+		modDate, _ := file.IsString(r.resolve(d["ModDate"]))
 		out.Producer = decodeTextString(producer)
 		out.Title = decodeTextString(title)
 		out.Subject = decodeTextString(subject)
 		out.Author = decodeTextString(author)
 		out.Keywords = decodeTextString(keywords)
 		out.Creator = decodeTextString(creator)
-		out.CreationDate, _ = pdfcpu.DateTime(creationDate, true)
-		out.ModDate, _ = pdfcpu.DateTime(modDate, true)
+		out.CreationDate, _ = DateTime(creationDate)
+		out.ModDate, _ = DateTime(modDate)
 	}
 	return out
 }
 
-func (r resolver) encrypt() (*model.Encrypt, error) {
-	var out model.Encrypt
-	enc := r.xref.Encrypt
-	if enc == nil {
-		return nil, nil
-	}
-
-	d, _ := r.resolve(*enc).(pdfcpu.Dict)
-
-	out.Filter, _ = r.resolveName(d["Filter"])
-	out.SubFilter, _ = r.resolveName(d["SubFilter"])
-
-	v, _ := r.resolveInt(d["V"])
-	out.V = model.EncryptionAlgorithm(v)
-
-	length, _ := r.resolveInt(d["Length"])
-	if length%8 != 0 {
-		return nil, fmt.Errorf("field Length must be a multiple of 8")
-	}
-	out.Length = uint8(length / 8)
-
-	cf, _ := r.resolve(d["CF"]).(pdfcpu.Dict)
-	out.CF = make(map[model.ObjName]model.CrypFilter, len(cf))
-	for name, c := range cf {
-		out.CF[model.ObjName(name)] = r.processCryptFilter(c)
-	}
-	out.StmF, _ = r.resolveName(d["StmF"])
-	out.StrF, _ = r.resolveName(d["StrF"])
-	out.EFF, _ = r.resolveName(d["EFF"])
-
-	p, _ := r.resolveInt(d["P"])
-	out.P = model.UserPermissions(p)
-
-	// subtypes
-	var err error
-	if out.Filter == "Standard" {
-		out.EncryptionHandler, err = r.processStandardSecurityHandler(d)
-		if err != nil {
-			return nil, err
-		}
-	} else {
-		out.EncryptionHandler = r.processPublicKeySecurityHandler(d)
-	}
-
-	return &out, nil
-}
-
-func (r resolver) processStandardSecurityHandler(dict pdfcpu.Dict) (model.EncryptionStandard, error) {
-	var out model.EncryptionStandard
-	r_, _ := r.resolveInt(dict["R"])
-	out.R = uint8(r_)
-
-	o, _ := isString(r.resolve(dict["O"]))
-	if len(o) != 32 {
-		return out, fmt.Errorf("expected 32-length byte string for entry O, got %v", o)
-	}
-	for i := 0; i < len(o); i++ {
-		out.O[i] = o[i]
-	}
-
-	u, _ := isString(r.resolve(dict["U"]))
-	if len(u) != 32 {
-		return out, fmt.Errorf("expected 32-length byte string for entry U, got %v", u)
-	}
-	for i := 0; i < len(u); i++ {
-		out.U[i] = u[i]
-	}
-	if meta, ok := r.resolveBool(dict["EncryptMetadata"]); ok {
-		out.DontEncryptMetadata = !meta
-	}
-	return out, nil
-}
-
-func (r resolver) processPublicKeySecurityHandler(dict pdfcpu.Dict) model.EncryptionPublicKey {
-	rec, _ := r.resolveArray(dict["Recipients"])
-	out := make(model.EncryptionPublicKey, len(rec))
-	for i, re := range rec {
-		out[i], _ = isString(r.resolve(re))
-	}
-	return out
-}
-
-func (r resolver) processCryptFilter(crypt pdfcpu.Object) model.CrypFilter {
-	cryptDict, _ := r.resolve(crypt).(pdfcpu.Dict)
-	var out model.CrypFilter
-	out.CFM, _ = r.resolveName(cryptDict["CFM"])
-	out.AuthEvent, _ = r.resolveName(cryptDict["AuthEvent"])
-	out.Length, _ = r.resolveInt(cryptDict["AuthEvent"])
-	recipients := r.resolve(cryptDict["Recipients"])
-	if rec, ok := isString(recipients); ok {
-		out.Recipients = []string{rec}
-	} else if ar, ok := recipients.(pdfcpu.Array); ok {
-		out.Recipients = make([]string, len(ar))
-		for i, re := range ar {
-			out.Recipients[i], _ = isString(r.resolve(re))
-		}
-	}
-	if enc, ok := r.resolveBool(cryptDict["EncryptMetadata"]); ok {
-		out.DontEncryptMetadata = !enc
-	}
-	return out
-}
-
-// Options enables greater control
-// on the processing.
+// Options enables greater control on the processing.
 // The zero value is a valid default configuration.
 type Options struct {
-	UserPassword         string
 	CustomObjectResolver CustomObjectResolver
+	UserPassword         string
 }
 
 // ParsePDFFile opens a file and calls `ParsePDFReader`,
@@ -309,24 +172,22 @@ func ParsePDFFile(filename string, options Options) (model.Document, *model.Encr
 // Information about encryption are returned separately, and will be needed
 // if you want to encrypt the document back.
 func ParsePDFReader(source io.ReadSeeker, options Options) (model.Document, *model.Encrypt, error) {
-	config := pdfcpu.NewDefaultConfiguration()
-	config.UserPW = options.UserPassword
-	config.DecodeAllStreams = true
+	config := file.Configuration{Password: options.UserPassword}
 
 	ti := time.Now()
 
-	ctx, err := pdfcpu.Read(source, config)
+	ctx, err := file.Read(source, &config)
 	if err != nil {
 		return model.Document{}, nil, fmt.Errorf("can't read PDF: %w", err)
 	}
 
 	if debug {
-		fmt.Printf("pdfcpu processing: %s\n", time.Since(ti))
+		fmt.Printf("raw file processing: %s\n", time.Since(ti))
 	}
 	ti = time.Now()
 
 	r := newResolver()
-	r.xref = ctx.XRefTable
+	r.file = ctx
 	r.customResolve = options.CustomObjectResolver
 
 	out, enc, err := r.processPDF()
@@ -341,9 +202,9 @@ func ParsePDFReader(source io.ReadSeeker, options Options) (model.Document, *mod
 // ProcessContext walks through an already parsed PDF to build a model.
 // This function is exposed for debug purposes; you should probably use
 // one of `ParsePDFFile` or `ParsePDFReader` methods.
-func ProcessContext(ctx *pdfcpu.Context) (model.Document, *model.Encrypt, error) {
+func ProcessContext(ctx file.File) (model.Document, *model.Encrypt, error) {
 	r := newResolver()
-	r.xref = ctx.XRefTable
+	r.file = ctx
 	return r.processPDF()
 }
 
@@ -357,138 +218,51 @@ func (r resolver) processPDF() (model.Document, *model.Encrypt, error) {
 
 	out.Trailer.Info = r.info()
 
-	enc, err := r.encrypt()
-	if err != nil {
-		return out, nil, err
-	}
+	enc := r.file.Encrypt
 
 	out.Catalog, err = r.catalog()
 	return out, enc, err
 }
 
-func (r resolver) catalog() (model.Catalog, error) {
-	var out model.Catalog
-	d, err := r.xref.Catalog()
-	if err != nil {
-		return out, fmt.Errorf("can't resolve Catalog: %w", err)
-	}
-
-	out.AcroForm, err = r.processAcroForm(d["AcroForm"])
-	if err != nil {
-		return out, err
-	}
-
-	out.Pages, err = r.processPages(d["Pages"])
-	if err != nil {
-		return out, err
-	}
-
-	out.Dests, err = r.resolveDests(d["Dests"])
-	if err != nil {
-		return out, err
-	}
-
-	out.Names, err = r.processNameDict(d["Names"])
-	if err != nil {
-		return out, err
-	}
-
-	out.PageLayout, _ = r.resolveName(d["PageLayout"])
-	out.PageMode, _ = r.resolveName(d["PageMode"])
-
-	if pl := d["PageLabels"]; pl != nil {
-		out.PageLabels = new(model.PageLabelsTree)
-		err = r.resolveNumberTree(pl, pageLabelTree{out: out.PageLabels})
-		if err != nil {
-			return out, err
-		}
-	}
-
-	// pages, annotations, xforms need to be resolved
-	out.StructTreeRoot, err = r.resolveStructureTree(d["StructTreeRoot"])
-	if err != nil {
-		return out, err
-	}
-
-	// may need pages
-	// HACK for #252
-	out.Outlines, err = r.resolveOutline(d["Outlines"])
-	if err != nil {
-		return out, err
-	}
-	if out.Outlines == nil {
-		out.Outlines, err = r.resolveOutline(d["Outline"])
-		if err != nil {
-			return out, err
-		}
-	}
-
-	out.ViewerPreferences, err = r.resolveViewerPreferences(d["ViewerPreferences"])
-	if err != nil {
-		return out, err
-	}
-
-	out.MarkInfo, err = r.resolveMarkDict(d["MarkInfo"])
-	if err != nil {
-		return out, err
-	}
-
-	uriDict, ok := r.resolve(d["URI"]).(pdfcpu.Dict)
-	if ok {
-		out.URI, _ = isString(r.resolve(uriDict["Base"]))
-	}
-
-	out.OpenAction, err = r.resolveDestinationOrAction(d["OpenAction"])
-	if err != nil {
-		return out, err
-	}
-
-	lang, _ := isString(r.resolve(d["Lang"]))
-	out.Lang = decodeTextString(lang)
-
-	return out, nil
-}
-
-// might return nil, since, (PDF spec, clause 7.3.10)
+// might return ObjNull{}, since, (PDF spec, clause 7.3.10)
 // An indirect reference to an undefined object shall not be considered an error by a conforming reader;
 // it shall be treated as a reference to the null object.
-func (r resolver) resolve(o pdfcpu.Object) pdfcpu.Object {
-	o, _ = r.xref.Dereference(o) // return no error despite its signature
-	return o
+func (r resolver) resolve(o model.Object) model.Object {
+	return r.file.ResolveObject(o)
 }
 
-func (r resolver) resolveBool(o pdfcpu.Object) (bool, bool) {
-	b, ok := r.resolve(o).(pdfcpu.Boolean)
+func (r resolver) resolveBool(o model.Object) (bool, bool) {
+	b, ok := r.resolve(o).(model.ObjBool)
 	return bool(b), ok
 }
 
-func (r resolver) resolveInt(o pdfcpu.Object) (int, bool) {
-	b, ok := r.resolve(o).(pdfcpu.Integer)
+func (r resolver) resolveInt(o model.Object) (int, bool) {
+	b, ok := r.resolve(o).(model.ObjInt)
 	return int(b), ok
 }
 
 // accepts both integer and float
-func (r resolver) resolveNumber(o pdfcpu.Object) (Fl, bool) {
+func (r resolver) resolveNumber(o model.Object) (Fl, bool) {
 	switch o := r.resolve(o).(type) {
-	case pdfcpu.Float:
-		return Fl(o.Value()), true
-	case pdfcpu.Integer:
-		return Fl(o.Value()), true
+	case model.ObjFloat:
+		return Fl(o), true
+	case model.ObjInt:
+		return Fl(o), true
 	default:
 		return 0, false
 	}
 }
 
-func (r resolver) resolveName(o pdfcpu.Object) (model.ObjName, bool) {
-	b, ok := r.resolve(o).(pdfcpu.Name)
+func (r resolver) resolveName(o model.Object) (model.ObjName, bool) {
+	b, ok := r.resolve(o).(model.ObjName)
 	return model.ObjName(b), ok
 }
 
-func (r resolver) resolveArray(o pdfcpu.Object) (pdfcpu.Array, bool) {
-	b, ok := r.resolve(o).(pdfcpu.Array)
+func (r resolver) resolveArray(o model.Object) (model.ObjArray, bool) {
+	b, ok := r.resolve(o).(model.ObjArray)
 	return b, ok
 }
 
-func errType(label string, o pdfcpu.Object) error {
+func errType(label string, o model.Object) error {
 	return fmt.Errorf("unexpected type for %s: %T", label, o)
 }

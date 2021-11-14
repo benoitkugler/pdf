@@ -5,15 +5,15 @@ import (
 	"fmt"
 
 	"github.com/benoitkugler/pdf/model"
-	"github.com/pdfcpu/pdfcpu/pkg/pdfcpu"
+	"github.com/benoitkugler/pdf/reader/file"
 )
 
-func (r resolver) resolveShading(sh pdfcpu.Object) (map[model.ObjName]*model.ShadingDict, error) {
+func (r resolver) resolveShading(sh model.Object) (map[model.ObjName]*model.ShadingDict, error) {
 	sh = r.resolve(sh)
 	if sh == nil {
 		return nil, nil
 	}
-	shDict, isDict := sh.(pdfcpu.Dict)
+	shDict, isDict := sh.(model.ObjDict)
 	if !isDict {
 		return nil, errType("Shading", sh)
 	}
@@ -28,21 +28,21 @@ func (r resolver) resolveShading(sh pdfcpu.Object) (map[model.ObjName]*model.Sha
 	return out, nil
 }
 
-func (r resolver) resolveOneShading(shadings pdfcpu.Object) (*model.ShadingDict, error) {
-	shRef, isRef := shadings.(pdfcpu.IndirectRef)
+func (r resolver) resolveOneShading(shadings model.Object) (*model.ShadingDict, error) {
+	shRef, isRef := shadings.(model.ObjIndirectRef)
 	if sh := r.shadings[shRef]; isRef && sh != nil {
 		return sh, nil
 	}
 	shadings = r.resolve(shadings)
 	var (
-		shDict pdfcpu.Dict
-		stream pdfcpu.StreamDict
+		shDict model.ObjDict
+		stream model.ObjStream
 	)
 	switch sh := shadings.(type) {
-	case pdfcpu.Dict:
+	case model.ObjDict:
 		shDict = sh
-	case pdfcpu.StreamDict:
-		shDict = sh.Dict
+	case model.ObjStream:
+		shDict = sh.Args
 		stream = sh
 	default:
 		return nil, errType("Shading", shadings)
@@ -98,12 +98,12 @@ func (r resolver) resolveOneShading(shadings pdfcpu.Object) (*model.ShadingDict,
 }
 
 // may return nil
-func (r resolver) resolveOneColorSpace(cs pdfcpu.Object) (model.ColorSpace, error) {
+func (r resolver) resolveOneColorSpace(cs model.Object) (model.ColorSpace, error) {
 	cs = r.resolve(cs)
 	switch cs := cs.(type) {
-	case pdfcpu.Name:
-		return model.NewNameColorSpace(cs.Value())
-	case pdfcpu.Array:
+	case model.ObjName:
+		return model.NewNameColorSpace(string(cs))
+	case model.ObjArray:
 		return r.resolveArrayCS(cs)
 	case nil:
 		return nil, nil
@@ -112,7 +112,7 @@ func (r resolver) resolveOneColorSpace(cs pdfcpu.Object) (model.ColorSpace, erro
 	}
 }
 
-func (r resolver) resolveArrayCS(ar pdfcpu.Array) (model.ColorSpace, error) {
+func (r resolver) resolveArrayCS(ar model.ObjArray) (model.ColorSpace, error) {
 	if len(ar) == 0 {
 		return nil, fmt.Errorf("array for Color Space is empty")
 	}
@@ -151,11 +151,11 @@ func (r resolver) resolveArrayCS(ar pdfcpu.Array) (model.ColorSpace, error) {
 	}
 }
 
-func (r resolver) resolveCalGray(ar pdfcpu.Array) (model.ColorSpaceCalGray, error) {
+func (r resolver) resolveCalGray(ar model.ObjArray) (model.ColorSpaceCalGray, error) {
 	if len(ar) != 2 {
 		return model.ColorSpaceCalGray{}, fmt.Errorf("expected 2-elements array in CalGray Color, got %v", ar)
 	}
-	dict, ok := r.resolve(ar[1]).(pdfcpu.Dict)
+	dict, ok := r.resolve(ar[1]).(model.ObjDict)
 	if !ok {
 		return model.ColorSpaceCalGray{}, errType("CalGray", r.resolve(ar[1]))
 	}
@@ -177,11 +177,11 @@ func (r resolver) resolveCalGray(ar pdfcpu.Array) (model.ColorSpaceCalGray, erro
 	return out, nil
 }
 
-func (r resolver) resolveCalRGB(ar pdfcpu.Array) (model.ColorSpaceCalRGB, error) {
+func (r resolver) resolveCalRGB(ar model.ObjArray) (model.ColorSpaceCalRGB, error) {
 	if len(ar) != 2 {
 		return model.ColorSpaceCalRGB{}, fmt.Errorf("expected 2-elements array in CalRGB Color, got %v", ar)
 	}
-	dict, ok := r.resolve(ar[1]).(pdfcpu.Dict)
+	dict, ok := r.resolve(ar[1]).(model.ObjDict)
 	if !ok {
 		return model.ColorSpaceCalRGB{}, errType("CalRGB", r.resolve(ar[1]))
 	}
@@ -210,11 +210,11 @@ func (r resolver) resolveCalRGB(ar pdfcpu.Array) (model.ColorSpaceCalRGB, error)
 	return out, nil
 }
 
-func (r resolver) resolveLab(ar pdfcpu.Array) (model.ColorSpaceLab, error) {
+func (r resolver) resolveLab(ar model.ObjArray) (model.ColorSpaceLab, error) {
 	if len(ar) != 2 {
 		return model.ColorSpaceLab{}, fmt.Errorf("expected 2-elements array in Lab Color, got %v", ar)
 	}
-	dict, ok := r.resolve(ar[1]).(pdfcpu.Dict)
+	dict, ok := r.resolve(ar[1]).(model.ObjDict)
 	if !ok {
 		return model.ColorSpaceLab{}, errType("Lab", r.resolve(ar[1]))
 	}
@@ -238,11 +238,11 @@ func (r resolver) resolveLab(ar pdfcpu.Array) (model.ColorSpaceLab, error) {
 	return out, nil
 }
 
-func (r resolver) resolveICCBased(ar pdfcpu.Array) (*model.ColorSpaceICCBased, error) {
+func (r resolver) resolveICCBased(ar model.ObjArray) (*model.ColorSpaceICCBased, error) {
 	if len(ar) != 2 {
 		return nil, fmt.Errorf("expected 2-elements array in ICCBase Color, got %v", ar)
 	}
-	ref, isRef := ar[1].(pdfcpu.IndirectRef)
+	ref, isRef := ar[1].(model.ObjIndirectRef)
 	if icc := r.iccs[ref]; isRef && icc != nil {
 		return icc, nil
 	}
@@ -255,15 +255,15 @@ func (r resolver) resolveICCBased(ar pdfcpu.Array) (*model.ColorSpaceICCBased, e
 		return nil, errors.New("missing ICCBased stream")
 	}
 	out := model.ColorSpaceICCBased{Stream: common}
-	stream, _ := obj.(pdfcpu.StreamDict) // no error, ar[1] has type Stream
+	stream, _ := obj.(model.ObjStream) // no error, ar[1] has type Stream
 
-	out.N, _ = r.resolveInt(stream.Dict["N"])
+	out.N, _ = r.resolveInt(stream.Args["N"])
 
-	out.Alternate, err = r.resolveOneColorSpace(stream.Dict["Alternate"])
+	out.Alternate, err = r.resolveOneColorSpace(stream.Args["Alternate"])
 	if err != nil {
 		return nil, err
 	}
-	ra, _ := r.resolveArray(stream.Dict["Range"])
+	ra, _ := r.resolveArray(stream.Args["Range"])
 	out.Range, err = r.processPoints(ra)
 	if err != nil {
 		return nil, err
@@ -274,7 +274,7 @@ func (r resolver) resolveICCBased(ar pdfcpu.Array) (*model.ColorSpaceICCBased, e
 	return &out, nil
 }
 
-func (r resolver) resolveIndexed(ar pdfcpu.Array) (model.ColorSpaceIndexed, error) {
+func (r resolver) resolveIndexed(ar model.ObjArray) (model.ColorSpaceIndexed, error) {
 	var (
 		out model.ColorSpaceIndexed
 		err error
@@ -290,10 +290,10 @@ func (r resolver) resolveIndexed(ar pdfcpu.Array) (model.ColorSpaceIndexed, erro
 	hival, _ := r.resolveInt(ar[2])
 	out.Hival = uint8(hival)
 
-	if lookupString, is := isString(r.resolve(ar[3])); is {
+	if lookupString, is := file.IsString(r.resolve(ar[3])); is {
 		out.Lookup = model.ColorTableBytes(lookupString)
 	} else { // stream
-		lookupRef, isRef := ar[3].(pdfcpu.IndirectRef)
+		lookupRef, isRef := ar[3].(model.ObjIndirectRef)
 		cs, ok, err := r.resolveStream(ar[3])
 		if err != nil {
 			return out, err
@@ -309,7 +309,7 @@ func (r resolver) resolveIndexed(ar pdfcpu.Array) (model.ColorSpaceIndexed, erro
 	return out, nil
 }
 
-func (r resolver) resolveSeparation(ar pdfcpu.Array) (model.ColorSpaceSeparation, error) {
+func (r resolver) resolveSeparation(ar model.ObjArray) (model.ColorSpaceSeparation, error) {
 	var (
 		out model.ColorSpaceSeparation
 		err error
@@ -330,7 +330,7 @@ func (r resolver) resolveSeparation(ar pdfcpu.Array) (model.ColorSpaceSeparation
 	return out, nil
 }
 
-func (r resolver) resolveDeviceN(ar pdfcpu.Array) (model.ColorSpaceDeviceN, error) {
+func (r resolver) resolveDeviceN(ar model.ObjArray) (model.ColorSpaceDeviceN, error) {
 	var (
 		out model.ColorSpaceDeviceN
 		err error
@@ -361,9 +361,9 @@ func (r resolver) resolveDeviceN(ar pdfcpu.Array) (model.ColorSpaceDeviceN, erro
 	return out, nil
 }
 
-func (r resolver) resolveDeviceNAttributes(obj pdfcpu.Object) (*model.ColorSpaceDeviceNAttributes, error) {
+func (r resolver) resolveDeviceNAttributes(obj model.Object) (*model.ColorSpaceDeviceNAttributes, error) {
 	obj = r.resolve(obj)
-	dict, ok := obj.(pdfcpu.Dict)
+	dict, ok := obj.(model.ObjDict)
 	if !ok {
 		return nil, nil // accept null or invalid value silently
 	}
@@ -373,7 +373,7 @@ func (r resolver) resolveDeviceNAttributes(obj pdfcpu.Object) (*model.ColorSpace
 	)
 	out.Subtype, _ = r.resolveName(dict["Subtype"])
 
-	colorants, _ := r.resolve(dict["Colorants"]).(pdfcpu.Dict)
+	colorants, _ := r.resolve(dict["Colorants"]).(model.ObjDict)
 	out.Colorants = make(map[model.ObjName]model.ColorSpaceSeparation, len(colorants))
 	for name, col := range colorants {
 		col, _ := r.resolveArray(col)
@@ -383,7 +383,7 @@ func (r resolver) resolveDeviceNAttributes(obj pdfcpu.Object) (*model.ColorSpace
 		}
 	}
 
-	processDict, _ := r.resolve(dict["Process"]).(pdfcpu.Dict)
+	processDict, _ := r.resolve(dict["Process"]).(model.ObjDict)
 	out.Process.ColorSpace, err = r.resolveAlternateColorSpace(processDict["ColorSpace"]) // may return nil
 	if err != nil {
 		return nil, err
@@ -394,16 +394,16 @@ func (r resolver) resolveDeviceNAttributes(obj pdfcpu.Object) (*model.ColorSpace
 		out.Process.Components[i], _ = r.resolveName(n)
 	}
 
-	if mix, ok := r.resolve(processDict["MixingHints"]).(pdfcpu.Dict); ok {
+	if mix, ok := r.resolve(processDict["MixingHints"]).(model.ObjDict); ok {
 		var m model.ColorSpaceDeviceNMixingHints
 
-		sold, _ := r.resolve(mix["Solidities"]).(pdfcpu.Dict)
+		sold, _ := r.resolve(mix["Solidities"]).(model.ObjDict)
 		m.Solidities = make(map[model.ObjName]Fl, len(sold))
 		for i, s := range sold {
 			m.Solidities[model.ObjName(i)], _ = r.resolveNumber(s)
 		}
 
-		dot, _ := r.resolve(mix["DotGain"]).(pdfcpu.Dict)
+		dot, _ := r.resolve(mix["DotGain"]).(model.ObjDict)
 		m.DotGain = make(map[model.ObjName]model.FunctionDict, len(dot))
 		for i, s := range dot {
 			fn, err := r.resolveFunction(s)
@@ -425,7 +425,7 @@ func (r resolver) resolveDeviceNAttributes(obj pdfcpu.Object) (*model.ColorSpace
 
 // check that the alternate is not a special color space
 // avoiding potential circle
-func (r resolver) resolveAlternateColorSpace(alternate pdfcpu.Object) (model.ColorSpace, error) {
+func (r resolver) resolveAlternateColorSpace(alternate model.Object) (model.ColorSpace, error) {
 	if ar, ok := r.resolveArray(alternate); ok && len(ar) >= 1 {
 		name, _ := r.resolveName(ar[0])
 		switch name {
@@ -439,7 +439,7 @@ func (r resolver) resolveAlternateColorSpace(alternate pdfcpu.Object) (model.Col
 // resolve a func (possibly indirect) or an array of func
 // returns the result as an array of funcs
 // if `expectedN` is > 0, check that the dimension of the domain is `expectedN`
-func (r resolver) resolveFuncOrArray(sh pdfcpu.Object, expectedN int) ([]model.FunctionDict, error) {
+func (r resolver) resolveFuncOrArray(sh model.Object, expectedN int) ([]model.FunctionDict, error) {
 	if ar, isAr := r.resolveArray(sh); isAr {
 		out := make([]model.FunctionDict, len(ar))
 		for i, f := range ar {
@@ -464,7 +464,7 @@ func (r resolver) resolveFuncOrArray(sh pdfcpu.Object, expectedN int) ([]model.F
 	return []model.FunctionDict{*fn}, nil
 }
 
-func (r resolver) resolveFunctionSh(sh pdfcpu.Dict) (model.ShadingFunctionBased, error) {
+func (r resolver) resolveFunctionSh(sh model.ObjDict) (model.ShadingFunctionBased, error) {
 	var (
 		out model.ShadingFunctionBased
 		err error
@@ -483,7 +483,7 @@ func (r resolver) resolveFunctionSh(sh pdfcpu.Dict) (model.ShadingFunctionBased,
 	return out, err
 }
 
-func (r resolver) resolveBaseGradient(sh pdfcpu.Dict) (g model.BaseGradient, err error) {
+func (r resolver) resolveBaseGradient(sh model.ObjDict) (g model.BaseGradient, err error) {
 	domain, _ := r.resolveArray(sh["Domain"])
 	if len(domain) == 2 {
 		g.Domain[0], _ = r.resolveNumber(domain[0])
@@ -498,7 +498,7 @@ func (r resolver) resolveBaseGradient(sh pdfcpu.Dict) (g model.BaseGradient, err
 	return g, err
 }
 
-func (r resolver) resolveAxialSh(sh pdfcpu.Dict) (model.ShadingAxial, error) {
+func (r resolver) resolveAxialSh(sh model.ObjDict) (model.ShadingAxial, error) {
 	g, err := r.resolveBaseGradient(sh)
 	if err != nil {
 		return model.ShadingAxial{}, err
@@ -514,7 +514,7 @@ func (r resolver) resolveAxialSh(sh pdfcpu.Dict) (model.ShadingAxial, error) {
 	return out, nil
 }
 
-func (r resolver) resolveRadialSh(sh pdfcpu.Dict) (model.ShadingRadial, error) {
+func (r resolver) resolveRadialSh(sh model.ObjDict) (model.ShadingRadial, error) {
 	g, err := r.resolveBaseGradient(sh)
 	if err != nil {
 		return model.ShadingRadial{}, err
@@ -530,7 +530,7 @@ func (r resolver) resolveRadialSh(sh pdfcpu.Dict) (model.ShadingRadial, error) {
 	return out, nil
 }
 
-func (r resolver) resolveStreamSh(sh pdfcpu.StreamDict) (model.ShadingStream, error) {
+func (r resolver) resolveStreamSh(sh model.ObjStream) (model.ShadingStream, error) {
 	cs, ok, err := r.resolveStream(sh)
 	if err != nil {
 		return model.ShadingStream{}, err
@@ -539,19 +539,19 @@ func (r resolver) resolveStreamSh(sh pdfcpu.StreamDict) (model.ShadingStream, er
 		return model.ShadingStream{}, errors.New("missing Shading stream")
 	}
 	out := model.ShadingStream{Stream: cs}
-	if bi, ok := r.resolveInt(sh.Dict["BitsPerCoordinate"]); ok {
+	if bi, ok := r.resolveInt(sh.Args["BitsPerCoordinate"]); ok {
 		out.BitsPerCoordinate = uint8(bi)
 	}
-	if bi, ok := r.resolveInt(sh.Dict["BitsPerComponent"]); ok {
+	if bi, ok := r.resolveInt(sh.Args["BitsPerComponent"]); ok {
 		out.BitsPerComponent = uint8(bi)
 	}
 
-	decode, _ := r.resolveArray(sh.Dict["Decode"])
+	decode, _ := r.resolveArray(sh.Args["Decode"])
 	out.Decode, err = r.processPoints(decode)
 	if err != nil {
 		return out, err
 	}
-	if fn := sh.Dict["Function"]; fn != nil {
+	if fn := sh.Args["Function"]; fn != nil {
 		out.Function, err = r.resolveFuncOrArray(fn, 0)
 		if err != nil {
 			return out, err
@@ -560,34 +560,34 @@ func (r resolver) resolveStreamSh(sh pdfcpu.StreamDict) (model.ShadingStream, er
 	return out, nil
 }
 
-func (r resolver) resolveFreeFormSh(sh pdfcpu.StreamDict) (out model.ShadingFreeForm, err error) {
+func (r resolver) resolveFreeFormSh(sh model.ObjStream) (out model.ShadingFreeForm, err error) {
 	out.ShadingStream, err = r.resolveStreamSh(sh)
 	if err != nil {
 		return out, err
 	}
-	if bi, ok := r.resolveInt(sh.Dict["BitsPerFlag"]); ok {
+	if bi, ok := r.resolveInt(sh.Args["BitsPerFlag"]); ok {
 		out.BitsPerFlag = uint8(bi)
 	}
 	return out, nil
 }
 
-func (r resolver) resolveLatticeSh(sh pdfcpu.StreamDict) (out model.ShadingLattice, err error) {
+func (r resolver) resolveLatticeSh(sh model.ObjStream) (out model.ShadingLattice, err error) {
 	out.ShadingStream, err = r.resolveStreamSh(sh)
 	if err != nil {
 		return out, err
 	}
-	out.VerticesPerRow, _ = r.resolveInt(sh.Dict["VerticesPerRow"])
+	out.VerticesPerRow, _ = r.resolveInt(sh.Args["VerticesPerRow"])
 	return out, nil
 }
 
 // ----------------------------- Patterns -----------------------------
 
-func (r resolver) resolvePattern(pattern pdfcpu.Object) (map[model.ObjName]model.Pattern, error) {
+func (r resolver) resolvePattern(pattern model.Object) (map[model.ObjName]model.Pattern, error) {
 	pattern = r.resolve(pattern)
 	if pattern == nil {
 		return nil, nil
 	}
-	patternDict, isDict := pattern.(pdfcpu.Dict)
+	patternDict, isDict := pattern.(model.ObjDict)
 	if !isDict {
 		return nil, errType("Pattern", pattern)
 	}
@@ -602,21 +602,21 @@ func (r resolver) resolvePattern(pattern pdfcpu.Object) (map[model.ObjName]model
 	return out, nil
 }
 
-func (r resolver) resolveOnePattern(pat pdfcpu.Object) (model.Pattern, error) {
-	patRef, isRef := pat.(pdfcpu.IndirectRef)
+func (r resolver) resolveOnePattern(pat model.Object) (model.Pattern, error) {
+	patRef, isRef := pat.(model.ObjIndirectRef)
 	if pattern := r.patterns[patRef]; isRef && pattern != nil {
 		return pattern, nil
 	}
 	pat = r.resolve(pat)
 	var (
-		patDict pdfcpu.Dict
-		stream  pdfcpu.StreamDict // for a tiling pattern
+		patDict model.ObjDict
+		stream  model.ObjStream // for a tiling pattern
 	)
 	switch pa := pat.(type) {
-	case pdfcpu.Dict:
+	case model.ObjDict:
 		patDict = pa
-	case pdfcpu.StreamDict:
-		patDict = pa.Dict
+	case model.ObjStream:
+		patDict = pa.Args
 		stream = pa
 	default:
 		return nil, errType("Pattern", pat)
@@ -644,7 +644,7 @@ func (r resolver) resolveOnePattern(pat pdfcpu.Object) (model.Pattern, error) {
 	return out, nil
 }
 
-func (r resolver) resolveTilingPattern(pat pdfcpu.StreamDict) (*model.PatternTiling, error) {
+func (r resolver) resolveTilingPattern(pat model.ObjStream) (*model.PatternTiling, error) {
 	cs, _, err := r.resolveStream(pat)
 	if err != nil {
 		return nil, err
@@ -652,28 +652,28 @@ func (r resolver) resolveTilingPattern(pat pdfcpu.StreamDict) (*model.PatternTil
 	// since pat is not a ref, ok must be true
 	out := model.PatternTiling{ContentStream: model.ContentStream{Stream: cs}}
 
-	if pt, ok := r.resolveInt(pat.Dict["PaintType"]); ok {
+	if pt, ok := r.resolveInt(pat.Args["PaintType"]); ok {
 		out.PaintType = uint8(pt)
 	}
-	if pt, ok := r.resolveInt(pat.Dict["TilingType"]); ok {
+	if pt, ok := r.resolveInt(pat.Args["TilingType"]); ok {
 		out.TilingType = uint8(pt)
 	}
-	if rect := r.rectangleFromArray(pat.Dict["BBox"]); rect != nil {
+	if rect := r.rectangleFromArray(pat.Args["BBox"]); rect != nil {
 		out.BBox = *rect
 	}
-	out.XStep, _ = r.resolveNumber(pat.Dict["XStep"])
-	out.YStep, _ = r.resolveNumber(pat.Dict["YStep"])
-	out.Resources, err = r.resolveOneResourceDict(pat.Dict["Resources"])
+	out.XStep, _ = r.resolveNumber(pat.Args["XStep"])
+	out.YStep, _ = r.resolveNumber(pat.Args["YStep"])
+	out.Resources, err = r.resolveOneResourceDict(pat.Args["Resources"])
 	if err != nil {
 		return nil, err
 	}
-	if mat := r.matrixFromArray(pat.Dict["Matrix"]); mat != nil {
+	if mat := r.matrixFromArray(pat.Args["Matrix"]); mat != nil {
 		out.Matrix = *mat
 	}
 	return &out, nil
 }
 
-func (r resolver) resolveShadingPattern(pat pdfcpu.Dict) (*model.PatternShading, error) {
+func (r resolver) resolveShadingPattern(pat model.ObjDict) (*model.PatternShading, error) {
 	sh, err := r.resolveOneShading(pat["Shading"])
 	if err != nil {
 		return nil, err

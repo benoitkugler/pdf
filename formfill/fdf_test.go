@@ -1,10 +1,12 @@
 package formfill
 
 import (
+	"fmt"
 	"os"
 	"testing"
 
 	"github.com/benoitkugler/pdf/reader"
+	"github.com/benoitkugler/pdf/reader/file"
 )
 
 var data = []FDFField{
@@ -70,4 +72,12 @@ func TestFDF(t *testing.T) {
 	if err = doc.Write(out, nil); err != nil {
 		t.Error(err)
 	}
+}
+
+func TestFDFFile(t *testing.T) {
+	fi, err := file.ReadFile("test/sample.fdf", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fmt.Println(fi)
 }

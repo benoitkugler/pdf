@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"github.com/benoitkugler/pdf/reader/parser/filters/ccitt"
-	"github.com/pdfcpu/pdfcpu/pkg/filter"
 )
 
 var skippers = map[string]Skipper{
@@ -27,39 +26,11 @@ var skippers = map[string]Skipper{
 }
 
 func forgeEncoded(t *testing.T, fi string) []byte {
-	// special case for DCT...
-	if fi == DCT {
-		out, err := randJPEG()
-		if err != nil {
-			t.Fatal(err)
-		}
-		return out
-	}
-	// ... and CCITT
-	if fi == CCITTFax {
-		// default values of parameters
-		b, err := ioutil.ReadFile("ccitt/testdata/bw-gopher.ccitt_group3")
-		if err != nil {
-			t.Fatal(err)
-		}
-		return b
-	}
-
-	input := make([]byte, 1000)
-	_, _ = rand.Read(input)
-	fil, err := filter.NewFilter(fi, nil)
+	b, err := ioutil.ReadFile("samples/" + fi + ".bin")
 	if err != nil {
 		t.Fatal(err)
 	}
-	r, err := fil.Encode(bytes.NewReader(input))
-	if err != nil {
-		t.Fatal(err)
-	}
-	filtered, err := ioutil.ReadAll(r)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return filtered
+	return b
 }
 
 func TestDontPassEOD(t *testing.T) {

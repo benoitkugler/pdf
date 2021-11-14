@@ -439,7 +439,7 @@ func (n Name) mediaDurationString() string {
 }
 
 func (f ObjFloat) mediaDurationString() string {
-	return fmt.Sprintf("<</S/T /T<</S/S/V %g>> >>", f)
+	return fmt.Sprintf("<</S/T /T<</S/S/V %f>> >>", f)
 }
 
 // MediaOffset specifies an offset into a media object. It is either:
@@ -455,7 +455,7 @@ func (i ObjInt) mediaOffsetString(PDFWritter, Reference) string {
 }
 
 func (f ObjFloat) mediaOffsetString(PDFWritter, Reference) string {
-	return fmt.Sprintf("<</S/T/T<</S/S/V %g>>>>", f)
+	return fmt.Sprintf("<</S/T/T<</S/S/V %f>>>>", f)
 }
 
 func (m ObjStringLiteral) mediaOffsetString(w PDFWritter, ref Reference) string {
@@ -503,7 +503,7 @@ func (m MediaScreenParams) Write(w PDFWritter, r Reference) string {
 		out += "/B " + writeFloatArray((*m.B)[:])
 	}
 	if o, ok := m.O.(ObjFloat); ok {
-		out += fmt.Sprintf("/O %g", o)
+		out += fmt.Sprintf("/O %f", o)
 	}
 	if m.F != nil {
 		out += "/F " + m.F.Write(w, r)

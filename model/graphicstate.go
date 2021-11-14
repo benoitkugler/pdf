@@ -12,7 +12,7 @@ type DashPattern struct {
 
 // String returns a description as a PDF array.
 func (d DashPattern) String() string {
-	return fmt.Sprintf("[%s %g]", writeFloatArray(d.Array), d.Phase)
+	return fmt.Sprintf("[%s %f]", writeFloatArray(d.Array), d.Phase)
 }
 
 // Clone returns a deep copy
@@ -32,7 +32,7 @@ type FontStyle struct {
 
 func (f FontStyle) pdfString(pdf pdfWriter) string {
 	ref := pdf.addItem(f.Font)
-	return fmt.Sprintf("[%s %g]", ref, f.Size)
+	return fmt.Sprintf("[%s %f]", ref, f.Size)
 }
 
 func (f FontStyle) clone(cache cloneCache) FontStyle {
@@ -172,7 +172,7 @@ func (g *GraphicState) pdfContent(pdf pdfWriter, _ Reference) (StreamHeader, str
 	b := newBuffer()
 	b.WriteString("<<")
 	if g.LW != 0 {
-		b.fmt("/LW %g", g.LW)
+		b.fmt("/LW %f", g.LW)
 	}
 	if g.LC != nil {
 		b.fmt("/LC %d", g.LC.(ObjInt))
@@ -181,7 +181,7 @@ func (g *GraphicState) pdfContent(pdf pdfWriter, _ Reference) (StreamHeader, str
 		b.fmt("/LJ %d", g.LJ.(ObjInt))
 	}
 	if g.ML != 0 {
-		b.fmt("/ML %g", g.ML)
+		b.fmt("/ML %f", g.ML)
 	}
 	if g.D != nil {
 		b.fmt("/D %s", *g.D)
@@ -193,7 +193,7 @@ func (g *GraphicState) pdfContent(pdf pdfWriter, _ Reference) (StreamHeader, str
 		b.fmt("/Font %s", g.Font.pdfString(pdf))
 	}
 	if g.SM != nil {
-		b.fmt("/SM %g", g.SM.(ObjFloat))
+		b.fmt("/SM %f", g.SM.(ObjFloat))
 	}
 	if g.SA {
 		b.fmt("/SA %v", g.SA)
@@ -207,10 +207,10 @@ func (g *GraphicState) pdfContent(pdf pdfWriter, _ Reference) (StreamHeader, str
 		b.WriteString("/SMask " + g.SMask.pdfString(pdf))
 	}
 	if g.CA != nil {
-		b.fmt("/CA %g", g.CA.(ObjFloat))
+		b.fmt("/CA %f", g.CA.(ObjFloat))
 	}
 	if g.Ca != nil {
-		b.fmt("/ca %g", g.Ca.(ObjFloat))
+		b.fmt("/ca %f", g.Ca.(ObjFloat))
 	}
 	if g.AIS {
 		b.fmt("/AIS %v", g.AIS)

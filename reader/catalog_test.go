@@ -4,10 +4,12 @@ import (
 	"fmt"
 	"os"
 	"testing"
+
+	"golang.org/x/text/encoding/unicode"
 )
 
 func TestOutline(t *testing.T) {
-	f, err := os.Open("test/ModeleRecuFiscalEditable.pdf")
+	f, err := os.Open("test/corpus/ModeleRecuFiscalEditable.pdf")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -16,8 +18,10 @@ func TestOutline(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
+	enc := unicode.UTF16(unicode.BigEndian, unicode.UseBOM).NewEncoder()
 	for _, o := range doc.Catalog.Outlines.Flatten() {
 		fmt.Println(o.Title)
-		fmt.Println(utf16Dec.NewEncoder().Bytes([]byte(o.Title)))
+		fmt.Println(enc.Bytes([]byte(o.Title)))
 	}
 }

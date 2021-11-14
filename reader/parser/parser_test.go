@@ -117,7 +117,7 @@ var datas = []string{
 	"<<>>",
 	"<</Key %comment\x0a true%comment       \x0a\x0d>>",
 	"<</Key/Value>>",
-	"<</Key[/Val1/Val2\x0d%gopher\x0atrue]>>",
+	"<</Key[/Val1/Val2\x0d%fopher\x0atrue]>>",
 	"[<</k1[/name1]>><</k1[false true null]>>]",
 	"/Name ",
 	"/Na#20me",
@@ -268,7 +268,7 @@ var datas = []string{
 // func BenchmarkParseOnePass(b *testing.B) {
 // 	for i := 0; i < b.N; i++ {
 // 		for _, data := range datas {
-// 			_, _ = pdfcpu.ParseOneObject(data)
+// 			_, _ = model.ObjParseOneObject(data)
 // 		}
 // 	}
 // }

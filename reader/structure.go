@@ -5,15 +5,15 @@ import (
 	"log"
 
 	"github.com/benoitkugler/pdf/model"
-	"github.com/pdfcpu/pdfcpu/pkg/pdfcpu"
+	"github.com/benoitkugler/pdf/reader/file"
 )
 
-func (r resolver) resolveStructureTree(obj pdfcpu.Object) (*model.StructureTree, error) {
+func (r resolver) resolveStructureTree(obj model.Object) (*model.StructureTree, error) {
 	obj = r.resolve(obj)
 	if obj == nil {
 		return nil, nil
 	}
-	structDict, ok := obj.(pdfcpu.Dict)
+	structDict, ok := obj.(model.ObjDict)
 	if !ok {
 		return nil, errType("StructTreeRoot", obj)
 	}
@@ -23,13 +23,13 @@ func (r resolver) resolveStructureTree(obj pdfcpu.Object) (*model.StructureTree,
 	)
 
 	switch K := r.resolve(structDict["K"]).(type) {
-	case pdfcpu.Dict: // one child
+	case model.ObjDict: // one child
 		elemn, err := r.resolveOneStructureElement(K, nil)
 		if err != nil {
 			return nil, err
 		}
 		out.K = []*model.StructureElement{elemn}
-	case pdfcpu.Array: // many
+	case model.ObjArray: // many
 		out.K = make([]*model.StructureElement, len(K))
 		for i, v := range K {
 			out.K[i], err = r.resolveOneStructureElement(v, nil)
@@ -50,29 +50,29 @@ func (r resolver) resolveStructureTree(obj pdfcpu.Object) (*model.StructureTree,
 		return nil, err
 	}
 
-	roles, _ := r.resolve(structDict["RoleMap"]).(pdfcpu.Dict)
+	roles, _ := r.resolve(structDict["RoleMap"]).(model.ObjDict)
 	out.RoleMap = make(map[model.ObjName]model.ObjName, len(roles))
 	for k, v := range roles {
 		out.RoleMap[model.ObjName(k)], _ = r.resolveName(v)
 	}
 
-	class, _ := r.resolve(structDict["ClassMap"]).(pdfcpu.Dict)
+	class, _ := r.resolve(structDict["ClassMap"]).(model.ObjDict)
 	out.ClassMap = make(map[model.ObjName][]model.AttributeObject, len(class))
 	for k, v := range class {
 		var attrs []model.AttributeObject
 		switch v := r.resolve(v).(type) {
-		case pdfcpu.Array: // many attributes, with potential revision numbers
+		case model.ObjArray: // many attributes, with potential revision numbers
 			attrs, err = r.resolveAttributeObjects(v)
 			if err != nil {
 				return nil, err
 			}
-		case pdfcpu.Dict: // only one attribute
+		case model.ObjDict: // only one attribute
 			a, err := r.resolveAttributObject(v)
 			if err != nil {
 				return nil, err
 			}
 			attrs = []model.AttributeObject{a}
-		case pdfcpu.StreamDict:
+		case model.ObjStream:
 			log.Println("unsupported attribute type : stream. skipping")
 		default:
 			return nil, errType("structure Attribute", v)
@@ -87,34 +87,34 @@ func (r resolver) resolveStructureTree(obj pdfcpu.Object) (*model.StructureTree,
 // to overide the default reading behaviour
 // for custom objects
 type CustomObjectResolver interface {
-	Resolve(xref *pdfcpu.XRefTable, obj pdfcpu.Object) (model.Object, error)
+	Resolve(f *file.File, obj model.Object) (model.Object, error)
 }
 
-func (r resolver) resolveCustomObject(object pdfcpu.Object) (model.Object, error) {
+func (r resolver) resolveCustomObject(object model.Object) (model.Object, error) {
 	if r.customResolve == nil {
 		return r.defaultProcessCustomObject(object)
 	}
-	return r.customResolve.Resolve(r.xref, object)
+	return r.customResolve.Resolve(&r.file, object)
 }
 
-// resolve indirect object and map pdfcpu types to model/values types
-func (r resolver) defaultProcessCustomObject(object pdfcpu.Object) (model.Object, error) {
+// resolve indirect object
+func (r resolver) defaultProcessCustomObject(object model.Object) (model.Object, error) {
 	var err error
 	object = r.resolve(object)
 	switch o := object.(type) {
-	case pdfcpu.Name:
+	case model.ObjName:
 		return model.Name(o), nil
-	case pdfcpu.Float:
+	case model.ObjFloat:
 		return model.ObjFloat(o), nil
-	case pdfcpu.Integer:
+	case model.ObjInt:
 		return model.ObjInt(o), nil
-	case pdfcpu.Boolean:
+	case model.ObjBool:
 		return model.ObjBool(o), nil
-	case pdfcpu.HexLiteral:
+	case model.ObjHexLiteral:
 		return model.ObjHexLiteral(o), nil
-	case pdfcpu.StringLiteral:
+	case model.ObjStringLiteral:
 		return model.ObjStringLiteral(o), nil
-	case pdfcpu.Array:
+	case model.ObjArray:
 		out := make(model.ObjArray, len(o))
 		for i, v := range o {
 			out[i], err = r.defaultProcessCustomObject(v)
@@ -123,7 +123,7 @@ func (r resolver) defaultProcessCustomObject(object pdfcpu.Object) (model.Object
 			}
 		}
 		return out, nil
-	case pdfcpu.Dict:
+	case model.ObjDict:
 		out := make(model.ObjDict, len(o))
 		for name, v := range o {
 			out[model.Name(name)], err = r.defaultProcessCustomObject(v)
@@ -132,9 +132,9 @@ func (r resolver) defaultProcessCustomObject(object pdfcpu.Object) (model.Object
 			}
 		}
 		return out, nil
-	case pdfcpu.StreamDict:
-		args := make(model.ObjDict, len(o.Dict))
-		for name, v := range o.Dict {
+	case model.ObjStream:
+		args := make(model.ObjDict, len(o.Args))
+		for name, v := range o.Args {
 			args[model.Name(name)], err = r.defaultProcessCustomObject(v)
 			if err != nil {
 				return nil, err
@@ -146,9 +146,9 @@ func (r resolver) defaultProcessCustomObject(object pdfcpu.Object) (model.Object
 	}
 }
 
-func (r resolver) resolveAttributObject(attr pdfcpu.Object) (out model.AttributeObject, err error) {
+func (r resolver) resolveAttributObject(attr model.Object) (out model.AttributeObject, err error) {
 	attr = r.resolve(attr)
-	attrDict, ok := attr.(pdfcpu.Dict)
+	attrDict, ok := attr.(model.ObjDict)
 	if !ok {
 		return model.AttributeObject{}, errType("Attribute Object", attr)
 	}
@@ -174,7 +174,7 @@ func (r resolver) resolveAttributObject(attr pdfcpu.Object) (out model.Attribute
 	return out, nil
 }
 
-func (r resolver) resolveAttributeObjects(ar pdfcpu.Array) ([]model.AttributeObject, error) {
+func (r resolver) resolveAttributeObjects(ar model.ObjArray) ([]model.AttributeObject, error) {
 	// many attributes, with potential revision numbers
 	// the minimum number of attributes is len(ar) /2, if all items have a revision number
 	attrs := make([]model.AttributeObject, 0, len(ar)/2)
@@ -186,7 +186,7 @@ func (r resolver) resolveAttributeObjects(ar pdfcpu.Array) ([]model.AttributeObj
 		}
 		// look ahead for a potential revision number
 		if i+1 < len(ar) {
-			if rev, ok := r.resolve(ar[i+1]).(pdfcpu.Integer); ok {
+			if rev, ok := r.resolve(ar[i+1]).(model.ObjInt); ok {
 				att.RevisionNumber = int(rev)
 				i++ // now, skip the revision number
 			}
@@ -197,17 +197,17 @@ func (r resolver) resolveAttributeObjects(ar pdfcpu.Array) ([]model.AttributeObj
 	return attrs, nil
 }
 
-func (r resolver) resolveUserProperties(dict pdfcpu.Dict, out *model.AttributeObject) (err error) {
+func (r resolver) resolveUserProperties(dict model.ObjDict, out *model.AttributeObject) (err error) {
 	ps, _ := r.resolveArray(dict["P"])
 	attr := make(model.AttributeUserProperties, len(ps))
 	for i, prop := range ps {
 		prop = r.resolve(prop)
-		propDict, ok := prop.(pdfcpu.Dict)
+		propDict, ok := prop.(model.ObjDict)
 		if !ok {
 			return errType("UserProperty", prop)
 		}
-		attr[i].F, _ = isString(r.resolve(propDict["F"]))
-		attr[i].N, _ = isString(r.resolve(propDict["N"]))
+		attr[i].F, _ = file.IsString(r.resolve(propDict["F"]))
+		attr[i].N, _ = file.IsString(r.resolve(propDict["N"]))
 		attr[i].H, _ = r.resolveBool(propDict["H"])
 		attr[i].V, err = r.resolveCustomObject(propDict["V"])
 		if err != nil {
@@ -218,14 +218,14 @@ func (r resolver) resolveUserProperties(dict pdfcpu.Dict, out *model.AttributeOb
 	return nil
 }
 
-func (r resolver) resolveOneStructureElement(element pdfcpu.Object, parent *model.StructureElement) (*model.StructureElement, error) {
-	ref, isRef := element.(pdfcpu.IndirectRef)
+func (r resolver) resolveOneStructureElement(element model.Object, parent *model.StructureElement) (*model.StructureElement, error) {
+	ref, isRef := element.(model.ObjIndirectRef)
 	if out := r.structure[ref]; isRef && out != nil {
 		return out, nil
 	}
 
 	element = r.resolve(element)
-	dict, ok := element.(pdfcpu.Dict)
+	dict, ok := element.(model.ObjDict)
 	if !ok {
 		return nil, errType("Structure element", element)
 	}
@@ -240,14 +240,14 @@ func (r resolver) resolveOneStructureElement(element pdfcpu.Object, parent *mode
 
 	out.P = parent
 	out.S, _ = r.resolveName(dict["S"])
-	out.ID, _ = isString(dict["ID"])
-	if pageRef, ok := dict["Pg"].(pdfcpu.IndirectRef); ok { // if it's not a ref, ignore it
+	out.ID, _ = file.IsString(dict["ID"])
+	if pageRef, ok := dict["Pg"].(model.ObjIndirectRef); ok { // if it's not a ref, ignore it
 		out.Pg = r.pages[pageRef]
 	}
 
 	// K entry is either and array or a dict
 	kid := dict["K"]
-	if array, ok := r.resolve(kid).(pdfcpu.Array); ok {
+	if array, ok := r.resolve(kid).(model.ObjArray); ok {
 		out.K = make([]model.ContentItem, len(array))
 		for i, kid := range array {
 			out.K[i], err = r.resolveContentItem(kid, &out)
@@ -264,13 +264,13 @@ func (r resolver) resolveOneStructureElement(element pdfcpu.Object, parent *mode
 	}
 
 	switch a := r.resolve(dict["A"]).(type) {
-	case pdfcpu.Dict: // one attribute
+	case model.ObjDict: // one attribute
 		att, err := r.resolveAttributObject(a)
 		if err != nil {
 			return nil, err
 		}
 		out.A = []model.AttributeObject{att}
-	case pdfcpu.Array: // many attributes, with possible revision number
+	case model.ObjArray: // many attributes, with possible revision number
 		out.A, err = r.resolveAttributeObjects(a)
 		if err != nil {
 			return nil, err
@@ -278,9 +278,9 @@ func (r resolver) resolveOneStructureElement(element pdfcpu.Object, parent *mode
 	} // nil or invalid, ignore
 
 	switch c := r.resolve(dict["C"]).(type) {
-	case pdfcpu.Name: // only one class
+	case model.ObjName: // only one class
 		out.C = []model.ClassName{{Name: model.ObjName(c)}}
-	case pdfcpu.Array: // many class, with potential revision number
+	case model.ObjArray: // many class, with potential revision number
 		// the minimum number of classes is len(ar) /2, if all items have a revision number
 		out.C = make([]model.ClassName, 0, len(c)/2)
 		for i := 0; i < len(c); {
@@ -292,7 +292,7 @@ func (r resolver) resolveOneStructureElement(element pdfcpu.Object, parent *mode
 			className := model.ClassName{Name: name}
 			// look ahead for a potential revision number
 			if i+1 < len(c) {
-				if rev, ok := r.resolve(c[i+1]).(pdfcpu.Integer); ok {
+				if rev, ok := r.resolve(c[i+1]).(model.ObjInt); ok {
 					className.RevisionNumber = int(rev)
 					i++ // now, skip the revision number
 				}
@@ -303,32 +303,32 @@ func (r resolver) resolveOneStructureElement(element pdfcpu.Object, parent *mode
 	}
 
 	out.R, _ = r.resolveInt(dict["R"])
-	if s, ok := isString(r.resolve(dict["T"])); ok {
+	if s, ok := file.IsString(r.resolve(dict["T"])); ok {
 		out.T = decodeTextString(s)
 	}
-	if s, ok := isString(r.resolve(dict["Lang"])); ok {
+	if s, ok := file.IsString(r.resolve(dict["Lang"])); ok {
 		out.Lang = decodeTextString(s)
 	}
-	if s, ok := isString(r.resolve(dict["Alt"])); ok {
+	if s, ok := file.IsString(r.resolve(dict["Alt"])); ok {
 		out.Alt = decodeTextString(s)
 	}
-	if s, ok := isString(r.resolve(dict["E"])); ok {
+	if s, ok := file.IsString(r.resolve(dict["E"])); ok {
 		out.E = decodeTextString(s)
 	}
-	if s, ok := isString(r.resolve(dict["ActualText"])); ok {
+	if s, ok := file.IsString(r.resolve(dict["ActualText"])); ok {
 		out.ActualText = decodeTextString(s)
 	}
 
 	return &out, nil
 }
 
-func (r resolver) resolveContentItem(object pdfcpu.Object, parent *model.StructureElement) (model.ContentItem, error) {
-	resolved := r.resolve(object)                 // keep the potential indirect object
-	if mci, ok := resolved.(pdfcpu.Integer); ok { // integer marked-content identifier denoting a marked-content sequence
+func (r resolver) resolveContentItem(object model.Object, parent *model.StructureElement) (model.ContentItem, error) {
+	resolved := r.resolve(object)               // keep the potential indirect object
+	if mci, ok := resolved.(model.ObjInt); ok { // integer marked-content identifier denoting a marked-content sequence
 		return model.ContentItemMarkedReference{MCID: int(mci)}, nil
 	}
 	// now, must be a dict
-	contentDict, ok := resolved.(pdfcpu.Dict)
+	contentDict, ok := resolved.(model.ObjDict)
 	if !ok {
 		return nil, errType("Content Item", resolved)
 	}
@@ -345,11 +345,11 @@ func (r resolver) resolveContentItem(object pdfcpu.Object, parent *model.Structu
 	}
 }
 
-func (r resolver) resolveObjectReference(dict pdfcpu.Dict) (out model.ContentItemObjectReference, err error) {
-	if pageRef, ok := dict["Pg"].(pdfcpu.IndirectRef); ok {
+func (r resolver) resolveObjectReference(dict model.ObjDict) (out model.ContentItemObjectReference, err error) {
+	if pageRef, ok := dict["Pg"].(model.ObjIndirectRef); ok {
 		out.Pg = r.pages[pageRef]
 	}
-	objRef, ok := dict["Obj"].(pdfcpu.IndirectRef)
+	objRef, ok := dict["Obj"].(model.ObjIndirectRef)
 	if !ok {
 		return out, errType("Obj entry in object reference", dict["Obj"])
 	}
@@ -365,23 +365,23 @@ func (r resolver) resolveObjectReference(dict pdfcpu.Dict) (out model.ContentIte
 	return out, nil
 }
 
-func (r resolver) resolveMarkedReference(dict pdfcpu.Dict) (out model.ContentItemMarkedReference) {
+func (r resolver) resolveMarkedReference(dict model.ObjDict) (out model.ContentItemMarkedReference) {
 	out.MCID, _ = r.resolveInt(dict["MCID"])
-	if pageRef, isRef := dict["Pg"].(pdfcpu.IndirectRef); isRef {
+	if pageRef, isRef := dict["Pg"].(model.ObjIndirectRef); isRef {
 		out.Container = r.pages[pageRef]
-	} else if formRef, isRef := dict["Stm"].(pdfcpu.IndirectRef); isRef {
+	} else if formRef, isRef := dict["Stm"].(model.ObjIndirectRef); isRef {
 		out.Container = r.xObjectForms[formRef]
 	}
 	return out
 }
 
-func (r resolver) resolveIDTree(tree pdfcpu.Object) (model.IDTree, error) {
+func (r resolver) resolveIDTree(tree model.Object) (model.IDTree, error) {
 	var out model.IDTree
 	err := r.resolveNameTree(tree, idTree{out: &out})
 	return out, err
 }
 
-func (r resolver) resolveParentTree(tree pdfcpu.Object) (model.ParentTree, error) {
+func (r resolver) resolveParentTree(tree model.Object) (model.ParentTree, error) {
 	var out model.ParentTree
 	err := r.resolveNumberTree(tree, parentTree{out: &out})
 	return out, err

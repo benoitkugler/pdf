@@ -2,12 +2,99 @@ package reader
 
 import (
 	"errors"
+	"fmt"
 
 	"github.com/benoitkugler/pdf/model"
-	"github.com/pdfcpu/pdfcpu/pkg/pdfcpu"
+	"github.com/benoitkugler/pdf/reader/file"
 )
 
-func (r resolver) rectangleFromArray(array pdfcpu.Object) *model.Rectangle {
+func (r resolver) catalog() (model.Catalog, error) {
+	var (
+		out model.Catalog
+		err error
+	)
+	d, ok := r.resolve(r.file.Root).(model.ObjDict)
+	if !ok {
+		return out, fmt.Errorf("can't resolve Catalog: expected dict, got %#v", r.resolve(r.file.Root))
+	}
+
+	out.AcroForm, err = r.processAcroForm(d["AcroForm"])
+	if err != nil {
+		return out, err
+	}
+
+	out.Pages, err = r.processPages(d["Pages"])
+	if err != nil {
+		return out, err
+	}
+
+	out.Dests, err = r.resolveDests(d["Dests"])
+	if err != nil {
+		return out, err
+	}
+
+	out.Names, err = r.processNameDict(d["Names"])
+	if err != nil {
+		return out, err
+	}
+
+	out.PageLayout, _ = r.resolveName(d["PageLayout"])
+	out.PageMode, _ = r.resolveName(d["PageMode"])
+
+	if pl := d["PageLabels"]; pl != nil {
+		out.PageLabels = new(model.PageLabelsTree)
+		err = r.resolveNumberTree(pl, pageLabelTree{out: out.PageLabels})
+		if err != nil {
+			return out, err
+		}
+	}
+
+	// pages, annotations, xforms need to be resolved
+	out.StructTreeRoot, err = r.resolveStructureTree(d["StructTreeRoot"])
+	if err != nil {
+		return out, err
+	}
+
+	// may need pages
+	// HACK for #252
+	out.Outlines, err = r.resolveOutline(d["Outlines"])
+	if err != nil {
+		return out, err
+	}
+	if out.Outlines == nil {
+		out.Outlines, err = r.resolveOutline(d["Outline"])
+		if err != nil {
+			return out, err
+		}
+	}
+
+	out.ViewerPreferences, err = r.resolveViewerPreferences(d["ViewerPreferences"])
+	if err != nil {
+		return out, err
+	}
+
+	out.MarkInfo, err = r.resolveMarkDict(d["MarkInfo"])
+	if err != nil {
+		return out, err
+	}
+
+	uriDict, ok := r.resolve(d["URI"]).(model.ObjDict)
+	if ok {
+		out.URI, _ = file.IsString(r.resolve(uriDict["Base"]))
+	}
+
+	out.OpenAction, err = r.resolveDestinationOrAction(d["OpenAction"])
+	if err != nil {
+		return out, err
+	}
+
+	lang, _ := file.IsString(r.resolve(d["Lang"]))
+	out.Lang = decodeTextString(lang)
+
+	return out, nil
+}
+
+func (r resolver) rectangleFromArray(array model.Object) *model.Rectangle {
 	ar, _ := r.resolveArray(array)
 	if len(ar) < 4 {
 		return nil
@@ -19,7 +106,7 @@ func (r resolver) rectangleFromArray(array pdfcpu.Object) *model.Rectangle {
 	return &model.Rectangle{Llx: llx, Lly: lly, Urx: urx, Ury: ury}
 }
 
-func (r resolver) matrixFromArray(array pdfcpu.Object) *model.Matrix {
+func (r resolver) matrixFromArray(array model.Object) *model.Matrix {
 	ar, _ := r.resolveArray(array)
 	if len(ar) != 6 {
 		return nil
@@ -31,8 +118,8 @@ func (r resolver) matrixFromArray(array pdfcpu.Object) *model.Matrix {
 	return &out
 }
 
-func (r resolver) resolveAppearanceDict(o pdfcpu.Object) (*model.AppearanceDict, error) {
-	ref, isRef := o.(pdfcpu.IndirectRef)
+func (r resolver) resolveAppearanceDict(o model.Object) (*model.AppearanceDict, error) {
+	ref, isRef := o.(model.ObjIndirectRef)
 	if isRef {
 		if ff := r.appearanceDicts[ref]; ff != nil {
 			return ff, nil
@@ -42,7 +129,7 @@ func (r resolver) resolveAppearanceDict(o pdfcpu.Object) (*model.AppearanceDict,
 	if o == nil {
 		return nil, nil
 	}
-	a, isDict := o.(pdfcpu.Dict)
+	a, isDict := o.(model.ObjDict)
 	if !isDict {
 		return nil, errType("AppearanceDict", o)
 	}
@@ -74,11 +161,11 @@ func (r resolver) resolveAppearanceDict(o pdfcpu.Object) (*model.AppearanceDict,
 	return &out, nil
 }
 
-func (r resolver) resolveAppearanceEntry(obj pdfcpu.Object) (model.AppearanceEntry, error) {
+func (r resolver) resolveAppearanceEntry(obj model.Object) (model.AppearanceEntry, error) {
 	out := make(model.AppearanceEntry)
 
 	// obj might be either a subdictionary or a streamdictionary
-	if subDict, isResolvedDict := r.resolve(obj).(pdfcpu.Dict); isResolvedDict {
+	if subDict, isResolvedDict := r.resolve(obj).(model.ObjDict); isResolvedDict {
 		// subdictionary
 		for name, stream := range subDict {
 			formObj, err := r.resolveOneXObjectForm(stream)
@@ -98,8 +185,8 @@ func (r resolver) resolveAppearanceEntry(obj pdfcpu.Object) (model.AppearanceEnt
 }
 
 // return an error if obj is nil
-func (r resolver) resolveOneXObjectForm(obj pdfcpu.Object) (*model.XObjectForm, error) {
-	xObjRef, isRef := obj.(pdfcpu.IndirectRef)
+func (r resolver) resolveOneXObjectForm(obj model.Object) (*model.XObjectForm, error) {
+	xObjRef, isRef := obj.(model.ObjIndirectRef)
 	if out := r.xObjectForms[xObjRef]; isRef && out != nil {
 		return out, nil
 	}
@@ -121,7 +208,7 @@ func (r resolver) resolveOneXObjectForm(obj pdfcpu.Object) (*model.XObjectForm, 
 
 // return an error if resolved obj is nil
 // do not register the ref
-func (r resolver) resolveXFormObjectFields(obj pdfcpu.Object, out *model.XObjectForm) error {
+func (r resolver) resolveXFormObjectFields(obj model.Object, out *model.XObjectForm) error {
 	obj = r.resolve(obj)
 	cs, ok, err := r.resolveStream(obj)
 	if err != nil {
@@ -132,23 +219,23 @@ func (r resolver) resolveXFormObjectFields(obj pdfcpu.Object, out *model.XObject
 	}
 	out.ContentStream = model.ContentStream{Stream: cs}
 
-	stream, _ := obj.(pdfcpu.StreamDict) // here, we are sure obj is a stream
-	if rect := r.rectangleFromArray(r.resolve(stream.Dict["BBox"])); rect != nil {
+	stream, _ := obj.(model.ObjStream) // here, we are sure obj is a stream
+	if rect := r.rectangleFromArray(r.resolve(stream.Args["BBox"])); rect != nil {
 		out.BBox = *rect
 	}
-	if mat := r.matrixFromArray(r.resolve(stream.Dict["Matrix"])); mat != nil {
+	if mat := r.matrixFromArray(r.resolve(stream.Args["Matrix"])); mat != nil {
 		out.Matrix = *mat
 	}
-	if res := stream.Dict["Resources"]; res != nil {
+	if res := stream.Args["Resources"]; res != nil {
 		var err error
 		out.Resources, err = r.resolveOneResourceDict(res)
 		if err != nil {
 			return err
 		}
 	}
-	if st, ok := r.resolveInt(stream.Dict["StructParent"]); ok {
+	if st, ok := r.resolveInt(stream.Args["StructParent"]); ok {
 		out.StructParent = model.ObjInt(st)
-	} else if st, ok := r.resolveInt(stream.Dict["StructParents"]); ok {
+	} else if st, ok := r.resolveInt(stream.Args["StructParents"]); ok {
 		out.StructParents = model.ObjInt(st)
 	}
 
@@ -158,12 +245,12 @@ func (r resolver) resolveXFormObjectFields(obj pdfcpu.Object, out *model.XObject
 // The value of this entry shall be a dictionary in which
 // each key is a destination name and the corresponding value is either an array defining the destination, using
 // the syntax shown in Table 151, or a dictionary with a D entry whose value is such an array.
-func (r resolver) resolveOneNamedDest(dest pdfcpu.Object) (model.DestinationExplicit, error) {
+func (r resolver) resolveOneNamedDest(dest model.Object) (model.DestinationExplicit, error) {
 	dest = r.resolve(dest)
 	switch dest := dest.(type) {
-	case pdfcpu.Array:
+	case model.ObjArray:
 		return r.resolveExplicitDestination(dest)
-	case pdfcpu.Dict:
+	case model.ObjDict:
 		D, isArray := r.resolveArray(dest["D"])
 		if !isArray {
 			return nil, errType("(Dests value).D", dest["D"])
@@ -177,12 +264,12 @@ func (r resolver) resolveOneNamedDest(dest pdfcpu.Object) (model.DestinationExpl
 // the entry is a simple dictonnary
 // In PDF 1.1, the correspondence between name objects and destinations shall be defined by the Dests entry in
 // the document catalogue (see 7.7.2, “Document Catalog”).
-func (r resolver) processDictDests(entry pdfcpu.Object) (model.DestTree, error) {
+func (r resolver) processDictDests(entry model.Object) (model.DestTree, error) {
 	entry = r.resolve(entry)
 	if entry == nil {
 		return model.DestTree{}, nil
 	}
-	nameDict, isDict := entry.(pdfcpu.Dict)
+	nameDict, isDict := entry.(model.ObjDict)
 	if !isDict {
 		return model.DestTree{}, errType("Dests", entry)
 	}
@@ -197,10 +284,10 @@ func (r resolver) processDictDests(entry pdfcpu.Object) (model.DestTree, error) 
 	return out, nil
 }
 
-func (r resolver) processNameDict(entry pdfcpu.Object) (model.NameDictionary, error) {
+func (r resolver) processNameDict(entry model.Object) (model.NameDictionary, error) {
 	var out model.NameDictionary
 
-	dict, _ := r.resolve(entry).(pdfcpu.Dict)
+	dict, _ := r.resolve(entry).(model.ObjDict)
 	if tree := dict["Dests"]; tree != nil {
 		err := r.resolveNameTree(tree, destNameTree{out: &out.Dests})
 		if err != nil {
@@ -240,12 +327,12 @@ func (r resolver) processNameDict(entry pdfcpu.Object) (model.NameDictionary, er
 	return out, nil
 }
 
-func (r resolver) resolveViewerPreferences(entry pdfcpu.Object) (*model.ViewerPreferences, error) {
+func (r resolver) resolveViewerPreferences(entry model.Object) (*model.ViewerPreferences, error) {
 	entry = r.resolve(entry)
 	if entry == nil {
 		return nil, nil
 	}
-	dict, ok := entry.(pdfcpu.Dict)
+	dict, ok := entry.(model.ObjDict)
 	if !ok {
 		return nil, errType("ViewerPreferences", entry)
 	}
@@ -262,12 +349,12 @@ func (r resolver) resolveViewerPreferences(entry pdfcpu.Object) (*model.ViewerPr
 	return &out, nil
 }
 
-func (r resolver) resolveOutline(entry pdfcpu.Object) (*model.Outline, error) {
+func (r resolver) resolveOutline(entry model.Object) (*model.Outline, error) {
 	entry = r.resolve(entry)
 	if entry == nil {
 		return nil, nil
 	}
-	dict, ok := entry.(pdfcpu.Dict)
+	dict, ok := entry.(model.ObjDict)
 	if !ok {
 		return nil, errType("Outlines", entry)
 	}
@@ -283,9 +370,9 @@ func (r resolver) resolveOutline(entry pdfcpu.Object) (*model.Outline, error) {
 	return &out, nil
 }
 
-func (r resolver) resolveOutlineItem(object pdfcpu.Object, parent model.OutlineNode) (*model.OutlineItem, error) {
+func (r resolver) resolveOutlineItem(object model.Object, parent model.OutlineNode) (*model.OutlineItem, error) {
 	object = r.resolve(object)
-	dict, ok := object.(pdfcpu.Dict)
+	dict, ok := object.(model.ObjDict)
 	if !ok {
 		return nil, errType("Outline item", object)
 	}
@@ -293,7 +380,7 @@ func (r resolver) resolveOutlineItem(object pdfcpu.Object, parent model.OutlineN
 		out model.OutlineItem
 		err error
 	)
-	title, _ := isString(r.resolve(dict["Title"]))
+	title, _ := file.IsString(r.resolve(dict["Title"]))
 	out.Title = decodeTextString(title)
 	out.Parent = parent
 	if first := dict["First"]; first != nil {
@@ -316,7 +403,7 @@ func (r resolver) resolveOutlineItem(object pdfcpu.Object, parent model.OutlineN
 		if err != nil {
 			return nil, err
 		}
-	} else if action, _ := r.resolve(dict["Action"]).(pdfcpu.Dict); action != nil {
+	} else if action, _ := r.resolve(dict["Action"]).(model.ObjDict); action != nil {
 		out.A, err = r.processAction(action)
 		if err != nil {
 			return nil, err
@@ -334,12 +421,12 @@ func (r resolver) resolveOutlineItem(object pdfcpu.Object, parent model.OutlineN
 	return &out, nil
 }
 
-func (r resolver) resolveMarkDict(object pdfcpu.Object) (*model.MarkDict, error) {
+func (r resolver) resolveMarkDict(object model.Object) (*model.MarkDict, error) {
 	object = r.resolve(object)
 	if object == nil {
 		return nil, nil
 	}
-	dict, ok := object.(pdfcpu.Dict)
+	dict, ok := object.(model.ObjDict)
 	if !ok {
 		return nil, errType("MarkInfo", object)
 	}
@@ -350,24 +437,24 @@ func (r resolver) resolveMarkDict(object pdfcpu.Object) (*model.MarkDict, error)
 	return &out, nil
 }
 
-func (r resolver) resolveDestinationOrAction(object pdfcpu.Object) (model.Action, error) {
+func (r resolver) resolveDestinationOrAction(object model.Object) (model.Action, error) {
 	object = r.resolve(object)
 	switch object := object.(type) {
-	case pdfcpu.Array: // explicit destination
+	case model.ObjArray: // explicit destination
 		dest, err := r.resolveExplicitDestination(object)
 		if err != nil {
 			return model.Action{}, err
 		}
 		// we see simple destination as GoTo actions
 		return model.Action{ActionType: model.ActionGoTo{D: dest}}, nil
-	case pdfcpu.Dict:
+	case model.ObjDict:
 		return r.processAction(object)
 	}
 	return model.Action{}, nil
 }
 
-func (r resolver) resolveDests(object pdfcpu.Object) (map[model.ObjName]model.DestinationExplicit, error) {
-	dict, _ := r.resolve(object).(pdfcpu.Dict)
+func (r resolver) resolveDests(object model.Object) (map[model.ObjName]model.DestinationExplicit, error) {
+	dict, _ := r.resolve(object).(model.ObjDict)
 	out := make(map[model.ObjName]model.DestinationExplicit, len(dict))
 	for name, dest := range dict {
 		if ar, ok := r.resolveArray(dest); ok {

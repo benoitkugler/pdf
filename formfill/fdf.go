@@ -1,11 +1,7 @@
 package formfill
 
 import (
-	"bytes"
-	"fmt"
-
 	"github.com/benoitkugler/pdf/model"
-	"github.com/pdfcpu/pdfcpu/pkg/pdfcpu"
 )
 
 type FDFValue interface {
@@ -70,13 +66,4 @@ func (f FDFDict) resolve() map[string]Values {
 func FillForm(doc *model.Document, fdf FDFDict, lockForm bool) error {
 	filler := newFiller()
 	return filler.fillForm(&doc.Catalog.AcroForm, fdf, lockForm)
-}
-
-func ReadFDF(data []byte) error {
-	ctx, err := pdfcpu.Read(bytes.NewReader(data), nil)
-	if err != nil {
-		return err
-	}
-	fmt.Println(ctx)
-	return nil
 }

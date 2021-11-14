@@ -70,8 +70,7 @@ func (n ObjName) Write(PDFWritter, Reference) string {
 type ObjFloat Fl
 
 func (f ObjFloat) Write(PDFWritter, Reference) string {
-	// The max precision encountered so far has been 12 (fontType3 fontmatrix components).
-	return strconv.FormatFloat(float64(f), 'f', 12, 64)
+	return formatFloat(float64(f))
 }
 
 func (f ObjFloat) Clone() Object { return f }

@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/pdfcpu/pdfcpu/pkg/filter"
+	"github.com/benoitkugler/pdf/reader/parser/filters"
 )
 
 const (
@@ -47,11 +47,7 @@ func (fi Filter) DecodeReader(r io.Reader) (io.Reader, error) {
 		return r, nil
 	}
 
-	fil, err := filter.NewFilter(string(fi.Name), fi.DecodeParms)
-	if err != nil {
-		return nil, err
-	}
-	return fil.Decode(r)
+	return filters.NewFilter(string(fi.Name), fi.DecodeParms, r)
 }
 
 // // NewFilter validate `s` and returns
@@ -106,26 +102,22 @@ type Stream struct {
 // NewStream attemps to encode `content` using the given filters,
 // applying them in the given order, and storing them in the returned object
 // following the PDF order (that is, reversed).
-// Be aware that not all PDF filters are supported (see filters.List).
-func NewStream(content []byte, filters ...Filter) (Stream, error) {
-	var r io.Reader = bytes.NewReader(content)
-	L := len(filters)
+// Be aware that not all PDF filters are supported.
+func NewStream(content []byte, fs ...Filter) (Stream, error) {
+	var (
+		r   io.Reader = bytes.NewReader(content)
+		err error
+	)
+	L := len(fs)
 	reversed := make(Filters, L)
-	for i, fi := range filters {
-		fil, err := filter.NewFilter(string(fi.Name), fi.DecodeParms)
-		if err != nil {
-			return Stream{}, err
-		}
-		r, err = fil.Encode(r)
+	for i, fi := range fs {
+		r, err = filters.NewFilter(string(fi.Name), fi.DecodeParms, r)
 		if err != nil {
 			return Stream{}, err
 		}
 		reversed[L-1-i] = fi
 	}
-	var (
-		out Stream
-		err error
-	)
+	var out Stream
 	out.Content, err = ioutil.ReadAll(r)
 	if err != nil {
 		return out, err

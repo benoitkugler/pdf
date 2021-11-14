@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	"github.com/benoitkugler/pdf/model"
-	"github.com/pdfcpu/pdfcpu/pkg/pdfcpu"
+	"github.com/benoitkugler/pdf/reader/file"
 )
 
 // name-tree like items
@@ -12,18 +12,18 @@ type nameTree interface {
 	createKid() nameTree
 	appendKid(kid nameTree) // kid will be the value returned by createKid
 	// must handle the case where `value` is indirect
-	resolveLeafValueAppend(r resolver, name string, value pdfcpu.Object) error
+	resolveLeafValueAppend(r resolver, name string, value model.Object) error
 }
 
 // resolveNameTree is a "generic function" which walk a name tree
 // and fill the given output
 // if entry is (or resolve) to nil, return early
-func (r resolver) resolveNameTree(entry pdfcpu.Object, output nameTree) error {
+func (r resolver) resolveNameTree(entry model.Object, output nameTree) error {
 	entry = r.resolve(entry)
 	if entry == nil {
 		return nil
 	}
-	dict, isDict := entry.(pdfcpu.Dict)
+	dict, isDict := entry.(model.ObjDict)
 	if !isDict {
 		return errType("Name Tree value", entry)
 	}
@@ -50,7 +50,7 @@ func (r resolver) resolveNameTree(entry pdfcpu.Object, output nameTree) error {
 		return fmt.Errorf("expected even length array in name tree, got %s", names)
 	}
 	for l := 0; l < L/2; l++ {
-		name, _ := isString(r.resolve(names[2*l]))
+		name, _ := file.IsString(r.resolve(names[2*l]))
 		value := names[2*l+1]
 		err := output.resolveLeafValueAppend(r, name, value)
 		if err != nil {
@@ -67,10 +67,12 @@ type destNameTree struct {
 func (d destNameTree) createKid() nameTree {
 	return destNameTree{out: new(model.DestTree)}
 }
+
 func (d destNameTree) appendKid(kid nameTree) {
 	d.out.Kids = append(d.out.Kids, *kid.(destNameTree).out)
 }
-func (d destNameTree) resolveLeafValueAppend(r resolver, name string, value pdfcpu.Object) error {
+
+func (d destNameTree) resolveLeafValueAppend(r resolver, name string, value model.Object) error {
 	expDest, err := r.resolveOneNamedDest(value)
 	d.out.Names = append(d.out.Names, model.NameToDest{Name: model.DestinationString(name), Destination: expDest})
 	return err
@@ -83,12 +85,14 @@ type embFileNameTree struct {
 func (d embFileNameTree) createKid() nameTree {
 	return embFileNameTree{out: new(model.EmbeddedFileTree)}
 }
+
 func (d embFileNameTree) appendKid(kid nameTree) {
 	// we choose to flatten in the current node
 	values := *kid.(embFileNameTree).out
 	*d.out = append(*d.out, values...)
 }
-func (d embFileNameTree) resolveLeafValueAppend(r resolver, name string, value pdfcpu.Object) error {
+
+func (d embFileNameTree) resolveLeafValueAppend(r resolver, name string, value model.Object) error {
 	fileSpec, err := r.resolveFileSpec(value)
 	*d.out = append(*d.out, model.NameToFile{Name: name, FileSpec: fileSpec})
 	return err
@@ -101,10 +105,12 @@ type appearanceNameTree struct {
 func (d appearanceNameTree) createKid() nameTree {
 	return appearanceNameTree{out: new(model.AppearanceTree)}
 }
+
 func (d appearanceNameTree) appendKid(kid nameTree) {
 	d.out.Kids = append(d.out.Kids, *kid.(appearanceNameTree).out)
 }
-func (d appearanceNameTree) resolveLeafValueAppend(r resolver, name string, value pdfcpu.Object) error {
+
+func (d appearanceNameTree) resolveLeafValueAppend(r resolver, name string, value model.Object) error {
 	form, err := r.resolveOneXObjectForm(value)
 	d.out.Names = append(d.out.Names, model.NameToAppearance{Name: name, Appearance: form})
 	return err
@@ -117,11 +123,13 @@ type idTree struct {
 func (d idTree) createKid() nameTree {
 	return idTree{out: new(model.IDTree)}
 }
+
 func (d idTree) appendKid(kid nameTree) {
 	d.out.Kids = append(d.out.Kids, *kid.(idTree).out)
 }
-func (d idTree) resolveLeafValueAppend(r resolver, name string, value pdfcpu.Object) error {
-	ref, isRef := value.(pdfcpu.IndirectRef)
+
+func (d idTree) resolveLeafValueAppend(r resolver, name string, value model.Object) error {
+	ref, isRef := value.(model.ObjIndirectRef)
 	if !isRef {
 		return errType("IDTree value", value)
 	}
@@ -135,14 +143,14 @@ type numberTree interface {
 	createKid() numberTree
 	appendKid(kid numberTree) // kid will be the value returned by createKid
 	// must handle the case where `value` is indirect
-	resolveLeafValueAppend(r resolver, number int, value pdfcpu.Object) error
+	resolveLeafValueAppend(r resolver, number int, value model.Object) error
 }
 
 // resolveNumberTree is a "generic function" which walk a number tree
 // and fill the given output
-func (r resolver) resolveNumberTree(entry pdfcpu.Object, output numberTree) error {
+func (r resolver) resolveNumberTree(entry model.Object, output numberTree) error {
 	entry = r.resolve(entry)
-	dict, isDict := entry.(pdfcpu.Dict)
+	dict, isDict := entry.(model.ObjDict)
 	if !isDict {
 		return errType("Number Tree value", entry)
 	}
@@ -186,18 +194,20 @@ type pageLabelTree struct {
 func (d pageLabelTree) createKid() numberTree {
 	return pageLabelTree{out: new(model.PageLabelsTree)}
 }
+
 func (d pageLabelTree) appendKid(kid numberTree) {
 	d.out.Kids = append(d.out.Kids, *kid.(pageLabelTree).out)
 }
-func (d pageLabelTree) resolveLeafValueAppend(r resolver, number int, value pdfcpu.Object) error {
+
+func (d pageLabelTree) resolveLeafValueAppend(r resolver, number int, value model.Object) error {
 	label, err := r.processPageLabel(value)
 	d.out.Nums = append(d.out.Nums, model.NumToPageLabel{Num: number, PageLabel: label})
 	return err
 }
 
-func (r resolver) processPageLabel(entry pdfcpu.Object) (model.PageLabel, error) {
+func (r resolver) processPageLabel(entry model.Object) (model.PageLabel, error) {
 	entry = r.resolve(entry)
-	entryDict, isDict := entry.(pdfcpu.Dict)
+	entryDict, isDict := entry.(model.ObjDict)
 	if !isDict {
 		return model.PageLabel{}, errType("Page Label", entry)
 	}
@@ -205,10 +215,10 @@ func (r resolver) processPageLabel(entry pdfcpu.Object) (model.PageLabel, error)
 	if s, ok := r.resolveName(entryDict["S"]); ok {
 		out.S = s
 	}
-	p, _ := isString(r.resolve(entryDict["P"]))
+	p, _ := file.IsString(r.resolve(entryDict["P"]))
 	out.P = decodeTextString(p)
-	if st := entryDict.IntEntry("St"); st != nil {
-		out.St = *st
+	if st, ok := r.resolveInt(entryDict["St"]); ok {
+		out.St = st
 	}
 	return out, nil
 }
@@ -220,19 +230,21 @@ type parentTree struct {
 func (d parentTree) createKid() numberTree {
 	return parentTree{out: new(model.ParentTree)}
 }
+
 func (d parentTree) appendKid(kid numberTree) {
 	d.out.Kids = append(d.out.Kids, *kid.(parentTree).out)
 }
-func (d parentTree) resolveLeafValueAppend(r resolver, number int, value pdfcpu.Object) error {
+
+func (d parentTree) resolveLeafValueAppend(r resolver, number int, value model.Object) error {
 	var parent model.NumToParent
 	parent.Num = number
 	// value must be either an indirect ref, or a direct array of indirect ref
-	if ref, isRef := value.(pdfcpu.IndirectRef); isRef {
+	if ref, isRef := value.(model.ObjIndirectRef); isRef {
 		parent.Parent = r.structure[ref]
-	} else if array, ok := value.(pdfcpu.Array); ok {
+	} else if array, ok := value.(model.ObjArray); ok {
 		parent.Parents = make([]*model.StructureElement, 0, len(array))
 		for _, p := range array {
-			ref, ok := p.(pdfcpu.IndirectRef)
+			ref, ok := p.(model.ObjIndirectRef)
 			if !ok { // invalid: ignore
 				continue
 			}
@@ -252,17 +264,19 @@ type templatesNameTree struct {
 func (d templatesNameTree) createKid() nameTree {
 	return templatesNameTree{out: new(model.TemplateTree)}
 }
+
 func (d templatesNameTree) appendKid(kid nameTree) {
 	d.out.Kids = append(d.out.Kids, *kid.(templatesNameTree).out)
 }
-func (d templatesNameTree) resolveLeafValueAppend(r resolver, name string, value pdfcpu.Object) error {
+
+func (d templatesNameTree) resolveLeafValueAppend(r resolver, name string, value model.Object) error {
 	var page *model.PageObject
-	if pageRef, isRef := value.(pdfcpu.IndirectRef); isRef {
+	if pageRef, isRef := value.(model.ObjIndirectRef); isRef {
 		page = r.pages[pageRef]
 	}
 	if page == nil { // template -> create a new object
 		page = new(model.PageObject)
-		pageDict, _ := r.resolve(value).(pdfcpu.Dict)
+		pageDict, _ := r.resolve(value).(model.ObjDict)
 		err := r.resolvePageObject(pageDict, page)
 		if err != nil {
 			return err

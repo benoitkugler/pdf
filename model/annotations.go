@@ -43,7 +43,7 @@ type Border struct {
 }
 
 func (b Border) pdfString() string {
-	out := fmt.Sprintf("[%g %g %g", b.HCornerRadius, b.VCornerRadius, b.BorderWidth)
+	out := fmt.Sprintf("[%f %f %f", b.HCornerRadius, b.VCornerRadius, b.BorderWidth)
 	if b.DashArray != nil {
 		out += " " + writeFloatArray(b.DashArray)
 	}
@@ -72,7 +72,7 @@ func (bo BorderStyle) String() string {
 	b := newBuffer()
 	b.WriteString("<<")
 	if bo.W != nil {
-		b.fmt("/W %g", bo.W.(ObjFloat))
+		b.fmt("/W %f", bo.W.(ObjFloat))
 	}
 	if bo.S != "" {
 		b.fmt("/S %s", bo.S)
@@ -103,7 +103,7 @@ type BorderEffect struct {
 
 // String returns the PDF dictionary .
 func (b BorderEffect) String() string {
-	return fmt.Sprintf("<</S %s/I %g>>", b.S, b.I)
+	return fmt.Sprintf("<</S %s/I %f>>", b.S, b.I)
 }
 
 func (b *BorderEffect) Clone() *BorderEffect {
@@ -258,7 +258,7 @@ func (a AnnotationMarkup) pdfFields(pdf pdfWriter, context Reference) string {
 		b.fmt("/Popup %s", ref)
 	}
 	if a.CA != nil {
-		b.fmt("/CA %g", a.CA.(ObjFloat))
+		b.fmt("/CA %f", a.CA.(ObjFloat))
 	}
 	if a.RC != "" {
 		b.fmt("/RC %s", pdf.EncodeString(a.RC, TextString, context))
@@ -585,14 +585,14 @@ func (f AnnotationLine) annotationFields(pdf pdfWriter, ref Reference) string {
 		b.WriteString("/IC " + writeFloatArray(f.IC))
 	}
 	if f.LL != 0 {
-		b.fmt("/LL %g", f.LL)
+		b.fmt("/LL %f", f.LL)
 	}
 	if f.LLE != 0 {
-		b.fmt("/LLE %g", f.LLE)
+		b.fmt("/LLE %f", f.LLE)
 	}
 	b.fmt("/Cap %v", f.Cap)
 	if f.LLO != nil {
-		b.fmt("/LLO %g", f.LLO.(ObjFloat))
+		b.fmt("/LLO %f", f.LLO.(ObjFloat))
 	}
 	if f.CP != "" {
 		b.fmt("/CP %s", f.CP)

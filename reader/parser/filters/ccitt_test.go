@@ -15,7 +15,6 @@ type cr struct {
 
 func (c cr) ReadByte() (byte, error) {
 	out, err := c.Reader.ReadByte()
-	fmt.Println(out)
 	return out, err
 }
 

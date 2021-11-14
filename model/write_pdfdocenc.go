@@ -1,6 +1,9 @@
 package model
 
-import "bytes"
+import (
+	"bytes"
+	"strings"
+)
 
 var reversed = map[rune]byte{}
 
@@ -8,6 +11,19 @@ func init() {
 	for b, r := range PDFDocEncoding {
 		reversed[r] = byte(b)
 	}
+}
+
+// PdfDocEncodingToString decodes a PDFDocEncoded byte slice `b` to a UTF-8 string.
+func PdfDocEncodingToString(b []byte) string {
+	var buf strings.Builder
+	for _, bval := range b {
+		r := PDFDocEncoding[bval]
+		if r == 0 {
+			continue
+		}
+		buf.WriteRune(r)
+	}
+	return buf.String()
 }
 
 // stringToPDFDocEncoding encode go string `s` to PdfDocEncoding,

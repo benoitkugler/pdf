@@ -5,21 +5,6 @@ import (
 	"testing"
 )
 
-// pdfDocEncodingToString decodes PDFDocEncoded byte slice `b` to unicode string.
-func pdfDocEncodingToString(b []byte) string {
-	var runes []rune
-	for _, bval := range b {
-		r := PDFDocEncoding[bval]
-		if r == 0 {
-			continue
-		}
-
-		runes = append(runes, r)
-	}
-
-	return string(runes)
-}
-
 func TestPDFDocEncodingDecode(t *testing.T) {
 	testcases := []struct {
 		Encoded  []byte
@@ -30,7 +15,7 @@ func TestPDFDocEncodingDecode(t *testing.T) {
 	}
 
 	for _, testcase := range testcases {
-		str := pdfDocEncodingToString(testcase.Encoded)
+		str := PdfDocEncodingToString(testcase.Encoded)
 		if str != testcase.Expected {
 			t.Fatalf("Mismatch %s != %s", str, testcase.Expected)
 		}

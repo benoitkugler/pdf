@@ -6,14 +6,15 @@ import (
 	"io"
 	"log"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/benoitkugler/pdf/fonts"
 	"github.com/benoitkugler/pdf/model"
-	"github.com/pdfcpu/pdfcpu/pkg/pdfcpu"
-	"github.com/phpdave11/gofpdf"
+	"github.com/benoitkugler/pdf/reader/file"
+	// "github.com/phpdave11/gofpdf"
 )
 
 // the SPEC is a good test candidate
@@ -25,9 +26,7 @@ func init() {
 	// the PDF spec is used in several tests, but is heavy
 	// so, when working on isolated test, you may want to avoid loading it
 	// by commenting this line
-	// loadPDFSpec()
-
-	generatePDFs()
+	loadPDFSpec()
 }
 
 func loadPDFSpec() {
@@ -41,46 +40,7 @@ func loadPDFSpec() {
 	if err != nil {
 		panic(err)
 	}
-}
-
-func generatePDFs() {
-	f := gofpdf.New("", "", "", "")
-	f.SetCompression(false)
-	f.SetProtection(0, password, "aaaa")
-	f.AddPage()
-	f.Text(10, 10, "My secret content !")
-	if err := f.OutputFileAndClose("test/ProtectedRC4.pdf"); err != nil {
-		panic(err)
-	}
-
-	g := gofpdf.New("", "", "", "")
-	// g.AddPage()
-	// a := gofpdf.Attachment{
-	// 	Filename:    "Test.txt",
-	// 	Content:     []byte("AOIEPOZNSLKDSD"),
-	// 	Description: "Nice file !",
-	// }
-	// g.AddAttachmentAnnotation(&a, 10, 10, 20, 20)
-	// g.SetAttachments([]gofpdf.Attachment{
-	// 	a, a,
-	// })
-
-	g.AddPage()
-
-	l := g.AddLink()
-	g.SetLink(l, 10, 1)
-	g.Link(20, 30, 40, 50, l)
-	g.Rect(20, 30, 40, 50, "D")
-	if err := g.OutputFileAndClose("test/Links.pdf"); err != nil {
-		panic(err)
-	}
-
-	g = gofpdf.New("", "", "", "")
-	if err := g.OutputFileAndClose("test/Empty.pdf"); err != nil {
-		panic(err)
-	}
-
-	fmt.Println("Test PDF generated.")
+	fmt.Println("PDF spec loaded.")
 }
 
 func TestOpen(t *testing.T) {
@@ -98,37 +58,37 @@ func TestOpen(t *testing.T) {
 }
 
 func BenchmarkProcess(b *testing.B) {
-	ctx, err := pdfcpu.ReadFile("test/PDF_SPEC.pdf", nil)
+	ctx, err := file.ReadFile("test/PDF_SPEC.pdf", nil)
 	if err != nil {
 		b.Fatal(err)
 	}
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		r := newResolver()
-		r.xref = ctx.XRefTable
-		_, _, err := r.processPDF()
+		_, _, err := ProcessContext(ctx)
 		if err != nil {
 			b.Fatal(err)
 		}
 	}
 }
 
-func TestDataset(t *testing.T) {
-	files := [...]string{
-		"test/CarnetChantPage.pdf",
-		"test/Links.pdf",
-		"test/Empty.pdf",
-		"test/descriptif.pdf",
-		"test/f1118s1.pdf",
-		"test/ModeleRecuFiscalEditable.pdf",
-		"test/CMYK_OP.pdf",
-		"test/CMYKSpot_OP.pdf",
-		"test/Shading.pdf",
-		"test/Shading4.pdf",
-		"test/Font_Substitution.pdf",
+func filesFromDir(dir string) []string {
+	files, err := os.ReadDir(dir)
+	if err != nil {
+		panic(err)
 	}
 
-	for _, file := range files {
+	var out []string
+	for _, f := range files {
+		if f.IsDir() {
+			continue
+		}
+		out = append(out, filepath.Join(dir, f.Name()))
+	}
+	return out
+}
+
+func TestDataset(t *testing.T) {
+	for _, file := range filesFromDir("test/corpus") {
 		fmt.Println("Parsing", file)
 
 		doc, _, err := ParsePDFFile(file, Options{})
@@ -226,8 +186,8 @@ func TestWrite(t *testing.T) {
 	}
 }
 
-func reWrite(doc model.Document, file string) error {
-	out, err := os.Create(file)
+func reWrite(doc model.Document, filename string) error {
+	out, err := os.Create(filename)
 	if err != nil {
 		return err
 	}
@@ -240,7 +200,7 @@ func reWrite(doc model.Document, file string) error {
 	}
 	fmt.Println("PDF wrote to disk in", time.Since(ti))
 
-	_, err = pdfcpu.ReadFile(file, nil)
+	_, err = file.ReadFile(filename, nil)
 	return err
 }
 
@@ -298,7 +258,7 @@ func BenchmarkWrite(b *testing.B) {
 func TestEmbeddedTTF(t *testing.T) {
 	for _, file := range [...]string{
 		"test/symbolic_ttf.pdf",
-		"test/ModeleRecuFiscalEditable.pdf",
+		"test/corpus/ModeleRecuFiscalEditable.pdf",
 		"test/ttf.pdf",
 		"test/ttf_kerning.pdf",
 	} {
@@ -355,64 +315,6 @@ func TestMedia(t *testing.T) {
 		err = reWrite(doc, file+".pdf")
 		if err != nil {
 			t.Fatal(err)
-		}
-	}
-}
-
-func TestType1C(t *testing.T) {
-	file := "test/UTF-32.pdf"
-	// file := "test/type1C.pdf"
-	doc, _, err := ParsePDFFile(file, Options{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	seen := map[*model.FontDict]bool{} // avoid processing the same font twice
-	for _, page := range doc.Catalog.Pages.Flatten() {
-		if r := page.Resources; r != nil {
-			for _, font := range r.Font {
-				if seen[font] {
-					continue
-				}
-				seen[font] = true
-				var fontFile *model.FontFile
-				if ttf, ok := font.Subtype.(model.FontType1); ok {
-					if ft := ttf.FontDescriptor.FontFile; ft != nil && ft.Subtype == "Type1C" {
-						fontFile = ft
-					}
-				} else if type0, ok := font.Subtype.(model.FontType0); ok {
-					if ft := type0.DescendantFonts.FontDescriptor.FontFile; ft != nil && ft.Subtype == "CIDFontType0C" {
-						fontFile = ft
-					}
-				}
-				if fontFile == nil {
-					continue
-				}
-				// _, err := fonts.BuildFont(font)
-				// if err != nil {
-				// 	t.Fatal(err)
-				// }
-				// fmt.Println(ttf.Encoding)
-				b, err := fontFile.Decode()
-				if err != nil {
-					t.Fatal(err)
-				}
-				fmt.Println("skipping Type1C font with length", len(b))
-				// err = ioutil.WriteFile(string(font.Subtype.FontName())+".cff", b, os.ModePerm)
-				// if err != nil {
-				// 	t.Error(err)
-				// }
-				// ft, err := sfnt.Parse(bytes.NewReader(b))
-				// // ft, err := sfnt.Parse(b)
-				// if err != nil {
-				// 	t.Fatal(err)
-				// }
-
-				// fmt.Println(ft.HheaTable())
-				// fmt.Println(ft.OS2Table())
-				// fmt.Println(ft.GposTable())
-				// fmt.Println(ft.CmapTable())
-				// ft.Kern(&b, sfnt.GlyphIndex(b1), sfnt.GlyphIndex(b2))
-			}
 		}
 	}
 }

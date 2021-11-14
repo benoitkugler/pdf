@@ -1,6 +1,7 @@
 package filters
 
 import (
+	"bufio"
 	"bytes"
 	"errors"
 	"io"
@@ -17,7 +18,7 @@ func unexpectedEOF(err error) error {
 	return err
 }
 
-func (f SkipperRunLength) decode(w io.ByteWriter, src io.ByteReader) error {
+func decodeRunLength(w io.ByteWriter, src io.ByteReader) error {
 	for b, err := src.ReadByte(); ; b, err = src.ReadByte() {
 		// EOF is an error since we expect the EOD marker
 		if err != nil {
@@ -52,6 +53,15 @@ func (f SkipperRunLength) decode(w io.ByteWriter, src io.ByteReader) error {
 func (f SkipperRunLength) Skip(encoded io.Reader) (int, error) {
 	// we make sure not to read passed EOD
 	r := newCountReader(encoded)
-	err := f.decode(&bytes.Buffer{}, r)
+	err := decodeRunLength(&bytes.Buffer{}, r)
 	return r.totalRead, err
+}
+
+func runLengthDecoder(src io.Reader) (io.Reader, error) {
+	var dst bytes.Buffer
+	err := decodeRunLength(&dst, bufio.NewReader(src))
+	if err != nil {
+		return nil, err
+	}
+	return &dst, nil
 }

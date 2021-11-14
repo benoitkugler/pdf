@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"strconv"
 	"strings"
@@ -240,17 +239,6 @@ func (ctx *context) buildXRefTableStartingAt(offset int64) (err error) {
 		}
 	}
 
-	// A friendly 🤢 to the devs of the HP Scanner & Printer software utility.
-	// Hack for #250: If exactly one xref subsection ensure it starts with object #0 instead #1.
-	if _, hasZero := ctx.xrefTable.objects[model.ObjIndirectRef{GenerationNumber: 65535}]; ssCount == 1 && !hasZero {
-		for i := 1; i <= ctx.trailer.size; i++ {
-			if ctx.xrefTable.objects[model.ObjIndirectRef{ObjectNumber: i}] != nil {
-				ctx.xrefTable.objects[model.ObjIndirectRef{ObjectNumber: i - 1}] = ctx.xrefTable.objects[model.ObjIndirectRef{ObjectNumber: i}]
-			}
-		}
-		delete(ctx.xrefTable.objects, model.ObjIndirectRef{ObjectNumber: ctx.trailer.size})
-	}
-
 	return nil
 }
 
@@ -297,56 +285,57 @@ func (xrefTable *xRefTable) parseXRefTableSubSection(tk *tok.Tokenizer) error {
 
 	// Process all entries of this subsection into xrefTable entries.
 	for i := 0; i < objCount; i++ {
-		err = xrefTable.parseXRefTableEntry(tk, startObjNumber+i)
+		entry, generationNumber, err := xrefTable.parseXRefTableEntry(tk)
 		if err != nil {
 			return err
 		}
+
+		objectNumber := startObjNumber + i
+
+		if entry.offset == 0 && !entry.free { // skip entry for in use object with offset 0
+			continue
+		}
+
+		ref := model.ObjIndirectRef{ObjectNumber: objectNumber, GenerationNumber: generationNumber}
+
+		// since we read the last xref table first, we skip potential
+		// older object definition
+		if _, exists := xrefTable.objects[ref]; !exists {
+			xrefTable.objects[ref] = entry
+		}
+
 	}
 
 	return nil
 }
 
 // Read next subsection entry and generate corresponding xref table entry.
-func (xrefTable xRefTable) parseXRefTableEntry(tk *tok.Tokenizer, objectNumber int) error {
+func (xrefTable xRefTable) parseXRefTableEntry(tk *tok.Tokenizer) (*xrefEntry, int, error) {
 	offsetTk, err := tk.NextToken()
 	if err != nil {
-		return err
+		return nil, 0, err
 	}
 	offset, err := strconv.ParseInt(string(offsetTk.Value), 10, 64)
 	if err != nil {
-		return fmt.Errorf("parseXRefTableEntry: invalid offset: %s", err)
+		return nil, 0, fmt.Errorf("parseXRefTableEntry: invalid offset: %s", err)
 	}
 
 	generation, err := parseInt(tk)
 	if err != nil {
-		return fmt.Errorf("parseXRefTableEntry: invalid generation number: %s", err)
+		return nil, 0, fmt.Errorf("parseXRefTableEntry: invalid generation number: %s", err)
 	}
 
 	entryType, err := tk.NextToken()
 	if err != nil {
-		return err
+		return nil, 0, err
 	}
 	v := string(entryType.Value)
 	if entryType.Kind != tok.Other || (v != "f" && v != "n") {
-		return errors.New("parseXRefTableEntry: corrupt xref subsection entry")
+		return nil, 0, errors.New("parseXRefTableEntry: corrupt xref subsection entry")
 	}
 
 	entry := xrefEntry{offset: offset, free: v == "f"}
-
-	if offset == 0 && v == "n" { // skip entry for in use object with offset 0
-		return nil
-	}
-
-	ref := model.ObjIndirectRef{ObjectNumber: objectNumber, GenerationNumber: generation}
-
-	// since we read the last xref table first, we skip potential
-	// older object definition
-	if _, exists := xrefTable.objects[ref]; exists {
-		return nil
-	}
-
-	xrefTable.objects[ref] = &entry
-	return nil
+	return &entry, generation, nil
 }
 
 func (ctx *context) processTrailer(tk *tok.Tokenizer) (int64, error) {
@@ -361,25 +350,10 @@ func (ctx *context) processTrailer(tk *tok.Tokenizer) (int64, error) {
 		return 0, fmt.Errorf("processTrailer: expected dict, got %T", o)
 	}
 
-	return ctx.parseTrailerDict(trailerDict)
-}
+	// Parse trailer dict and return any offset of a previous xref section.
+	// An offset of 0 means no prev entry
 
-// accept Int or XXX 0 R
-func offsetFromObject(o parser.Object) (int64, bool) {
-	switch pref := o.(type) {
-	case parser.Integer:
-		return int64(pref), true
-	case parser.IndirectRef:
-		return int64(pref.ObjectNumber), true
-	default:
-		return 0, false
-	}
-}
-
-// Parse trailer dict and return any offset of a previous xref section.
-// An offset of 0 means no prev entry
-func (ctx *context) parseTrailerDict(trailerDict parser.Dict) (int64, error) {
-	err := ctx.trailer.parseTrailerInfo(trailerDict)
+	err = ctx.trailer.parseTrailerInfo(trailerDict)
 	if err != nil {
 		return 0, err
 	}
@@ -421,6 +395,18 @@ func (ctx *context) parseTrailerDict(trailerDict parser.Dict) (int64, error) {
 	}
 
 	return offset, nil
+}
+
+// accept Int or XXX 0 R
+func offsetFromObject(o parser.Object) (int64, bool) {
+	switch pref := o.(type) {
+	case parser.Integer:
+		return int64(pref), true
+	case parser.IndirectRef:
+		return int64(pref.ObjectNumber), true
+	default:
+		return 0, false
+	}
 }
 
 // '7.5.6 - Incremental Updates' says :
@@ -592,245 +578,4 @@ func parseObjectDeclaration(tk *tok.Tokenizer) (objectNumber, generationNumber i
 		err = fmt.Errorf("parseObjectDeclaration: unexpected token %v", objTk)
 	}
 	return
-}
-
-// return the previous offset (0 if it does not exists)
-func (ctx *context) parseXRefStream(offset int64) (int64, error) {
-	// parse this object
-	streamHeader, err := ctx.parseStreamDictAt(offset)
-	if err != nil {
-		return 0, err
-	}
-
-	streamOffset := streamHeader.contentOffset
-
-	sd, decoded, err := ctx.xRefStreamDict(streamHeader.dict, streamOffset)
-	if err != nil {
-		return 0, err
-	}
-
-	err = ctx.trailer.parseTrailerInfo(streamHeader.dict)
-	if err != nil {
-		return 0, err
-	}
-
-	// Parse xRefStream and create xRefTable entries for embedded objects.
-	err = ctx.extractXRefTableEntriesFromXRefStream(decoded, sd)
-	if err != nil {
-		return 0, err
-	}
-
-	// since xRef streams are not regular objects, we do not save them in the xref table
-	// in particular, it avoids issue with decryption
-
-	return sd.prev, nil
-}
-
-func (ctx *context) xRefStreamDict(d parser.Dict, streamOffset int64) (xrefStreamDict, []byte, error) {
-	// The values of all entries shown in Table 17 shall be direct objects; indirect references shall not be
-	// permitted. For arrays (the Index and W entries), all of their elements shall be direct objects as well. If the
-	// stream is encoded, the Filter and DecodeParms entries in Table 5 shall also be direct objects.
-
-	details, err := parseXRefStreamDict(d)
-	if err != nil {
-		return details, nil, err
-	}
-
-	filters, err := parser.ParseDirectFilters(d["Filter"], d["DecodeParms"])
-	if err != nil {
-		return details, nil, err
-	}
-
-	// we do not use decodeStreamContent since :
-	// 1) The cross-reference stream shall not be encrypted and strings appearing in the cross-reference stream
-	// dictionary shall not be encrypted. It shall not have a Filter entry that specifies a Crypt filter (see 7.4.10,
-	// "Crypt Filter").
-	// 2) there is no object number for xref stream
-	content, err := ctx.extractStreamContent(filters, streamOffset, details.count()*details.entrySize())
-	if err != nil {
-		return details, nil, err
-	}
-
-	// Decode stream content:
-	r, err := filters.DecodeReader(bytes.NewReader(content))
-	if err != nil {
-		return details, nil, err
-	}
-	decoded, err := ioutil.ReadAll(r)
-	if err != nil {
-		return details, nil, err
-	}
-
-	return details, decoded, nil
-}
-
-// bufToInt64 interprets the content of buf as an int64.
-func bufToInt64(buf []byte) (i int64) {
-	for _, b := range buf {
-		i <<= 8
-		i |= int64(b)
-	}
-	return i
-}
-
-// For each object embedded in this xRefStream create the corresponding xRef table entry.
-func (ctx *context) extractXRefTableEntriesFromXRefStream(buf []byte, xrefDict xrefStreamDict) error {
-	// Note:
-	// A value of zero for an element in the W array indicates that the corresponding field shall not be present in the stream,
-	// and the default value shall be used, if there is one.
-	// If the first element is zero, the type field shall not be present, and shall default to type 1.
-
-	xrefEntryLen, count := xrefDict.entrySize(), xrefDict.count()
-	L := count * xrefEntryLen
-	if len(buf) < L {
-		return errors.New("pdfcpu: extractXRefTableEntriesFromXRefStream: corrupt xrefstream")
-	}
-	// Sometimes there is an additional xref entry not accounted for by "Index".
-	// We ignore such a entries and do not treat this as an error.
-	buf = buf[:L]
-
-	i1 := xrefDict.w[0]
-	i2 := xrefDict.w[1]
-	i3 := xrefDict.w[2]
-
-	j := 0 // current index of object (0 <= j < count)
-	for _, subsection := range xrefDict.index {
-		firstObj, nb := subsection[0], subsection[1]
-		for i := 0; i < nb; i++ {
-			objectNumber := firstObj + i
-
-			offsetEntry := j * xrefEntryLen
-			c2 := bufToInt64(buf[offsetEntry+i1 : offsetEntry+i1+i2])
-			c3 := bufToInt64(buf[offsetEntry+i1+i2 : offsetEntry+i1+i2+i3])
-
-			var (
-				xRefTableEntry xrefEntry
-				generation     int
-			)
-			switch buf[offsetEntry] {
-			case 0x00: // free object, ignore
-				xRefTableEntry = xrefEntry{
-					offset: c2,
-					free:   true,
-				}
-				generation = int(c3)
-			case 0x01: // in use object
-				xRefTableEntry = xrefEntry{
-					offset: c2,
-				}
-				generation = int(c3)
-			case 0x02: // compressed object; generation always 0.
-				xRefTableEntry = xrefEntry{
-					streamObjectNumber: int(c2),
-					streamObjectIndex:  int(c3),
-				}
-			}
-
-			ref := model.ObjIndirectRef{ObjectNumber: objectNumber, GenerationNumber: generation}
-			// skip already assigned
-			if _, has := ctx.xrefTable.objects[ref]; !has {
-				ctx.xrefTable.objects[ref] = &xRefTableEntry
-			}
-			j++
-		}
-	}
-	return nil
-}
-
-type xrefStreamDict struct {
-	index  [][2]int
-	w      [3]int
-	length int
-	size   int
-	prev   int64
-}
-
-// returns the number of entries, as described by the 'index'
-func (x xrefStreamDict) count() int {
-	total := 0
-	for _, subsection := range x.index {
-		total += subsection[1]
-	}
-	return total
-}
-
-func (x xrefStreamDict) entrySize() int {
-	return x.w[0] + x.w[1] + x.w[2]
-}
-
-var (
-	errXrefStreamCorruptIndex = errors.New("parseXRefStreamDict: corrupted Index entry")
-	errXrefStreamCorruptW     = errors.New("parseXRefStreamDict: corrupted entry W: expecting array of 3 int")
-)
-
-// parseXRefStreamDict creates a XRefStreamDict out of a StreamDict.
-func parseXRefStreamDict(dict parser.Dict) (xrefStreamDict, error) {
-	var out xrefStreamDict
-
-	out.prev, _ = offsetFromObject(dict["Prev"])
-
-	length, ok := dict["Length"].(parser.Integer)
-	if !ok {
-		return out, errors.New("parseXRefStreamDict: \"Length\" not available")
-	}
-	out.length = int(length)
-
-	size, ok := dict["Size"].(parser.Integer)
-	if !ok {
-		return out, errors.New("parseXRefStreamDict: \"Size\" not available")
-	}
-	out.size = int(size)
-
-	//	Read optional parameter Index
-	indArr, _ := dict["Index"].(parser.Array)
-	if len(indArr) != 0 {
-		if len(indArr)%2 > 1 {
-			return out, errXrefStreamCorruptIndex
-		}
-		out.index = make([][2]int, len(indArr)/2)
-		for i := range out.index {
-			startObj, ok := indArr[i*2].(parser.Integer)
-			if !ok {
-				return out, errXrefStreamCorruptIndex
-			}
-			count, ok := indArr[i*2+1].(parser.Integer)
-			if !ok {
-				return out, errXrefStreamCorruptIndex
-			}
-			out.index = append(out.index, [2]int{int(startObj), int(count)})
-		}
-	} else {
-		out.index = [][2]int{{0, out.size}}
-	}
-
-	// Read parameter W in order to decode the xref table.
-	// array of integers representing the size of the fields in a single cross-reference entry.
-
-	w, _ := dict["W"].(parser.Array) // validate array with 3 positive integers
-	if len(w) < 3 {
-		return out, errXrefStreamCorruptW
-	}
-
-	f := func(ok bool, i parser.Integer) bool {
-		return !ok || i < 0
-	}
-
-	i1, ok := w[0].(parser.Integer)
-	if f(ok, i1) {
-		return out, errXrefStreamCorruptW
-	}
-	out.w[0] = int(i1)
-
-	i2, ok := w[1].(parser.Integer)
-	if f(ok, i2) {
-		return out, errXrefStreamCorruptW
-	}
-	out.w[1] = int(i2)
-
-	i3, ok := w[2].(parser.Integer)
-	if f(ok, i3) {
-		return out, errXrefStreamCorruptW
-	}
-	out.w[2] = int(i3)
-	return out, nil
 }

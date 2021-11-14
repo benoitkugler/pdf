@@ -4,13 +4,13 @@ import (
 	"log"
 
 	"github.com/benoitkugler/pdf/model"
-	"github.com/pdfcpu/pdfcpu/pkg/pdfcpu"
+	"github.com/benoitkugler/pdf/reader/file"
 )
 
 // may return nil if `ac` is nil or invalid
 // TODO: more actions
-func (r resolver) processAction(ac pdfcpu.Object) (out model.Action, err error) {
-	action, _ := r.resolve(ac).(pdfcpu.Dict)
+func (r resolver) processAction(ac model.Object) (out model.Action, err error) {
+	action, _ := r.resolve(ac).(model.ObjDict)
 	if action["S"] == nil {
 		return
 	}
@@ -18,7 +18,7 @@ func (r resolver) processAction(ac pdfcpu.Object) (out model.Action, err error) 
 	switch name {
 	case "URI":
 		var subac model.ActionURI
-		subac.URI, _ = isString(r.resolve(action["URI"]))
+		subac.URI, _ = file.IsString(r.resolve(action["URI"]))
 		subac.IsMap, _ = r.resolveBool(action["IsMap"])
 		out.ActionType = subac
 	case "GoTo":
@@ -82,7 +82,7 @@ func (r resolver) processAction(ac pdfcpu.Object) (out model.Action, err error) 
 		out.ActionType = model.ActionNamed(n)
 	case "JavaScript":
 		var js string
-		if K, ok := r.resolve(action).(pdfcpu.Dict); ok {
+		if K, ok := r.resolve(action).(model.ObjDict); ok {
 			js = r.textOrStream(K["JS"])
 		}
 		out.ActionType = model.ActionJavaScript{JS: js}
@@ -128,33 +128,33 @@ func (r resolver) processAction(ac pdfcpu.Object) (out model.Action, err error) 
 	return out, nil
 }
 
-func (r resolver) resolveOneHideTarget(o pdfcpu.Object) (model.ActionHideTarget, error) {
-	if st, is := isString(r.resolve(o)); is { // text string
+func (r resolver) resolveOneHideTarget(o model.Object) (model.ActionHideTarget, error) {
+	if st, is := file.IsString(r.resolve(o)); is { // text string
 		return model.HideTargetFormName(decodeTextString(st)), nil
 	}
 	return r.resolveAnnotation(o)
 }
 
-func (r resolver) resolveEmbeddedTarget(o pdfcpu.Object) (out *model.EmbeddedTarget, err error) {
+func (r resolver) resolveEmbeddedTarget(o model.Object) (out *model.EmbeddedTarget, err error) {
 	o = r.resolve(o)
 	if o == nil {
 		return nil, nil
 	}
-	dict, ok := o.(pdfcpu.Dict)
+	dict, ok := o.(model.ObjDict)
 	if !ok {
 		return nil, errType("Target dictionary", o)
 	}
 	out = new(model.EmbeddedTarget)
 	out.R, _ = r.resolveName(dict["R"])
-	out.N, _ = isString(r.resolve(dict["N"]))
+	out.N, _ = file.IsString(r.resolve(dict["N"]))
 	P := r.resolve(dict["P"])
-	if p, ok := isString(P); ok {
+	if p, ok := file.IsString(P); ok {
 		out.P = model.EmbeddedTargetDestNamed(p)
 	} else if p, ok := r.resolveInt(P); ok {
 		out.P = model.EmbeddedTargetDestPage(p)
 	}
 	A := r.resolve(dict["A"])
-	if a, ok := isString(A); ok {
+	if a, ok := file.IsString(A); ok {
 		out.A = model.EmbeddedTargetAnnotNamed(a)
 	} else if a, ok := r.resolveInt(P); ok {
 		out.A = model.EmbeddedTargetAnnotIndex(a)

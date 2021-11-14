@@ -5,15 +5,14 @@ import (
 	"fmt"
 
 	"github.com/benoitkugler/pdf/model"
-	"github.com/pdfcpu/pdfcpu/pkg/pdfcpu"
 )
 
-func (r resolver) resolveXObjects(obj pdfcpu.Object) (map[model.ObjName]model.XObject, error) {
+func (r resolver) resolveXObjects(obj model.Object) (map[model.ObjName]model.XObject, error) {
 	obj = r.resolve(obj)
 	if obj == nil {
 		return nil, nil
 	}
-	objDict, isDict := obj.(pdfcpu.Dict)
+	objDict, isDict := obj.(model.ObjDict)
 	if !isDict {
 		return nil, errType("XObjects Dict", obj)
 	}
@@ -31,16 +30,16 @@ func (r resolver) resolveXObjects(obj pdfcpu.Object) (map[model.ObjName]model.XO
 	return objMap, nil
 }
 
-func (r resolver) resolveOneXObject(obj pdfcpu.Object) (model.XObject, error) {
+func (r resolver) resolveOneXObject(obj model.Object) (model.XObject, error) {
 	// we have to resolve the object first to find it's type
 	// then it will be resolved once again in each sub function
 	// we keep track of the reference
 	objRes := r.resolve(obj)
-	stream, ok := objRes.(pdfcpu.StreamDict)
+	stream, ok := objRes.(model.ObjStream)
 	if !ok {
 		return nil, errType("XObject", obj)
 	}
-	name, _ := r.resolveName(stream.Dict["Subtype"])
+	name, _ := r.resolveName(stream.Args["Subtype"])
 	switch name {
 	case "Image":
 		return r.resolveOneXObjectImage(obj)
@@ -53,14 +52,14 @@ func (r resolver) resolveOneXObject(obj pdfcpu.Object) (model.XObject, error) {
 
 // TODO: add test
 // returns an error if img is nil
-func (r resolver) resolveOneXObjectImage(img pdfcpu.Object) (*model.XObjectImage, error) {
-	imgRef, isRef := img.(pdfcpu.IndirectRef)
+func (r resolver) resolveOneXObjectImage(img model.Object) (*model.XObjectImage, error) {
+	imgRef, isRef := img.(model.ObjIndirectRef)
 	if imgModel := r.images[imgRef]; isRef && imgModel != nil {
 		return imgModel, nil
 	}
 	var (
 		out    model.XObjectImage
-		stream pdfcpu.StreamDict
+		stream model.ObjStream
 		err    error
 	)
 	out.Image, stream, err = r.resolveImage(img)
@@ -68,17 +67,17 @@ func (r resolver) resolveOneXObjectImage(img pdfcpu.Object) (*model.XObjectImage
 		return nil, err
 	}
 
-	out.ColorSpace, err = r.resolveOneColorSpace(stream.Dict["ColorSpace"])
+	out.ColorSpace, err = r.resolveOneColorSpace(stream.Args["ColorSpace"])
 	if err != nil {
 		return nil, err
 	}
 
-	if maskRef, isRef := stream.Dict["Mask"]; isRef { // image mask
+	if maskRef, isRef := stream.Args["Mask"]; isRef { // image mask
 		out.Mask, err = r.resolveOneXObjectImage(maskRef)
 		if err != nil {
 			return nil, err
 		}
-	} else if mask, ok := r.resolveArray(stream.Dict["Mask"]); ok { // colour mask
+	} else if mask, ok := r.resolveArray(stream.Args["Mask"]); ok { // colour mask
 		if len(mask)%2 != 0 {
 			return nil, fmt.Errorf("expected even length for array, got %v", mask)
 		}
@@ -91,11 +90,11 @@ func (r resolver) resolveOneXObjectImage(img pdfcpu.Object) (*model.XObjectImage
 		out.Mask = outMask
 	} // else nil
 
-	alts, _ := r.resolveArray(stream.Dict["Alternates"])
+	alts, _ := r.resolveArray(stream.Args["Alternates"])
 	out.Alternates = make([]model.AlternateImage, len(alts))
 	for i, alt := range alts {
 		alt = r.resolve(alt) // the AlternateImage is itself cheap, don't bother tracking its ref
-		altDict, isDict := alt.(pdfcpu.Dict)
+		altDict, isDict := alt.(model.ObjDict)
 		if !isDict {
 			return nil, errType("AlternateImage", alt)
 		}
@@ -107,16 +106,16 @@ func (r resolver) resolveOneXObjectImage(img pdfcpu.Object) (*model.XObjectImage
 			out.Alternates[i].DefaultForPrinting = b
 		}
 	}
-	if smask := stream.Dict["SMask"]; smask != nil {
+	if smask := stream.Args["SMask"]; smask != nil {
 		out.SMask, err = r.resolveImageSMask(smask)
 		if err != nil {
 			return nil, err
 		}
 	}
-	if s, ok := r.resolveInt(stream.Dict["SMaskInData"]); ok {
+	if s, ok := r.resolveInt(stream.Args["SMaskInData"]); ok {
 		out.SMaskInData = uint8(s)
 	}
-	if st, ok := r.resolveInt(stream.Dict["StructParent"]); ok {
+	if st, ok := r.resolveInt(stream.Args["StructParent"]); ok {
 		out.StructParent = model.ObjInt(st)
 	}
 
@@ -126,9 +125,9 @@ func (r resolver) resolveOneXObjectImage(img pdfcpu.Object) (*model.XObjectImage
 	return &out, nil
 }
 
-func (r resolver) resolveImage(img pdfcpu.Object) (out model.Image, stream pdfcpu.StreamDict, err error) {
+func (r resolver) resolveImage(img model.Object) (out model.Image, stream model.ObjStream, err error) {
 	img = r.resolve(img)
-	stream, isStream := img.(pdfcpu.StreamDict)
+	stream, isStream := img.(model.ObjStream)
 	if !isStream {
 		return out, stream, errType("Image", img)
 	}
@@ -141,22 +140,22 @@ func (r resolver) resolveImage(img pdfcpu.Object) (out model.Image, stream pdfcp
 	}
 	out.Stream = cs
 
-	if w, ok := r.resolveInt(stream.Dict["Width"]); ok {
+	if w, ok := r.resolveInt(stream.Args["Width"]); ok {
 		out.Width = w
 	}
-	if h, ok := r.resolveInt(stream.Dict["Height"]); ok {
+	if h, ok := r.resolveInt(stream.Args["Height"]); ok {
 		out.Height = h
 	}
-	if b, ok := r.resolveInt(stream.Dict["BitsPerComponent"]); ok {
+	if b, ok := r.resolveInt(stream.Args["BitsPerComponent"]); ok {
 		out.BitsPerComponent = uint8(b)
 	}
-	if intent, ok := r.resolveName(stream.Dict["Intent"]); ok {
+	if intent, ok := r.resolveName(stream.Args["Intent"]); ok {
 		out.Intent = model.ObjName(intent)
 	}
-	if m, ok := r.resolveBool(stream.Dict["ImageMask"]); ok {
+	if m, ok := r.resolveBool(stream.Args["ImageMask"]); ok {
 		out.ImageMask = m
 	}
-	decode, _ := r.resolveArray(stream.Dict["Decode"])
+	decode, _ := r.resolveArray(stream.Args["Decode"])
 	if !out.ImageMask {
 		out.Decode, err = r.processPoints(decode)
 		if err != nil {
@@ -171,20 +170,20 @@ func (r resolver) resolveImage(img pdfcpu.Object) (out model.Image, stream pdfcp
 		}
 		// else: ignore nil or invalid
 	}
-	if i, ok := r.resolveBool(stream.Dict["Interpolate"]); ok {
+	if i, ok := r.resolveBool(stream.Args["Interpolate"]); ok {
 		out.Interpolate = bool(i)
 	}
 	return out, stream, nil
 }
 
-func (r resolver) resolveImageSMask(img pdfcpu.Object) (*model.ImageSMask, error) {
-	imgRef, isRef := img.(pdfcpu.IndirectRef)
+func (r resolver) resolveImageSMask(img model.Object) (*model.ImageSMask, error) {
+	imgRef, isRef := img.(model.ObjIndirectRef)
 	if imgModel := r.imageSMasks[imgRef]; isRef && imgModel != nil {
 		return imgModel, nil
 	}
 	var (
 		out    model.ImageSMask
-		stream pdfcpu.StreamDict
+		stream model.ObjStream
 		err    error
 	)
 	out.Image, stream, err = r.resolveImage(img)
@@ -192,7 +191,7 @@ func (r resolver) resolveImageSMask(img pdfcpu.Object) (*model.ImageSMask, error
 		return nil, err
 	}
 
-	matte, _ := r.resolveArray(stream.Dict["Matte"])
+	matte, _ := r.resolveArray(stream.Args["Matte"])
 	out.Matte = r.processFloatArray(matte)
 
 	if isRef {

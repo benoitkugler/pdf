@@ -678,7 +678,7 @@ func (s SeedDict) pdfString(pdf pdfWriter, ref Reference) string {
 		b.fmt("/DigestMethod %s", writeNameArray(s.DigestMethod))
 	}
 	if s.V != 0 {
-		b.fmt("/V %g", s.V)
+		b.fmt("/V %f", s.V)
 	}
 	if s.Cert != nil {
 		b.fmt("/Cert %s", s.Cert.pdfString(pdf, ref))

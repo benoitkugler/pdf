@@ -1,19 +1,3 @@
-/*
-Copyright 2020 The pdfcpu Authors.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-	http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
 package parser
 
 import (
@@ -21,7 +5,6 @@ import (
 
 	cs "github.com/benoitkugler/pdf/contentstream"
 	"github.com/benoitkugler/pdf/model"
-	"github.com/pdfcpu/pdfcpu/pkg/log"
 )
 
 // ParseContentElement parse one operation and avances.
@@ -104,46 +87,36 @@ func ParseContentResources(content []byte, res model.ResourcesColorSpace) (model
 			case "DeviceGray", "DeviceRGB", "DeviceCMYK", "Pattern": // ignored
 			default:
 				out.ColorSpace[cmd.ColorSpace] = nil
-				log.Parse.Printf("ColorSpace[%s]\n", cmd.ColorSpace)
 			}
 		case cs.OpSetStrokeColorSpace:
 			switch cmd.ColorSpace {
 			case "DeviceGray", "DeviceRGB", "DeviceCMYK", "Pattern": // ignored
 			default:
 				out.ColorSpace[cmd.ColorSpace] = nil
-				log.Parse.Printf("ColorSpace[%s]\n", cmd.ColorSpace)
 			}
 		case cs.OpSetExtGState:
 			out.ExtGState[cmd.Dict] = nil
-			log.Parse.Printf("ExtGState[%s]\n", cmd.Dict)
 		case cs.OpXObject:
 			out.XObject[cmd.XObject] = nil
-			log.Parse.Printf("XObject[%s]\n", cmd.XObject)
 		case cs.OpShFill:
 			out.Shading[cmd.Shading] = nil
-			log.Parse.Printf("Shading[%s]\n", cmd.Shading)
 		case cs.OpSetFillColorN:
 			if cmd.Pattern != "" {
 				out.Pattern[cmd.Pattern] = nil
 			}
-			log.Parse.Printf("Pattern[%s]\n", cmd.Pattern)
 		case cs.OpSetStrokeColorN:
 			if cmd.Pattern != "" {
 				out.Pattern[cmd.Pattern] = nil
 			}
-			log.Parse.Printf("Pattern[%s]\n", cmd.Pattern)
 		case cs.OpSetFont:
 			out.Font[cmd.Font] = nil
-			log.Parse.Printf("Font[%s]\n", cmd.Font)
 		case cs.OpBeginMarkedContent:
 			if pn, ok := cmd.Properties.(cs.PropertyListName); ok {
 				out.Properties[model.ObjName(pn)] = model.PropertyList{}
-				log.Parse.Printf("Properties[%s]\n", pn)
 			}
 		case cs.OpMarkPoint:
 			if pn, ok := cmd.Properties.(cs.PropertyListName); ok {
 				out.Properties[model.ObjName(pn)] = model.PropertyList{}
-				log.Parse.Printf("Properties[%s]\n", pn)
 			}
 		case cs.OpBeginImage:
 			var csName model.ColorSpaceName

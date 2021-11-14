@@ -1,6 +1,7 @@
 package filters
 
 import (
+	"bufio"
 	"io"
 	"io/ioutil"
 
@@ -20,4 +21,8 @@ func (f SkipperCCITT) Skip(encoded io.Reader) (int, error) {
 	}
 	_, err = ioutil.ReadAll(rc)
 	return r.totalRead, err
+}
+
+func ccittDecoder(params ccitt.CCITTParams, src io.Reader) (io.Reader, error) {
+	return ccitt.NewReader(bufio.NewReader(src), params)
 }

@@ -28,7 +28,7 @@ func TestParseObject(t *testing.T) {
 	doTestParseObjectOK("<<>>", t)
 	doTestParseObjectOK("<</Key %comment\x0a true%comment       \x0a\x0d>>", t)
 	doTestParseObjectOK("<</Key/Value>>", t)
-	doTestParseObjectOK("<</Key[/Val1/Val2\x0d%gopher\x0atrue]>>", t)
+	doTestParseObjectOK("<</Key[/Val1/Val2\x0d%fopher\x0atrue]>>", t)
 	doTestParseObjectOK("[<</k1[/name1]>><</k1[false true null]>>]", t)
 	doTestParseObjectOK("/Name ", t)
 	doTestParseObjectFail("/Na#me", t)

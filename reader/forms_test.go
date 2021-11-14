@@ -32,7 +32,7 @@ func checkAnnotsWidget(t *testing.T, doc model.Document, annots map[model.FormFi
 }
 
 func TestWidgets(t *testing.T) {
-	file := "test/ModeleRecuFiscalEditable.pdf"
+	file := "test/corpus/ModeleRecuFiscalEditable.pdf"
 	f, err := os.Open(file)
 	if err != nil {
 		t.Fatal(err)
@@ -55,31 +55,22 @@ func TestWidgets(t *testing.T) {
 }
 
 func TestForms(t *testing.T) {
-	files := []string{
-		// "test/f990se.pdf",
-		// "test/f1041t.pdf",
-		// "test/f1118s1.pdf",
-		// "test/f4506c.pdf",
-		"test/ModeleRecuFiscalEditable.pdf",
+	file := "test/corpus/ModeleRecuFiscalEditable.pdf"
+	f, err := os.Open(file)
+	if err != nil {
+		t.Fatal(err)
 	}
-	for _, file := range files {
-		f, err := os.Open(file)
-		if err != nil {
-			t.Fatal(err)
-		}
-		doc, _, err := ParsePDFReader(f, Options{})
-		if err != nil {
-			t.Fatal(err)
-		}
-		f.Close()
+	doc, _, err := ParsePDFReader(f, Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.Close()
 
-		annots := annotsToPageNumber(doc)
-		checkAnnotsWidget(t, doc, annots)
+	annots := annotsToPageNumber(doc)
+	checkAnnotsWidget(t, doc, annots)
 
-		err = reWrite(doc, file+".pdf")
-		if err != nil {
-			t.Error(err)
-		}
-
+	err = reWrite(doc, "/tmp/forms.pdf")
+	if err != nil {
+		t.Error(err)
 	}
 }

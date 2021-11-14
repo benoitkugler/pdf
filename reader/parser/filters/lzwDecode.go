@@ -15,7 +15,7 @@ type SkipperLZW struct {
 func (f SkipperLZW) Skip(encoded io.Reader) (int, error) {
 	r := newCountReader(encoded)
 
-	rc := lzw.NewReader(r, f.EarlyChange)
+	rc := lzwDecoder(f.EarlyChange, r)
 	_, err := ioutil.ReadAll(rc)
 	if err != nil {
 		return 0, err
@@ -23,4 +23,8 @@ func (f SkipperLZW) Skip(encoded io.Reader) (int, error) {
 	err = rc.Close()
 
 	return r.totalRead, err
+}
+
+func lzwDecoder(earlyChange bool, src io.Reader) io.ReadCloser {
+	return lzw.NewReader(src, earlyChange)
 }

@@ -9,6 +9,7 @@ import (
 
 	"github.com/benoitkugler/pdf/model"
 	"github.com/benoitkugler/pdf/reader/parser"
+	"github.com/benoitkugler/pdf/reader/parser/filters"
 )
 
 type streamDictHeader struct {
@@ -180,7 +181,7 @@ func (ctx *context) readStreamMaxLength(offset int64, maxLength int) ([]byte, er
 
 // read starting from `offset` until the EOD marker expected by `filter` is reached
 func (ctx *context) readStreamWithEOD(filter model.Filter, offset int64) ([]byte, error) {
-	skipper, err := parser.SkipperFromFilter(filter)
+	skipper, err := filters.SkipperFromFilter(string(filter.Name), filter.DecodeParms)
 	if err != nil {
 		return nil, err
 	}

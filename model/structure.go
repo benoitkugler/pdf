@@ -253,8 +253,9 @@ type StructureElement struct {
 // `own` reference is needed to encrypt, and for the kids
 func (s *StructureElement) pdfString(pdf pdfWriter, own, parent Reference) string {
 	b := newBuffer()
+	b.fmt("<</S%s", s.S)
 	if s.P != nil {
-		b.fmt("<</S%s/P %s", s.S, parent)
+		b.fmt("/P %s", parent)
 	}
 	if s.ID != "" {
 		b.fmt("/ID %s", pdf.EncodeString(s.ID, ByteString, own))

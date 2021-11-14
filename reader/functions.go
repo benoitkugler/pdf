@@ -5,12 +5,11 @@ import (
 	"fmt"
 
 	"github.com/benoitkugler/pdf/model"
-	"github.com/pdfcpu/pdfcpu/pkg/pdfcpu"
 )
 
 // if not error return a non nil pointer
-func (r resolver) resolveFunction(fn pdfcpu.Object) (*model.FunctionDict, error) {
-	fnRef, isRef := fn.(pdfcpu.IndirectRef)
+func (r resolver) resolveFunction(fn model.Object) (*model.FunctionDict, error) {
+	fnRef, isRef := fn.(model.ObjIndirectRef)
 	if fnM := r.functions[fnRef]; isRef && fnM != nil {
 		return fnM, nil
 	}
@@ -18,15 +17,15 @@ func (r resolver) resolveFunction(fn pdfcpu.Object) (*model.FunctionDict, error)
 	var (
 		out    model.FunctionDict
 		err    error
-		dict   pdfcpu.Dict
-		stream pdfcpu.StreamDict
+		dict   model.ObjDict
+		stream model.ObjStream
 	)
 	// fn is either a dict (type 2 and 3) or a content stream (type 0 and 4)
 	switch fn := fn.(type) {
-	case pdfcpu.Dict:
+	case model.ObjDict:
 		dict = fn
-	case pdfcpu.StreamDict:
-		dict = fn.Dict
+	case model.ObjStream:
+		dict = fn.Args
 		stream = fn
 	default:
 		return nil, errType("Function", fn)
@@ -73,7 +72,7 @@ func (r resolver) resolveFunction(fn pdfcpu.Object) (*model.FunctionDict, error)
 	return &out, nil
 }
 
-func (r resolver) processRange(range_ pdfcpu.Array) ([]model.Range, error) {
+func (r resolver) processRange(range_ model.ObjArray) ([]model.Range, error) {
 	if len(range_)%2 != 0 {
 		return nil, fmt.Errorf("expected even length for array, got %v", range_)
 	}
@@ -90,7 +89,7 @@ func (r resolver) processRange(range_ pdfcpu.Array) ([]model.Range, error) {
 }
 
 // do not impose a < b
-func (r resolver) processPoints(range_ pdfcpu.Array) ([][2]Fl, error) {
+func (r resolver) processPoints(range_ model.ObjArray) ([][2]Fl, error) {
 	if len(range_)%2 != 0 {
 		return nil, fmt.Errorf("expected even length for array, got %v", range_)
 	}
@@ -103,7 +102,7 @@ func (r resolver) processPoints(range_ pdfcpu.Array) ([][2]Fl, error) {
 	return out, nil
 }
 
-func (r resolver) processExpInterpolationFn(fn pdfcpu.Dict) (model.FunctionExpInterpolation, error) {
+func (r resolver) processExpInterpolationFn(fn model.ObjDict) (model.FunctionExpInterpolation, error) {
 	C0, _ := r.resolveArray(fn["C0"])
 	C1, _ := r.resolveArray(fn["C1"])
 	if len(C0) != len(C1) {
@@ -118,7 +117,7 @@ func (r resolver) processExpInterpolationFn(fn pdfcpu.Dict) (model.FunctionExpIn
 	return out, nil
 }
 
-func (r resolver) resolveStitchingFn(fn pdfcpu.Dict) (model.FunctionStitching, error) {
+func (r resolver) resolveStitchingFn(fn model.ObjDict) (model.FunctionStitching, error) {
 	fns, _ := r.resolveArray(fn["Functions"])
 	K := len(fns)
 	var out model.FunctionStitching
@@ -148,7 +147,7 @@ func (r resolver) resolveStitchingFn(fn pdfcpu.Dict) (model.FunctionStitching, e
 	return out, nil
 }
 
-func (r resolver) processSampledFn(stream pdfcpu.StreamDict) (model.FunctionSampled, error) {
+func (r resolver) processSampledFn(stream model.ObjStream) (model.FunctionSampled, error) {
 	cs, ok, err := r.resolveStream(stream)
 	if err != nil {
 		return model.FunctionSampled{}, err
@@ -157,19 +156,19 @@ func (r resolver) processSampledFn(stream pdfcpu.StreamDict) (model.FunctionSamp
 		return model.FunctionSampled{}, errors.New("missing stream for Sampled function")
 	}
 	out := model.FunctionSampled{Stream: cs}
-	size, _ := r.resolveArray(stream.Dict["Size"])
+	size, _ := r.resolveArray(stream.Args["Size"])
 	m := len(size)
 	out.Size = make([]int, m)
 	for i, s := range size {
 		out.Size[i], _ = r.resolveInt(s)
 	}
-	if bs, ok := r.resolveInt(stream.Dict["BitsPerSample"]); ok {
+	if bs, ok := r.resolveInt(stream.Args["BitsPerSample"]); ok {
 		out.BitsPerSample = uint8(bs)
 	}
-	if o, ok := r.resolveInt(stream.Dict["Order"]); ok {
+	if o, ok := r.resolveInt(stream.Args["Order"]); ok {
 		out.Order = uint8(o)
 	}
-	encode, _ := r.resolveArray(stream.Dict["Encode"])
+	encode, _ := r.resolveArray(stream.Args["Encode"])
 	if len(encode) != 2*m && len(encode) != 0 {
 		return out, fmt.Errorf("expected 2 x m elements array for Bounds, got %v", encode)
 	}
@@ -178,7 +177,7 @@ func (r resolver) processSampledFn(stream pdfcpu.StreamDict) (model.FunctionSamp
 		return out, err
 	}
 
-	decode, _ := r.resolveArray(stream.Dict["Decode"])
+	decode, _ := r.resolveArray(stream.Args["Decode"])
 	out.Decode, err = r.processPoints(decode)
 
 	return out, err

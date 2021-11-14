@@ -8,11 +8,16 @@ import (
 	"time"
 )
 
+func formatFloat(f Fl) string {
+	// The max precision encountered so far has been 12 (fontType3 fontmatrix components).
+	return strconv.FormatFloat(float64(f), 'f', 12, 64)
+}
+
 func writeMaybeFloat(f MaybeFloat) string {
 	if f == nil {
 		return "null"
 	}
-	return fmt.Sprintf("%g", f.(ObjFloat))
+	return formatFloat(Fl(f.(ObjFloat)))
 }
 
 func writeIntArray(as []int) string {
@@ -26,7 +31,7 @@ func writeIntArray(as []int) string {
 func writeFloatArray(as []Fl) string {
 	b := make([]string, len(as))
 	for i, a := range as {
-		b[i] = fmt.Sprintf("%g", a)
+		b[i] = fmt.Sprintf("%f", a)
 	}
 	return fmt.Sprintf("[%s]", strings.Join(b, " "))
 }
@@ -42,7 +47,7 @@ func writeRefArray(as []Reference) string {
 func writePointArray(rs [][2]Fl) string {
 	b := make([]string, len(rs))
 	for i, a := range rs {
-		b[i] = fmt.Sprintf("%g %g ", a[0], a[1])
+		b[i] = fmt.Sprintf("%f %f ", a[0], a[1])
 	}
 	return fmt.Sprintf("[%s]", strings.Join(b, " "))
 }
@@ -50,7 +55,7 @@ func writePointArray(rs [][2]Fl) string {
 func writeRangeArray(rs []Range) string {
 	b := make([]string, len(rs))
 	for i, a := range rs {
-		b[i] = fmt.Sprintf("%g %g ", a[0], a[1])
+		b[i] = fmt.Sprintf("%f %f ", a[0], a[1])
 	}
 	return fmt.Sprintf("[%s]", strings.Join(b, " "))
 }
@@ -58,7 +63,7 @@ func writeRangeArray(rs []Range) string {
 func writePointsArray(rs [][2]Fl) string {
 	b := make([]string, len(rs))
 	for i, a := range rs {
-		b[i] = fmt.Sprintf("%g %g ", a[0], a[1])
+		b[i] = fmt.Sprintf("%f %f ", a[0], a[1])
 	}
 	return fmt.Sprintf("[%s]", strings.Join(b, " "))
 }
@@ -71,13 +76,24 @@ func writeNameArray(rs []Name) string {
 	return fmt.Sprintf("[%s]", strings.Join(b, " "))
 }
 
-func (pdf pdfWriter) dateString(t time.Time, context Reference) string {
+// DateTimeString returns a valid PDF string representation of `t`.
+// Note that the string is not encoded (or crypted).
+func DateTimeString(t time.Time) string {
 	_, tz := t.Zone()
-	str := fmt.Sprintf("D:%d%02d%02d%02d%02d%02d+%02d'%02d'",
+	tzm := tz / 60
+	sign := "+"
+	if tzm < 0 {
+		sign = "-"
+		tzm = -tzm
+	}
+	return fmt.Sprintf("D:%d%02d%02d%02d%02d%02d%s%02d'%02d'",
 		t.Year(), t.Month(), t.Day(),
 		t.Hour(), t.Minute(), t.Second(),
-		tz/60/60, tz/60%60)
-	return pdf.EncodeString(str, TextString, context)
+		sign, tzm/60, tzm%60)
+}
+
+func (pdf pdfWriter) dateString(t time.Time, context Reference) string {
+	return pdf.EncodeString(DateTimeString(t), TextString, context)
 }
 
 func writeStringsArray(ar []string, pdf PDFWritter, mode PDFStringEncoding, context Reference) string {

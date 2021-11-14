@@ -29,11 +29,20 @@ type File struct {
 	// Reference to the Catalog root dictionnary
 	Root parser.IndirectRef
 
+	// Optionnal reference to the Info dictionnary, containing metadata.
+	Info *parser.IndirectRef
+
 	// ID is found in the trailer, and used for encryption
 	ID [2]string
+
+	// Encryption dictionary found in the trailer. Optionnal.
+	Encrypt *model.Encrypt
 }
 
 // ResolveObject use the xref table to resolve indirect reference.
+// If the reference is invalid, the ObjNull{} is returned.
+// As convenience, direct objects may also be passed and
+// will be returned as it is.
 func (f *File) ResolveObject(o parser.Object) parser.Object {
 	ref, ok := o.(parser.IndirectRef)
 	if !ok {
@@ -49,7 +58,9 @@ func (f *File) ResolveObject(o parser.Object) parser.Object {
 	return model.ObjNull{}
 }
 
-// IsString return the string and true if o is a StringLitteral (...) or a HexadecimalLitteral <...>
+// IsString return the string and true if o is a StringLitteral (...) or a HexadecimalLitteral <...>.
+// Note that the string is unespaced (for StringLitteral) or decoded (for HexadecimalLitteral),
+// but is not always UTF-8.
 func IsString(o model.Object) (string, bool) {
 	switch o := o.(type) {
 	case model.ObjStringLiteral:
@@ -86,22 +97,7 @@ func ReadFile(file string, conf *Configuration) (File, error) {
 // Read process a PDF file, reading the xref table and loading
 // objects in memory.
 func Read(rs io.ReadSeeker, conf *Configuration) (File, error) {
-	ctx, err := newContext(rs, conf)
-	if err != nil {
-		return File{}, err
-	}
-
-	o, err := ctx.offsetLastXRefSection(0)
-	if err != nil {
-		return File{}, err
-	}
-
-	err = ctx.buildXRefTableStartingAt(o)
-	if err != nil {
-		return File{}, err
-	}
-
-	err = ctx.setupEncryption()
+	ctx, err := processFile(rs, conf)
 	if err != nil {
 		return File{}, err
 	}
@@ -120,6 +116,7 @@ func Read(rs io.ReadSeeker, conf *Configuration) (File, error) {
 		Root:              *ctx.trailer.root,
 		AdditionalStreams: ctx.additionalStreams,
 		xRefTable:         make(map[int]model.Object, len(ctx.xrefTable.objects)),
+		Info:              ctx.trailer.info,
 	}
 
 	for k, v := range ctx.xrefTable.objects {
@@ -128,7 +125,32 @@ func Read(rs io.ReadSeeker, conf *Configuration) (File, error) {
 
 	if ctx.enc != nil {
 		out.ID = ctx.enc.ID
+		out.Encrypt = &ctx.enc.enc
 	}
 
 	return out, nil
+}
+
+func processFile(rs io.ReadSeeker, conf *Configuration) (*context, error) {
+	ctx, err := newContext(rs, conf)
+	if err != nil {
+		return nil, err
+	}
+
+	o, err := ctx.offsetLastXRefSection(0)
+	if err != nil {
+		return nil, err
+	}
+
+	err = ctx.buildXRefTableStartingAt(o)
+	if err != nil {
+		return nil, err
+	}
+
+	err = ctx.setupEncryption()
+	if err != nil {
+		return nil, err
+	}
+
+	return ctx, nil
 }

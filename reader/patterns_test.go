@@ -9,7 +9,7 @@ import (
 )
 
 func TestCS(t *testing.T) {
-	file := "test/CMYKSpot_OP.pdf"
+	file := "test/corpus/CMYKSpot_OP.pdf"
 	f, err := os.Open(file)
 	if err != nil {
 		t.Fatal(err)
@@ -115,7 +115,7 @@ func TestShading6(t *testing.T) {
 }
 
 func TestShading4(t *testing.T) {
-	file := "test/Shading4.pdf"
+	file := "test/corpus/Shading4.pdf"
 	f, err := os.Open(file)
 	if err != nil {
 		t.Fatal(err)
@@ -134,7 +134,7 @@ func TestShading4(t *testing.T) {
 
 func TestWriteShadings(t *testing.T) {
 	for _, file := range []string{
-		"test/Shading4.pdf",
+		"test/corpus/Shading4.pdf",
 		"test/Shading7.pdf",
 	} {
 

@@ -5,16 +5,16 @@ import (
 	"log"
 
 	"github.com/benoitkugler/pdf/model"
-	"github.com/pdfcpu/pdfcpu/pkg/pdfcpu"
+	"github.com/benoitkugler/pdf/reader/file"
 )
 
-func (r resolver) processAcroForm(acroForm pdfcpu.Object) (model.AcroForm, error) {
+func (r resolver) processAcroForm(acroForm model.Object) (model.AcroForm, error) {
 	var out model.AcroForm
 	acroForm = r.resolve(acroForm)
-	if acroForm == nil {
+	if acroForm == nil || (acroForm == model.ObjNull{}) {
 		return out, nil
 	}
-	form, ok := acroForm.(pdfcpu.Dict)
+	form, ok := acroForm.(model.ObjDict)
 	if !ok {
 		return out, errType("AcroForm", acroForm)
 	}
@@ -36,7 +36,7 @@ func (r resolver) processAcroForm(acroForm pdfcpu.Object) (model.AcroForm, error
 	if co, _ := r.resolveArray(form["CO"]); len(co) != 0 {
 		out.CO = make([]*model.FormFieldDict, 0, len(co))
 		for _, c := range co {
-			ref, ok := c.(pdfcpu.IndirectRef)
+			ref, ok := c.(model.ObjIndirectRef)
 			if !ok {
 				return out, errType("Field reference for CO", c)
 			}
@@ -53,7 +53,7 @@ func (r resolver) processAcroForm(acroForm pdfcpu.Object) (model.AcroForm, error
 			return out, err
 		}
 	}
-	out.DA, _ = isString(r.resolve(form["DA"]))
+	out.DA, _ = file.IsString(r.resolve(form["DA"]))
 	if q, ok := r.resolveInt(form["Q"]); ok {
 		out.Q = model.Quadding(q)
 	}
@@ -68,20 +68,20 @@ func (r resolver) processAcroForm(acroForm pdfcpu.Object) (model.AcroForm, error
 // so we will only use the Widget
 // the boolean returned is true if `form` is actually a form field.
 // the attibutes Parent,Kids, Widgets are not set
-func (r resolver) isFormField(form pdfcpu.Dict) (field model.FormFieldDict, isField bool) {
+func (r resolver) isFormField(form model.ObjDict) (field model.FormFieldDict, isField bool) {
 	if _, ok := r.resolveName(form["FT"]); ok {
 		isField = true
 		field.FT = r.processFormFieldType(form)
 	}
-	if t, ok := isString(r.resolve(form["T"])); ok {
+	if t, ok := file.IsString(r.resolve(form["T"])); ok {
 		isField = true
 		field.T = decodeTextString(t)
 	}
-	if t, ok := isString(r.resolve(form["TU"])); ok {
+	if t, ok := file.IsString(r.resolve(form["TU"])); ok {
 		isField = true
 		field.TU = t
 	}
-	if t, ok := isString(r.resolve(form["TM"])); ok {
+	if t, ok := file.IsString(r.resolve(form["TM"])); ok {
 		isField = true
 		field.TM = t
 	}
@@ -99,24 +99,24 @@ func (r resolver) isFormField(form pdfcpu.Dict) (field model.FormFieldDict, isFi
 		isField = true
 		field.Q = model.Quadding(q)
 	}
-	if da, ok := isString(r.resolve(form["DA"])); ok {
+	if da, ok := file.IsString(r.resolve(form["DA"])); ok {
 		isField = true
 		field.DA = da
 	}
-	if t, ok := isString(r.resolve(form["DS"])); ok {
+	if t, ok := file.IsString(r.resolve(form["DS"])); ok {
 		isField = true
 		field.DS = decodeTextString(t)
 	}
-	if t, ok := isString(r.resolve(form["RV"])); ok {
+	if t, ok := file.IsString(r.resolve(form["RV"])); ok {
 		isField = true
 		field.RV = decodeTextString(t)
 	}
 	return field, isField
 }
 
-func (r resolver) processFormAA(aa pdfcpu.Object) model.FormFielAdditionalActions {
+func (r resolver) processFormAA(aa model.Object) model.FormFielAdditionalActions {
 	aa = r.resolve(aa)
-	aaDict, _ := aa.(pdfcpu.Dict)
+	aaDict, _ := aa.(model.ObjDict)
 	var out model.FormFielAdditionalActions
 	out.K, _ = r.processAction(aaDict["K"])
 	out.F, _ = r.processAction(aaDict["F"])
@@ -127,10 +127,10 @@ func (r resolver) processFormAA(aa pdfcpu.Object) model.FormFielAdditionalAction
 
 // extract a text string from either a string or a stream object,
 // after dereferencing
-func (r resolver) textOrStream(object pdfcpu.Object) string {
+func (r resolver) textOrStream(object model.Object) string {
 	content := r.resolve(object)
 	var jsString string
-	if stream, ok := content.(pdfcpu.StreamDict); ok {
+	if stream, ok := content.(model.ObjStream); ok {
 		s, ok, _ := r.resolveStream(stream)
 		if ok {
 			decoded, err := s.Decode()
@@ -141,15 +141,15 @@ func (r resolver) textOrStream(object pdfcpu.Object) string {
 			jsString = string(decoded)
 		}
 	}
-	jsString, _ = isString(content)
+	jsString, _ = file.IsString(content)
 	return decodeTextString(jsString)
 }
 
 // `parent` will be nil for the top-level fields
 // if not, its type maybe be checked to find the field type by inheritance
-func (r resolver) resolveFormField(o pdfcpu.Object, parent *model.FormFieldDict) (*model.FormFieldDict, error) {
+func (r resolver) resolveFormField(o model.Object, parent *model.FormFieldDict) (*model.FormFieldDict, error) {
 	var err error
-	ref, isRef := o.(pdfcpu.IndirectRef)
+	ref, isRef := o.(model.ObjIndirectRef)
 	if ff := r.formFields[ref]; isRef && ff != nil {
 		return ff, nil
 	}
@@ -157,7 +157,7 @@ func (r resolver) resolveFormField(o pdfcpu.Object, parent *model.FormFieldDict)
 	if resolved == nil {
 		return nil, nil
 	}
-	f, isDict := resolved.(pdfcpu.Dict)
+	f, isDict := resolved.(model.ObjDict)
 	if !isDict {
 		return nil, errType("FormField", o)
 	}
@@ -171,7 +171,7 @@ func (r resolver) resolveFormField(o pdfcpu.Object, parent *model.FormFieldDict)
 		// a kid may be either another FormField or a Widget Annotation
 		// we need a first exploration of the kid dict
 		// before doing it for good with the recursive call to `resolveFormField`
-		kidDict, _ := r.resolve(kid).(pdfcpu.Dict)
+		kidDict, _ := r.resolve(kid).(model.ObjDict)
 		if kidDict == nil { // ignore the invalid entry
 			continue
 		}
@@ -210,7 +210,7 @@ func (r resolver) resolveFormField(o pdfcpu.Object, parent *model.FormFieldDict)
 
 // resolveWidget return true if form is an annotation widget
 // (it will be false for form field which have no merged fields)
-func (r resolver) resolveWidget(obj pdfcpu.Object) (model.FormFieldWidget, bool, error) {
+func (r resolver) resolveWidget(obj model.Object) (model.FormFieldWidget, bool, error) {
 	annot, err := r.resolveAnnotation(obj)
 	if err != nil {
 		return model.FormFieldWidget{}, false, err
@@ -227,7 +227,7 @@ func (r resolver) resolveWidget(obj pdfcpu.Object) (model.FormFieldWidget, bool,
 // ------------------- specialization of form fields -------------------
 
 // may return nil it the type if inherited
-func (r resolver) processFormFieldType(form pdfcpu.Dict) model.FormField {
+func (r resolver) processFormFieldType(form model.ObjDict) model.FormField {
 	ft, _ := r.resolveName(form["FT"])
 	switch ft {
 	case "Btn":
@@ -237,19 +237,19 @@ func (r resolver) processFormFieldType(form pdfcpu.Dict) model.FormField {
 		opt, _ := r.resolveArray(form["Opt"])
 		out.Opt = make([]string, len(opt))
 		for i, o := range opt {
-			os, _ := isString(r.resolve(o))
+			os, _ := file.IsString(r.resolve(o))
 			out.Opt[i] = decodeTextString(os)
 		}
 		return out
 	case "Ch":
 		var out model.FormFieldChoice
 		v := r.resolve(form["V"])
-		if str, is := isString(v); is {
+		if str, is := file.IsString(v); is {
 			out.V = []string{decodeTextString(str)}
-		} else if ar, ok := v.(pdfcpu.Array); ok {
+		} else if ar, ok := v.(model.ObjArray); ok {
 			out.V = make([]string, len(ar))
 			for i, a := range ar {
-				s, _ := isString(r.resolve(a))
+				s, _ := file.IsString(r.resolve(a))
 				out.V[i] = decodeTextString(s)
 			}
 		}
@@ -257,11 +257,11 @@ func (r resolver) processFormFieldType(form pdfcpu.Dict) model.FormField {
 		out.Opt = make([]model.Option, len(opts))
 		for i, o := range opts {
 			o = r.resolve(o)
-			if s, ok := isString(o); ok { // a single text string
+			if s, ok := file.IsString(o); ok { // a single text string
 				out.Opt[i].Name = decodeTextString(s)
-			} else if s, _ := o.(pdfcpu.Array); len(s) == 2 { // [export name]
-				export, _ := isString(r.resolve(s[0]))
-				name, _ := isString(r.resolve(s[1]))
+			} else if s, _ := o.(model.ObjArray); len(s) == 2 { // [export name]
+				export, _ := file.IsString(r.resolve(s[0]))
+				name, _ := file.IsString(r.resolve(s[1]))
 				out.Opt[i].Export = decodeTextString(export)
 				out.Opt[i].Name = decodeTextString(name)
 			}
@@ -290,7 +290,7 @@ func (r resolver) processFormFieldType(form pdfcpu.Dict) model.FormField {
 }
 
 // TODO: process signature field
-func (r resolver) processSignatureField(form pdfcpu.Dict) model.FormFieldSignature {
+func (r resolver) processSignatureField(form model.ObjDict) model.FormFieldSignature {
 	fmt.Println("TODO Signature field", form)
 	return model.FormFieldSignature{}
 }
