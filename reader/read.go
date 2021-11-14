@@ -329,7 +329,7 @@ func ParsePDFReader(source io.ReadSeeker, options Options) (model.Document, *mod
 	r.xref = ctx.XRefTable
 	r.customResolve = options.CustomObjectResolver
 
-	out, enc, err := r.processContext()
+	out, enc, err := r.processPDF()
 
 	if debug {
 		fmt.Printf("model processing: %s\n", time.Since(ti))
@@ -344,12 +344,12 @@ func ParsePDFReader(source io.ReadSeeker, options Options) (model.Document, *mod
 func ProcessContext(ctx *pdfcpu.Context) (model.Document, *model.Encrypt, error) {
 	r := newResolver()
 	r.xref = ctx.XRefTable
-	return r.processContext()
+	return r.processPDF()
 }
 
-// processContext walk through a parsed PDF to build a model.
+// processPDF walk through a parsed PDF to build a model.
 // It also returns the potential encryption information.
-func (r resolver) processContext() (model.Document, *model.Encrypt, error) {
+func (r resolver) processPDF() (model.Document, *model.Encrypt, error) {
 	var (
 		out model.Document
 		err error

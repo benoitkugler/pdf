@@ -97,7 +97,8 @@ func TestParser1(t *testing.T) {
 	}
 
 	for k, expected := range expectedMappings {
-		if v, ok := cmap.unicode.ProperLookupTable()[k]; !ok || v != expected {
+		v, ok := cmap.unicode.ProperLookupTable()[k]
+		if !ok || len(v) != 1 || v[0] != expected {
 			t.Errorf("incorrect mapping, expecting 0x%X ➞ 0x%X (%#v)", k, expected, v)
 			return
 		}
@@ -115,7 +116,6 @@ func TestParser1(t *testing.T) {
 	// 	t.Error("Incorrect charcode bytes ➞ string mapping")
 	// 	return
 	// }
-
 }
 
 const cmap2Data = `
@@ -184,7 +184,8 @@ func TestParser2(t *testing.T) {
 	}
 
 	for k, expected := range expectedMappings {
-		if v, ok := cmap.unicode.ProperLookupTable()[k]; !ok || v != expected {
+		v, ok := cmap.unicode.ProperLookupTable()[k]
+		if !ok || len(v) != 1 || v[0] != expected {
 			t.Errorf("incorrect mapping, expecting 0x%X ➞ 0x%X (got 0x%X)", k, expected, v)
 			return
 		}
@@ -227,33 +228,22 @@ const cmap3Data = `
 	<a0> <d0>
 	<d140> <fbfc>
 	endcodespacerange
-	7 beginbfrange
-	<00> <80> <10>
-	<8100> <9f00> <1000>
-	<a0> <d0> <90>
-	<d140> <f000> <a000>
-	endbfrange
 	endcmap
 `
 
 // TestParser3 test case of a CMap with mixed number of 1 and 2 bytes in the codespace range.
 func TestParser3(t *testing.T) {
-	cmap := newparser([]byte(cmap3Data))
-	err := cmap.parse()
+	cmap, err := ParseCIDCMap([]byte(cmap3Data))
 	if err != nil {
-		t.Error("Failed: ", err)
-		return
-	}
-	cmap.computeInverseMappings()
-
-	if cmap.cids.Name != "test-1" {
-		t.Errorf("CMap name incorrect (%s)", cmap.cids.Name)
-		return
+		t.Fatal("Failed: ", err)
 	}
 
-	if cmap.cids.Type != 1 {
-		t.Errorf("CMap type incorrect")
-		return
+	if cmap.Name != "test-1" {
+		t.Fatalf("CMap name incorrect (%s)", cmap.Name)
+	}
+
+	if cmap.Type != 1 {
+		t.Fatalf("CMap type incorrect")
 	}
 
 	// Check codespaces.
@@ -264,40 +254,22 @@ func TestParser3(t *testing.T) {
 		{NumBytes: 2, Low: 0xd140, High: 0xfbfc},
 	}
 
-	if len(cmap.cids.Codespaces) != len(expectedCodespaces) {
-		t.Errorf("len codespace != %d (%d)", len(expectedCodespaces), len(cmap.cids.Codespaces))
-		return
+	if len(cmap.Codespaces) != len(expectedCodespaces) {
+		t.Fatalf("len codespace != %d (%d)", len(expectedCodespaces), len(cmap.Codespaces))
 	}
 
-	for i, cs := range cmap.cids.Codespaces {
+	for i, cs := range cmap.Codespaces {
 		exp := expectedCodespaces[i]
 		if cs.NumBytes != exp.NumBytes {
-			t.Errorf("code space number of bytes != %d (%d) %x", exp.NumBytes, cs.NumBytes, exp)
-			return
+			t.Fatalf("code space number of bytes != %d (%d) %x", exp.NumBytes, cs.NumBytes, exp)
 		}
 
 		if cs.Low != exp.Low {
-			t.Errorf("code space low range != %d (%d) %x", exp.Low, cs.Low, exp)
-			return
+			t.Fatalf("code space low range != %d (%d) %x", exp.Low, cs.Low, exp)
 		}
 
 		if cs.High != exp.High {
-			t.Errorf("code space high range != 0x%X (0x%X) %x", exp.High, cs.High, exp)
-			return
-		}
-	}
-
-	// Check mappings.
-	expectedMappings := map[model.CID]rune{
-		0x80:   0x10 + 0x80,
-		0x8100: 0x1000,
-		0xa0:   0x90,
-		0xd140: 0xa000,
-	}
-	for k, expected := range expectedMappings {
-		if v, ok := cmap.unicode.ProperLookupTable()[k]; !ok || v != expected {
-			t.Errorf("incorrect mapping: expecting 0x%02X ➞ 0x%02X (got 0x%02X)", k, expected, v)
-			return
+			t.Fatalf("code space high range != 0x%X (0x%X) %x", exp.High, cs.High, exp)
 		}
 	}
 
@@ -407,7 +379,8 @@ func TestParser4(t *testing.T) {
 	}
 
 	for k, expected := range expectedMappings {
-		if v, ok := cmap.unicode.ProperLookupTable()[k]; !ok || v != expected {
+		v, ok := cmap.unicode.ProperLookupTable()[k]
+		if !ok || len(v) != 1 || v[0] != expected {
 			t.Errorf("incorrect mapping, expecting 0x%04X ➞ %+q (got %+q)", k, expected, v)
 			return
 		}

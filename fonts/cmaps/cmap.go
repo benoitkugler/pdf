@@ -61,8 +61,8 @@ func newCodespaceFromBytes(low, high []byte) (Codespace, error) {
 	if L := len(low); L > 4 {
 		return Codespace{}, fmt.Errorf("unsupported number of bytes: %d", L)
 	}
-	lowR := CharCode(hexToRune(low))
-	highR := CharCode(hexToRune(high))
+	lowR := hexToCharCode(low)
+	highR := hexToCharCode(high)
 	if highR < lowR {
 		return Codespace{}, errors.New("invalid caracter code range")
 	}
@@ -168,7 +168,7 @@ func ParseUnicodeCMap(data []byte) (UnicodeCMap, error) {
 		return UnicodeCMap{}, err
 	}
 
-	cmap.computeInverseMappings()
+	// cmap.computeInverseMappings()
 	return cmap.unicode, nil
 }
 

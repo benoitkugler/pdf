@@ -106,7 +106,7 @@ func BenchmarkProcess(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		r := newResolver()
 		r.xref = ctx.XRefTable
-		_, _, err := r.processContext()
+		_, _, err := r.processPDF()
 		if err != nil {
 			b.Fatal(err)
 		}

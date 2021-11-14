@@ -182,11 +182,10 @@ func (ct compositeFont) Desc() model.FontDescriptor {
 // BuildFont compiles an existing FontDictionary, as found in a PDF,
 // to a usefull font metrics. When needed the font builtin encoding is parsed
 // and used.
-// TODO: New font should be created from a font file using `NewFont`
 func BuildFont(f *model.FontDict) (BuiltFont, error) {
 	// 9.10.2 - Mapping Character Codes to Unicode Values
 	var (
-		toUnicode map[model.CID]rune
+		toUnicode map[model.CID][]rune
 		err       error
 	)
 	if f.ToUnicode != nil {

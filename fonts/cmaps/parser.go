@@ -437,7 +437,7 @@ func (cmap *parser) parseBfchar() error {
 			}
 			return err
 		}
-		var target rune
+		var target []rune
 		switch v := o.(type) {
 		case cmapOperand:
 			if v == "endbfchar" {
@@ -445,9 +445,12 @@ func (cmap *parser) parseBfchar() error {
 			}
 			return ErrBadCMap
 		case cmapHexString:
-			target = hexToRune(v)
+			target, err = hexToRunes(v)
+			if err != nil {
+				return err
+			}
 		case model.ObjName:
-			target = MissingCodeRune
+			target = []rune{MissingCodeRune}
 		default:
 			return ErrBadCMap
 		}
@@ -525,21 +528,22 @@ func (cmap *parser) parseBfrange() error {
 			if len(v) != int(srcCodeTo-srcCodeFrom)+1 {
 				return ErrBadCMap
 			}
-			arr := ToUnicodeArray{From: srcCodeFrom, To: srcCodeTo, Runes: make([]rune, len(v))}
+			arr := ToUnicodeArray{From: srcCodeFrom, To: srcCodeTo, Runes: make([][]rune, len(v))}
 			for code := srcCodeFrom; code <= srcCodeTo; code++ {
 				o := v[code-srcCodeFrom]
 				hexs, ok := o.(cmapHexString)
 				if !ok {
 					return errors.New("non-hex string in array")
 				}
-				// we only support one-rune string
-				r := hexToRune(hexs)
+				r, err := hexToRunes(hexs)
+				if err != nil {
+					return err
+				}
 				arr.Runes[code-srcCodeFrom] = r
 			}
 			cmap.unicode.Mappings = append(cmap.unicode.Mappings, arr)
 		case cmapHexString:
 			// <codeFrom> <codeTo> <dst>, maps [from,to] to [dst,dst+to-from].
-			// we only support one-rune string
 			r := hexToRune(v)
 			tr := ToUnicodeTranslation{From: srcCodeFrom, To: srcCodeTo, Dest: r}
 			cmap.unicode.Mappings = append(cmap.unicode.Mappings, tr)

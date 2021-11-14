@@ -1,11 +1,13 @@
 package cmaps
 
 import (
+	"encoding/hex"
 	"errors"
 	"fmt"
-	"unicode/utf16"
+	"strings"
 
 	"github.com/benoitkugler/pdf/model"
+	"golang.org/x/text/encoding/unicode"
 )
 
 // CMap parser errors.
@@ -36,30 +38,39 @@ func hexToCharCode(shex cmapHexString) CharCode {
 // 9.10.3 ToUnicode CMaps (page 293)
 // • It shall use the beginbfchar, endbfchar, beginbfrange, and endbfrange operators to define the
 // mapping from character codes to Unicode character sequences expressed in UTF-16BE encoding.
-func hexToRunes(shex cmapHexString) []rune {
-	if len(shex) == 1 {
-		return []rune{rune(shex[0])}
+func hexToRunes(shex cmapHexString) ([]rune, error) {
+	// hex was already decoded
+	b, err := utf16Dec.Bytes(shex)
+	if err != nil {
+		return nil, fmt.Errorf("invalid runes hex string %v: %s", shex, err)
 	}
-	b := shex
-	if len(b)%2 != 0 {
-		b = append(b, 0)
-	}
-	n := len(b) / 2
-	chars := make([]uint16, n)
-	for i := 0; i < n; i++ {
-		chars[i] = uint16(b[2*i])<<8 + uint16(b[2*i+1])
-	}
-	runes := utf16.Decode(chars)
-	return runes
+	return []rune(string(b)), nil
 }
 
 // hexToRune is the same as hexToRunes but expects only a single rune to be decoded.
 func hexToRune(shex cmapHexString) rune {
-	runes := hexToRunes(shex)
+	runes, err := hexToRunes(shex)
+	if err != nil {
+		return MissingCodeRune
+	}
 	if n := len(runes); n == 0 {
 		return MissingCodeRune
 	}
 	return runes[0]
+}
+
+var (
+	utf16Dec = unicode.UTF16(unicode.BigEndian, unicode.IgnoreBOM).NewDecoder()
+	utf16Enc = unicode.UTF16(unicode.BigEndian, unicode.IgnoreBOM).NewEncoder()
+)
+
+func runesToHex(text []rune) string {
+	var chunks []string
+	for _, letter := range text {
+		s, _ := utf16Enc.Bytes([]byte(string(letter)))
+		chunks = append(chunks, hex.EncodeToString(s))
+	}
+	return strings.Join(chunks, "")
 }
 
 func min(i, j int) int {

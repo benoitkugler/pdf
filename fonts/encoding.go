@@ -62,14 +62,14 @@ func resolveSimpleEncoding(font model.FontSimple) simpleencodings.Encoding {
 // precedence, but the other encoding info is allowed to fill in any
 // holes
 // Note: for simple fonts, the CharCode (1 byte long) and the ToUnicode CMap CID are identified
-func buildSimpleFromUnicode(enc *simpleencodings.Encoding, toUnicode map[model.CID]rune) map[rune]byte {
+func buildSimpleFromUnicode(enc *simpleencodings.Encoding, toUnicode map[model.CID][]rune) map[rune]byte {
 	encToUnicode := enc.RuneToByte()
 	for cid, r := range toUnicode {
 		if cid > 255 { // invalid char code: warn and ignore it
 			log.Printf("invalid char code in simple ToUnicode CMap : %d > 255\n", cid)
 			continue
 		}
-		encToUnicode[r] = byte(cid)
+		encToUnicode[r[0]] = byte(cid)
 	}
 	return encToUnicode
 }
@@ -314,7 +314,7 @@ func builtinType1Encoding(desc model.FontDescriptor) *simpleencodings.Encoding {
 // }
 
 // parse the CMap and resolve the chain of UseCMap if needed
-func resolveToUnicode(cmap model.UnicodeCMap) (map[model.CID]rune, error) {
+func resolveToUnicode(cmap model.UnicodeCMap) (map[model.CID][]rune, error) {
 	content, err := cmap.Decode()
 	if err != nil {
 		return nil, err
@@ -325,7 +325,7 @@ func resolveToUnicode(cmap model.UnicodeCMap) (map[model.CID]rune, error) {
 	}
 	out := inner.ProperLookupTable()
 
-	var used map[model.CID]rune
+	var used map[model.CID][]rune
 	switch use := cmap.UseCMap.(type) {
 	case model.UnicodeCMap:
 		used, err = resolveToUnicode(use)
@@ -351,11 +351,12 @@ func resolveCharMapType0(ft model.FontType0) {
 	ft.DescendantFonts.CIDSystemInfo.ToUnicodeCMapName()
 }
 
-// build the reverse mapping
-func reverseToUnicode(m map[model.CID]rune) map[rune]model.CID {
+// build the reverse mapping. For now, we ignore the case of multiple rune,
+// such as ligatures
+func reverseToUnicode(m map[model.CID][]rune) map[rune]model.CID {
 	out := make(map[rune]model.CID, len(m))
 	for k, v := range m {
-		out[v] = k
+		out[v[0]] = k
 	}
 	return out
 }
