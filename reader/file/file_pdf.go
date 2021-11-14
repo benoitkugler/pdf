@@ -15,9 +15,13 @@ import (
 
 // The logic is adapted from pdfcpu
 
-// File represents a parsed PDF file.
-type File struct {
-	xRefTable map[int]parser.Object
+// PDFFile represents a parsed PDF file.
+// It is mainly composed of a store of objects (model.Object), identified
+// by their reference (model.ObjIndirectRef).
+// It usually requires more processing to be really useful: see the packages 'reader'
+// and 'model'.
+type PDFFile struct {
+	xrefTable
 
 	// The PDF version the source is claiming to us as per its header.
 	HeaderVersion string
@@ -37,25 +41,6 @@ type File struct {
 
 	// Encryption dictionary found in the trailer. Optionnal.
 	Encrypt *model.Encrypt
-}
-
-// ResolveObject use the xref table to resolve indirect reference.
-// If the reference is invalid, the ObjNull{} is returned.
-// As convenience, direct objects may also be passed and
-// will be returned as it is.
-func (f *File) ResolveObject(o parser.Object) parser.Object {
-	ref, ok := o.(parser.IndirectRef)
-	if !ok {
-		return o // return the direct object as it is
-	}
-
-	if o, has := f.xRefTable[ref.ObjectNumber]; has {
-		return o
-	}
-
-	// An indirect reference to an undefined object shall not be considered an error by a conforming reader;
-	// it shall be treated as a reference to the null object.
-	return model.ObjNull{}
 }
 
 // IsString return the string and true if o is a StringLitteral (...) or a HexadecimalLitteral <...>.
@@ -84,10 +69,10 @@ func NewDefaultConfiguration() *Configuration {
 }
 
 // ReadFile is the same as Read, but takes a file name as input.
-func ReadFile(file string, conf *Configuration) (File, error) {
+func ReadFile(file string, conf *Configuration) (PDFFile, error) {
 	f, err := os.Open(file)
 	if err != nil {
-		return File{}, err
+		return PDFFile{}, err
 	}
 	defer f.Close()
 
@@ -96,31 +81,31 @@ func ReadFile(file string, conf *Configuration) (File, error) {
 
 // Read process a PDF file, reading the xref table and loading
 // objects in memory.
-func Read(rs io.ReadSeeker, conf *Configuration) (File, error) {
-	ctx, err := processFile(rs, conf)
+func Read(rs io.ReadSeeker, conf *Configuration) (PDFFile, error) {
+	ctx, err := processPDFFile(rs, conf)
 	if err != nil {
-		return File{}, err
+		return PDFFile{}, err
 	}
 
 	err = ctx.processAllObjects()
 	if err != nil {
-		return File{}, err
+		return PDFFile{}, err
 	}
 
 	if ctx.trailer.root == nil {
-		return File{}, errors.New("missing Root entry")
+		return PDFFile{}, errors.New("missing Root entry")
 	}
 
-	out := File{
+	out := PDFFile{
 		HeaderVersion:     ctx.HeaderVersion,
 		Root:              *ctx.trailer.root,
 		AdditionalStreams: ctx.additionalStreams,
-		xRefTable:         make(map[int]model.Object, len(ctx.xrefTable.objects)),
+		xrefTable:         make(xrefTable, len(ctx.xrefTable.objects)),
 		Info:              ctx.trailer.info,
 	}
 
 	for k, v := range ctx.xrefTable.objects {
-		out.xRefTable[k.ObjectNumber] = v.object
+		out.xrefTable[k.ObjectNumber] = v.object
 	}
 
 	if ctx.enc != nil {
@@ -131,8 +116,13 @@ func Read(rs io.ReadSeeker, conf *Configuration) (File, error) {
 	return out, nil
 }
 
-func processFile(rs io.ReadSeeker, conf *Configuration) (*context, error) {
+func processPDFFile(rs io.ReadSeeker, conf *Configuration) (*context, error) {
 	ctx, err := newContext(rs, conf)
+	if err != nil {
+		return nil, err
+	}
+
+	ctx.HeaderVersion, err = headerVersion(ctx.rs, "%PDF-")
 	if err != nil {
 		return nil, err
 	}

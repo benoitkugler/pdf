@@ -4,10 +4,24 @@ import (
 	"bytes"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/benoitkugler/pdf/model"
 )
+
+func TestFindPattern(t *testing.T) {
+	last := strings.Repeat(" dkm sqdlqs à)çç)à(-à(-ç))", 200)
+	data := strings.Repeat("ùsdd", 100) + "slmkd87x4csm xrefstream" + last
+	ctx, _ := newContext(strings.NewReader(data), nil)
+	buf, err := ctx.findStringFromFileEnd(0, "xrefstream")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(buf) != len(last) {
+		t.Fatalf("unexpected length %d", len(buf))
+	}
+}
 
 func TestSpecOffset(t *testing.T) {
 	f, err := os.Open("../test/PDF_SPEC.pdf")

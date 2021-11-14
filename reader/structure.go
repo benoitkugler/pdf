@@ -87,7 +87,7 @@ func (r resolver) resolveStructureTree(obj model.Object) (*model.StructureTree, 
 // to overide the default reading behaviour
 // for custom objects
 type CustomObjectResolver interface {
-	Resolve(f *file.File, obj model.Object) (model.Object, error)
+	Resolve(f *file.PDFFile, obj model.Object) (model.Object, error)
 }
 
 func (r resolver) resolveCustomObject(object model.Object) (model.Object, error) {

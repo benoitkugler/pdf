@@ -2,6 +2,7 @@ package formfill
 
 import (
 	"github.com/benoitkugler/pdf/model"
+	"github.com/benoitkugler/pdf/reader/file"
 )
 
 type FDFValue interface {
@@ -61,9 +62,22 @@ func (f FDFDict) resolve() map[string]Values {
 
 // FillForm fill the AcroForm contained in the document
 // using the value in `fdf`.
-// If `lockForm` is true, all the fields a set ReadOnly (even the ones not filled).
-// TODO: See FillFormFromFDF to use a FDF file as value input.
+// If `lockForm` is true, all the fields are set ReadOnly (even the ones not filled).
+// See FillFormFromFDF to use a FDF file as value input.
 func FillForm(doc *model.Document, fdf FDFDict, lockForm bool) error {
 	filler := newFiller()
 	return filler.fillForm(&doc.Catalog.AcroForm, fdf, lockForm)
+}
+
+// FillFormFromFDF is the same as FillForm, but use the given `fdf` FDF file as input for
+// filling the forms in `doc`.
+// TODO:
+func FillFormFromFDF(doc *model.Document, fdf file.FDFFile, lockForm bool) error {
+	fields := processFDFFile(fdf)
+	return FillForm(doc, fields, lockForm)
+}
+
+func processFDFFile(fi file.FDFFile) FDFDict {
+	return FDFDict{}
+	// TODO:
 }

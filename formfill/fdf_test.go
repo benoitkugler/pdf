@@ -75,7 +75,7 @@ func TestFDF(t *testing.T) {
 }
 
 func TestFDFFile(t *testing.T) {
-	fi, err := file.ReadFile("test/sample.fdf", nil)
+	fi, err := file.ReadFDFFile("test/sample.fdf")
 	if err != nil {
 		t.Fatal(err)
 	}

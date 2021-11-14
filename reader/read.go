@@ -22,7 +22,7 @@ const debug = false
 // maintain tables mapping PDF indirect object numbers
 // to model objects
 type resolver struct {
-	file file.File
+	file file.PDFFile
 
 	// appearanceEntries map[model.ObjIndirectRef]*model.AppearanceEntry
 	formFields        map[model.ObjIndirectRef]*model.FormFieldDict
@@ -202,7 +202,7 @@ func ParsePDFReader(source io.ReadSeeker, options Options) (model.Document, *mod
 // ProcessContext walks through an already parsed PDF to build a model.
 // This function is exposed for debug purposes; you should probably use
 // one of `ParsePDFFile` or `ParsePDFReader` methods.
-func ProcessContext(ctx file.File) (model.Document, *model.Encrypt, error) {
+func ProcessContext(ctx file.PDFFile) (model.Document, *model.Encrypt, error) {
 	r := newResolver()
 	r.file = ctx
 	return r.processPDF()

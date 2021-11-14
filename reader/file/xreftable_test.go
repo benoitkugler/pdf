@@ -11,7 +11,7 @@ func TestXrefStream(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	ctx, err := processFile(src, nil)
+	ctx, err := processPDFFile(src, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

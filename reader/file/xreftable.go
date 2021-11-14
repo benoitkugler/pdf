@@ -10,8 +10,30 @@ import (
 	"github.com/benoitkugler/pdf/reader/parser"
 )
 
-// xRefTable is the main access to PDF objects
-type xRefTable struct {
+type xrefTable map[int]model.Object
+
+// ResolveObject use the xref table to resolve indirect reference.
+// If the reference is invalid, the ObjNull{} is returned.
+// As convenience, direct objects may also be passed and
+// will be returned as it is.
+func (table xrefTable) ResolveObject(o parser.Object) parser.Object {
+	ref, ok := o.(parser.IndirectRef)
+	if !ok {
+		return o // return the direct object as it is
+	}
+
+	if o, has := table[ref.ObjectNumber]; has {
+		return o
+	}
+
+	// An indirect reference to an undefined object shall not be considered an error by a conforming reader;
+	// it shall be treated as a reference to the null object.
+	return model.ObjNull{}
+}
+
+// xRefTableContext is the main access to PDF objects.
+// it is only used during the processing (see xrefTable for the final object)
+type xRefTableContext struct {
 	// object number -> entry
 	objects map[parser.IndirectRef]*xrefEntry
 
@@ -20,8 +42,8 @@ type xRefTable struct {
 	objectStreams map[int]objectStream
 }
 
-func newXRefTable() xRefTable {
-	return xRefTable{objects: make(map[parser.IndirectRef]*xrefEntry), objectStreams: make(map[int]objectStream)}
+func newXRefTable() xRefTableContext {
+	return xRefTableContext{objects: make(map[parser.IndirectRef]*xrefEntry), objectStreams: make(map[int]objectStream)}
 }
 
 // populate object field of the xrefTable

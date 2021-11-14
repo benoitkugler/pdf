@@ -29,7 +29,7 @@ type context struct {
 
 	// PDF Version
 	HeaderVersion string // The PDF version the source is claiming to us as per its header.
-	xrefTable     xRefTable
+	xrefTable     xRefTableContext
 	trailer       trailer
 
 	// AdditionalStreams (array of IndirectRef) is not described in the spec,
@@ -104,16 +104,15 @@ func (ctx *context) tokenizerBytes(data []byte) *tok.Tokenizer {
 	return &ctx.tok
 }
 
-// Get the file offset of the last XRefSection.
-// Go to end of file and search backwards for the first occurrence of startxref {offset} %%EOF
-// xref at 114172
-func (ctx *context) offsetLastXRefSection(skip int64) (int64, error) {
+// look for `pattern`, starting from `skip` bytes from the end of the file (skip >= 0),
+// and buffering until `pattern` is reached.
+// returns the accumulated buffer, starting right after `pattern`
+func (ctx *context) findStringFromFileEnd(skip int64, pattern string) ([]byte, error) {
 	rs := ctx.rs
 
 	var (
-		prevBuf, workBuf []byte
-		bufSize          int64 = 512
-		offset           int64
+		workBuf []byte
+		bufSize int64 = 512
 	)
 
 	// guard for very small files
@@ -121,40 +120,53 @@ func (ctx *context) offsetLastXRefSection(skip int64) (int64, error) {
 		bufSize = ctx.fileSize
 	}
 
-	for i := 1; offset == 0; i++ {
-		_, err := rs.Seek(-int64(i)*bufSize-skip, io.SeekEnd)
-		if err != nil {
-			return 0, fmt.Errorf("can't find last xref section: %s", err)
+	curBuf := make([]byte, bufSize)
+	for i := 1; ; i++ {
+		offsetToReach := -int64(i)*bufSize - skip // negative
+		if ctx.fileSize+offsetToReach < 0 {
+			return nil, fmt.Errorf("didn't found %s (try %d)", pattern, i)
 		}
 
-		curBuf := make([]byte, bufSize)
+		_, err := rs.Seek(offsetToReach, io.SeekEnd)
+		if err != nil {
+			return nil, fmt.Errorf("can't find %s: %s", pattern, err)
+		}
 
 		_, err = rs.Read(curBuf)
 		if err != nil {
-			return 0, fmt.Errorf("can't read last xref section: %s", err)
+			return nil, fmt.Errorf("can't find %s: %s", pattern, err)
 		}
 
-		workBuf = append(curBuf, prevBuf...)
+		workBuf = append(curBuf, workBuf...)
 
-		j := bytes.LastIndex(workBuf, []byte("startxref"))
-		if j == -1 {
-			prevBuf = curBuf
-			continue
-		}
-
-		p := workBuf[j+len("startxref"):]
-		posEOF := bytes.Index(p, []byte("%%EOF"))
-		if posEOF == -1 {
-			return 0, errors.New("no matching %%EOF for startxref")
-		}
-
-		p = p[:posEOF]
-		offset, err = strconv.ParseInt(string(bytes.TrimSpace(p)), 10, 64)
-		if err != nil || offset >= ctx.fileSize {
-			return 0, errors.New("corrupted last xref section")
+		j := bytes.LastIndex(workBuf, []byte(pattern))
+		if j != -1 { // found it !
+			return workBuf[j+len(pattern):], nil
 		}
 	}
-	return offset, nil
+}
+
+// Get the file offset of the last XRefSection.
+// Go to end of file and search backwards for the first occurrence of startxref {offset} %%EOF
+// xref at 114172
+func (ctx *context) offsetLastXRefSection(skip int64) (int64, error) {
+	p, err := ctx.findStringFromFileEnd(skip, "startxref")
+	if err != nil {
+		return 0, err
+	}
+
+	posEOF := bytes.Index(p, []byte("%%EOF"))
+	if posEOF == -1 {
+		return 0, errors.New("no matching %%EOF for startxref")
+	}
+
+	p = p[:posEOF]
+	targetOffset, err := strconv.ParseInt(string(bytes.TrimSpace(p)), 10, 64)
+	if err != nil || targetOffset >= ctx.fileSize {
+		return 0, errors.New("corrupted last xref section")
+	}
+
+	return targetOffset, nil
 }
 
 // Get version from first line of file.
@@ -163,7 +175,7 @@ func (ctx *context) offsetLastXRefSection(skip int64) (int64, error) {
 // if present, shall be used instead of the version specified in the Header.
 // Save PDF Version from header to xrefTable.
 // The header version comes as the first line of the file.
-func headerVersion(rs io.ReadSeeker) (v string, err error) {
+func headerVersion(rs io.ReadSeeker, prefix string) (v string, err error) {
 	// Get first line of file which holds the version of this PDFFile.
 	// We call this the header version.
 	if _, err = rs.Seek(0, io.SeekStart); err != nil {
@@ -176,7 +188,6 @@ func headerVersion(rs io.ReadSeeker) (v string, err error) {
 	}
 
 	s := string(buf)
-	prefix := "%PDF-"
 
 	if len(s) < 8 || !strings.HasPrefix(s, prefix) {
 		return "", errCorruptHeader
@@ -188,13 +199,6 @@ func headerVersion(rs io.ReadSeeker) (v string, err error) {
 
 // Build XRefTable by reading XRef streams or XRef sections.
 func (ctx *context) buildXRefTableStartingAt(offset int64) (err error) {
-	rs := ctx.rs
-
-	ctx.HeaderVersion, err = headerVersion(rs)
-	if err != nil {
-		return err
-	}
-
 	seenOffsets := map[int64]bool{}
 	ssCount := 0
 
@@ -225,7 +229,7 @@ func (ctx *context) buildXRefTableStartingAt(offset int64) (err error) {
 
 		if start.IsOther("xref") { // xref section
 			_, _ = tk.NextToken() // consume keyword
-			offset, ssCount, err = ctx.parseXRefSection(tk, ssCount)
+			offset, ssCount, err = ctx.parseXRefSectionAndTrailer(tk, ssCount)
 			if err != nil {
 				return err
 			}
@@ -242,8 +246,9 @@ func (ctx *context) buildXRefTableStartingAt(offset int64) (err error) {
 	return nil
 }
 
-// Parse xRef section into corresponding number of xRef table entries.
-func (ctx *context) parseXRefSection(tk *tok.Tokenizer, ssCount int) (int64, int, error) {
+// Parse xRef section into corresponding number of xRef table entries,
+// and the following trailer
+func (ctx *context) parseXRefSectionAndTrailer(tk *tok.Tokenizer, ssCount int) (int64, int, error) {
 	// Process all sub sections of this xRef section.
 	for {
 		err := ctx.xrefTable.parseXRefTableSubSection(tk)
@@ -272,7 +277,7 @@ func parseInt(tk *tok.Tokenizer) (int, error) {
 }
 
 // Process xRef table subsection and create corrresponding xRef table entries.
-func (xrefTable *xRefTable) parseXRefTableSubSection(tk *tok.Tokenizer) error {
+func (xrefTable *xRefTableContext) parseXRefTableSubSection(tk *tok.Tokenizer) error {
 	startObjNumber, err := parseInt(tk)
 	if err != nil {
 		return fmt.Errorf("parseXRefTableSubSection: invalid start object number %s", err)
@@ -310,7 +315,7 @@ func (xrefTable *xRefTable) parseXRefTableSubSection(tk *tok.Tokenizer) error {
 }
 
 // Read next subsection entry and generate corresponding xref table entry.
-func (xrefTable xRefTable) parseXRefTableEntry(tk *tok.Tokenizer) (*xrefEntry, int, error) {
+func (xrefTable xRefTableContext) parseXRefTableEntry(tk *tok.Tokenizer) (*xrefEntry, int, error) {
 	offsetTk, err := tk.NextToken()
 	if err != nil {
 		return nil, 0, err
