@@ -1,3 +1,6 @@
+// Package formfill provides support for filling forms found
+// in PDF files (aka AcroForm), reading forms input
+// either form an FDF file or directly from memory.
 package formfill
 
 import (
