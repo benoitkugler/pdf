@@ -8,16 +8,17 @@ import (
 	"time"
 )
 
-func formatFloat(f Fl) string {
+// FmtFloat returns a PDF compatible float representation of `f`.
+func FmtFloat(f Fl) string {
 	// The max precision encountered so far has been 12 (fontType3 fontmatrix components).
-	return strconv.FormatFloat(float64(f), 'f', 12, 64)
+	return strconv.FormatFloat(float64(f), 'f', -1, 64)
 }
 
 func writeMaybeFloat(f MaybeFloat) string {
 	if f == nil {
 		return "null"
 	}
-	return formatFloat(Fl(f.(ObjFloat)))
+	return FmtFloat(Fl(f.(ObjFloat)))
 }
 
 func writeIntArray(as []int) string {
@@ -31,7 +32,7 @@ func writeIntArray(as []int) string {
 func writeFloatArray(as []Fl) string {
 	b := make([]string, len(as))
 	for i, a := range as {
-		b[i] = fmt.Sprintf("%f", a)
+		b[i] = FmtFloat(a)
 	}
 	return fmt.Sprintf("[%s]", strings.Join(b, " "))
 }
@@ -47,7 +48,7 @@ func writeRefArray(as []Reference) string {
 func writePointArray(rs [][2]Fl) string {
 	b := make([]string, len(rs))
 	for i, a := range rs {
-		b[i] = fmt.Sprintf("%f %f ", a[0], a[1])
+		b[i] = fmt.Sprintf("%s %s ", FmtFloat(a[0]), FmtFloat(a[1]))
 	}
 	return fmt.Sprintf("[%s]", strings.Join(b, " "))
 }
@@ -55,7 +56,7 @@ func writePointArray(rs [][2]Fl) string {
 func writeRangeArray(rs []Range) string {
 	b := make([]string, len(rs))
 	for i, a := range rs {
-		b[i] = fmt.Sprintf("%f %f ", a[0], a[1])
+		b[i] = fmt.Sprintf("%s %s ", FmtFloat(a[0]), FmtFloat(a[1]))
 	}
 	return fmt.Sprintf("[%s]", strings.Join(b, " "))
 }
@@ -63,7 +64,7 @@ func writeRangeArray(rs []Range) string {
 func writePointsArray(rs [][2]Fl) string {
 	b := make([]string, len(rs))
 	for i, a := range rs {
-		b[i] = fmt.Sprintf("%f %f ", a[0], a[1])
+		b[i] = fmt.Sprintf("%s %s ", FmtFloat(a[0]), FmtFloat(a[1]))
 	}
 	return fmt.Sprintf("[%s]", strings.Join(b, " "))
 }

@@ -135,7 +135,7 @@ func (c ColorSpaceCalGray) colorSpaceWrite(pdf pdfWriter, _ Reference) string {
 		out += fmt.Sprintf("/BlackPoint %s", writeFloatArray(c.BlackPoint[:]))
 	}
 	if c.Gamma != 0 {
-		out += fmt.Sprintf("/Gamma %f", c.Gamma)
+		out += fmt.Sprintf("/Gamma %s", FmtFloat(c.Gamma))
 	}
 	out += ">>"
 	return fmt.Sprintf("[/CalGray %s]", out)
@@ -430,7 +430,7 @@ func (c ColorSpaceDeviceNMixingHints) pdfString(pdf pdfWriter) string {
 	if len(c.Solidities) != 0 {
 		b.WriteString("/Solidities <<")
 		for name, f := range c.Solidities {
-			b.fmt("%s %f", name, f)
+			b.fmt("%s %s", name, FmtFloat(f))
 		}
 		b.WriteString(">>")
 	}

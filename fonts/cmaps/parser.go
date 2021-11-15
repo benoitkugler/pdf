@@ -197,7 +197,7 @@ func (cmap *parser) parseVersion() error {
 		case int:
 			version = fmt.Sprintf("%d", t)
 		case float64:
-			version = fmt.Sprintf("%f", t)
+			version = fmt.Sprintf("%g", t)
 		case string:
 			version = t
 		}

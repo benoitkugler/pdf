@@ -52,24 +52,24 @@ type FontDescriptor struct {
 // font is used to choose the key for the potential FontFile
 func (f FontDescriptor) pdfString(pdf pdfWriter, font Font, context Reference) string {
 	b := newBuffer()
-	b.line("<</Type/FontDescriptor/FontName %s/Flags %d/FontBBox %s/ItalicAngle %f/Ascent %f/Descent %f",
-		f.FontName, f.Flags, f.FontBBox.String(), f.ItalicAngle, f.Ascent, f.Descent)
+	b.line("<</Type/FontDescriptor/FontName %s/Flags %d/FontBBox %s/ItalicAngle %s/Ascent %s/Descent %s",
+		f.FontName, f.Flags, f.FontBBox.String(), FmtFloat(f.ItalicAngle), FmtFloat(f.Ascent), FmtFloat(f.Descent))
 	if f.Leading != 0 {
-		b.fmt("/Leading %f ", f.Leading)
+		b.fmt("/Leading %s ", FmtFloat(f.Leading))
 	}
-	b.fmt("/CapHeight %f ", f.CapHeight)
+	b.fmt("/CapHeight %s ", FmtFloat(f.CapHeight))
 	if f.XHeight != 0 {
-		b.fmt("/XHeight %f ", f.XHeight)
+		b.fmt("/XHeight %s ", FmtFloat(f.XHeight))
 	}
-	b.fmt("/StemV %f ", f.StemV)
+	b.fmt("/StemV %s ", FmtFloat(f.StemV))
 	if f.StemH != 0 {
-		b.fmt("/StemH %f ", f.StemH)
+		b.fmt("/StemH %s ", FmtFloat(f.StemH))
 	}
 	if f.AvgWidth != 0 {
-		b.fmt("/AvgWidth %f ", f.AvgWidth)
+		b.fmt("/AvgWidth %s ", FmtFloat(f.AvgWidth))
 	}
 	if f.MaxWidth != 0 {
-		b.fmt("/MaxWidth %f ", f.MaxWidth)
+		b.fmt("/MaxWidth %s ", FmtFloat(f.MaxWidth))
 	}
 	if f.MissingWidth != 0 {
 		b.fmt("/MissingWidth %d ", f.MissingWidth)

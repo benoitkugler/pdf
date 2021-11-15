@@ -77,7 +77,7 @@ type ActionURI struct {
 }
 
 func (uri ActionURI) actionParams(pdf pdfWriter, ref Reference) string {
-	return fmt.Sprintf("/S/URI/URI (%s)/IsMap %v",
+	return fmt.Sprintf("/S/URI/URI %s/IsMap %v",
 		pdf.EncodeString(string(uri.URI), ByteString, ref), uri.IsMap)
 }
 
@@ -128,7 +128,7 @@ type DestinationLocationXYZ struct {
 
 func (d DestinationLocationXYZ) locationElements() string {
 	return fmt.Sprintf("/XYZ %s %s %s",
-		writeMaybeFloat(d.Left), writeMaybeFloat(d.Top), formatFloat(d.Zoom))
+		writeMaybeFloat(d.Left), writeMaybeFloat(d.Top), FmtFloat(d.Zoom))
 }
 
 // DestinationLocationFitR is /FitR
@@ -137,8 +137,8 @@ type DestinationLocationFitR struct {
 }
 
 func (d DestinationLocationFitR) locationElements() string {
-	return fmt.Sprintf("/FitR %f %f %f %f",
-		d.Left, d.Bottom, d.Right, d.Top)
+	return fmt.Sprintf("/FitR %s %s %s %s",
+		FmtFloat(d.Left), FmtFloat(d.Bottom), FmtFloat(d.Right), FmtFloat(d.Top))
 }
 
 type Destination interface {

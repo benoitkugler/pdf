@@ -70,7 +70,7 @@ func (n ObjName) Write(PDFWritter, Reference) string {
 type ObjFloat Fl
 
 func (f ObjFloat) Write(PDFWritter, Reference) string {
-	return formatFloat(float64(f))
+	return FmtFloat(float64(f))
 }
 
 func (f ObjFloat) Clone() Object { return f }
