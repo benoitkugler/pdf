@@ -344,7 +344,9 @@ func (img Image) PDFFields(inline bool) StreamHeader {
 	base.Fields["Width"] = strconv.Itoa(img.Width)
 	base.Fields["Height"] = strconv.Itoa(img.Height)
 	base.Fields["BitsPerComponent"] = strconv.Itoa(int(img.BitsPerComponent))
-	base.Fields["ImageMask"] = strconv.FormatBool(img.ImageMask)
+	if img.ImageMask {
+		base.Fields["ImageMask"] = strconv.FormatBool(img.ImageMask)
+	}
 	if img.Intent != "" {
 		base.Fields["Intent"] = img.Intent.String()
 	}
