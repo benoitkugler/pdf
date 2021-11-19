@@ -86,7 +86,8 @@ func (f FontDescriptor) pdfString(pdf pdfWriter, font Font, context Reference) s
 				key = "FontFile2"
 			}
 		}
-		ref := pdf.addStream(f.FontFile.pdfContent())
+
+		ref := pdf.addItem(f.FontFile)
 		b.fmt("%s %s ", key, ref)
 	}
 	if f.CharSet != "" {
@@ -801,6 +802,8 @@ func (c CIDVerticalMetricArray) Clone() CIDVerticalMetric {
 	return out
 }
 
+var _ Referenceable = (*FontFile)(nil)
+
 type FontFile struct {
 	Stream
 
@@ -810,7 +813,7 @@ type FontFile struct {
 	Subtype Name // optional, one of Type1C for Type 1 compact fonts, CIDFontType0C for Type 0 compact CIDFonts, or OpenType
 }
 
-func (f *FontFile) pdfContent() (StreamHeader, []byte) {
+func (f *FontFile) pdfContent(pdf pdfWriter, _ Reference) (header StreamHeader, content string, stream []byte) {
 	out := f.Stream.PDFCommonFields(true)
 	out.Fields["Length1"] = strconv.Itoa(f.Length1)
 	out.Fields["Length2"] = strconv.Itoa(f.Length2)
@@ -818,7 +821,7 @@ func (f *FontFile) pdfContent() (StreamHeader, []byte) {
 	if f.Subtype != "" {
 		out.Fields["Subtype"] = f.Subtype.String()
 	}
-	return out, f.Content
+	return out, "", f.Content
 }
 
 // Clone returns a deep copy of the font file.
@@ -830,3 +833,5 @@ func (f *FontFile) Clone() *FontFile {
 	out.Stream = f.Stream.Clone()
 	return &out
 }
+
+func (f *FontFile) clone(_ cloneCache) Referenceable { return f.Clone() }

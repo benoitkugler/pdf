@@ -405,13 +405,18 @@ func (r resolver) resolveFontDescriptor(entry model.Object) (model.FontDescripto
 }
 
 func (r resolver) processFontFile(object model.Object) (*model.FontFile, error) {
+	ref, isRef := object.(model.ObjIndirectRef)
+	if out, has := r.fontFiles[ref]; isRef && has {
+		return out, nil
+	}
+
 	cs, ok, err := r.resolveStream(object)
 	if err != nil || !ok { // return nil, nil on missing stream
 		return nil, err
 	}
 
 	stream, _ := r.resolve(object).(model.ObjStream) // here, we know object is a StreamDict
-	out := model.FontFile{Stream: cs}
+	out := &model.FontFile{Stream: cs}
 
 	out.Subtype, _ = r.resolveName(stream.Args["Subtype"])
 
@@ -424,7 +429,12 @@ func (r resolver) processFontFile(object model.Object) (*model.FontFile, error) 
 	if l, ok := r.resolveInt(stream.Args["Length3"]); ok {
 		out.Length3 = l
 	}
-	return &out, nil
+
+	// write back to the cache
+	if isRef {
+		r.fontFiles[ref] = out
+	}
+	return out, nil
 }
 
 func (r resolver) resolveCMapEncoding(enc model.Object) (model.CMapEncoding, error) {

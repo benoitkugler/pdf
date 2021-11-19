@@ -44,6 +44,7 @@ type resolver struct {
 	iccs              map[model.ObjIndirectRef]*model.ColorSpaceICCBased
 	colorTableStreams map[model.ObjIndirectRef]*model.ColorTableStream
 	structure         map[model.ObjIndirectRef]*model.StructureElement
+	fontFiles         map[model.ObjIndirectRef]*model.FontFile
 
 	customResolve CustomObjectResolver // optional, default is nil
 }
@@ -69,6 +70,7 @@ func newResolver() resolver {
 		iccs:              make(map[model.ObjIndirectRef]*model.ColorSpaceICCBased),
 		colorTableStreams: make(map[model.ObjIndirectRef]*model.ColorTableStream),
 		structure:         make(map[model.ObjIndirectRef]*model.StructureElement),
+		fontFiles:         make(map[model.ObjIndirectRef]*model.FontFile),
 	}
 }
 

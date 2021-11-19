@@ -336,6 +336,7 @@ func (*XObjectForm) IsReferenceable()              {}
 func (*XObjectTransparencyGroup) IsReferenceable() {}
 func (*XObjectImage) IsReferenceable()             {}
 func (*ImageSMask) IsReferenceable()               {}
+func (*FontFile) IsReferenceable()                 {}
 
 // check the cache and write a new item if not found
 func (pdf pdfWriter) addItem(item Referenceable) Reference {
