@@ -220,12 +220,14 @@ func (m Matrix) String() string {
 
 // Multiply returns the product m * m2
 func (m Matrix) Multiply(m2 Matrix) Matrix {
+	a, b, c, d, e, f := m[0], m[1], m[2], m[3], m[4], m[5]
+	a2, b2, c2, d2, e2, f2 := m2[0], m2[1], m2[2], m2[3], m2[4], m2[5]
 	var out Matrix
-	out[0] = m[0]*m2[0] + m[2]*m2[1]
-	out[1] = m[1]*m2[0] + m[3]*m2[1]
-	out[2] = m[0]*m2[2] + m[2]*m2[3]
-	out[3] = m[1]*m2[2] + m[3]*m2[3]
-	out[4] = m[0]*m2[4] + m[2]*m2[5] + m[4]
-	out[5] = m[1]*m2[4] + m[3]*m2[5] + m[5]
+	out[0] = a*a2 + c*b2
+	out[1] = b*a2 + d*b2
+	out[2] = a*c2 + c*d2
+	out[3] = b*c2 + d*d2
+	out[4] = e*a2 + f*b2 + e2
+	out[5] = e*c2 + f*d2 + f2
 	return out
 }

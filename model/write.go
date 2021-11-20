@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -146,10 +147,16 @@ type StreamHeader struct {
 }
 
 func (w StreamHeader) PDFContent() []byte {
+	// sort for deterministic output
+	keys := make([]Name, 0, len(w.Fields))
+	for k := range w.Fields {
+		keys = append(keys, k)
+	}
+	sort.Slice(keys, func(i, j int) bool { return keys[i] < keys[j] })
 	var out bytes.Buffer
 	out.WriteString("<<")
-	for i, o := range w.Fields {
-		out.WriteString(i.String() + " " + o)
+	for _, k := range keys {
+		out.WriteString(k.String() + " " + w.Fields[k] + " ")
 	}
 	out.WriteString(">>")
 	return out.Bytes()

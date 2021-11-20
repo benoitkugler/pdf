@@ -256,11 +256,11 @@ func (ap *Appearance) NewlineShowText(text string) error {
 	return nil
 }
 
-// Transform changes the current matrix, by applying a Concat Op and
+// Transform changes the current matrix, by applying a Concat Op with the given `mat` and
 // updating the current state.
 func (ap *Appearance) Transform(mat model.Matrix) {
-	ap.State.Matrix = mat.Multiply(ap.State.Matrix)
 	ap.Ops(OpConcat{Matrix: mat})
+	ap.State.Matrix = mat.Multiply(ap.State.Matrix)
 }
 
 // SetTextMatrix changes the text matrix.
@@ -318,7 +318,10 @@ func (ap *Appearance) AddXObjectDims(obj model.XObject, x, y, width, height Fl) 
 
 // AddXObject is the same as AddXObjectDims, but do not change the CTM.
 func (ap *Appearance) AddXObject(obj model.XObject) {
-	ap.AddXObjectDims(obj, 0, 0, 1, 1)
+	// since we don't change the CTM we dont need to save and restore the state
+	// ap.AddXObjectDims(obj, 0, 0, 1, 1)
+	xObjectName := ap.addXobject(obj)
+	ap.Ops(OpXObject{XObject: xObjectName})
 }
 
 // approximate arc for border radius

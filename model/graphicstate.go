@@ -328,7 +328,12 @@ type BaseGradient struct {
 // `pdf` is used to write the functions
 func (g BaseGradient) pdfString(pdf pdfWriter, out map[Name]string) {
 	fns := pdf.writeFunctions(g.Function)
-	out["Function"] = writeRefArray(fns)
+	// we have to differentiate one-length arrays
+	if len(fns) == 1 {
+		out["Function"] = fns[0].String()
+	} else {
+		out["Function"] = writeRefArray(fns)
+	}
 	if g.Domain != [2]Fl{} {
 		out["Domain"] = writeFloatArray(g.Domain[:])
 	}
