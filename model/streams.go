@@ -220,7 +220,7 @@ func (c ContentStream) Clone() ContentStream {
 	return ContentStream{Stream: c.Stream.Clone()}
 }
 
-// XObject is either an image or PDF form
+// XObject is either an image or PDF form (*XObjectForm or *XObjectTransparencyGroup)
 type XObject interface {
 	Referenceable
 	isXObject()

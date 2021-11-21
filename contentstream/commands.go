@@ -29,7 +29,7 @@ func WriteOperations(ops ...Operation) []byte {
 	var out bytes.Buffer
 	for _, op := range ops {
 		op.Add(&out)
-		out.WriteByte(' ')
+		out.WriteByte('\n')
 	}
 	return out.Bytes()
 }

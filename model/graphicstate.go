@@ -41,7 +41,12 @@ func (f FontStyle) clone(cache cloneCache) FontStyle {
 	return out
 }
 
-// XObjectTransparencyGroup
+var _ XObject = (*XObjectTransparencyGroup)(nil)
+
+// XObjectTransparencyGroup is a sequence of consecutive objects in a transparency stack that shall be collected
+// together and composited to produce a single colour, shape, and opacity at each point. The result shall then be
+// treated as if it were a single object for subsequent compositing operations. Groups may be nested within other
+// groups to form a tree-structured group hierarchy.
 // See Table 147 – Additional entries specific to a transparency group attributes dictionary
 type XObjectTransparencyGroup struct {
 	XObjectForm
@@ -54,7 +59,7 @@ type XObjectTransparencyGroup struct {
 
 func (tg *XObjectTransparencyGroup) pdfContent(pdf pdfWriter, ref Reference) (StreamHeader, string, []byte) {
 	base := tg.XObjectForm.commonFields(pdf, ref)
-	gDict := "<</S/Transparency"
+	gDict := "<</Type/Group /S/Transparency"
 	if tg.CS != nil {
 		gDict += "/CS " + tg.CS.colorSpaceWrite(pdf, ref)
 	}
