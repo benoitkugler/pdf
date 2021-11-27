@@ -89,7 +89,7 @@ func (r resolver) catalog() (model.Catalog, error) {
 	}
 
 	lang, _ := file.IsString(r.resolve(d["Lang"]))
-	out.Lang = decodeTextString(lang)
+	out.Lang = DecodeTextString(lang)
 
 	return out, nil
 }
@@ -381,7 +381,7 @@ func (r resolver) resolveOutlineItem(object model.Object, parent model.OutlineNo
 		err error
 	)
 	title, _ := file.IsString(r.resolve(dict["Title"]))
-	out.Title = decodeTextString(title)
+	out.Title = DecodeTextString(title)
 	out.Parent = parent
 	if first := dict["First"]; first != nil {
 		out.First, err = r.resolveOutlineItem(dict["First"], &out)

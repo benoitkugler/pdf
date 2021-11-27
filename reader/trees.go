@@ -216,7 +216,7 @@ func (r resolver) processPageLabel(entry model.Object) (model.PageLabel, error) 
 		out.S = s
 	}
 	p, _ := file.IsString(r.resolve(entryDict["P"]))
-	out.P = decodeTextString(p)
+	out.P = DecodeTextString(p)
 	if st, ok := r.resolveInt(entryDict["St"]); ok {
 		out.St = st
 	}

@@ -304,19 +304,19 @@ func (r resolver) resolveOneStructureElement(element model.Object, parent *model
 
 	out.R, _ = r.resolveInt(dict["R"])
 	if s, ok := file.IsString(r.resolve(dict["T"])); ok {
-		out.T = decodeTextString(s)
+		out.T = DecodeTextString(s)
 	}
 	if s, ok := file.IsString(r.resolve(dict["Lang"])); ok {
-		out.Lang = decodeTextString(s)
+		out.Lang = DecodeTextString(s)
 	}
 	if s, ok := file.IsString(r.resolve(dict["Alt"])); ok {
-		out.Alt = decodeTextString(s)
+		out.Alt = DecodeTextString(s)
 	}
 	if s, ok := file.IsString(r.resolve(dict["E"])); ok {
-		out.E = decodeTextString(s)
+		out.E = DecodeTextString(s)
 	}
 	if s, ok := file.IsString(r.resolve(dict["ActualText"])); ok {
-		out.ActualText = decodeTextString(s)
+		out.ActualText = DecodeTextString(s)
 	}
 
 	return &out, nil

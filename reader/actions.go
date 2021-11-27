@@ -130,7 +130,7 @@ func (r resolver) processAction(ac model.Object) (out model.Action, err error) {
 
 func (r resolver) resolveOneHideTarget(o model.Object) (model.ActionHideTarget, error) {
 	if st, is := file.IsString(r.resolve(o)); is { // text string
-		return model.HideTargetFormName(decodeTextString(st)), nil
+		return model.HideTargetFormName(DecodeTextString(st)), nil
 	}
 	return r.resolveAnnotation(o)
 }

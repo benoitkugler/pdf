@@ -75,7 +75,7 @@ func (r resolver) isFormField(form model.ObjDict) (field model.FormFieldDict, is
 	}
 	if t, ok := file.IsString(r.resolve(form["T"])); ok {
 		isField = true
-		field.T = decodeTextString(t)
+		field.T = DecodeTextString(t)
 	}
 	if t, ok := file.IsString(r.resolve(form["TU"])); ok {
 		isField = true
@@ -105,11 +105,11 @@ func (r resolver) isFormField(form model.ObjDict) (field model.FormFieldDict, is
 	}
 	if t, ok := file.IsString(r.resolve(form["DS"])); ok {
 		isField = true
-		field.DS = decodeTextString(t)
+		field.DS = DecodeTextString(t)
 	}
 	if t, ok := file.IsString(r.resolve(form["RV"])); ok {
 		isField = true
-		field.RV = decodeTextString(t)
+		field.RV = DecodeTextString(t)
 	}
 	return field, isField
 }
@@ -142,7 +142,7 @@ func (r resolver) textOrStream(object model.Object) string {
 		}
 	}
 	jsString, _ = file.IsString(content)
-	return decodeTextString(jsString)
+	return DecodeTextString(jsString)
 }
 
 // `parent` will be nil for the top-level fields
@@ -238,19 +238,19 @@ func (r resolver) processFormFieldType(form model.ObjDict) model.FormField {
 		out.Opt = make([]string, len(opt))
 		for i, o := range opt {
 			os, _ := file.IsString(r.resolve(o))
-			out.Opt[i] = decodeTextString(os)
+			out.Opt[i] = DecodeTextString(os)
 		}
 		return out
 	case "Ch":
 		var out model.FormFieldChoice
 		v := r.resolve(form["V"])
 		if str, is := file.IsString(v); is {
-			out.V = []string{decodeTextString(str)}
+			out.V = []string{DecodeTextString(str)}
 		} else if ar, ok := v.(model.ObjArray); ok {
 			out.V = make([]string, len(ar))
 			for i, a := range ar {
 				s, _ := file.IsString(r.resolve(a))
-				out.V[i] = decodeTextString(s)
+				out.V[i] = DecodeTextString(s)
 			}
 		}
 		opts, _ := r.resolveArray(form["Opt"])
@@ -258,12 +258,12 @@ func (r resolver) processFormFieldType(form model.ObjDict) model.FormField {
 		for i, o := range opts {
 			o = r.resolve(o)
 			if s, ok := file.IsString(o); ok { // a single text string
-				out.Opt[i].Name = decodeTextString(s)
+				out.Opt[i].Name = DecodeTextString(s)
 			} else if s, _ := o.(model.ObjArray); len(s) == 2 { // [export name]
 				export, _ := file.IsString(r.resolve(s[0]))
 				name, _ := file.IsString(r.resolve(s[1]))
-				out.Opt[i].Export = decodeTextString(export)
-				out.Opt[i].Name = decodeTextString(name)
+				out.Opt[i].Export = DecodeTextString(export)
+				out.Opt[i].Name = DecodeTextString(name)
 			}
 		}
 		if ti, ok := r.resolveInt(form["TI"]); ok {

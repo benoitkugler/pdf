@@ -548,13 +548,8 @@ func (o *Outline) Flatten() []*OutlineItem {
 // ref should be the object number of the outline, need for the child
 // to reference their parent
 func (o *Outline) pdfString(pdf pdfWriter, ref Reference) string {
-	firstRef := pdf.CreateObject()
-	pdf.outlines[o.First] = firstRef
-	pdf.WriteObject(o.First.pdfString(pdf, firstRef, ref), firstRef)
-	lastRef := pdf.CreateObject()
-	last := o.Last()
-	pdf.outlines[last] = lastRef
-	pdf.WriteObject(last.pdfString(pdf, lastRef, ref), lastRef)
+	firstRef := pdf.addOutlineItem(o.First, ref)
+	lastRef := pdf.addOutlineItem(o.Last(), ref)
 	return fmt.Sprintf("<</First %s/Last %s/Count %d>>", firstRef, lastRef, o.Count())
 }
 
@@ -656,13 +651,13 @@ func (p *OutlineItem) flatten() []*OutlineItem {
 // convenience function to write an item only once, and return
 // its reference afterwards
 func (pdf pdfWriter) addOutlineItem(item *OutlineItem, parent Reference) Reference {
-	nextRef, has := pdf.outlines[item]
+	itemRef, has := pdf.outlines[item]
 	if !has {
-		nextRef = pdf.CreateObject()
-		pdf.outlines[item] = nextRef
-		pdf.WriteObject(item.pdfString(pdf, nextRef, parent), nextRef)
+		itemRef = pdf.CreateObject()
+		pdf.outlines[item] = itemRef // register before recursing
+		pdf.WriteObject(item.pdfString(pdf, itemRef, parent), itemRef)
 	}
-	return nextRef
+	return itemRef
 }
 
 // ref should be the object number of the outline item, needed for the child

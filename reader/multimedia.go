@@ -10,7 +10,7 @@ import (
 func (r resolver) resolveRendition(obj model.Object) (out model.RenditionDict, err error) {
 	objDict, _ := r.resolve(obj).(model.ObjDict)
 	n, _ := file.IsString(r.resolve(objDict["N"]))
-	out.N = decodeTextString(n)
+	out.N = DecodeTextString(n)
 
 	mh, _ := r.resolve(objDict["MH"]).(model.ObjDict)
 	out.MH, err = r.resolveMediaCriteria(mh["C"])
@@ -91,7 +91,7 @@ func (r resolver) resolveMediaCriteria(obj model.Object) (*model.MediaCriteria, 
 	out.L = make([]string, len(lArr))
 	for i, o := range lArr {
 		ls, _ := file.IsString(r.resolve(o))
-		out.L[i] = decodeTextString(ls)
+		out.L[i] = DecodeTextString(ls)
 	}
 
 	return &out, nil
@@ -154,7 +154,7 @@ func (r resolver) resolveMediaClipDict(obj model.Object) (out model.MediaClipDic
 	c, _ := r.resolve(obj).(model.ObjDict)
 
 	n, _ := file.IsString(r.resolve(c["N"]))
-	out.N = decodeTextString(n)
+	out.N = DecodeTextString(n)
 
 	switch kind := r.resolve(c["S"]); kind {
 	case model.ObjName("MCD"):
@@ -216,7 +216,7 @@ func (r resolver) resolveMediaOffset(offset model.Object) (model.MediaOffset, er
 		return model.ObjInt(i), nil
 	case model.ObjName("M"):
 		m, _ := file.IsString(r.resolve(b["M"]))
-		return model.ObjStringLiteral(decodeTextString(m)), nil
+		return model.ObjStringLiteral(DecodeTextString(m)), nil
 	default:
 		return nil, errType("MediaOffset", name)
 	}
@@ -268,7 +268,7 @@ func (r resolver) resolveLanguageText(obj model.Object) (model.LanguageArray, er
 	for i := range out {
 		s1, _ := file.IsString(r.resolve(objAr[2*i]))
 		s2, _ := file.IsString(r.resolve(objAr[2*i+1]))
-		out[i] = [2]string{decodeTextString(s1), decodeTextString(s2)}
+		out[i] = [2]string{DecodeTextString(s1), DecodeTextString(s2)}
 	}
 	return out, nil
 }

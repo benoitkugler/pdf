@@ -92,9 +92,12 @@ var (
 	pdfDocDec = model.PDFDocEncoding
 )
 
-// decodeTextString expects a "text string" as defined in PDF spec,
-// that is, either a PDFDocEncoded string or a UTF-16BE string
-func decodeTextString(s string) string {
+// DecodeTextString expects a "text string" as defined in PDF spec,
+// that is, either a PDFDocEncoded string or a UTF-16BE string,
+// and returns the UTF-8 corresponding string.
+// Note that encryption, escaping or hex-encoding should already
+// have been taken care of.
+func DecodeTextString(s string) string {
 	b := []byte(s)
 
 	// Check for UTF-16: we also accept LE, since text/encoding handles it
@@ -132,12 +135,12 @@ func (r resolver) info() model.Info {
 		creator, _ := file.IsString(r.resolve(d["Creator"]))
 		creationDate, _ := file.IsString(r.resolve(d["CreationDate"]))
 		modDate, _ := file.IsString(r.resolve(d["ModDate"]))
-		out.Producer = decodeTextString(producer)
-		out.Title = decodeTextString(title)
-		out.Subject = decodeTextString(subject)
-		out.Author = decodeTextString(author)
-		out.Keywords = decodeTextString(keywords)
-		out.Creator = decodeTextString(creator)
+		out.Producer = DecodeTextString(producer)
+		out.Title = DecodeTextString(title)
+		out.Subject = DecodeTextString(subject)
+		out.Author = DecodeTextString(author)
+		out.Keywords = DecodeTextString(keywords)
+		out.Creator = DecodeTextString(creator)
 		out.CreationDate, _ = DateTime(creationDate)
 		out.ModDate, _ = DateTime(modDate)
 	}

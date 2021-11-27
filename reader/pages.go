@@ -172,10 +172,10 @@ func (r resolver) resolveBaseAnnotation(annotDict model.ObjDict) (out model.Base
 	}
 
 	contents, _ := file.IsString(r.resolve(annotDict["Contents"]))
-	out.Contents = decodeTextString(contents)
+	out.Contents = DecodeTextString(contents)
 
 	nm, _ := file.IsString(r.resolve(annotDict["NM"]))
-	out.NM = decodeTextString(nm)
+	out.NM = DecodeTextString(nm)
 
 	if m, ok := file.IsString(r.resolve(annotDict["M"])); ok {
 		if mt, ok := DateTime(m); ok {
@@ -356,7 +356,7 @@ func (r resolver) processDestination(dest model.Object) (model.Destination, erro
 		return model.DestinationName(dest), nil
 	case model.ObjStringLiteral, model.ObjHexLiteral:
 		d, _ := file.IsString(dest)
-		return model.DestinationString(decodeTextString(d)), nil
+		return model.DestinationString(DecodeTextString(d)), nil
 	case model.ObjArray:
 		return r.resolveExplicitDestination(dest)
 	default:
@@ -378,10 +378,10 @@ func (r resolver) resolveAnnotationSubType(annot model.ObjDict) (model.Annotatio
 		an.Open, _ = r.resolveBool(annot["Open"])
 		an.Name, _ = r.resolveName(annot["Name"])
 		if st, ok := file.IsString(r.resolve(annot["State"])); ok {
-			an.State = decodeTextString(st)
+			an.State = DecodeTextString(st)
 		}
 		if st, ok := file.IsString(r.resolve(annot["StateModel"])); ok {
-			an.StateModel = decodeTextString(st)
+			an.StateModel = DecodeTextString(st)
 		}
 		return an, nil
 	case "Link":
@@ -410,7 +410,7 @@ func (r resolver) resolveAnnotationSubType(annot model.ObjDict) (model.Annotatio
 	case "FileAttachment":
 		var an model.AnnotationFileAttachment
 		title, _ := file.IsString(r.resolve(annot["T"]))
-		an.T = decodeTextString(title)
+		an.T = DecodeTextString(title)
 		an.FS, err = r.resolveFileSpec(annot["FS"])
 		return an, err
 	case "Widget":
@@ -435,7 +435,7 @@ func (r resolver) resolveAnnotationSubType(annot model.ObjDict) (model.Annotatio
 	case "Screen":
 		var an model.AnnotationScreen
 		title, _ := file.IsString(r.resolve(annot["T"]))
-		an.T = decodeTextString(title)
+		an.T = DecodeTextString(title)
 		an.MK, err = r.resolveAnnotationMK(annot["MK"])
 		if err != nil {
 			return nil, err
@@ -462,7 +462,7 @@ func (r resolver) resolveAnnotationSubType(annot model.ObjDict) (model.Annotatio
 
 func (r resolver) resolveAnnotationMarkup(annot model.ObjDict) (out model.AnnotationMarkup, err error) {
 	t, _ := file.IsString(r.resolve(annot["T"]))
-	out.T = decodeTextString(t)
+	out.T = DecodeTextString(t)
 	out.Popup, err = r.resolveAnnotationPopup(annot)
 	if err != nil {
 		return out, err
@@ -476,7 +476,7 @@ func (r resolver) resolveAnnotationMarkup(annot model.ObjDict) (out model.Annota
 	out.CreationDate, _ = DateTime(cd)
 
 	subj, _ := file.IsString(r.resolve(annot["Subj"]))
-	out.Subj = decodeTextString(subj)
+	out.Subj = DecodeTextString(subj)
 
 	out.IT, _ = r.resolveName(annot["IT"])
 	return out, nil
@@ -567,11 +567,11 @@ func (r resolver) resolveAnnotationMK(o model.Object) (*model.AppearanceCharacte
 	out.BG = r.processFloatArray(bg)
 
 	ts, _ := file.IsString(r.resolve(dict["CA"]))
-	out.CA = decodeTextString(ts)
+	out.CA = DecodeTextString(ts)
 	ts, _ = file.IsString(r.resolve(dict["RC"]))
-	out.RC = decodeTextString(ts)
+	out.RC = DecodeTextString(ts)
 	ts, _ = file.IsString(r.resolve(dict["AC"]))
-	out.AC = decodeTextString(ts)
+	out.AC = DecodeTextString(ts)
 
 	var err error
 	if of := dict["I"]; r.resolve(of) != nil {
@@ -635,13 +635,13 @@ func (r resolver) resolveFileSpec(fs model.Object) (*model.FileSpec, error) {
 
 		// we give the priority to UF, and default to F
 		uf, _ := file.IsString(r.resolve(fsDict["UF"]))
-		fileSpec.UF = decodeTextString(uf)
+		fileSpec.UF = DecodeTextString(uf)
 		if fileSpec.UF == "" {
 			fileSpec.UF, _ = file.IsString(r.resolve(fsDict["F"]))
 		}
 
 		desc, _ := file.IsString(r.resolve(fsDict["Desc"]))
-		fileSpec.Desc = decodeTextString(desc)
+		fileSpec.Desc = DecodeTextString(desc)
 
 		ef := r.resolve(fsDict["EF"])
 		efDict, isDict := ef.(model.ObjDict)

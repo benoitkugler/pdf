@@ -10,6 +10,10 @@ import (
 
 // FmtFloat returns a PDF compatible float representation of `f`.
 func FmtFloat(f Fl) string {
+	// avoid to represent 0 as -0
+	if f == 0 {
+		return "0"
+	}
 	// The max precision encountered so far has been 12 (fontType3 fontmatrix components).
 	return strconv.FormatFloat(float64(f), 'f', -1, 64)
 }
