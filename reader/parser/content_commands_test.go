@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"image"
 	"image/jpeg"
+	"io/ioutil"
 	"math/rand"
 	"os"
 	"reflect"
@@ -245,12 +246,16 @@ func createImageStream(fi model.Name) (contentstream.OpBeginImage, error) {
 			ColorSpace: contentstream.ImageColorSpaceName{ColorSpaceName: model.ColorSpaceRGB},
 		}, err
 	}
-	in := make([]byte, 30*30)
-	rand.Read(in)
-	out, err := model.NewStream(in, l...)
+	b, err := ioutil.ReadFile("filters/samples/" + string(fi) + "_30x30.bin")
+	if err != nil {
+		return contentstream.OpBeginImage{}, err
+	}
 	return contentstream.OpBeginImage{
 		Image: model.Image{
-			Stream: out, BitsPerComponent: 8,
+			Stream: model.Stream{
+				Content: b,
+				Filter:  l,
+			}, BitsPerComponent: 8,
 			Height: 30, Width: 30,
 		}, ColorSpace: contentstream.ImageColorSpaceName{ColorSpaceName: model.ColorSpaceGray},
 	}, err
@@ -318,6 +323,7 @@ func TestForgePDFInlineData(t *testing.T) {
 			contentstream.OpFill{},
 		)
 
+		// add one page per image
 		doc.Catalog.Pages.Kids = append(doc.Catalog.Pages.Kids,
 			&model.PageObject{
 				MediaBox: &model.Rectangle{Llx: 0, Lly: 0, Urx: 200, Ury: 200},

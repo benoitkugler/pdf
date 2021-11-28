@@ -676,7 +676,7 @@ func (f AnnotationCircle) clone(cache cloneCache) Annotation {
 
 type AnnotationFileAttachment struct {
 	T  string
-	FS *FileSpec
+	FS *FileSpec // mandatory
 }
 
 func (f AnnotationFileAttachment) annotationFields(pdf pdfWriter, ref Reference) string {

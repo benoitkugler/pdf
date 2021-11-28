@@ -94,3 +94,37 @@ func TestInvalid(t *testing.T) {
 		}
 	}
 }
+
+// forge 30x30 gray images with various filters
+// but this rely on pdfcpu filters
+// func TestCreateImageStream(t *testing.T) {
+// 	in := make([]byte, 30*30)
+// 	rand.Read(in)
+
+// 	filtersName := []string{
+// 		ASCII85,
+// 		ASCIIHex,
+// 		Flate,
+// 		LZW,
+// 		RunLength,
+// 	}
+// 	for _, fi := range filtersName {
+// 		out, err := filter.NewFilter(string(fi), nil)
+// 		if err != nil {
+// 			t.Fatal(err)
+// 		}
+// 		r, err := out.Encode(bytes.NewReader(in))
+// 		if err != nil {
+// 			t.Fatal(err)
+// 		}
+// 		encoded, err := ioutil.ReadAll(r)
+// 		if err != nil {
+// 			t.Fatal(err)
+// 		}
+
+// 		err = ioutil.WriteFile("samples/"+string(fi)+"_30x30.bin", encoded, os.ModePerm)
+// 		if err != nil {
+// 			t.Fatal(err)
+// 		}
+// 	}
+// }

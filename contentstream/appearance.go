@@ -73,8 +73,7 @@ func (ap Appearance) ToXFormObject(compress bool) *model.XObjectForm {
 	out.Resources = ap.resources.ShallowCopy()
 	out.Content = WriteOperations(ap.ops...)
 	if compress {
-		out.Content = sliceCompress(out.Content)
-		out.Filter = model.Filters{{Name: model.Flate}}
+		out.Stream = model.NewCompressedStream(out.Content)
 	}
 	return out
 }

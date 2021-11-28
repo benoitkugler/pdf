@@ -141,7 +141,9 @@ func (cat *Catalog) pdfString(pdf pdfWriter, catalog Reference) string {
 		b.line("/PageLabels %s", labelsRef)
 	}
 
-	b.line("/Names %s", cat.Names.pdfString(pdf))
+	if names := cat.Names.pdfString(pdf); names != "<<>>" { // avoid writing empty dict
+		b.line("/Names %s", names)
+	}
 
 	if dests := cat.Dests; len(dests) != 0 {
 		b.line("/Dests <<")

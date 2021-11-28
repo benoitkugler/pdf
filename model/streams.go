@@ -2,6 +2,7 @@ package model
 
 import (
 	"bytes"
+	"compress/zlib"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -99,31 +100,17 @@ type Stream struct {
 	Content []byte // such as read/writen, not decoded
 }
 
-// NewStream attemps to encode `content` using the given filters,
-// applying them in the given order, and storing them in the returned object
-// following the PDF order (that is, reversed).
-// Be aware that not all PDF filters are supported.
-func NewStream(content []byte, fs ...Filter) (Stream, error) {
-	var (
-		r   io.Reader = bytes.NewReader(content)
-		err error
-	)
-	L := len(fs)
-	reversed := make(Filters, L)
-	for i, fi := range fs {
-		r, err = filters.NewFilter(string(fi.Name), fi.DecodeParms, r)
-		if err != nil {
-			return Stream{}, err
-		}
-		reversed[L-1-i] = fi
+// NewCompressedStream compress the given content using
+// zlib, and return the corresponding Stream.
+func NewCompressedStream(content []byte) Stream {
+	var buf bytes.Buffer
+	cmp, _ := zlib.NewWriterLevel(&buf, zlib.BestSpeed)
+	cmp.Write(content)
+	cmp.Close()
+	return Stream{
+		Content: buf.Bytes(),
+		Filter:  Filters{{Name: Flate}},
 	}
-	var out Stream
-	out.Content, err = ioutil.ReadAll(r)
-	if err != nil {
-		return out, err
-	}
-	out.Filter = reversed
-	return out, nil
 }
 
 // Decode attemps to apply the Filters to decode its content.
