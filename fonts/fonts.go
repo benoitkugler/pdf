@@ -313,7 +313,7 @@ func fetchSimpleTrueTypeKerning(file *model.FontFile, charMap map[rune]byte) (ma
 	if err != nil {
 		return nil, fmt.Errorf("can't decode embedded font file: %s", err)
 	}
-	font, err := truetype.Parse(bytes.NewReader(decoded), false)
+	font, err := truetype.Parse(bytes.NewReader(decoded))
 	if err != nil {
 		return nil, fmt.Errorf("invalid embedded font file: %s", err)
 	}
