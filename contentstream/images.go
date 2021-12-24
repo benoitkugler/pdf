@@ -93,7 +93,7 @@ func ParseImageFile(filename string) (*model.XObjectImage, Fl, error) {
 	return ParseImage(f, mimeType)
 }
 
-// ParseImage supports importing JPG, JPEG, PNG and GIFF images,
+// ParseImage supports importing JPEG, PNG, GIFF and TIFF images,
 // according to the given MIME type.
 // A dpi is returned: it's a default value (72) for JPG/JPEG images,
 // and the one found in the image for PNG and GIFF.
