@@ -3,6 +3,7 @@ package model
 import (
 	"bytes"
 	"fmt"
+	"math"
 	"strconv"
 	"strings"
 	"time"
@@ -14,8 +15,11 @@ func FmtFloat(f Fl) string {
 	if f == 0 {
 		return "0"
 	}
-	// The max precision encountered so far has been 12 (fontType3 fontmatrix components).
-	return strconv.FormatFloat(float64(f), 'f', -1, 64)
+	// Round rounds f with 12 digits precision
+	n := math.Pow10(5)
+	f_ := math.Round(float64(f)*n) / n
+
+	return strconv.FormatFloat(f_, 'f', -1, 32)
 }
 
 func writeMaybeFloat(f MaybeFloat) string {
