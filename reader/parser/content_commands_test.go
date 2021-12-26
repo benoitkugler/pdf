@@ -58,7 +58,7 @@ var ops = [...]contentstream.Operation{
 	contentstream.OpStroke{},
 	contentstream.OpSetStrokeColor{},
 	contentstream.OpSetStrokeColorN{
-		Color: []float64{4, 5, 6},
+		Color: []model.Fl{4, 5, 6},
 	},
 	contentstream.OpTextNextLine{},
 	contentstream.OpTextMoveSet{},

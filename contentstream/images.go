@@ -218,7 +218,7 @@ func sliceUncompress(data []byte) (outData []byte, err error) {
 // we won't use the standard library because of the tRNS information
 // which is not exposed (and seems to modify the value of the pixels color ?)
 // so we have to write a custom png parser...
-func parsePNG(r io.Reader) (img *model.XObjectImage, dpi float64, err error) {
+func parsePNG(r io.Reader) (img *model.XObjectImage, dpi model.Fl, err error) {
 	img = new(model.XObjectImage)
 	dpi = 72 // default value
 
@@ -313,9 +313,9 @@ func parsePNG(r io.Reader) (img *model.XObjectImage, dpi float64, err error) {
 				switch units {
 				// if units is 1 then measurement is px/meter
 				case 1:
-					dpi = float64(x) / 39.3701 // inches per meter
+					dpi = model.Fl(x) / 39.3701 // inches per meter
 				default:
-					dpi = float64(x)
+					dpi = model.Fl(x)
 				}
 			}
 			_ = buf.Next(4)

@@ -70,7 +70,7 @@ func (n ObjName) Write(PDFWritter, Reference) string {
 type ObjFloat Fl
 
 func (f ObjFloat) Write(PDFWritter, Reference) string {
-	return FmtFloat(float64(f))
+	return FmtFloat(float32(f))
 }
 
 func (f ObjFloat) Clone() Object { return f }
@@ -224,7 +224,7 @@ func (stream ObjStream) Write(w PDFWritter, r Reference) string {
 type Name = ObjName
 
 // Fl is the numeric type used for float values.
-type Fl = float64
+type Fl = float32
 
 // MaybeInt is an Int or nothing
 // It'a an other way to specify *int,

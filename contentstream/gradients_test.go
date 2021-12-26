@@ -57,7 +57,7 @@ func TestGradientTransform(t *testing.T) {
 	var doc model.Document
 
 	from, to := GradientPointRGB{80, 80, RGB{100, 10, 200}}, GradientPointRGB{90, 90, RGB{10, 200, 10}}
-	radius := 60.
+	var radius Fl = 60.
 	sh := &model.ShadingDict{
 		ColorSpace: model.ColorSpaceRGB,
 		ShadingType: model.ShadingRadial{

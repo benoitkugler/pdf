@@ -330,7 +330,7 @@ const myArc = (4.0 / 3.0) * (math.Sqrt2 - 1.0)
 // The rectangle is of width `w` and height `h`. Its upper left corner is positioned at point (`x`, `y`).
 // The radius for each corner are given by `rTL` (top-left), `rTR` (top-right)
 // `rBR` (bottom-right), `rBL` (bottom-left) (0 means square corners)
-func RoundedRectPath(x, y, w, h, rTL, rTR, rBR, rBL float64) []Operation {
+func RoundedRectPath(x, y, w, h, rTL, rTR, rBR, rBL model.Fl) []Operation {
 	out := make([]Operation, 0, 4)
 
 	out = append(out, OpMoveTo{X: x + rTL, Y: y})

@@ -14,8 +14,8 @@ func TestEmptyDocument(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(b.Bytes()) != 297 {
-		t.Fatalf("expected 297 bytes for an empty Document, got %d", len(b.Bytes()))
+	if len(b.Bytes()) != 285 {
+		t.Fatalf("expected 285 bytes for an empty Document, got %d", len(b.Bytes()))
 	}
 }
 
@@ -41,9 +41,10 @@ func TestCloneNames(t *testing.T) {
 		},
 		Dests: DestTree{
 			Kids: []DestTree{
-				{Names: []NameToDest{
-					{Name: "mùdlsld", Destination: DestinationExplicitIntern{}},
-				},
+				{
+					Names: []NameToDest{
+						{Name: "mùdlsld", Destination: DestinationExplicitIntern{}},
+					},
 				},
 			},
 			Names: []NameToDest{
