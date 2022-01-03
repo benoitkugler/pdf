@@ -517,7 +517,9 @@ func (o OpShowSpaceGlyph) Add(out *bytes.Buffer) {
 		if ts.SpaceSubtractedBefore != 0 {
 			fmt.Fprintf(out, "%d ", ts.SpaceSubtractedBefore)
 		}
-		out.WriteString(fmt.Sprintf("<%04x>", ts.GID))
+		if ts.GID != fonts.EmptyGlyph {
+			out.WriteString(fmt.Sprintf("<%04x>", ts.GID))
+		}
 		if ts.SpaceSubtractedAfter != 0 {
 			fmt.Fprintf(out, " %d ", ts.SpaceSubtractedAfter)
 		}
