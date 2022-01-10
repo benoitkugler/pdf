@@ -64,7 +64,7 @@ func writePointArray(rs [][2]Fl) string {
 func writeRangeArray(rs []Range) string {
 	b := make([]string, len(rs))
 	for i, a := range rs {
-		b[i] = fmt.Sprintf("%s %s ", FmtFloat(a[0]), FmtFloat(a[1]))
+		b[i] = fmt.Sprintf("%s %s", FmtFloat(a[0]), FmtFloat(a[1]))
 	}
 	return fmt.Sprintf("[%s]", strings.Join(b, " "))
 }
