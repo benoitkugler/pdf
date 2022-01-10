@@ -7,14 +7,14 @@ import (
 
 // ----------------------- colors spaces -----------------------
 
-type ResourcesColorSpace map[Name]ColorSpace
+type ResourcesColorSpace map[ColorSpaceName]ColorSpace
 
 // Resolve return the color space in the resource dictionary, taking care of default color spaces.
 // See 8.6.5.6 - Default Colour Spaces
-func (res ResourcesColorSpace) Resolve(cs Name) (ColorSpace, error) {
+func (res ResourcesColorSpace) Resolve(cs ColorSpaceName) (ColorSpace, error) {
 	// resolve the default color spaces
 	var defa ColorSpace
-	switch ColorSpaceName(cs) {
+	switch cs {
 	case ColorSpaceGray:
 		defa = res["DefaultGray"]
 	case ColorSpaceRGB:

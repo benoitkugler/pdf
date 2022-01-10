@@ -192,7 +192,7 @@ func parseCommand(command string, stack []Object) (cs.Operation, error) {
 		return cs.OpBeginIgnoreUndef{}, err
 	case "CS":
 		name, err := assertOneName(stack)
-		return cs.OpSetStrokeColorSpace{ColorSpace: name}, err
+		return cs.OpSetStrokeColorSpace{ColorSpace: model.ColorSpaceName(name)}, err
 	case "DP":
 		if err := assertLength(stack, 2); err != nil {
 			return nil, err
@@ -360,7 +360,7 @@ func parseCommand(command string, stack []Object) (cs.Operation, error) {
 		return cs.OpConcat{Matrix: mat}, nil
 	case "cs":
 		name, err := assertOneName(stack)
-		return cs.OpSetFillColorSpace{ColorSpace: name}, err
+		return cs.OpSetFillColorSpace{ColorSpace: model.ColorSpaceName(name)}, err
 	case "d":
 		if err := assertLength(stack, 2); err != nil {
 			return nil, err

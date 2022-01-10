@@ -80,7 +80,7 @@ func TestGradientTransform(t *testing.T) {
 	a.Ops(
 		OpSave{},
 		OpRectangle{20, 20, 200, 200},
-		OpSetFillColorSpace{ColorSpace: model.ObjName(model.ColorSpacePattern)},
+		OpSetFillColorSpace{ColorSpace: model.ColorSpacePattern},
 		OpSetFillColorN{Pattern: patName1},
 		OpFill{},
 		OpRestore{},

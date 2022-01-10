@@ -344,7 +344,7 @@ type ResourcesDict struct {
 func NewResourcesDict() ResourcesDict {
 	return ResourcesDict{
 		ExtGState:  make(map[Name]*GraphicState),
-		ColorSpace: make(map[Name]ColorSpace),
+		ColorSpace: make(map[ColorSpaceName]ColorSpace),
 		Shading:    make(map[Name]*ShadingDict),
 		Pattern:    make(map[Name]Pattern),
 		Font:       make(map[Name]*FontDict),
@@ -375,7 +375,7 @@ func (r ResourcesDict) ShallowCopy() ResourcesDict {
 	for n, v := range r.ExtGState {
 		out.ExtGState[n] = v
 	}
-	out.ColorSpace = make(map[Name]ColorSpace, len(r.ColorSpace))
+	out.ColorSpace = make(map[ColorSpaceName]ColorSpace, len(r.ColorSpace))
 	for n, v := range r.ColorSpace {
 		out.ColorSpace[n] = v
 	}
@@ -479,7 +479,7 @@ func (r ResourcesDict) clone(cache cloneCache) ResourcesDict {
 		}
 	}
 	if r.ColorSpace != nil {
-		out.ColorSpace = make(map[Name]ColorSpace, len(r.ColorSpace))
+		out.ColorSpace = make(map[ColorSpaceName]ColorSpace, len(r.ColorSpace))
 		for n, v := range r.ColorSpace {
 			out.ColorSpace[n] = cloneColorSpace(v, cache)
 		}

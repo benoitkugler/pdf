@@ -816,7 +816,7 @@ func (r resolver) resolveColorSpace(colorSpace model.Object) (model.ResourcesCol
 	if !isDict {
 		return nil, errType("Color space Dict", colorSpace)
 	}
-	out := make(map[model.ObjName]model.ColorSpace)
+	out := make(map[model.ColorSpaceName]model.ColorSpace)
 	for name, cs := range colorSpaceDict {
 		gs, err := r.resolveOneColorSpace(cs)
 		if err != nil {
@@ -825,7 +825,7 @@ func (r resolver) resolveColorSpace(colorSpace model.Object) (model.ResourcesCol
 		if gs == nil { // ignore the name
 			continue
 		}
-		out[model.ObjName(name)] = gs
+		out[model.ColorSpaceName(name)] = gs
 	}
 	return out, nil
 }

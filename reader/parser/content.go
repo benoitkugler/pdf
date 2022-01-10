@@ -84,13 +84,13 @@ func ParseContentResources(content []byte, res model.ResourcesColorSpace) (model
 		switch cmd := cmd.(type) {
 		case cs.OpSetFillColorSpace:
 			switch cmd.ColorSpace {
-			case "DeviceGray", "DeviceRGB", "DeviceCMYK", "Pattern": // ignored
+			case model.ColorSpaceGray, model.ColorSpaceRGB, model.ColorSpaceCMYK, model.ColorSpacePattern: // ignored
 			default:
 				out.ColorSpace[cmd.ColorSpace] = nil
 			}
 		case cs.OpSetStrokeColorSpace:
 			switch cmd.ColorSpace {
-			case "DeviceGray", "DeviceRGB", "DeviceCMYK", "Pattern": // ignored
+			case model.ColorSpaceGray, model.ColorSpaceRGB, model.ColorSpaceCMYK, model.ColorSpacePattern: // ignored
 			default:
 				out.ColorSpace[cmd.ColorSpace] = nil
 			}
@@ -130,7 +130,7 @@ func ParseContentResources(content []byte, res model.ResourcesColorSpace) (model
 			case "", model.ColorSpaceRGB, model.ColorSpaceCMYK, model.ColorSpaceGray:
 				// ignored
 			default:
-				out.ColorSpace[model.ObjName(csName)] = nil
+				out.ColorSpace[csName] = nil
 			}
 		}
 	}

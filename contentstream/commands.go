@@ -600,18 +600,18 @@ func (o OpEOClip) Add(out *bytes.Buffer) { out.WriteString("W*") }
 
 // CS
 type OpSetStrokeColorSpace struct {
-	ColorSpace model.ObjName // either a ColorSpaceName, or a name of a resource
+	ColorSpace model.ColorSpaceName // either a ColorSpaceName, or a name of a resource
 }
 
 func (o OpSetStrokeColorSpace) Add(out *bytes.Buffer) {
-	out.WriteString(o.ColorSpace.String() + " CS")
+	out.WriteString(model.Name(o.ColorSpace).String() + " CS")
 }
 
 // cs
 type OpSetFillColorSpace OpSetStrokeColorSpace
 
 func (o OpSetFillColorSpace) Add(out *bytes.Buffer) {
-	out.WriteString(o.ColorSpace.String() + " cs")
+	out.WriteString(model.Name(o.ColorSpace).String() + " cs")
 }
 
 // gs
@@ -805,7 +805,7 @@ func (img OpBeginImage) Metrics(res model.ResourcesColorSpace) (comps, bits int,
 func (img OpBeginImage) resolveColorSpace(resources model.ResourcesColorSpace) (model.ColorSpace, error) {
 	switch cs := img.ColorSpace.(type) {
 	case ImageColorSpaceName:
-		return resources.Resolve(model.ObjName(cs.ColorSpaceName))
+		return resources.Resolve(cs.ColorSpaceName)
 	case ImageColorSpaceIndexed:
 		return cs.ToColorSpace(), nil
 	default:

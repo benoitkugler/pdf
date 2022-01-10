@@ -14,7 +14,7 @@ func TestCloneAcro(t *testing.T) {
 			},
 		},
 		NeedAppearances: true,
-		DR:              ResourcesDict{ColorSpace: map[Name]ColorSpace{"eee": nil}},
+		DR:              ResourcesDict{ColorSpace: map[ColorSpaceName]ColorSpace{"eee": nil}},
 	}
 
 	cache := newCloneCache()

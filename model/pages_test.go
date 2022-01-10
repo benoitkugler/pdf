@@ -14,7 +14,7 @@ func TestCloneResources(t *testing.T) {
 				},
 			},
 		},
-		ColorSpace: map[Name]ColorSpace{"eee": nil},
+		ColorSpace: map[ColorSpaceName]ColorSpace{"eee": nil},
 	}
 
 	cache := newCloneCache()
@@ -35,7 +35,7 @@ func TestShallowClone(t *testing.T) {
 				},
 			},
 		},
-		ColorSpace: map[Name]ColorSpace{"eee": nil},
+		ColorSpace: map[ColorSpaceName]ColorSpace{"eee": nil},
 	}
 
 	r2 := r.ShallowCopy()
