@@ -72,7 +72,7 @@ func (b fieldAppearanceBuilder) drawBottomFrame(app *contentstream.Appearance) {
 }
 
 func (b fieldAppearanceBuilder) getBorderAppearance() contentstream.Appearance {
-	app := contentstream.NewAppearance(b.box.Width(), b.box.Height())
+	app := contentstream.NewAppearance(model.Rectangle{Llx: 0, Lly: 0, Urx: b.box.Width(), Ury: b.box.Height()})
 	switch b.rotation {
 	case 90:
 		app.SetTextMatrix(0, 1, -1, 0, b.box.Height(), 0)
@@ -138,8 +138,10 @@ func (b fieldAppearanceBuilder) getBorderAppearance() contentstream.Appearance {
 			}
 			app.SetColorStroke(b.borderColor)
 			app.Ops(contentstream.OpSetLineWidth{W: b.borderWidth})
-			app.Ops(contentstream.OpRectangle{X: b.borderWidth / 2, Y: b.borderWidth / 2,
-				W: b.box.Width() - b.borderWidth, H: b.box.Height() - b.borderWidth})
+			app.Ops(contentstream.OpRectangle{
+				X: b.borderWidth / 2, Y: b.borderWidth / 2,
+				W: b.box.Width() - b.borderWidth, H: b.box.Height() - b.borderWidth,
+			})
 			app.Ops(contentstream.OpStroke{})
 			if m, ok := b.maxCharacterLength.(model.ObjInt); (b.options&model.Comb) != 0 && (ok && m > 1) {
 				step := b.box.Width() / Fl(m)

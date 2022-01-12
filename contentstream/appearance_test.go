@@ -24,7 +24,7 @@ func TestKerning(t *testing.T) {
 	}
 
 	enc := func(s string) []byte { return font.Encode([]rune(s)) }
-	a := NewAppearance(400, 400)
+	a := newAp(400, 400)
 	a.SetFontAndSize(font, 12)
 	a.BeginText()
 	// a.ShowText("ceci est un test avec des è)=àéà=é")
@@ -63,7 +63,7 @@ func TestImages(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		a := NewAppearance(600, 600)
+		a := newAp(600, 600)
 		// default dpi
 		w, h := RenderingDims{}.EffectiveSize(img)
 		a.AddXObjectDims(img, 50, 50, w, h)
@@ -83,7 +83,7 @@ func TestImages(t *testing.T) {
 func TestRoundedRect(t *testing.T) {
 	var doc model.Document
 
-	a := NewAppearance(600, 600)
+	a := newAp(600, 600)
 
 	a.Ops(RoundedRectPath(20, 20, 200, 200, 10, 20, 0, 60)...)
 	a.Ops(

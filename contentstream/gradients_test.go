@@ -12,10 +12,14 @@ var defaultFont = &model.FontDict{
 	Subtype: standardfonts.Helvetica.WesternType1Font(),
 }
 
+func newAp(width, height Fl) Appearance {
+	return NewAppearance(model.Rectangle{Llx: 0, Lly: 0, Urx: width, Ury: height})
+}
+
 func TestGradient(t *testing.T) {
 	var doc model.Document
 
-	a := NewAppearance(600, 600)
+	a := newAp(600, 600)
 
 	a.Ops(OpSave{})
 	a.Ops(OpRectangle{20, 20, 200, 200})
@@ -72,7 +76,7 @@ func TestGradientTransform(t *testing.T) {
 	// 	Shading: sh,
 	// 	// Matrix:  model.Matrix{2, 0, 0, 1, 250, 250},
 	// }
-	a := NewAppearance(600, 600)
+	a := newAp(600, 600)
 
 	patName1 := a.AddPattern(pat1)
 	// patName2 := a.AddPattern(pat2)
@@ -170,7 +174,7 @@ func TestMultiGradient(t *testing.T) {
 
 	var doc model.Document
 
-	a := NewAppearance(600, 600)
+	a := newAp(600, 600)
 	shName := a.AddShading(sh)
 
 	a.Ops(

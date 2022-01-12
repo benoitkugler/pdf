@@ -36,20 +36,20 @@ type GraphicState struct {
 // to ease the creation of a content stream.
 // Once ready, it can be transformed to an XObjectForm.
 type Appearance struct {
-	resources model.ResourcesDict
-	ops       []Operation
-	stateList []GraphicState
-	State     GraphicState
-	bBox      model.Rectangle
+	resources   model.ResourcesDict
+	ops         []Operation
+	stateList   []GraphicState
+	State       GraphicState
+	BoundingBox model.Rectangle
 
 	fillAlphaState, strokeAlphaState map[model.ObjFloat]*model.GraphicState
 }
 
 // NewAppearance setup the BBox and initialize the
 // resources dictionary.
-func NewAppearance(width, height Fl) Appearance {
+func NewAppearance(bbox model.Rectangle) Appearance {
 	return Appearance{
-		bBox: model.Rectangle{Urx: width, Ury: height},
+		BoundingBox: bbox,
 		resources: model.ResourcesDict{
 			Font:      make(map[model.ObjName]*model.FontDict),
 			XObject:   make(map[model.ObjName]model.XObject),
@@ -68,7 +68,7 @@ func NewAppearance(width, height Fl) Appearance {
 // The content is optionaly compressed with the Flater filter.
 func (ap Appearance) ToXFormObject(compress bool) *model.XObjectForm {
 	out := new(model.XObjectForm)
-	out.BBox = ap.bBox
+	out.BBox = ap.BoundingBox
 	// out.Matrix = ap.matrix
 	out.Resources = ap.resources.ShallowCopy()
 	out.Content = WriteOperations(ap.ops...)
@@ -91,7 +91,7 @@ func (ap Appearance) ApplyToPageObject(page *model.PageObject, compress bool) {
 // ApplyToTilling update the fields BBox, ContentStream and Resources
 // of the given pattern.
 func (ap Appearance) ApplyToTilling(pattern *model.PatternTiling) {
-	pattern.BBox = ap.bBox
+	pattern.BBox = ap.BoundingBox
 	pattern.Resources = ap.resources.ShallowCopy()
 	pattern.ContentStream.Content = WriteOperations(ap.ops...)
 }
