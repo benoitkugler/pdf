@@ -57,7 +57,11 @@ func NewAppearance(bbox model.Rectangle) Appearance {
 			ExtGState: make(map[model.ObjName]*model.GraphicState),
 			Pattern:   make(map[model.ObjName]model.Pattern),
 		},
-		State:            GraphicState{Matrix: model.Matrix{1, 0, 0, 1, 0, 0}},
+		State: GraphicState{
+			Matrix:      model.Matrix{1, 0, 0, 1, 0, 0},
+			strokeAlpha: 1,
+			fillAlpha:   1,
+		},
 		fillAlphaState:   make(map[model.ObjFloat]*model.GraphicState),
 		strokeAlphaState: make(map[model.ObjFloat]*model.GraphicState),
 	}
