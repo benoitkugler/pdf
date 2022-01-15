@@ -84,25 +84,6 @@ func (tg *XObjectTransparencyGroup) clone(cache cloneCache) Referenceable {
 	return &out
 }
 
-// FunctionTransfer is either the name /Identity
-// or FunctionDict (1 -> 1)
-type FunctionTransfer interface {
-	functionTransferPDFString(pdf pdfWriter) string
-	cloneFunctionTransfer(cache cloneCache) FunctionTransfer
-}
-
-func (n Name) functionTransferPDFString(pdf pdfWriter) string    { return n.String() }
-func (n Name) cloneFunctionTransfer(cloneCache) FunctionTransfer { return n }
-
-func (f *FunctionDict) functionTransferPDFString(pdf pdfWriter) string {
-	ref := pdf.addItem(f)
-	return ref.String()
-}
-
-func (f *FunctionDict) cloneFunctionTransfer(cache cloneCache) FunctionTransfer {
-	return cache.checkOrClone(f).(*FunctionDict)
-}
-
 // SoftMaskDict
 // See Table 144 – Entries in a soft-mask dictionary
 // In addition, we use the following convention:
@@ -113,7 +94,8 @@ type SoftMaskDict struct {
 	S  Name                      // required
 	G  *XObjectTransparencyGroup // required
 	BC []Fl                      // optional, length: number of color components
-	TR FunctionTransfer          // optional
+	// Optional. nil means the same as the /Identity name
+	TR *FunctionDict
 }
 
 func (s SoftMaskDict) pdfString(pdf pdfWriter) string {
@@ -129,7 +111,8 @@ func (s SoftMaskDict) pdfString(pdf pdfWriter) string {
 		out += "/BC " + writeFloatArray(s.BC)
 	}
 	if s.TR != nil {
-		out += "/TR " + s.TR.functionTransferPDFString(pdf)
+		ref := pdf.addItem(s.TR)
+		out += "/TR " + ref.String()
 	}
 	out += ">>"
 	return out
@@ -140,7 +123,7 @@ func (s SoftMaskDict) clone(cache cloneCache) SoftMaskDict {
 	out.G = cache.checkOrClone(s.G).(*XObjectTransparencyGroup)
 	out.BC = append([]Fl(nil), s.BC...)
 	if s.TR != nil {
-		out.TR = s.TR.cloneFunctionTransfer(cache)
+		out.TR = cache.checkOrClone(s.TR).(*FunctionDict)
 	}
 	return out
 }
