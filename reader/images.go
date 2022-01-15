@@ -44,6 +44,10 @@ func (r resolver) resolveOneXObject(obj model.Object) (model.XObject, error) {
 	case "Image":
 		return r.resolveOneXObjectImage(obj)
 	case "Form":
+		// distinguish between regular XObjectForm and Transparency Group XObject
+		if stream.Args["Group"] != nil {
+			return r.resolveOneXObjectGroup(obj)
+		}
 		return r.resolveOneXObjectForm(obj)
 	default:
 		return nil, fmt.Errorf("invalid XObject subtype %s", name)

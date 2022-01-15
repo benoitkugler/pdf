@@ -785,22 +785,15 @@ func (r resolver) resolveSoftMaskDict(obj model.Object) (model.SoftMaskDict, err
 		}
 	case model.ObjDict:
 		out.S, _ = r.resolveName(obj["S"])
-		gObj := obj["G"]
-		var g model.XObjectForm
-		err := r.resolveXFormObjectFields(gObj, &g)
+		var err error
+		out.G, err = r.resolveOneXObjectGroup(obj["G"])
 		if err != nil {
 			return out, err
 		}
-		// here we known resolved gObj is a valid StreamDict
-		gDict := r.resolve(gObj).(model.ObjStream).Args
-		out.G = &model.XObjectTransparencyGroup{XObjectForm: g}
-		group, _ := r.resolve(gDict["Group"]).(model.ObjDict)
-		out.G.CS, err = r.resolveOneColorSpace(group["CS"])
-		if err != nil {
-			return out, err
-		}
-		out.G.I, _ = r.resolveBool(group["I"])
-		out.G.K, _ = r.resolveBool(group["K"])
+
+		// since Identity is the default and only possible name value
+		// we only check for function
+		out.TR, _ = r.resolveFunction(obj["TR"])
 		return out, nil
 	default:
 		return out, errType("SoftMaskDict", obj)

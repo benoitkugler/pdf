@@ -40,6 +40,7 @@ type resolver struct {
 	patterns          map[model.ObjIndirectRef]model.Pattern
 	xObjectForms      map[model.ObjIndirectRef]*model.XObjectForm
 	images            map[model.ObjIndirectRef]*model.XObjectImage
+	xObjectsGroups    map[model.ObjIndirectRef]*model.XObjectTransparencyGroup
 	imageSMasks       map[model.ObjIndirectRef]*model.ImageSMask
 	iccs              map[model.ObjIndirectRef]*model.ColorSpaceICCBased
 	colorTableStreams map[model.ObjIndirectRef]*model.ColorTableStream
@@ -66,6 +67,7 @@ func newResolver() resolver {
 		patterns:          make(map[model.ObjIndirectRef]model.Pattern),
 		xObjectForms:      make(map[model.ObjIndirectRef]*model.XObjectForm),
 		images:            make(map[model.ObjIndirectRef]*model.XObjectImage),
+		xObjectsGroups:    make(map[model.ObjIndirectRef]*model.XObjectTransparencyGroup),
 		imageSMasks:       make(map[model.ObjIndirectRef]*model.ImageSMask),
 		iccs:              make(map[model.ObjIndirectRef]*model.ColorSpaceICCBased),
 		colorTableStreams: make(map[model.ObjIndirectRef]*model.ColorTableStream),

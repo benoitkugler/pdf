@@ -242,6 +242,36 @@ func (r resolver) resolveXFormObjectFields(obj model.Object, out *model.XObjectF
 	return nil
 }
 
+func (r *resolver) resolveOneXObjectGroup(obj model.Object) (*model.XObjectTransparencyGroup, error) {
+	xObjRef, isRef := obj.(model.ObjIndirectRef)
+	if out := r.xObjectsGroups[xObjRef]; isRef && out != nil {
+		return out, nil
+	}
+
+	// some PDF have Object form with ressources pointing to themselves
+	// thus, we first register the current object
+	out := new(model.XObjectTransparencyGroup)
+	if isRef {
+		r.xObjectsGroups[xObjRef] = out
+	}
+
+	err := r.resolveXFormObjectFields(obj, &out.XObjectForm)
+	if err != nil {
+		return nil, err
+	}
+	// here we known resolved obj is a valid StreamDict
+	gDict := r.resolve(obj).(model.ObjStream).Args
+	group, _ := r.resolve(gDict["Group"]).(model.ObjDict)
+	out.CS, err = r.resolveOneColorSpace(group["CS"])
+	if err != nil {
+		return out, err
+	}
+	out.I, _ = r.resolveBool(group["I"])
+	out.K, _ = r.resolveBool(group["K"])
+
+	return out, nil
+}
+
 // The value of this entry shall be a dictionary in which
 // each key is a destination name and the corresponding value is either an array defining the destination, using
 // the syntax shown in Table 151, or a dictionary with a D entry whose value is such an array.
