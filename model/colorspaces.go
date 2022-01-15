@@ -101,6 +101,8 @@ func NewNameColorSpace(cs string) (ColorSpaceName, error) {
 	}
 }
 
+func (cs ColorSpaceName) String() string { return Name(cs).String() }
+
 func (n ColorSpaceName) NbColorComponents() int {
 	switch n {
 	case ColorSpaceGray:
