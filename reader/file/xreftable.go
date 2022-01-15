@@ -10,13 +10,14 @@ import (
 	"github.com/benoitkugler/pdf/reader/parser"
 )
 
-type xrefTable map[int]model.Object
+// XrefTable maps object numbers to objects.
+type XrefTable map[int]model.Object
 
 // ResolveObject use the xref table to resolve indirect reference.
 // If the reference is invalid, the ObjNull{} is returned.
 // As convenience, direct objects may also be passed and
 // will be returned as it is.
-func (table xrefTable) ResolveObject(o parser.Object) parser.Object {
+func (table XrefTable) ResolveObject(o parser.Object) parser.Object {
 	ref, ok := o.(parser.IndirectRef)
 	if !ok {
 		return o // return the direct object as it is

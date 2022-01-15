@@ -21,7 +21,7 @@ import (
 // It usually requires more processing to be really useful: see the packages 'reader'
 // and 'model'.
 type PDFFile struct {
-	xrefTable
+	XrefTable
 
 	// The PDF version the source is claiming to us as per its header.
 	HeaderVersion string
@@ -100,12 +100,12 @@ func Read(rs io.ReadSeeker, conf *Configuration) (PDFFile, error) {
 		HeaderVersion:     ctx.HeaderVersion,
 		Root:              *ctx.trailer.root,
 		AdditionalStreams: ctx.additionalStreams,
-		xrefTable:         make(xrefTable, len(ctx.xrefTable.objects)),
+		XrefTable:         make(XrefTable, len(ctx.xrefTable.objects)),
 		Info:              ctx.trailer.info,
 	}
 
 	for k, v := range ctx.xrefTable.objects {
-		out.xrefTable[k.ObjectNumber] = v.object
+		out.XrefTable[k.ObjectNumber] = v.object
 	}
 
 	if ctx.enc != nil {

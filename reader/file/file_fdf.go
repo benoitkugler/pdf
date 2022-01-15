@@ -10,7 +10,7 @@ import (
 )
 
 type FDFFile struct {
-	xrefTable
+	XrefTable
 
 	Version string
 
@@ -76,14 +76,14 @@ func processFDFFile(rs io.ReadSeeker) (FDFFile, error) {
 		return FDFFile{}, err
 	}
 
-	out := FDFFile{Version: version, Root: root, xrefTable: make(xrefTable)}
+	out := FDFFile{Version: version, Root: root, XrefTable: make(XrefTable)}
 
 	for k, v := range ctx.xrefTable.objects {
 		if v.free {
 			continue
 		}
 
-		out.xrefTable[k.ObjectNumber] = v.object
+		out.XrefTable[k.ObjectNumber] = v.object
 	}
 
 	return out, nil
