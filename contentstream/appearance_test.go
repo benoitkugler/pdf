@@ -10,7 +10,7 @@ import (
 )
 
 // toPageObject returns a page object.
-func (ap Appearance) toPageObject() *model.PageObject {
+func (ap GraphicStream) toPageObject() *model.PageObject {
 	var page model.PageObject
 	ap.ApplyToPageObject(&page, false)
 	return &page

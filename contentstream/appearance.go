@@ -31,24 +31,28 @@ type GraphicState struct {
 	strokeAlpha, fillAlpha Fl
 }
 
-// Appearance is a buffer of graphics operation,
+// GraphicStream is a buffer of graphics operation,
 // with a state. It provides convenient methods
 // to ease the creation of a content stream.
-// Once ready, it can be transformed to an XObjectForm.
-type Appearance struct {
-	resources   model.ResourcesDict
-	ops         []Operation
-	stateList   []GraphicState
-	State       GraphicState
-	BoundingBox model.Rectangle
+// Once ready, it can be transformed to an XObjectForm,
+// a Page object or a Tilling pattern.
+type GraphicStream struct {
+	resources model.ResourcesDict
 
 	fillAlphaState, strokeAlphaState map[model.ObjFloat]*model.GraphicState
+
+	ops []Operation
+
+	stateList []GraphicState
+	State     GraphicState
+
+	BoundingBox model.Rectangle
 }
 
-// NewAppearance setup the BBox and initialize the
+// NewGraphicStream setup the BBox and initialize the
 // resources dictionary.
-func NewAppearance(bbox model.Rectangle) Appearance {
-	return Appearance{
+func NewGraphicStream(bbox model.Rectangle) GraphicStream {
+	return GraphicStream{
 		BoundingBox: bbox,
 		resources: model.ResourcesDict{
 			Font:      make(map[model.ObjName]*model.FontDict),
@@ -70,10 +74,9 @@ func NewAppearance(bbox model.Rectangle) Appearance {
 // ToXFormObject write the appearance to a new object,
 // and associate it the resources, which are shallow copied.
 // The content is optionaly compressed with the Flater filter.
-func (ap Appearance) ToXFormObject(compress bool) *model.XObjectForm {
+func (ap GraphicStream) ToXFormObject(compress bool) *model.XObjectForm {
 	out := new(model.XObjectForm)
 	out.BBox = ap.BoundingBox
-	// out.Matrix = ap.matrix
 	out.Resources = ap.resources.ShallowCopy()
 	out.Content = WriteOperations(ap.ops...)
 	if compress {
@@ -85,7 +88,7 @@ func (ap Appearance) ToXFormObject(compress bool) *model.XObjectForm {
 // ApplyToPageObject update the given page with a single Content,
 // build from the appearance.
 // The content is optionaly compressed with the Flater filter.
-func (ap Appearance) ApplyToPageObject(page *model.PageObject, compress bool) {
+func (ap GraphicStream) ApplyToPageObject(page *model.PageObject, compress bool) {
 	fo := ap.ToXFormObject(compress)
 	page.Contents = []model.ContentStream{fo.ContentStream}
 	page.MediaBox = &fo.BBox
@@ -94,7 +97,7 @@ func (ap Appearance) ApplyToPageObject(page *model.PageObject, compress bool) {
 
 // ApplyToTilling update the fields BBox, ContentStream and Resources
 // of the given pattern.
-func (ap Appearance) ApplyToTilling(pattern *model.PatternTiling) {
+func (ap GraphicStream) ApplyToTilling(pattern *model.PatternTiling) {
 	pattern.BBox = ap.BoundingBox
 	pattern.Resources = ap.resources.ShallowCopy()
 	pattern.ContentStream.Content = WriteOperations(ap.ops...)
@@ -102,11 +105,11 @@ func (ap Appearance) ApplyToTilling(pattern *model.PatternTiling) {
 
 // Ops adds one or more graphic command. Some commands usually need
 // to also update the state: see the other methods.
-func (ap *Appearance) Ops(op ...Operation) {
+func (ap *GraphicStream) Ops(op ...Operation) {
 	ap.ops = append(ap.ops, op...)
 }
 
-func (app *Appearance) SetColorFill(c color.Color) {
+func (app *GraphicStream) SetColorFill(c color.Color) {
 	r, g, b := colorRGB(c)
 	op := OpSetFillRGBColor{R: r, G: g, B: b}
 	if app.State.fillColor == op {
@@ -116,7 +119,7 @@ func (app *Appearance) SetColorFill(c color.Color) {
 	app.Ops(op)
 }
 
-func (app *Appearance) SetColorStroke(c color.Color) {
+func (app *GraphicStream) SetColorStroke(c color.Color) {
 	r, g, b := colorRGB(c)
 	op := OpSetStrokeRGBColor{R: r, G: g, B: b}
 	if app.State.strokeColor == op {
@@ -126,7 +129,7 @@ func (app *Appearance) SetColorStroke(c color.Color) {
 	app.Ops(op)
 }
 
-func (app *Appearance) SetFillAlpha(alpha Fl) {
+func (app *GraphicStream) SetFillAlpha(alpha Fl) {
 	if app.State.fillAlpha == alpha {
 		return
 	}
@@ -140,7 +143,7 @@ func (app *Appearance) SetFillAlpha(alpha Fl) {
 	app.SetGraphicState(state)
 }
 
-func (app *Appearance) SetStrokeAlpha(alpha Fl) {
+func (app *GraphicStream) SetStrokeAlpha(alpha Fl) {
 	if app.State.strokeAlpha == alpha {
 		return
 	}
@@ -155,20 +158,20 @@ func (app *Appearance) SetStrokeAlpha(alpha Fl) {
 }
 
 // SetGraphicState register the given state and write it on the stream
-func (app *Appearance) SetGraphicState(state *model.GraphicState) {
+func (app *GraphicStream) SetGraphicState(state *model.GraphicState) {
 	name := app.AddExtGState(state)
 	app.Ops(OpSetExtGState{Dict: name})
 }
 
 // Shading register the given shading and apply it on the stream.
 // It is a shortcut for `AddShading` followed by `Ops(OpShFill)`.
-func (app *Appearance) Shading(sh *model.ShadingDict) {
+func (app *GraphicStream) Shading(sh *model.ShadingDict) {
 	name := app.AddShading(sh)
 	app.Ops(OpShFill{Shading: name})
 }
 
 // check is the font is in the resources map or generate a new name and add the font
-func (ap Appearance) addFont(newFont *model.FontDict) model.ObjName {
+func (ap GraphicStream) addFont(newFont *model.FontDict) model.ObjName {
 	for name, f := range ap.resources.Font {
 		if f == newFont {
 			return name
@@ -181,7 +184,7 @@ func (ap Appearance) addFont(newFont *model.FontDict) model.ObjName {
 }
 
 // SetFontAndSize sets the font and the size (in points) for the subsequent text writing.
-func (ap *Appearance) SetFontAndSize(font fonts.BuiltFont, size Fl) {
+func (ap *GraphicStream) SetFontAndSize(font fonts.BuiltFont, size Fl) {
 	if ap.State.Font.Meta == font.Meta && ap.State.FontSize == size {
 		return
 	}
@@ -195,37 +198,37 @@ func (ap *Appearance) SetFontAndSize(font fonts.BuiltFont, size Fl) {
 // SetLeading sets the text leading parameter, which is measured in text space units.
 // It specifies the vertical distance
 // between the baselines of adjacent lines of text.
-func (ap *Appearance) SetLeading(leading Fl) {
+func (ap *GraphicStream) SetLeading(leading Fl) {
 	ap.State.Leading = leading
 	ap.Ops(OpSetTextLeading{L: leading})
 }
 
 // BeginVariableText starts a MarkedContent sequence of text
-func (ap *Appearance) BeginVariableText() {
+func (ap *GraphicStream) BeginVariableText() {
 	ap.Ops(OpBeginMarkedContent{Tag: "Tx"})
 }
 
 // EndVariableText end a MarkedContent sequence of text
-func (ap *Appearance) EndVariableText() {
+func (ap *GraphicStream) EndVariableText() {
 	ap.Ops(OpEndMarkedContent{})
 }
 
 // BeginText starts the writing of text.
-func (ap *Appearance) BeginText() {
+func (ap *GraphicStream) BeginText() {
 	ap.State.XTLM = 0
 	ap.State.YTLM = 0
 	ap.Ops(OpBeginText{})
 }
 
 // EndText ends the writing of text
-func (ap *Appearance) EndText() {
+func (ap *GraphicStream) EndText() {
 	ap.State.XTLM = 0
 	ap.State.YTLM = 0
 	ap.Ops(OpEndText{})
 }
 
 // MoveText moves to the start of the next line, offset from the start of the current line.
-func (ap *Appearance) MoveText(x, y Fl) {
+func (ap *GraphicStream) MoveText(x, y Fl) {
 	ap.State.XTLM += x
 	ap.State.YTLM += y
 	ap.Ops(OpTextMove{X: x, Y: y})
@@ -239,7 +242,7 @@ func (ap *Appearance) MoveText(x, y Fl) {
 //	- SetFontAndSize
 //	- ShowText
 //	- EndText
-func (ap *Appearance) ShowText(text string) error {
+func (ap *GraphicStream) ShowText(text string) error {
 	if ap.State.Font.Font == nil {
 		return errNoFont
 	}
@@ -249,7 +252,7 @@ func (ap *Appearance) ShowText(text string) error {
 }
 
 // NewlineShowText moves to the next line and shows text.
-func (ap *Appearance) NewlineShowText(text string) error {
+func (ap *GraphicStream) NewlineShowText(text string) error {
 	if ap.State.Font.Font == nil {
 		return errNoFont
 	}
@@ -261,28 +264,28 @@ func (ap *Appearance) NewlineShowText(text string) error {
 
 // Transform changes the current matrix, by applying a Concat Op with the given `mat` and
 // updating the current state.
-func (ap *Appearance) Transform(mat model.Matrix) {
+func (ap *GraphicStream) Transform(mat model.Matrix) {
 	ap.Ops(OpConcat{Matrix: mat})
 	ap.State.Matrix = mat.Multiply(ap.State.Matrix)
 }
 
 // SetTextMatrix changes the text matrix.
 // This operation also initializes the current point position.
-func (ap *Appearance) SetTextMatrix(a, b, c, d, x, y Fl) {
+func (ap *GraphicStream) SetTextMatrix(a, b, c, d, x, y Fl) {
 	ap.State.XTLM = x
 	ap.State.YTLM = y
 	ap.Ops(OpSetTextMatrix{Matrix: model.Matrix{a, b, c, d, x, y}})
 }
 
 // Saves the graphic state. SaveState and RestoreState must be balanced.
-func (ap *Appearance) SaveState() {
+func (ap *GraphicStream) SaveState() {
 	ap.Ops(OpSave{})
 	ap.stateList = append(ap.stateList, ap.State)
 }
 
 // RestoreState restores the graphic state.
 // An error is returned (only) if the calls of SaveState and RestoreState are not balanced.
-func (ap *Appearance) RestoreState() error {
+func (ap *GraphicStream) RestoreState() error {
 	idx := len(ap.stateList) - 1
 	if idx < 0 {
 		return errUnbalanced
@@ -294,7 +297,7 @@ func (ap *Appearance) RestoreState() error {
 }
 
 // check if the image or content is in the resources map or generate a new name and add the object
-func (ap *Appearance) addXobject(xobj model.XObject) model.Name {
+func (ap *GraphicStream) addXobject(xobj model.XObject) model.Name {
 	for name, obj := range ap.resources.XObject {
 		if obj == xobj {
 			return name
@@ -309,7 +312,7 @@ func (ap *Appearance) addXobject(xobj model.XObject) model.Name {
 // AddXObjectDims puts an image or an XObjectForm in the current page, at the given position,
 // with the given dimentions.
 // See `RenderingDims` for several ways of specifying image dimentions.
-func (ap *Appearance) AddXObjectDims(obj model.XObject, x, y, width, height Fl) {
+func (ap *GraphicStream) AddXObjectDims(obj model.XObject, x, y, width, height Fl) {
 	xObjectName := ap.addXobject(obj)
 	ap.Ops(
 		OpSave{},
@@ -320,7 +323,7 @@ func (ap *Appearance) AddXObjectDims(obj model.XObject, x, y, width, height Fl) 
 }
 
 // AddXObject is the same as AddXObjectDims, but do not change the CTM.
-func (ap *Appearance) AddXObject(obj model.XObject) {
+func (ap *GraphicStream) AddXObject(obj model.XObject) {
 	// since we don't change the CTM we dont need to save and restore the state
 	// ap.AddXObjectDims(obj, 0, 0, 1, 1)
 	xObjectName := ap.addXobject(obj)

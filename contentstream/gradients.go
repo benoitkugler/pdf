@@ -2,8 +2,6 @@ package contentstream
 
 import (
 	"fmt"
-	"image/color"
-	"sort"
 
 	"github.com/benoitkugler/pdf/model"
 )
@@ -62,7 +60,7 @@ func newBaseGradientGray(from, to GradientPointGray) model.BaseGradient {
 
 // AddShading checks is the shading is in the resources map
 // or generates a new name and adds the shading.
-func (ap Appearance) AddShading(newShading *model.ShadingDict) model.ObjName {
+func (ap GraphicStream) AddShading(newShading *model.ShadingDict) model.ObjName {
 	for name, f := range ap.resources.Shading {
 		if f == newShading {
 			return name
@@ -83,7 +81,7 @@ func (ap Appearance) AddShading(newShading *model.ShadingDict) model.ObjName {
 // perpendicularly to this vector. Color 1 is used up to the origin of the
 // vector and color 2 is used beyond the vector's end point. Between the points
 // the colors are gradually blended.
-func (ap *Appearance) FillLinearGradientRGB(from, to GradientPointRGB) {
+func (ap *GraphicStream) FillLinearGradientRGB(from, to GradientPointRGB) {
 	sh := &model.ShadingDict{
 		ColorSpace: model.ColorSpaceRGB,
 		ShadingType: model.ShadingAxial{
@@ -102,7 +100,7 @@ func (ap *Appearance) FillLinearGradientRGB(from, to GradientPointRGB) {
 // gradually blended from the origin to the circle. The origin and the circle's
 // center do not necessarily have to coincide, but the origin must be within
 // the circle to avoid rendering problems.
-func (ap *Appearance) FillRadialGradientRGB(from, to GradientPointRGB, radius Fl) {
+func (ap *GraphicStream) FillRadialGradientRGB(from, to GradientPointRGB, radius Fl) {
 	sh := &model.ShadingDict{
 		ColorSpace: model.ColorSpaceRGB,
 		ShadingType: model.ShadingRadial{
@@ -115,7 +113,7 @@ func (ap *Appearance) FillRadialGradientRGB(from, to GradientPointRGB, radius Fl
 
 // AddExtGState checks if the graphic state is in the resources map or
 // generate a new name and adds the graphic state to the resources.
-func (ap Appearance) AddExtGState(newExtGState *model.GraphicState) model.ObjName {
+func (ap GraphicStream) AddExtGState(newExtGState *model.GraphicState) model.ObjName {
 	for name, f := range ap.resources.ExtGState {
 		if f == newExtGState {
 			return name
@@ -129,7 +127,7 @@ func (ap Appearance) AddExtGState(newExtGState *model.GraphicState) model.ObjNam
 
 // AddPattern checks if the pattern is in the resources map or
 // generate a new name and adds the pattern.
-func (ap Appearance) AddPattern(newPattern model.Pattern) model.ObjName {
+func (ap *GraphicStream) AddPattern(newPattern model.Pattern) model.ObjName {
 	for name, f := range ap.resources.Pattern {
 		if f == newPattern {
 			return name
@@ -141,43 +139,101 @@ func (ap Appearance) AddPattern(newPattern model.Pattern) model.ObjName {
 	return name
 }
 
-// GradientStop defines one step in a gradient
-type GradientStop struct {
-	Color   color.Color
-	Offset  Fl // between 0 and 1
-	Opacity Fl // multiplied with the StopColor
-}
-
-func (gs GradientStop) nativeColor() ([]Fl, model.ColorSpaceName) {
-	out := colorToArray(gs.Color)
-	switch len(out) {
-	case 1:
-		return out, model.ColorSpaceGray
-	default:
-		return out, model.ColorSpaceRGB
-	case 4:
-		return out, model.ColorSpaceCMYK
-	}
-}
-
-func (gs GradientStop) rgbColor() [3]Fl {
-	r, g, b := colorRGB(gs.Color)
-	return [3]Fl{r, g, b}
-}
-
-// GradientComplex supports multiple stops, opacity,
-// and Gray, RGB or CMYK color spaces.
+// GradientComplex supports multiple stops and opacities.
 type GradientComplex struct {
-	Direction GradientDirection // required
-	Stops     []GradientStop    // should contains at least 2 elements
-	Matrix    model.Matrix
+	Direction  GradientDirection // required
+	Offsets    []Fl              // between 0 and 1, should contain at least 2 elements
+	Colors     [][4]Fl           // RGBA values, between 0 and 1
+	Reapeating bool
 }
 
-// SetSpread enables a reflect or repeat spread. PDF only natively
-// supports pad spread, meaning that the target rectangle for the gradient
-// is needed.
-// TODO: This is not currently supported.
-func (g *GradientComplex) SetSpread(reflect bool, extent model.Rectangle) {
+// needAlpha is false if we should avoid including an alpha stream
+func (gr GradientComplex) buildBaseGradients() (color, alpha model.BaseGradient, needOpacity bool) {
+	alphas := make([]Fl, len(gr.Colors))
+	for i, c := range gr.Colors {
+		alphas[i] = c[3]
+		needOpacity = needOpacity || c[3] != 1
+	}
+
+	alphaCouples := make([][2]Fl, len(alphas)-1)
+	colorCouples := make([][2][3]Fl, len(alphas)-1)
+	exponents := make([]int, len(alphas)-1)
+	for i := range alphaCouples {
+		alphaCouples[i] = [2]Fl{alphas[i], alphas[i+1]}
+		colorCouples[i] = [2][3]Fl{
+			{gr.Colors[i][0], gr.Colors[i][1], gr.Colors[i][2]},
+			{gr.Colors[i+1][0], gr.Colors[i+1][1], gr.Colors[i+1][2]},
+		}
+		exponents[i] = 1
+	}
+
+	// Premultiply colors
+	for i, alpha := range alphas {
+		if alpha == 0 {
+			if i > 0 {
+				colorCouples[i-1][1] = colorCouples[i-1][0]
+			}
+			if i < len(gr.Colors)-1 {
+				colorCouples[i][0] = colorCouples[i][1]
+			}
+		}
+	}
+	for i, v := range alphaCouples {
+		a0, a1 := v[0], v[1]
+		if a0 != 0 && a1 != 0 && v != ([2]Fl{1, 1}) {
+			exponents[i] = int(a0 / a1)
+		}
+	}
+
+	var functions, alphaFunctions []model.FunctionDict
+	for i, v := range colorCouples {
+		c0, c1 := v[0], v[1]
+		n := exponents[i]
+		fn := model.FunctionDict{
+			Domain: []model.Range{{0, 1}},
+			FunctionType: model.FunctionExpInterpolation{
+				C0: c0[:],
+				C1: c1[:],
+				N:  n,
+			},
+		}
+		functions = append(functions, fn)
+
+		alphaFn := fn
+		a0, a1 := alphaCouples[i][0], alphaCouples[i][1]
+		alphaFn.FunctionType = model.FunctionExpInterpolation{
+			C0: []model.Fl{a0},
+			C1: []model.Fl{a1},
+			N:  1,
+		}
+		alphaFunctions = append(alphaFunctions, alphaFn)
+	}
+
+	stitching := model.FunctionStitching{
+		Functions: functions,
+		Bounds:    gr.Offsets[1 : len(gr.Offsets)-1],
+		Encode:    model.FunctionEncodeRepeat(len(gr.Colors) - 1),
+	}
+	stitchingAlpha := stitching
+	stitchingAlpha.Functions = alphaFunctions
+
+	bg := model.BaseGradient{
+		Domain: [2]Fl{gr.Offsets[0], gr.Offsets[len(gr.Offsets)-1]},
+		Function: []model.FunctionDict{{
+			Domain:       []model.Range{{gr.Offsets[0], gr.Offsets[len(gr.Offsets)-1]}},
+			FunctionType: stitching,
+		}},
+	}
+
+	if !gr.Reapeating {
+		bg.Extend = [2]bool{true, true}
+	}
+
+	// alpha stream is similar
+	alphaBg := bg.Clone()
+	alphaBg.Function[0].FunctionType = stitchingAlpha
+
+	return bg, alphaBg, needOpacity
 }
 
 // GradientDirection is either GradientRadial or GradientLinear
@@ -195,100 +251,58 @@ type GradientRadial [6]Fl
 
 func (GradientRadial) isRadial() bool { return true }
 
-// SetGradientStroke buids a shading pattern for the given gradient,
-// and adds it for futur stroking operations.
-func (ap *Appearance) SetGradientStroke(params GradientComplex) {}
+// BuildShadings returns the shadings objects to use in a stream
+// `alpha` may be nil if no opacity channel is needed.
+func (gr GradientComplex) BuildShadings() (color, alpha *model.ShadingDict) {
+	colorBase, alphaBase, needOpacity := gr.buildBaseGradients()
 
-func (params GradientComplex) buildShading() *model.ShadingDict {
-	// guard against degenerate cases
-	switch len(params.Stops) {
-	case 0:
-		params.Stops = []GradientStop{{Color: color.Black}, {Color: color.Black, Offset: 1}}
-	case 1:
-		params.Stops = []GradientStop{{Color: params.Stops[0].Color}, {Color: params.Stops[0].Color, Offset: 1}}
-	}
-
-	// clamp invalid offset to produce a clean PDF output
-	for i, s := range params.Stops {
-		if s.Offset < 0 {
-			params.Stops[i].Offset = 0
-		}
-		if s.Offset > 1 {
-			params.Stops[i].Offset = 1
-		}
-	}
-
-	// sort by offset in ascending order
-	sort.SliceStable(params.Stops, func(i, j int) bool {
-		return params.Stops[i].Offset < params.Stops[j].Offset
-	})
-
-	// resolve color space:
-	//	- we do a first pass using the "native colors"
-	//	- if the color space is not constant, we do a second pass to convert to RGB
-	colors := make([][]Fl, len(params.Stops))
-	_, cs := params.Stops[0].nativeColor()
-	for i, s := range params.Stops {
-		var csi model.ColorSpaceName
-		colors[i], csi = s.nativeColor()
-		if csi != cs {
-			cs = ""
-			break
-		}
-	}
-	if cs == "" { // switch to RGB for all
-		cs = model.ColorSpaceRGB
-		for i, s := range params.Stops {
-			col := s.rgbColor()
-			colors[i] = col[:]
-		}
-	}
-
-	bounds := make([]Fl, len(params.Stops)-2) // here len(params.Stop) >= 2
-	for i := range bounds {
-		bounds[i] = params.Stops[i+1].Offset
-	}
-	// we define each subfonction on [0,1]
-	encode := make([][2]Fl, len(params.Stops)-1)
-	subfunctions := make([]model.FunctionDict, len(params.Stops)-1)
-	for i := range encode {
-		encode[i] = [2]Fl{0, 1}
-		subfunctions[i] = model.FunctionDict{
-			Domain: []model.Range{{0, 1}},
-			FunctionType: model.FunctionExpInterpolation{
-				C0: colors[i],
-				C1: colors[i+1],
-				N:  1,
-			},
-		}
-	}
-	f := model.FunctionDict{
-		Domain: []model.Range{{0, 1}},
-		FunctionType: model.FunctionStitching{
-			Functions: subfunctions,
-			Bounds:    bounds,
-			Encode:    encode,
-		},
-	}
-	bg := model.BaseGradient{
-		Function: []model.FunctionDict{f},
-		Extend:   [2]bool{true, true},
-	}
-	out := &model.ShadingDict{
-		ShadingType: model.ShadingAxial{},
-		ColorSpace:  cs,
-	}
-	switch dir := params.Direction.(type) {
+	var type_, alphaType model.Shading
+	switch dir := gr.Direction.(type) {
 	case GradientLinear:
-		out.ShadingType = model.ShadingAxial{
-			BaseGradient: bg,
+		type_ = model.ShadingAxial{
+			BaseGradient: colorBase,
+			Coords:       dir,
+		}
+		alphaType = model.ShadingAxial{
+			BaseGradient: alphaBase,
 			Coords:       dir,
 		}
 	case GradientRadial:
-		out.ShadingType = model.ShadingRadial{
-			BaseGradient: bg,
+		type_ = model.ShadingRadial{
+			BaseGradient: colorBase,
+			Coords:       dir,
+		}
+		alphaType = model.ShadingRadial{
+			BaseGradient: alphaBase,
 			Coords:       dir,
 		}
 	}
-	return out
+
+	color = &model.ShadingDict{
+		ColorSpace:  model.ColorSpaceRGB,
+		ShadingType: type_,
+	}
+
+	if needOpacity {
+		alpha = &model.ShadingDict{
+			ColorSpace:  model.ColorSpaceGray,
+			ShadingType: alphaType,
+		}
+	}
+
+	return color, alpha
+}
+
+// DrawMask adds the given `transparency` content as an alpha mask.
+func (ap *GraphicStream) DrawMask(transparency *model.XObjectForm) {
+	alphaState := model.GraphicState{
+		SMask: model.SoftMaskDict{
+			S: model.ObjName("Luminosity"),
+			G: &model.XObjectTransparencyGroup{XObjectForm: *transparency},
+		},
+		Ca:  model.ObjFloat(1),
+		AIS: false,
+	}
+
+	ap.SetGraphicState(&alphaState)
 }

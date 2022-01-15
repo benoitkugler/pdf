@@ -1,7 +1,6 @@
 package contentstream
 
 import (
-	"image/color"
 	"testing"
 
 	"github.com/benoitkugler/pdf/fonts/standardfonts"
@@ -12,8 +11,8 @@ var defaultFont = &model.FontDict{
 	Subtype: standardfonts.Helvetica.WesternType1Font(),
 }
 
-func newAp(width, height Fl) Appearance {
-	return NewAppearance(model.Rectangle{Llx: 0, Lly: 0, Urx: width, Ury: height})
+func newAp(width, height Fl) GraphicStream {
+	return NewGraphicStream(model.Rectangle{Llx: 0, Lly: 0, Urx: width, Ury: height})
 }
 
 func TestGradient(t *testing.T) {
@@ -116,61 +115,22 @@ func TestGradientTransform(t *testing.T) {
 	}
 }
 
-func TestComplexGradient(t *testing.T) {
-	paramss := []GradientComplex{
-		{
-			Direction: GradientLinear{},
-			Stops: []GradientStop{
-				{Color: color.Black},
-				{Color: color.Gray{Y: 45}},
-			},
-		},
-		{
-			Direction: GradientLinear{},
-			Stops: []GradientStop{
-				{Color: color.RGBA{200, 40, 50, 255}},
-				{Color: color.RGBA64{456, 7984, 456, 7984}},
-				{Color: color.NRGBA{200, 40, 5, 0}},
-				{Color: color.NRGBA64{456, 7984, 456, 0}},
-			},
-		},
-		{
-			Direction: GradientLinear{},
-			Stops: []GradientStop{
-				{Color: color.CMYK{45, 78, 45, 89}},
-				{Color: color.CMYK{45, 78, 45, 89}},
-			},
-		},
-		{
-			Direction: GradientLinear{},
-			Stops: []GradientStop{
-				{Color: &color.Black},
-				{Color: color.Gray{Y: 45}},
-			},
-		},
-	}
-	css := []model.ColorSpaceName{model.ColorSpaceGray, model.ColorSpaceRGB, model.ColorSpaceCMYK, model.ColorSpaceRGB}
-
-	for i, params := range paramss {
-		exp := css[i]
-		if cs := params.buildShading().ColorSpace; cs != exp {
-			t.Errorf("expected %s got %v", exp, cs)
-		}
-	}
-}
-
 func TestMultiGradient(t *testing.T) {
 	p := GradientComplex{
 		Direction: GradientLinear{20, 20, 200, 200},
-		Stops: []GradientStop{
-			{Color: color.NRGBA{200, 40, 50, 255}},
-			{Color: color.NRGBA{200, 200, 50, 255}, Offset: 0.2},
-			{Color: color.NRGBA{200, 40, 200, 255}, Offset: 0.4},
-			{Color: color.NRGBA{0, 200, 50, 255}, Offset: 1},
-			// {Color: color.NRGBA{200, 40, 50, 255}},
+		Colors: [][4]Fl{
+			{1, 0.40, 0.50, 1},
+			{0.200, 0.200, 0.50, 1},
+			{0.200, 0.40, 0.200, 1},
+			{0.0, 0.200, 1, 1},
 		},
+		Offsets: []Fl{0, 0.2, 0.4, 1},
 	}
-	sh := p.buildShading()
+	sh, alpha := p.BuildShadings()
+
+	if alpha != nil {
+		t.Fatal("expected nil alpha")
+	}
 
 	var doc model.Document
 
@@ -194,176 +154,71 @@ func TestMultiGradient(t *testing.T) {
 	}
 }
 
-// func TestGradientOpacity(t *testing.T) {
-// 	var doc model.Document
+func TestGradientOpacity(t *testing.T) {
+	p := GradientComplex{
+		Direction: GradientLinear{20, 20, 200, 200},
+		Colors: [][4]Fl{
+			{1, 0.40, 0.50, 1},
+			{0.200, 0.200, 0.50, 0.8},
+			{0.200, 0.40, 0.200, 0.4},
+			{0.0, 0.200, 1, 0},
+		},
+		Offsets: []Fl{0, 0.2, 0.4, 1},
+	}
+	sh, alpha := p.BuildShadings()
 
-// 	sh1 := NewLinearGradientRGB(GradientPointRGB{
-// 		25, 25, 100, 10, 200,
-// 	}, GradientPointRGB{
-// 		120, 200, 10, 200, 10,
-// 	})
+	if alpha == nil {
+		t.Fatal("expected alpha")
+	}
 
-// 	gray := newBaseGradientGray(GradientPointGray{
-// 		25, 25, 20,
-// 	}, GradientPointGray{
-// 		120, 200, 200,
-// 	})
-// 	shGray := &model.ShadingDict{
-// 		ColorSpace: model.ColorSpaceGray,
-// 		ShadingType: model.ShadingAxial{
-// 			BaseGradient: gray,
-// 			Coords:       [4]Fl{25, 25, 120, 200},
-// 		},
-// 	}
+	pOpaque := GradientComplex{
+		Direction: GradientLinear{20, 20, 200, 200},
+		Colors: [][4]Fl{
+			{1, 0.40, 0.50, 1},
+			{0.200, 0.200, 0.50, 1},
+			{0.200, 0.40, 0.200, 1},
+			{0.0, 0.200, 1, 1},
+		},
+		Offsets: []Fl{0, 0.2, 0.4, 1},
+	}
+	shOpaque, _ := pOpaque.BuildShadings()
+	var doc model.Document
 
-// 	softMask := NewAppearance(600, 600)
-// 	softMask.FillShading(shGray)
+	a := newAp(600, 600)
+	shName := a.AddShading(sh)
+	shOpaqueName := a.AddShading(shOpaque)
 
-// 	state := model.GraphicState{
-// 		SMask: model.SoftMaskDict{
-// 			S: "Luminosity",
-// 			G: &model.XObjectTransparencyGroup{
-// 				XObjectForm: *softMask.ToXFormObject(),
-// 			},
-// 		},
-// 	}
-// 	a := NewAppearance(600, 600)
+	apAlpha := newAp(600, 600)
+	apAlpha.Shading(alpha)
+	transparency := apAlpha.ToXFormObject(false)
 
-// 	a.addExtGState(&state)
-// 	a.addExtGState(&model.GraphicState{
-// 		Ca: model.ObjFloat(0.2),
-// 	})
+	a.Ops(
+		OpSave{},
+		OpRectangle{20, 20, 200, 200},
+		OpClip{},
+		OpEndPath{},
+	)
+	a.DrawMask(transparency)
+	a.Ops(
+		OpShFill{Shading: shName},
+		OpRestore{},
+	)
 
-// 	a.Ops(
-// 		OpSave{},
-// 		OpRectangle{40, 40, 150, 150},
-// 		OpSetFillGray{G: 0.5},
-// 		OpSetExtGState{Dict: "GS1"},
-// 		OpFill{},
-// 		OpRestore{},
-// 	)
+	a.Transform(model.Matrix{1, 0, 0, 1, 200, 0})
+	a.Ops(
+		OpRectangle{20, 20, 200, 200},
+		OpClip{},
+		OpEndPath{},
+		OpShFill{Shading: shOpaqueName},
+	)
 
-// 	a.Ops(
-// 		OpSave{},
-// 		OpRectangle{20, 20, 200, 200},
-// 		OpClip{},
-// 		OpEndPath{},
-// 		OpSetExtGState{Dict: "GS0"},
-// 	)
-// 	a.FillShading(sh1)
-// 	a.Ops(OpRestore{})
+	doc.Catalog.Pages.Kids = append(doc.Catalog.Pages.Kids, a.toPageObject())
 
-// 	a.Ops(
-// 		OpConcat{Matrix: model.Matrix{1, 0, 0, 1, 300, 300}},
-// 		OpRectangle{20, 20, 200, 200},
-// 		OpClip{},
-// 		OpEndPath{},
-// 	)
-// 	a.FillShading(sh1)
-
-// 	doc.Catalog.Pages.Kids = append(doc.Catalog.Pages.Kids, a.ToPageObject())
-
-// 	err := doc.WriteFile("test/gradients2.pdf", nil)
-// 	if err != nil {
-// 		t.Fatal(err)
-// 	}
-// }
-
-// func TestGradientOpacity2(t *testing.T) {
-// 	var doc model.Document
-
-// 	sh1 := NewLinearGradientRGB(GradientPointRGB{
-// 		25, 25, 100, 10, 200,
-// 	}, GradientPointRGB{
-// 		120, 200, 10, 200, 10,
-// 	})
-
-// 	// shGray := &model.ShadingDict{
-// 	// 	ColorSpace: model.ColorSpaceGray,
-// 	// 	ShadingType: model.ShadingAxial{
-// 	// 		BaseGradient: newBaseGradientGray(GradientPointGray{
-// 	// 			25, 25, 20,
-// 	// 		}, GradientPointGray{
-// 	// 			120, 200, 200,
-// 	// 		}),
-// 	// 		Coords: [4]Fl{25, 25, 120, 200},
-// 	// 	},
-// 	// }
-// 	// softMask := NewAppearance(600, 600)
-// 	// softMask.FillShading(shGray)
-// 	// state := model.GraphicState{
-// 	// 	SMask: model.SoftMaskDict{
-// 	// 		S: "Luminosity",
-// 	// 		G: &model.XObjectTransparencyGroup{
-// 	// 			XObjectForm: *softMask.ToXFormObject(),
-// 	// 		},
-// 	// 	},
-// 	// }
-
-// 	pattern := &model.PatternShading{
-// 		Shading: sh1,
-// 		// ExtGState: &state,
-// 		ExtGState: &model.GraphicState{
-// 			Ca: model.ObjFloat(0.5),
-// 		},
-// 	}
-
-// 	a := NewAppearance(600, 600)
-
-// 	pattName := a.addPattern(pattern)
-
-// 	// opaState := a.addExtGState(&state)
-// 	grayState := a.addExtGState(&model.GraphicState{
-// 		Ca: model.ObjFloat(0.5),
-// 	})
-
-// 	// control gray rectangle
-// 	a.Ops(
-// 		OpSave{},
-// 		OpRectangle{40, 40, 150, 150},
-// 		OpSetFillGray{G: 0.5},
-// 		OpSetExtGState{Dict: grayState},
-// 		OpFill{},
-// 		OpRestore{},
-// 	)
-
-// 	fo, err := fonts.BuildFont(defaultFont)
-// 	if err != nil {
-// 		t.Fatal(err)
-// 	}
-
-// 	a.Ops(OpBeginText{})
-// 	a.SetFontAndSize(fo, 42)
-// 	a.Ops(
-// 		// OpRectangle{20, 20, 200, 200},
-// 		// OpClip{},
-// 		// OpEndPath{},
-// 		OpSetFillColorSpace{ColorSpace: "Pattern"},
-// 		OpSetFillColorN{Pattern: pattName},
-// 		// OpSetExtGState{Dict: grayState},
-// 		// OpSetExtGState{Dict: opaState},
-// 		// OpFill{},
-// 		OpShowText{Text: "dsd:s!d;s!d!s:d!s:d;;:!sd;:!sd;s:d!s"},
-// 		OpEndText{},
-// 	)
-// 	// a.FillShading(sh1)
-
-// 	// simple gradient
-// 	a.Ops(
-// 		OpConcat{Matrix: model.Matrix{1, 0, 0, 1, 300, 300}},
-// 		OpRectangle{20, 20, 200, 200},
-// 		OpClip{},
-// 		OpEndPath{},
-// 	)
-// 	a.FillShading(sh1)
-
-// 	doc.Catalog.Pages.Kids = append(doc.Catalog.Pages.Kids, a.ToPageObject())
-
-// 	err = doc.WriteFile("test/gradients2alt.pdf", nil)
-// 	if err != nil {
-// 		t.Fatal(err)
-// 	}
-// }
+	err := doc.WriteFile("test/gradient_opacity.pdf", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+}
 
 func TestOpacity(t *testing.T) {
 	var doc model.Document

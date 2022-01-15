@@ -45,7 +45,7 @@ func darker(c color.Color) color.RGBA {
 	return color.RGBA{R: uint8(Fl(r) * brightScale), G: uint8(Fl(g) * brightScale), B: uint8(Fl(b) * brightScale), A: uint8(a)}
 }
 
-func (b fieldAppearanceBuilder) drawTopFrame(app *contentstream.Appearance) {
+func (b fieldAppearanceBuilder) drawTopFrame(app *contentstream.GraphicStream) {
 	app.Ops(
 		contentstream.OpMoveTo{X: b.borderWidth, Y: b.borderWidth},
 		contentstream.OpLineTo{X: b.borderWidth, Y: b.box.Height() - b.borderWidth},
@@ -58,7 +58,7 @@ func (b fieldAppearanceBuilder) drawTopFrame(app *contentstream.Appearance) {
 	)
 }
 
-func (b fieldAppearanceBuilder) drawBottomFrame(app *contentstream.Appearance) {
+func (b fieldAppearanceBuilder) drawBottomFrame(app *contentstream.GraphicStream) {
 	app.Ops(
 		contentstream.OpMoveTo{X: b.borderWidth, Y: b.borderWidth},
 		contentstream.OpLineTo{X: b.box.Width() - b.borderWidth, Y: b.borderWidth},
@@ -71,8 +71,8 @@ func (b fieldAppearanceBuilder) drawBottomFrame(app *contentstream.Appearance) {
 	)
 }
 
-func (b fieldAppearanceBuilder) getBorderAppearance() contentstream.Appearance {
-	app := contentstream.NewAppearance(model.Rectangle{Llx: 0, Lly: 0, Urx: b.box.Width(), Ury: b.box.Height()})
+func (b fieldAppearanceBuilder) getBorderAppearance() contentstream.GraphicStream {
+	app := contentstream.NewGraphicStream(model.Rectangle{Llx: 0, Lly: 0, Urx: b.box.Width(), Ury: b.box.Height()})
 	switch b.rotation {
 	case 90:
 		app.SetTextMatrix(0, 1, -1, 0, b.box.Height(), 0)
