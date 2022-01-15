@@ -364,3 +364,22 @@ func TestMultiGradient(t *testing.T) {
 // 		t.Fatal(err)
 // 	}
 // }
+
+func TestOpacity(t *testing.T) {
+	var doc model.Document
+
+	a := newAp(600, 600)
+	a.SetFillAlpha(0.5)
+
+	a.Ops(
+		OpRectangle{20, 20, 200, 200},
+		OpFill{},
+	)
+
+	doc.Catalog.Pages.Kids = append(doc.Catalog.Pages.Kids, a.toPageObject())
+
+	err := doc.WriteFile("/tmp/opa.pdf", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+}
