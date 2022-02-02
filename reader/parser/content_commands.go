@@ -313,7 +313,7 @@ func parseCommand(command string, stack []Object) (cs.Operation, error) {
 		if err != nil {
 			return nil, err
 		}
-		return cs.OpSetTextRender{Render: nbs[0]}, nil
+		return cs.OpSetTextRender{Render: uint8(nbs[0])}, nil
 	case "Ts":
 		nbs, err := assertNumbers(stack, 1)
 		if err != nil {

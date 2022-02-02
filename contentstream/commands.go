@@ -299,11 +299,11 @@ func (o OpSetHorizScaling) Add(out *bytes.Buffer) {
 
 // Tr
 type OpSetTextRender struct {
-	Render Fl
+	Render uint8
 }
 
 func (o OpSetTextRender) Add(out *bytes.Buffer) {
-	fmt.Fprintf(out, "%s Tr", model.FmtFloat(o.Render))
+	fmt.Fprintf(out, "%d Tr", o.Render)
 }
 
 // Ts
