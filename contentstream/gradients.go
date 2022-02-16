@@ -293,8 +293,9 @@ func (gr GradientComplex) BuildShadings() (color, alpha *model.ShadingDict) {
 	return color, alpha
 }
 
-// DrawMask adds the given `transparency` content as an alpha mask.
-func (ap *GraphicStream) DrawMask(transparency *model.XObjectForm) {
+// SetAlphaMask adds the given `transparency` content as an alpha mask in
+// the graphic state.
+func (ap *GraphicStream) SetAlphaMask(transparency *model.XObjectForm) {
 	alphaState := model.GraphicState{
 		SMask: model.SoftMaskDict{
 			S: model.ObjName("Luminosity"),
