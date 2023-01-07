@@ -434,11 +434,11 @@ func TestFullCIDCMap(t *testing.T) {
 
 func TestFullToUnicodeCMap(t *testing.T) {
 	for _, file := range [...]string{
-		"../standardcmaps/generate/data/Adobe-CNS1-UCS2.txt",
-		"../standardcmaps/generate/data/Adobe-GB1-UCS2.txt",
-		"../standardcmaps/generate/data/Adobe-Japan1-UCS2.txt",
-		"../standardcmaps/generate/data/Adobe-Korea1-UCS2.txt",
-		"../standardcmaps/generate/data/Adobe-KR-UCS2.txt",
+		"../standardcmaps/generate/Adobe-CNS1-UCS2.txt",
+		"../standardcmaps/generate/Adobe-GB1-UCS2.txt",
+		"../standardcmaps/generate/Adobe-Japan1-UCS2.txt",
+		"../standardcmaps/generate/Adobe-Korea1-UCS2.txt",
+		"../standardcmaps/generate/Adobe-KR-UCS2.txt",
 	} {
 		b, err := ioutil.ReadFile(file)
 		if err != nil {
