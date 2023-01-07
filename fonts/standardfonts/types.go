@@ -8,6 +8,8 @@ import (
 	"github.com/benoitkugler/textlayout/fonts/type1"
 )
 
+//go:generate go run generate/generate.go
+
 var PredefinedEncodings = map[model.SimpleEncodingPredefined]*simpleencodings.Encoding{
 	model.MacExpertEncoding: &simpleencodings.MacExpert,
 	model.MacRomanEncoding:  &simpleencodings.MacRoman,

@@ -6,9 +6,13 @@ import (
 	"github.com/benoitkugler/pdf/model"
 )
 
-type t = cmaps.ToUnicodeTranslation
-type a = cmaps.ToUnicodeArray
-type p = cmaps.ToUnicodePair
+//go:generate go run generate/generate.go
+
+type (
+	t = cmaps.ToUnicodeTranslation
+	a = cmaps.ToUnicodeArray
+	p = cmaps.ToUnicodePair
+)
 
 var ToUnicodeCMaps = map[model.ObjName]cmaps.UnicodeCMap{
 	"Adobe-CNS1-UCS2":   Adobe_CNS1_UCS2,

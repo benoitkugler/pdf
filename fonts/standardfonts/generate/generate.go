@@ -1,11 +1,13 @@
 // Tool to generate the metrics for the standard Adobe Type1 fonts.
-package generatestandard
+package main
 
 import (
 	"fmt"
 	"io/ioutil"
+	"log"
 	"os"
 	"os/exec"
+	"sort"
 	"strings"
 
 	"github.com/benoitkugler/pdf/fonts/standardfonts"
@@ -103,6 +105,15 @@ func fontDescriptor(f type1.AFMFont) model.FontDescriptor {
 	return out
 }
 
+func sortedKeys(m map[string][]type1.KernPair) []string {
+	var keys []string
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return keys
+}
+
 // dumpFontDescriptor creates a go source file containing
 // the description of the fonts `fs`
 func dumpFontDescriptor(fs []type1.AFMFont) error {
@@ -126,7 +137,9 @@ func dumpFontDescriptor(fs []type1.AFMFont) error {
 		code.WriteString(fmt.Sprintf("// %d characters\n", len(metrics.KernPairs)))
 
 		s := ""
-		for name, list := range metrics.KernPairs {
+		keys := sortedKeys(metrics.KernPairs)
+		for _, name := range keys {
+			list := metrics.KernPairs[name]
 			s += fmt.Sprintf("%q: %#v,\n", name, list)
 		}
 		s = strings.ReplaceAll(s, "[]type1.KernPair", "")
@@ -143,7 +156,7 @@ func dumpFontDescriptor(fs []type1.AFMFont) error {
 
 	code.WriteString("\n" + sumupMap.String())
 
-	filename := "../fonts.go"
+	filename := "fonts.go"
 	err := ioutil.WriteFile(filename, []byte(code.String()), os.ModePerm)
 	if err != nil {
 		return err
@@ -151,4 +164,33 @@ func dumpFontDescriptor(fs []type1.AFMFont) error {
 
 	err = exec.Command("goimports", "-w", filename).Run()
 	return err
+}
+
+func main() {
+	files, err := ioutil.ReadDir("generate/afms")
+	if err != nil {
+		log.Fatal(err)
+	}
+	var fonts []type1.AFMFont
+	for _, info := range files {
+		if !strings.HasSuffix(info.Name(), ".afm") {
+			continue // licence file
+		}
+
+		f, err := os.Open("generate/afms/" + info.Name())
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		font, err := type1.ParseAFMFile(f)
+		if err != nil {
+			log.Fatalf("can't parse file %s : %s", info.Name(), err)
+		}
+		f.Close()
+
+		fonts = append(fonts, font)
+	}
+	if err = dumpFontDescriptor(fonts); err != nil {
+		log.Fatal(err)
+	}
 }

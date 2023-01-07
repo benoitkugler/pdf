@@ -1,8 +1,9 @@
-package generate
+package main
 
 import (
 	"fmt"
 	"io/ioutil"
+	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -38,11 +39,32 @@ func generatedPredefined(file string) error {
 		name, cmap.UseCMap, strings.Join(chunks, "\n"))
 	s += data
 
-	fpath := "../" + name + ".go"
+	fpath := name + ".go"
 	err = ioutil.WriteFile(fpath, []byte(s), os.ModePerm)
 	if err != nil {
 		return err
 	}
 
-	return exec.Command("goimports", "-w", fpath).Start()
+	err = exec.Command("goimports", "-w", fpath).Run()
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func main() {
+	for _, file := range [...]string{
+		"generate/Adobe-CNS1-UCS2.txt",
+		"generate/Adobe-GB1-UCS2.txt",
+		"generate/Adobe-Japan1-UCS2.txt",
+		"generate/Adobe-Korea1-UCS2.txt",
+		"generate/Adobe-KR-UCS2.txt",
+	} {
+		err := generatedPredefined(file)
+		if err != nil {
+			log.Fatal(err)
+		}
+	}
+	fmt.Println("Done.")
 }
