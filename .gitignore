@@ -1,7 +1,5 @@
 reader/test/*
-model/test/*
 apidemo/test/*
 reader/profile/*
-formfill/test/*
 contentstream/test/*.pdf
 parser/test/inline_images.pdf
