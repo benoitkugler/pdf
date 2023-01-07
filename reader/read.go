@@ -157,7 +157,7 @@ type Options struct {
 }
 
 // ParsePDFFile opens a file and calls `ParsePDFReader`,
-// see this method for details.
+// see the latter for details.
 func ParsePDFFile(filename string, options Options) (model.Document, *model.Encrypt, error) {
 	f, err := os.Open(filename)
 	if err != nil {
@@ -170,11 +170,10 @@ func ParsePDFFile(filename string, options Options) (model.Document, *model.Encr
 
 // ParsePDFReader reads a PDF file and builds a model.
 // This is done in two steps:
-//	- a first parsing step (involving lexing and parsing)
-// builds a tree object
-//	- this tree is then interpreted according to the PDF specification,
-// resolving indirect objects and transforming dynamic, opaque types
-// into statically typed objects, building the returned `Document`.
+//   - a first parsing step (involving lexing and parsing) builds a tree object
+//   - this tree is then interpreted according to the PDF specification,
+//     resolving indirect objects and transforming dynamic, opaque types
+//     into statically typed objects, building the returned `Document`.
 //
 // Information about encryption are returned separately, and will be needed
 // if you want to encrypt the document back.
