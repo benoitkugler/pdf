@@ -4,6 +4,7 @@
 // PDF supports 4 kinds of fonts: the Simples (Type1, TrueType and Type3)
 // and the Composite (Type0) and divides the text representation
 // in 3 differents objects:
+//
 //	1- Glyph (selector): it is either a name (for Simples) or an integer called CID (for Composite)
 //	2- Chars (character code): it is a slice of bytes (1 byte for Simples, 1 to 4 bytes for Composite)
 //	3- Unicode (point): the Unicode point of a character, coded in Go as runes.
@@ -51,9 +52,9 @@ type BuiltFont struct {
 // Since fetching such informations has a cost,
 // one font should be build once and reused as often as possible.
 // TODO: Support font kerning:
-//		- fetch the information from various files
-// 		- add the EncodeKern method
-//		- add GetWidthWithKerning([]rune) ?
+//   - fetch the information from various files
+//   - add the EncodeKern method
+//   - add GetWidthWithKerning([]rune) ?
 type Font interface {
 	// GetWidth return the size, in points, needed to display the character `c`
 	// using the font size `size`.
@@ -218,10 +219,11 @@ func BuildFont(f *model.FontDict) (BuiltFont, error) {
 				firstChar: ft.FirstChar,
 				widths:    ft.Widths,
 			}
-			out.kerns, err = fetchSimpleTrueTypeKerning(ft.FontDescriptor.FontFile, simpleCharMap)
-			if err != nil {
-				return BuiltFont{}, err
-			}
+			// TODO: we actually not use kerning info.
+			// out.kerns, err = fetchSimpleTrueTypeKerning(ft.FontDescriptor.FontFile, simpleCharMap)
+			// if err != nil {
+			// 	return BuiltFont{}, err
+			// }
 		case model.FontType3:
 			out = simpleFont{
 				desc:      buildType3FontDesc(ft),
@@ -307,7 +309,7 @@ func fallbackWidths(ft model.FontDescriptor) *standardfonts.Metrics {
 
 func fetchSimpleTrueTypeKerning(file *model.FontFile, charMap map[rune]byte) (map[uint16]int, error) {
 	if file == nil {
-		return nil, errors.New("missing TrueType font file")
+		return nil, errors.New("reading kerning: missing TrueType font file")
 	}
 	decoded, err := file.Decode()
 	if err != nil {
