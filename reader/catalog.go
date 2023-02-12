@@ -388,6 +388,7 @@ func (r resolver) resolveOutline(entry model.Object) (*model.Outline, error) {
 	if !ok {
 		return nil, errType("Outlines", entry)
 	}
+
 	var (
 		out model.Outline
 		err error
@@ -397,10 +398,17 @@ func (r resolver) resolveOutline(entry model.Object) (*model.Outline, error) {
 		return nil, err
 	}
 
+	if out.First == nil { // no outline
+		return nil, nil
+	}
 	return &out, nil
 }
 
+// accept nil oject
 func (r resolver) resolveOutlineItem(object model.Object, parent model.OutlineNode) (*model.OutlineItem, error) {
+	if object == nil {
+		return nil, nil
+	}
 	object = r.resolve(object)
 	dict, ok := object.(model.ObjDict)
 	if !ok {

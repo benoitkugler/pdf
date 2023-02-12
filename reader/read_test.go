@@ -14,7 +14,6 @@ import (
 	"github.com/benoitkugler/pdf/fonts"
 	"github.com/benoitkugler/pdf/model"
 	"github.com/benoitkugler/pdf/reader/file"
-	// "github.com/phpdave11/gofpdf"
 )
 
 // the SPEC is a good test candidate
@@ -352,5 +351,16 @@ func TestDecrompress(t *testing.T) {
 	err = doc.WriteFile(file+"_clear.pdf", nil)
 	if err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestJapanseOutline(t *testing.T) {
+	file := "samples/JapaneseOutline.pdf"
+	doc, _, err := ParsePDFFile(file, Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if doc.Catalog.Outlines != nil {
+		t.Fatal()
 	}
 }
