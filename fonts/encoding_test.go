@@ -15,7 +15,7 @@ func TestDefinedEnc(t *testing.T) {
 		},
 	}
 
-	if enc := resolveSimpleEncoding(f); enc.RuneToByte()[239] != 25 {
+	if enc := ResolveSimpleEncoding(f); enc.RuneToByte()[239] != 25 {
 		t.Error()
 	}
 
@@ -30,7 +30,7 @@ func TestDefinedEnc(t *testing.T) {
 		},
 		FontDescriptor: model.FontDescriptor{FontFile: &model.FontFile{Stream: model.Stream{Content: content}}},
 	}
-	if enc := resolveSimpleEncoding(f).RuneToByte(); enc[239] != 25 {
+	if enc := ResolveSimpleEncoding(f).RuneToByte(); enc[239] != 25 {
 		t.Errorf("expected 25, got %d", enc[239])
 	}
 }

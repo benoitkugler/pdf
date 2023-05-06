@@ -197,7 +197,7 @@ func BuildFont(f *model.FontDict) (BuiltFont, error) {
 	}
 
 	if ft, ok := f.Subtype.(model.FontSimple); ok {
-		enc := resolveSimpleEncoding(ft)
+		enc := ResolveSimpleEncoding(ft)
 		simpleCharMap := buildSimpleFromUnicode(&enc, toUnicode)
 		var out simpleFont
 		switch ft := f.Subtype.(type) {

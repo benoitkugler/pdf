@@ -16,16 +16,17 @@ import (
 // We follow here the logic from poppler, which itself is based on the PDF spec.
 // Encodings start with a base encoding, which can come from
 // (in order of priority):
-//   1. FontDict.Encoding or FontDict.Encoding.BaseEncoding
-//        - MacRoman / MacExpert / WinAnsi / Standard
-//   2. embedded or external font file
-//   3. default:
-//        - builtin --> builtin encoding
-//        - TrueType --> WinAnsiEncoding
-//        - others --> StandardEncoding
+//  1. FontDict.Encoding or FontDict.Encoding.BaseEncoding
+//     - MacRoman / MacExpert / WinAnsi / Standard
+//  2. embedded or external font file
+//  3. default:
+//     - builtin --> builtin encoding
+//     - TrueType --> WinAnsiEncoding
+//     - others --> StandardEncoding
+//
 // and then add a list of differences (if any) from
 // FontDict.Encoding.Differences.
-func resolveSimpleEncoding(font model.FontSimple) simpleencodings.Encoding {
+func ResolveSimpleEncoding(font model.FontSimple) simpleencodings.Encoding {
 	var baseEnc *simpleencodings.Encoding
 
 	enc := font.SimpleEncoding()
