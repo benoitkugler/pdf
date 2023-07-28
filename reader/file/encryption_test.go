@@ -24,12 +24,12 @@ func TestReadProtectedRC4(t *testing.T) {
 	// we check that both passwords are valid
 
 	userPassword, ownerPassword := "78eoln_-(_àç_-')", "aaaa"
-	out, err := Read(f, &Configuration{Password: userPassword})
+	_, err = Read(f, &Configuration{Password: userPassword})
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	out, err = Read(f, &Configuration{Password: ownerPassword})
+	out, err := Read(f, &Configuration{Password: ownerPassword})
 	if err != nil {
 		t.Fatal(err)
 	}

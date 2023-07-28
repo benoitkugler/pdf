@@ -35,11 +35,17 @@ func (r resolver) processAction(ac model.Object) (out model.Action, err error) {
 		subac := model.ActionRemoteGoTo{D: dest}
 		subac.NewWindow, _ = r.resolveBool(action["NewWindow"])
 		subac.F, err = r.resolveFileSpec(action["F"])
+		if err != nil {
+			return out, err
+		}
 		out.ActionType = subac
 	case "Launch":
 		subac := model.ActionRemoteGoTo{}
 		subac.NewWindow, _ = r.resolveBool(action["NewWindow"])
 		subac.F, err = r.resolveFileSpec(action["F"])
+		if err != nil {
+			return out, err
+		}
 		out.ActionType = subac
 	case "GoToE":
 		dest, err := r.processDestination(action["D"])
@@ -55,6 +61,9 @@ func (r resolver) processAction(ac model.Object) (out model.Action, err error) {
 			}
 		}
 		subac.T, err = r.resolveEmbeddedTarget(action["T"])
+		if err != nil {
+			return out, err
+		}
 		out.ActionType = subac
 	case "Hide":
 		var subac model.ActionHide

@@ -2,8 +2,8 @@ package filters
 
 import (
 	"bytes"
-	"io/ioutil"
 	"math/rand"
+	"os"
 	"testing"
 
 	"github.com/benoitkugler/pdf/reader/parser/filters/ccitt"
@@ -26,7 +26,7 @@ var skippers = map[string]Skipper{
 }
 
 func forgeEncoded(t *testing.T, fi string) []byte {
-	b, err := ioutil.ReadFile("samples/" + fi + ".bin")
+	b, err := os.ReadFile("samples/" + fi + ".bin")
 	if err != nil {
 		t.Fatal(err)
 	}

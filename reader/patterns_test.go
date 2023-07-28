@@ -1,11 +1,11 @@
 package reader
 
 import (
+	"fmt"
 	"os"
 	"testing"
 
 	"github.com/benoitkugler/pdf/model"
-	"golang.org/x/exp/errors/fmt"
 )
 
 func TestCS(t *testing.T) {

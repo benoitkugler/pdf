@@ -118,7 +118,7 @@ func TestProtected(t *testing.T) {
 		t.Fatal(err)
 	}
 	if enc == nil {
-		t.Error("expected Encryption dictionary")
+		t.Fatal("expected Encryption dictionary")
 	}
 	if enc.Filter != "Standard" {
 		t.Errorf("expected Standard encryption, got %s", enc.Filter)

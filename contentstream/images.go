@@ -10,7 +10,6 @@ import (
 	"image/jpeg"
 	"image/png"
 	"io"
-	"io/ioutil"
 	"mime"
 	"os"
 	"path/filepath"
@@ -116,7 +115,7 @@ func ParseImage(r io.Reader, mimeType string) (*model.XObjectImage, Fl, error) {
 // parseJPG extracts info from io.Reader with JPEG data
 func parseJPG(r io.Reader) (out *model.XObjectImage, err error) {
 	out = new(model.XObjectImage)
-	out.Content, err = ioutil.ReadAll(r)
+	out.Content, err = io.ReadAll(r)
 	if err != nil {
 		return out, err
 	}
@@ -210,7 +209,7 @@ func sliceUncompress(data []byte) (outData []byte, err error) {
 	}
 	defer r.Close()
 
-	return ioutil.ReadAll(r)
+	return io.ReadAll(r)
 }
 
 // the potential compression of the palette (for indexed color space)

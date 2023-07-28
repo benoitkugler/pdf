@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"image"
 	"image/jpeg"
-	"io/ioutil"
 	"math/rand"
 	"os"
 	"reflect"
@@ -246,7 +245,7 @@ func createImageStream(fi model.Name) (contentstream.OpBeginImage, error) {
 			ColorSpace: contentstream.ImageColorSpaceName{ColorSpaceName: model.ColorSpaceRGB},
 		}, err
 	}
-	b, err := ioutil.ReadFile("filters/samples/" + string(fi) + "_30x30.bin")
+	b, err := os.ReadFile("filters/samples/" + string(fi) + "_30x30.bin")
 	if err != nil {
 		return contentstream.OpBeginImage{}, err
 	}

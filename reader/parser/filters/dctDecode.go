@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"errors"
 	"io"
-	"io/ioutil"
 )
 
 type SkipperDCT struct{}
@@ -13,7 +12,7 @@ type SkipperDCT struct{}
 func (d SkipperDCT) Skip(encoded io.Reader) (int, error) {
 	r := newCountReader(encoded)
 	re := &jpegLimitedReader{source: r, scratch: &bytes.Buffer{}}
-	_, err := ioutil.ReadAll(re)
+	_, err := io.ReadAll(re)
 	return r.totalRead, err
 }
 

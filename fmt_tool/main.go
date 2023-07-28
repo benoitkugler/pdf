@@ -8,7 +8,6 @@ import (
 )
 
 func main() {
-
 }
 
 type v struct{}
@@ -37,7 +36,7 @@ func handleSprintf(expr *ast.CallExpr) {
 		fmt.Println(fmtString.Value, refmt.FindAllStringSubmatch(fmtString.Value, -1))
 		index := strings.Index(fmtString.Value, "%")
 		if index > 0 && index < len(fmtString.Value) {
-
+			// TODO:
 		}
 	}
 }

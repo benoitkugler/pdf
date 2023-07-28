@@ -15,9 +15,6 @@ import (
 	tok "github.com/benoitkugler/pstokenizer"
 )
 
-// freeHeadGeneration is the predefined generation number for the head of the free list.
-const freeHeadGeneration = 65535
-
 var errCorruptHeader = errors.New("headerVersion: corrupt pdf stream - no header version available")
 
 // context represents an environment for processing PDF files.

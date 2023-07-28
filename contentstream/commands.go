@@ -14,7 +14,6 @@ import (
 
 	pdfFonts "github.com/benoitkugler/pdf/fonts"
 	"github.com/benoitkugler/pdf/model"
-	"github.com/benoitkugler/textlayout/fonts"
 )
 
 type Fl = model.Fl
@@ -499,7 +498,7 @@ func (o OpShowSpaceText) Add(out *bytes.Buffer) {
 // TJ - OpShowSpaceGlyphs enables font kerning
 type SpacedGlyph struct {
 	SpaceSubtractedBefore int
-	GID                   fonts.GID // will be hex encoded in the content stream
+	GID                   uint32 // will be hex encoded in the content stream
 	SpaceSubtractedAfter  int
 }
 
@@ -517,7 +516,7 @@ func (o OpShowSpaceGlyph) Add(out *bytes.Buffer) {
 		if ts.SpaceSubtractedBefore != 0 {
 			fmt.Fprintf(out, "%d ", ts.SpaceSubtractedBefore)
 		}
-		if ts.GID != fonts.EmptyGlyph {
+		if ts.GID != 0xFFFFFFFF {
 			out.WriteString(fmt.Sprintf("<%04x>", ts.GID))
 		}
 		if ts.SpaceSubtractedAfter != 0 {
@@ -725,10 +724,10 @@ func (o OpMarkPoint) Add(out *bytes.Buffer) {
 }
 
 // ImageColorSpace is either:
-// 	- a device color space
-//	- a limited form of Indexed colour space whose base colour space is a device space
-// 		and whose colour table is specified by a byte string
-// 	- a name
+//   - a device color space
+//   - a limited form of Indexed colour space whose base colour space is a device space
+//     and whose colour table is specified by a byte string
+//   - a name
 type ImageColorSpace interface {
 	isColorSpace()
 	Write() string

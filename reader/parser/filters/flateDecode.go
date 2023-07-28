@@ -5,7 +5,6 @@ import (
 	"compress/zlib"
 	"fmt"
 	"io"
-	"io/ioutil"
 )
 
 // the post processing functions are copied from pdfcpu/filters
@@ -19,7 +18,7 @@ func (f SkipperFlate) Skip(encoded io.Reader) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	_, err = ioutil.ReadAll(rc)
+	_, err = io.ReadAll(rc)
 	if err != nil {
 		return 0, err
 	}

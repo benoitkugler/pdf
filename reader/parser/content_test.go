@@ -1,7 +1,7 @@
 package parser
 
 import (
-	"io/ioutil"
+	"os"
 	"reflect"
 	"testing"
 
@@ -52,7 +52,7 @@ func TestFail(t *testing.T) {
 }
 
 func TestContent(t *testing.T) {
-	b, err := ioutil.ReadFile("test/content.txt")
+	b, err := os.ReadFile("test/content.txt")
 	if err != nil {
 		t.Fatal(err)
 	}

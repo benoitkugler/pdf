@@ -12,7 +12,7 @@ import (
 
 var (
 	errNoFont     = errors.New("no font is currently selected")
-	errUnbalanced = errors.New("unbalanced save/restore state operators.")
+	errUnbalanced = errors.New("unbalanced save/restore state operators")
 )
 
 type GraphicState struct {
@@ -238,10 +238,10 @@ func (ap *GraphicStream) MoveText(x, y Fl) {
 // according to the current font.
 // And error is returned (only) if a font has not been setup.
 // A typical text drawing should apply the following methods ;
-//	- BeginText
-//	- SetFontAndSize
-//	- ShowText
-//	- EndText
+//   - BeginText
+//   - SetFontAndSize
+//   - ShowText
+//   - EndText
 func (ap *GraphicStream) ShowText(text string) error {
 	if ap.State.Font.Font == nil {
 		return errNoFont

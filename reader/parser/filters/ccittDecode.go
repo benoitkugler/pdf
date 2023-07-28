@@ -3,7 +3,6 @@ package filters
 import (
 	"bufio"
 	"io"
-	"io/ioutil"
 
 	"github.com/benoitkugler/pdf/reader/parser/filters/ccitt"
 )
@@ -19,7 +18,7 @@ func (f SkipperCCITT) Skip(encoded io.Reader) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	_, err = ioutil.ReadAll(rc)
+	_, err = io.ReadAll(rc)
 	return r.totalRead, err
 }
 

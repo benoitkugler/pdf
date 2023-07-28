@@ -5,7 +5,6 @@ import (
 	"compress/zlib"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"strconv"
 	"strings"
 
@@ -120,7 +119,7 @@ func (s Stream) Decode() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	return ioutil.ReadAll(r)
+	return io.ReadAll(r)
 }
 
 func (c Stream) Length() int { return len(c.Content) }
@@ -305,9 +304,7 @@ func (m *XObjectImage) maskPDFString(p pdfWriter) string {
 	return ref.String()
 }
 
-func (m *XObjectImage) cloneMask(cache cloneCache) Mask {
-	return m.cloneMask(cache).(*XObjectImage)
-}
+func (m *XObjectImage) cloneMask(cache cloneCache) Mask { return m.clone(cache).(*XObjectImage) }
 
 // Image are shared between inline images and XForm images.
 // The ColorSpace is not included since inline images have additional restrictions.
@@ -458,6 +455,6 @@ func (alt AlternateImage) pdfString(pdf pdfWriter) string {
 
 func (a AlternateImage) clone(cache cloneCache) AlternateImage {
 	out := a
-	a.Image = cache.checkOrClone(a.Image).(*XObjectImage)
+	out.Image = cache.checkOrClone(a.Image).(*XObjectImage)
 	return out
 }

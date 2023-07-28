@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"image"
 	"image/png"
-	"io/ioutil"
+	"io"
 	"math/rand"
 	"os"
 	"strings"
@@ -21,7 +21,7 @@ func testOneConfig(p CCITTParams) error {
 		if err != nil {
 			return err
 		}
-		_, _ = ioutil.ReadAll(de) // test for crashes only
+		_, _ = io.ReadAll(de) // test for crashes only
 	}
 	return nil
 }
@@ -142,7 +142,7 @@ func testRead(t *testing.T, fileName string, params CCITTParams, truncated bool)
 		if err != nil {
 			t.Fatal(err)
 		}
-		gotBytes, err := ioutil.ReadAll(r)
+		gotBytes, err := io.ReadAll(r)
 		if err != nil {
 			t.Fatalf("ReadAll %s: %v", fileName, err)
 		}
@@ -237,7 +237,7 @@ func testRead(t *testing.T, fileName string, params CCITTParams, truncated bool)
 		if err != nil {
 			t.Fatal(err)
 		}
-		adhBytes, err := ioutil.ReadAll(re)
+		adhBytes, err := io.ReadAll(re)
 		if err != nil {
 			t.Fatalf("ReadAll %s: %v", fileName, err)
 		}

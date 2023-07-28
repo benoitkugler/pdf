@@ -3,7 +3,6 @@ package apidemo
 import (
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -46,7 +45,7 @@ func AddAttachments(doc *model.Document, enc *model.Encrypt, w io.Writer, files 
 			return err
 		}
 
-		content, err := ioutil.ReadAll(f)
+		content, err := io.ReadAll(f)
 		if err != nil {
 			return fmt.Errorf("can't read file : %w", err)
 		}
@@ -108,7 +107,7 @@ func ExtractContent(doc model.Document, outDir string, pageNumbers []int) error 
 			totalPageContent = append(totalPageContent, ctContent...)
 		}
 		outPath := filepath.Join(outDir, fmt.Sprintf("Content_page_%d.txt", pageNumber))
-		err := ioutil.WriteFile(outPath, totalPageContent, os.ModePerm)
+		err := os.WriteFile(outPath, totalPageContent, os.ModePerm)
 		if err != nil {
 			return err
 		}

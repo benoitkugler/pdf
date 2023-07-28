@@ -2,7 +2,6 @@ package filters
 
 import (
 	"io"
-	"io/ioutil"
 
 	"github.com/hhrutter/lzw"
 )
@@ -16,7 +15,7 @@ func (f SkipperLZW) Skip(encoded io.Reader) (int, error) {
 	r := newCountReader(encoded)
 
 	rc := lzwDecoder(f.EarlyChange, r)
-	_, err := ioutil.ReadAll(rc)
+	_, err := io.ReadAll(rc)
 	if err != nil {
 		return 0, err
 	}

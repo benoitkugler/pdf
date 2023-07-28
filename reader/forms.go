@@ -140,8 +140,9 @@ func (r resolver) textOrStream(object model.Object) string {
 			}
 			jsString = string(decoded)
 		}
+	} else {
+		jsString, _ = file.IsString(content)
 	}
-	jsString, _ = file.IsString(content)
 	return DecodeTextString(jsString)
 }
 

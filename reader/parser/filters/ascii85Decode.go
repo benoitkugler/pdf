@@ -2,7 +2,6 @@ package filters
 
 import (
 	"io"
-	"io/ioutil"
 )
 
 type SkipperAscii85 struct{}
@@ -14,6 +13,6 @@ func (f SkipperAscii85) Skip(encoded io.Reader) (int, error) {
 	// we make sure not to read passed EOD
 	origin := newCountReader(encoded)
 	r := newReacher(origin, []byte(eodASCII85))
-	_, err := ioutil.ReadAll(r)
+	_, err := io.ReadAll(r)
 	return origin.totalRead, err
 }

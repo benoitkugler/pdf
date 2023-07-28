@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"io"
 
 	"github.com/benoitkugler/pdf/model"
 	"github.com/benoitkugler/pdf/reader/parser"
@@ -233,7 +233,7 @@ func (ctx *context) xRefStreamDict(d parser.Dict, streamOffset int64) (xrefStrea
 	if err != nil {
 		return details, nil, err
 	}
-	decoded, err := ioutil.ReadAll(r)
+	decoded, err := io.ReadAll(r)
 	if err != nil {
 		return details, nil, err
 	}

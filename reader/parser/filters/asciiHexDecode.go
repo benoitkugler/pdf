@@ -2,7 +2,6 @@ package filters
 
 import (
 	"io"
-	"io/ioutil"
 )
 
 type SkipperAsciiHex struct{}
@@ -14,6 +13,6 @@ func (f SkipperAsciiHex) Skip(encoded io.Reader) (int, error) {
 	// we make sure not to read passed EOD
 	origin := newCountReader(encoded)
 	r := newReacher(origin, []byte{eodHexDecode})
-	_, err := ioutil.ReadAll(r)
+	_, err := io.ReadAll(r)
 	return origin.totalRead, err
 }

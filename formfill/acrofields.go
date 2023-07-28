@@ -216,7 +216,7 @@ func (ac *filler) buildAppearance(formResources model.ResourcesDict, fields mode
 		app, topFirst := appBuilder.getListAppearance(font, fontSize)
 		return app, topFirst, nil
 	default:
-		return nil, 0, errors.New("an appearance was requested without a variable text field.")
+		return nil, 0, errors.New("an appearance was requested without a variable text field")
 	}
 }
 

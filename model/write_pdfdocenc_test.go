@@ -25,6 +25,4 @@ func TestPDFDocEncodingDecode(t *testing.T) {
 			t.Fatalf("Encode mismatch %s (%X) != %s (%X)", enc, enc, testcase.Encoded, testcase.Encoded)
 		}
 	}
-
-	return
 }

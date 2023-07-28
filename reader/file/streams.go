@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 
 	"github.com/benoitkugler/pdf/model"
@@ -57,9 +56,9 @@ func (ctx *context) parseStreamDictAt(offset int64) (out streamDictHeader, err e
 // read a stream starting at `offset`
 // Although, according to the SPEC, `expectedLength` should be sufficient, in practice it is not.
 // We apply the following heuristics :
-//	- if the content is not filtered, or is encrypted, we can't use the format to find the end
-// 	of the stream. Thus, we either use `expectedLength` or, if it is 0, look for "endstream"
-// 	- else we use the EOD of the filter (which if the most reliable method)
+//   - if the content is not filtered, or is encrypted, we can't use the format to find the end
+//     of the stream. Thus, we either use `expectedLength` or, if it is 0, look for "endstream"
+//   - else we use the EOD of the filter (which if the most reliable method)
 func (ctx *context) extractStreamContent(filters model.Filters, offset int64, expectedLength int) ([]byte, error) {
 	if ctx.enc != nil || len(filters) == 0 {
 		// we can't use information provided by a potential filter
@@ -103,7 +102,7 @@ func (ctx *context) decodeStreamContent(ref model.ObjIndirectRef, filters model.
 	if err != nil {
 		return nil, fmt.Errorf("invalid stream content: %s", err)
 	}
-	return ioutil.ReadAll(r)
+	return io.ReadAll(r)
 }
 
 // readStreamFromLength try to locate the end of the stream using `expectedLength`,

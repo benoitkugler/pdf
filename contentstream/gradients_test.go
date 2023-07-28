@@ -3,13 +3,8 @@ package contentstream
 import (
 	"testing"
 
-	"github.com/benoitkugler/pdf/fonts/standardfonts"
 	"github.com/benoitkugler/pdf/model"
 )
-
-var defaultFont = &model.FontDict{
-	Subtype: standardfonts.Helvetica.WesternType1Font(),
-}
 
 func newAp(width, height Fl) GraphicStream {
 	return NewGraphicStream(model.Rectangle{Llx: 0, Lly: 0, Urx: width, Ury: height})

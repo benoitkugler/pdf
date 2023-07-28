@@ -162,7 +162,7 @@ func processIndexedCS(arr Array) (contentstream.ImageColorSpaceIndexed, error) {
 	return out, nil
 }
 
-var filtersCorrupted = errors.New("corrupted filter expression")
+var errFiltersCorrupted = errors.New("corrupted filter expression")
 
 // ParseDirectFiltersis the same as ParseFilters, but for direct objects.
 // It is the case in image inline parameters and xRefStream dicts.
@@ -188,7 +188,7 @@ func ParseFilters(filters, decodeParams Object, resolver func(Object) (Object, e
 	}
 	ar, ok := filters.(Array)
 	if !ok {
-		return nil, filtersCorrupted
+		return nil, errFiltersCorrupted
 	}
 	var out model.Filters
 	for _, name := range ar {
@@ -200,7 +200,7 @@ func ParseFilters(filters, decodeParams Object, resolver func(Object) (Object, e
 		if filterName, isName := name.(Name); isName {
 			out = append(out, model.Filter{Name: model.ObjName(filterName)})
 		} else {
-			return nil, filtersCorrupted
+			return nil, errFiltersCorrupted
 		}
 	}
 
@@ -228,7 +228,7 @@ func ParseFilters(filters, decodeParams Object, resolver func(Object) (Object, e
 		out[0].DecodeParms = processOneDecodeParms(decodeParams)
 	case nil: // OK
 	default:
-		return nil, filtersCorrupted
+		return nil, errFiltersCorrupted
 	}
 
 	return out, nil

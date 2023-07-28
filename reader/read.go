@@ -76,10 +76,7 @@ func newResolver() resolver {
 	}
 }
 
-type incompleteDest struct {
-	destination *model.DestinationExplicitIntern
-	ref         model.ObjIndirectRef
-}
+ 
 
 func isUTF16(b []byte) bool {
 	if len(b) < 2 {
@@ -91,7 +88,6 @@ func isUTF16(b []byte) bool {
 
 var (
 	utf16Dec  = unicode.UTF16(unicode.BigEndian, unicode.UseBOM).NewDecoder()
-	pdfDocDec = model.PDFDocEncoding
 )
 
 // DecodeTextString expects a "text string" as defined in PDF spec,

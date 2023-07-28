@@ -7,12 +7,7 @@ func min(i, j int) int {
 	return j
 }
 
-func max(i, j int) int {
-	if i > j {
-		return i
-	}
-	return j
-}
+ 
 
 func minF(i, j Fl) Fl {
 	if i < j {

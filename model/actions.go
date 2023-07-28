@@ -43,16 +43,17 @@ func (a Action) clone(cache cloneCache) Action {
 
 // ActionType specialize the action (see Table 198 – Action types).
 // Many PDF actions are supported, excepted:
-//	- Thread
-//	- Sound
-//	- Movie
+//   - Thread
+//   - Sound
+//   - Movie
+//
 // TODO - SubmitForm
 // TODO - ResetForm
 // TODO - ImportData
-//	- SetOCGState
-//	- Rendition
-//	- Trans
-//	- GoTo3DView
+//   - SetOCGState
+//   - Rendition
+//   - Trans
+//   - GoTo3DView
 type ActionType interface {
 	// actionParams returns the fields of dictionary defining the action
 	// as written in PDF
@@ -230,8 +231,8 @@ type ActionRemoteGoTo struct {
 func (ac ActionRemoteGoTo) actionParams(pdf pdfWriter, ref Reference) string {
 	fs := ""
 	if ac.F != nil {
-		_, fs, _ := ac.F.pdfContent(pdf, ref)
-		fs = "/F " + fs
+		_, tmp, _ := ac.F.pdfContent(pdf, ref)
+		fs = "/F " + tmp
 	}
 	name, dest := Name("Launch"), ""
 	if ac.D != nil {

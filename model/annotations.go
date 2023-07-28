@@ -704,7 +704,7 @@ type AnnotationWidget struct {
 }
 
 func (w AnnotationWidget) annotationFields(pdf pdfWriter, ref Reference) string {
-	out := fmt.Sprintf("/Subtype/Widget")
+	out := "/Subtype/Widget"
 	if w.H != "" {
 		out += fmt.Sprintf("/H %s", w.H)
 	}
@@ -873,7 +873,7 @@ type AnnotationScreen struct {
 }
 
 func (w AnnotationScreen) annotationFields(pdf pdfWriter, ref Reference) string {
-	out := fmt.Sprintf("/Subtype/Screen")
+	out :="/Subtype/Screen"
 	if w.T != "" {
 		out += "/T " + pdf.EncodeString(w.T, TextString, ref)
 	}

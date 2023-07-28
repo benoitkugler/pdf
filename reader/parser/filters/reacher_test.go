@@ -3,7 +3,6 @@ package filters
 import (
 	"bytes"
 	"io"
-	"io/ioutil"
 	"testing"
 )
 
@@ -11,7 +10,7 @@ func TestReacher(t *testing.T) {
 	input := []byte("789456zesd45679998989")
 	rd := bytes.NewReader(input)
 	r := newReacher(rd, []byte("456"))
-	_, err := io.Copy(ioutil.Discard, r)
+	_, err := io.Copy(io.Discard, r)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -22,7 +21,7 @@ func TestReacher(t *testing.T) {
 
 	rd = bytes.NewReader(input)
 	r = newReacher(rd, []byte("998"))
-	_, err = io.Copy(ioutil.Discard, r)
+	_, err = io.Copy(io.Discard, r)
 	if err != nil {
 		t.Fatal(err)
 	}

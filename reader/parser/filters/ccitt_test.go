@@ -3,7 +3,8 @@ package filters
 import (
 	"bytes"
 	"fmt"
-	"io/ioutil"
+	"io"
+	"os"
 	"testing"
 
 	"github.com/benoitkugler/pdf/reader/parser/filters/ccitt"
@@ -19,7 +20,7 @@ func (c cr) ReadByte() (byte, error) {
 }
 
 func TestCCITT(t *testing.T) {
-	b, err := ioutil.ReadFile("ccitt/testdata/bw-gopher.ccitt_group3")
+	b, err := os.ReadFile("ccitt/testdata/bw-gopher.ccitt_group3")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -29,7 +30,7 @@ func TestCCITT(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = ioutil.ReadAll(r)
+	_, err = io.ReadAll(r)
 	if err != nil {
 		t.Fatal(err)
 	}
