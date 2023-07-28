@@ -9,6 +9,8 @@ import (
 	"github.com/benoitkugler/pdf/reader/parser"
 )
 
+// FDFFile is an in-memory version of a .fdf file,
+// used to fill PDF forms.
 type FDFFile struct {
 	XrefTable
 

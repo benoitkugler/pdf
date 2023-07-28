@@ -4,7 +4,10 @@
 package formfill
 
 import (
+	"errors"
+
 	"github.com/benoitkugler/pdf/model"
+	"github.com/benoitkugler/pdf/reader"
 	"github.com/benoitkugler/pdf/reader/file"
 )
 
@@ -12,18 +15,18 @@ type FDFValue interface {
 	isFDFValue()
 }
 
-func (ButtonAppearanceName) isFDFValue() {}
-func (Text) isFDFValue()                 {}
-func (Choices) isFDFValue()              {}
+func (FDFName) isFDFValue()    {}
+func (FDFText) isFDFValue()    {}
+func (FDFChoices) isFDFValue() {}
 
-// ButtonAppearanceName is the value of a field with type `Btn`
-type ButtonAppearanceName model.ObjName
+// FDFName is the value of a field with type `Btn`
+type FDFName model.ObjName
 
-// Text is the value of a field with type `Tx`
-type Text string
+// FDFText is the value of a field with type `Tx` or `Ch`
+type FDFText string
 
-// Choices is the value of field with type `Ch`
-type Choices []string
+// FDFChoices is the value of field with type `Ch`
+type FDFChoices []string
 
 type Values struct {
 	V  FDFValue
@@ -74,13 +77,85 @@ func FillForm(doc *model.Document, fdf FDFDict, lockForm bool) error {
 
 // FillFormFromFDF is the same as FillForm, but use the given `fdf` FDF file as input for
 // filling the forms in `doc`.
-// TODO:
 func FillFormFromFDF(doc *model.Document, fdf file.FDFFile, lockForm bool) error {
-	fields := processFDFFile(fdf)
+	fields, err := processFDFFile(fdf)
+	if err != nil {
+		return err
+	}
 	return FillForm(doc, fields, lockForm)
 }
 
-func processFDFFile(fi file.FDFFile) FDFDict {
-	return FDFDict{}
-	// TODO:
+func processFDFFile(fi file.FDFFile) (FDFDict, error) {
+	catalog, ok := fi.XrefTable.ResolveObject(fi.Root).(model.ObjDict)
+	if !ok {
+		return FDFDict{}, errors.New("invalid type for Catalog")
+	}
+	fdf, ok := fi.XrefTable.ResolveObject(catalog["FDF"]).(model.ObjDict)
+	if !ok {
+		return FDFDict{}, errors.New("invalid type for FDF entry")
+	}
+	fields, ok := fi.XrefTable.ResolveObject(fdf["Fields"]).(model.ObjArray)
+	if !ok {
+		return FDFDict{}, errors.New("invalid type for Fields entry")
+	}
+
+	var resolveTree func(node model.Object) (FDFField, error)
+	resolveTree = func(node model.Object) (FDFField, error) {
+		fieldDict, ok := fi.XrefTable.ResolveObject(node).(model.ObjDict)
+		if !ok {
+			return FDFField{}, errors.New("invalid type for Fields item")
+		}
+
+		T, _ := file.IsString(fieldDict["T"])
+		RV, _ := file.IsString(fieldDict["RV"])
+		out := FDFField{
+			T: reader.DecodeTextString(T),
+			Values: Values{
+				RV: reader.DecodeTextString(RV),
+			},
+		}
+
+		// parse value V
+		switch V := fi.XrefTable.ResolveObject(fieldDict["V"]).(type) {
+		case model.ObjName:
+			out.V = FDFName(V)
+		case model.ObjArray:
+			L := make(FDFChoices, len(V))
+			for i, v := range V {
+				s, _ := file.IsString(v)
+				L[i] = reader.DecodeTextString(s)
+			}
+			out.V = L
+		default:
+			s, ok := file.IsString(V)
+			if !ok {
+				return FDFField{}, errors.New("invalid type for form field V entry")
+			}
+			out.V = FDFText(reader.DecodeTextString(s))
+		}
+
+		// recurse on kids
+		kids, _ := fieldDict["Kids"].(model.ObjArray) // optional
+		out.Kids = make([]FDFField, len(kids))
+		for i, k := range kids {
+			var err error
+			out.Kids[i], err = resolveTree(k)
+			if err != nil {
+				return FDFField{}, err
+			}
+		}
+
+		return out, nil
+	}
+
+	root := make([]FDFField, len(fields))
+	for i, ref := range fields {
+		var err error
+		root[i], err = resolveTree(ref)
+		if err != nil {
+			return FDFDict{}, err
+		}
+	}
+
+	return FDFDict{Fields: root}, nil
 }

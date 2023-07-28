@@ -10,37 +10,37 @@ import (
 )
 
 var data = []FDFField{
-	{T: "z1", Values: Values{V: Text("879-sde9-898")}},
-	{T: "z2", Values: Values{V: Text("ACVE")}},
-	{T: "z4", Values: Values{V: Text("La Maison du Rocher")}},
-	{T: "z5", Values: Values{V: Text("26160")}},
-	{T: "z5b", Values: Values{V: Text("CHAMALOC")}},
-	{T: "z6", Values: Values{V: Text("Créer et gérer des séjours pour enfants, adolescents et adultes.")}},
-	{T: "z7", Values: Values{V: Text("Faire connaître, à travers des animations adaptées à l’âge des participants, les valeurs chrétiennes.")}},
-	{T: "z9", Values: Values{V: ButtonAppearanceName("Oui")}},
-	{T: "d3", Values: Values{V: Text("1957")}},
-	{T: "d3b", Values: Values{V: Text("1957")}},
-	{T: "d1", Values: Values{V: Text("5")}},
-	{T: "d1b", Values: Values{V: Text("29")}},
-	{T: "d2", Values: Values{V: Text("1")}},
-	{T: "d2b", Values: Values{V: Text("1")}},
-	{T: "z29", Values: Values{V: Text("')='à=(kmlrk'")}},
-	{T: "z30", Values: Values{V: Text("mldmskld8+-*")}},
-	{T: "z31", Values: Values{V: Text("lmemzkd\ndlss\nzlkdsmkmdkmsdk")}},
-	{T: "z32", Values: Values{V: Text("kdskdl")}},
-	{T: "z33", Values: Values{V: Text("ùmdslsùmd")}},
-	{T: "z34", Values: Values{V: Text("1457.46")}},
-	{T: "z35", Values: Values{V: Text("mille quatre cent cinquante-sept euros et quarante-six centimes")}},
-	{T: "z36", Values: Values{V: Text("25")}},
-	{T: "z37", Values: Values{V: Text("11")}},
-	{T: "z38", Values: Values{V: Text("2020")}},
-	{T: "z50", Values: Values{V: ButtonAppearanceName("Oui")}},
-	{T: "z39", Values: Values{V: ButtonAppearanceName("Oui")}},
-	{T: "z46", Values: Values{V: ButtonAppearanceName("Oui")}},
-	{T: "z44", Values: Values{V: ButtonAppearanceName("Oui")}},
-	{T: "z52", Values: Values{V: Text("25")}},
-	{T: "z53", Values: Values{V: Text("11")}},
-	{T: "z54", Values: Values{V: Text("2020")}},
+	{T: "z1", Values: Values{V: FDFText("879-sde9-898")}},
+	{T: "z2", Values: Values{V: FDFText("ACVE")}},
+	{T: "z4", Values: Values{V: FDFText("La Maison du Rocher")}},
+	{T: "z5", Values: Values{V: FDFText("26160")}},
+	{T: "z5b", Values: Values{V: FDFText("CHAMALOC")}},
+	{T: "z6", Values: Values{V: FDFText("Créer et gérer des séjours pour enfants, adolescents et adultes.")}},
+	{T: "z7", Values: Values{V: FDFText("Faire connaître, à travers des animations adaptées à l’âge des participants, les valeurs chrétiennes.")}},
+	{T: "z9", Values: Values{V: FDFName("Oui")}},
+	{T: "d3", Values: Values{V: FDFText("1957")}},
+	{T: "d3b", Values: Values{V: FDFText("1957")}},
+	{T: "d1", Values: Values{V: FDFText("5")}},
+	{T: "d1b", Values: Values{V: FDFText("29")}},
+	{T: "d2", Values: Values{V: FDFText("1")}},
+	{T: "d2b", Values: Values{V: FDFText("1")}},
+	{T: "z29", Values: Values{V: FDFText("')='à=(kmlrk'")}},
+	{T: "z30", Values: Values{V: FDFText("mldmskld8+-*")}},
+	{T: "z31", Values: Values{V: FDFText("lmemzkd\ndlss\nzlkdsmkmdkmsdk")}},
+	{T: "z32", Values: Values{V: FDFText("kdskdl")}},
+	{T: "z33", Values: Values{V: FDFText("ùmdslsùmd")}},
+	{T: "z34", Values: Values{V: FDFText("1457.46")}},
+	{T: "z35", Values: Values{V: FDFText("mille quatre cent cinquante-sept euros et quarante-six centimes")}},
+	{T: "z36", Values: Values{V: FDFText("25")}},
+	{T: "z37", Values: Values{V: FDFText("11")}},
+	{T: "z38", Values: Values{V: FDFText("2020")}},
+	{T: "z50", Values: Values{V: FDFName("Oui")}},
+	{T: "z39", Values: Values{V: FDFName("Oui")}},
+	{T: "z46", Values: Values{V: FDFName("Oui")}},
+	{T: "z44", Values: Values{V: FDFName("Oui")}},
+	{T: "z52", Values: Values{V: FDFText("25")}},
+	{T: "z53", Values: Values{V: FDFText("11")}},
+	{T: "z54", Values: Values{V: FDFText("2020")}},
 }
 
 func TestFDF(t *testing.T) {
@@ -79,5 +79,12 @@ func TestFDFFile(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	fmt.Println(fi)
+	out, err := processFDFFile(fi)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(out.Fields) != 5 {
+		t.Fatal()
+	}
+	fmt.Println(out)
 }

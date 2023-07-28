@@ -55,10 +55,13 @@ func splitDAelements(da string) (daConfig, error) {
 			}
 		case cs.OpSetFillRGBColor:
 			ret.color = color.NRGBA{
-				R: uint8(op.R * 255), G: uint8(op.G * 255), B: uint8(op.B * 255), A: 255}
+				R: uint8(op.R * 255), G: uint8(op.G * 255), B: uint8(op.B * 255), A: 255,
+			}
 		case cs.OpSetFillCMYKColor:
-			ret.color = color.CMYK{C: uint8(op.C * 255), M: uint8(op.M * 255),
-				Y: uint8(op.Y * 255), K: uint8(op.K * 255)}
+			ret.color = color.CMYK{
+				C: uint8(op.C * 255), M: uint8(op.M * 255),
+				Y: uint8(op.Y * 255), K: uint8(op.K * 255),
+			}
 		}
 	}
 	return ret, nil
@@ -145,10 +148,10 @@ func (ac *filler) buildAppearance(formResources model.ResourcesDict, fields mode
 		text, _ := fields.FT.(model.FormFieldText)
 		appBuilder.maxCharacterLength = text.MaxLen
 	}
-	//alignment
+	// alignment
 	appBuilder.alignment = fields.Q
 
-	//border styles
+	// border styles
 	if annot.BS != nil {
 		if bw, ok := annot.BS.W.(model.ObjFloat); ok {
 			appBuilder.borderWidth = Fl(bw)
@@ -162,7 +165,7 @@ func (ac *filler) buildAppearance(formResources model.ResourcesDict, fields mode
 			}
 		}
 	}
-	//rect
+	// rect
 	var rect model.Rectangle
 	if widget.AnnotationDict != nil {
 		rect = widget.AnnotationDict.Rect
@@ -247,13 +250,13 @@ func (ac filler) setField(formResources model.ResourcesDict, field model.FormFie
 	field.Field.RV = values.RV
 	switch type_ := field.Merged.FT.(type) {
 	case model.FormFieldText:
-		value, ok := values.V.(Text)
+		value, ok := values.V.(FDFText)
 		if !ok {
 			return fmt.Errorf("unexpected value type for text field: %T", values.V)
 		}
 		if ml, _ := type_.MaxLen.(model.ObjInt); ml > 0 {
 			asRunes := []rune(value)
-			value = Text(asRunes[0:min(int(ml), len(asRunes))])
+			value = FDFText(asRunes[0:min(int(ml), len(asRunes))])
 		}
 		type_.V = string(value)
 		_, err := ac.buildWidgets(formResources, field, string(value))
@@ -262,11 +265,14 @@ func (ac filler) setField(formResources model.ResourcesDict, field model.FormFie
 		}
 		field.Field.FT = type_ // update
 	case model.FormFieldChoice:
-		value, ok := values.V.(Choices)
-		if !ok {
+		switch value := values.V.(type) {
+		case FDFChoices:
+			type_.V = []string(value)
+		case FDFText: // only one selection
+			type_.V = []string{string(value)}
+		default:
 			return fmt.Errorf("unexpected value type for choices field: %T", values.V)
 		}
-		type_.V = []string(value)
 		// ssteward; it might disagree w/ V in a Ch widget
 		// PDF spec this shouldn't matter, but Reader 9 gives I precedence over V
 		type_.I = nil
@@ -278,7 +284,7 @@ func (ac filler) setField(formResources model.ResourcesDict, field model.FormFie
 		type_.TI = topFirst
 		field.Field.FT = type_ // update
 	case model.FormFieldButton:
-		value, ok := values.V.(ButtonAppearanceName)
+		value, ok := values.V.(FDFName)
 		if !ok {
 			return fmt.Errorf("unexpected value type for button field: %T", values.V)
 		}
