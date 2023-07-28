@@ -19,15 +19,12 @@
 package fonts
 
 import (
-	"bytes"
 	"errors"
-	"fmt"
 	"log"
 
 	"github.com/benoitkugler/pdf/fonts/cmaps"
 	"github.com/benoitkugler/pdf/fonts/standardfonts"
 	"github.com/benoitkugler/pdf/model"
-	"github.com/benoitkugler/textlayout/fonts/truetype"
 )
 
 type Fl = model.Fl
@@ -51,10 +48,6 @@ type BuiltFont struct {
 // and a way to encode utf-8 strings to a compatible byte string.
 // Since fetching such informations has a cost,
 // one font should be build once and reused as often as possible.
-// TODO: Support font kerning:
-//   - fetch the information from various files
-//   - add the EncodeKern method
-//   - add GetWidthWithKerning([]rune) ?
 type Font interface {
 	// GetWidth return the size, in points, needed to display the character `c`
 	// using the font size `size`.
@@ -66,10 +59,6 @@ type Font interface {
 	// See `EncodeKern` for kerning support.
 	Encode(cs []rune) []byte
 
-	// EncodeKern encodes the given unicode points
-	// but also adds kerning information, if available from the font.
-	// EncodeKern(cs []rune) []TextSpaced
-
 	// Desc return the font descriptor
 	Desc() model.FontDescriptor
 }
@@ -80,8 +69,6 @@ type simpleFont struct {
 	firstChar byte
 	widths    []int
 	charMap   map[rune]byte
-	// key = first<< 8 + second; negative value for closer glyphs
-	kerns map[uint16]int
 }
 
 func (ft simpleFont) GetWidth(c rune, size Fl) Fl {
@@ -115,21 +102,6 @@ func (ft simpleFont) Encode(cs []rune) []byte {
 	}
 	return out
 }
-
-// func (ft simpleFont) EncodeKern(cs []rune) []TextSpaced {
-// 	encoded := ft.Encode(cs)
-// 	var current TextSpaced
-// 	for i := 0; i < len(encoded)-1; i++ {
-// 		first, second := encoded[i], encoded[i+1]
-// 		kern, has := ft.kerns[uint16(first<<8)|uint16(second)]
-// 		if has {
-// 			// add the first char to the current text
-// 			current.Text = append(current.Text, first)
-// 			// close the current and add the kern space
-// 			current.SpaceSubtractedAfter =
-// 		}
-// 	}
-// }
 
 func (ft simpleFont) Desc() model.FontDescriptor {
 	return ft.desc
@@ -176,9 +148,7 @@ func (ft compositeFont) GetWidth(c rune, size Fl) Fl {
 	return Fl(w) * 0.001 * size
 }
 
-func (ct compositeFont) Desc() model.FontDescriptor {
-	return ct.desc
-}
+func (ct compositeFont) Desc() model.FontDescriptor { return ct.desc }
 
 // BuildFont compiles an existing FontDictionary, as found in a PDF,
 // to a usefull font metrics. When needed the font builtin encoding is parsed
@@ -208,10 +178,6 @@ func BuildFont(f *model.FontDict) (BuiltFont, error) {
 				firstChar: ft.FirstChar,
 				widths:    ft.Widths,
 			}
-			// we add kerning information for the standards font
-			if met, ok := standardfonts.Fonts[string(ft.FontName())]; ok {
-				out.kerns = met.KernsWithEncoding(enc)
-			}
 		case model.FontTrueType:
 			out = simpleFont{
 				desc:      ft.FontDescriptor,
@@ -219,11 +185,6 @@ func BuildFont(f *model.FontDict) (BuiltFont, error) {
 				firstChar: ft.FirstChar,
 				widths:    ft.Widths,
 			}
-			// TODO: we actually not use kerning info.
-			// out.kerns, err = fetchSimpleTrueTypeKerning(ft.FontDescriptor.FontFile, simpleCharMap)
-			// if err != nil {
-			// 	return BuiltFont{}, err
-			// }
 		case model.FontType3:
 			out = simpleFont{
 				desc:      buildType3FontDesc(ft),
@@ -305,45 +266,6 @@ func fallbackWidths(ft model.FontDescriptor) *standardfonts.Metrics {
 	}
 
 	return fallbacks[i]
-}
-
-func fetchSimpleTrueTypeKerning(file *model.FontFile, charMap map[rune]byte) (map[uint16]int, error) {
-	if file == nil {
-		return nil, errors.New("reading kerning: missing TrueType font file")
-	}
-	decoded, err := file.Decode()
-	if err != nil {
-		return nil, fmt.Errorf("can't decode embedded font file: %s", err)
-	}
-	font, err := truetype.Parse(bytes.NewReader(decoded))
-	if err != nil {
-		return nil, fmt.Errorf("invalid embedded font file: %s", err)
-	}
-
-	// TODO:
-	// kerns, err := font.KernTable(false)
-	// if err != nil { // we consider kerns as optional
-	// 	log.Printf("missing kern table: %s", err)
-	// 	return nil, nil
-	// }
-	var kerns truetype.SimpleKerns = truetype.Kern0{}
-
-	cmap, _ := font.Cmap()
-	if err != nil {
-		return nil, fmt.Errorf("invalid cmap table: %s", err)
-	}
-
-	out := make(map[uint16]int)
-	for r, b := range charMap {
-		left, _ := cmap.Lookup(r)
-		for r2, b2 := range charMap {
-			right, _ := cmap.Lookup(r2)
-			if kern := kerns.KernPair(left, right); kern != 0 {
-				out[uint16(b)<<8|uint16(b2)] = int(kern)
-			}
-		}
-	}
-	return out, nil
 }
 
 func buildType0FontDesc(tf model.FontType0) model.FontDescriptor {

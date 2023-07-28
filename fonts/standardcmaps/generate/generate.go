@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"io/ioutil"
 	"log"
 	"os"
 	"os/exec"
@@ -16,7 +15,7 @@ var rp = strings.NewReplacer("cmaps.ToUnicodeTranslation", "t",
 	"cmaps.ToUnicodeArray", "a", "cmaps.ToUnicodePair", "p")
 
 func generatedPredefined(file string) error {
-	b, err := ioutil.ReadFile(file)
+	b, err := os.ReadFile(file)
 	if err != nil {
 		return err
 	}
@@ -40,7 +39,7 @@ func generatedPredefined(file string) error {
 	s += data
 
 	fpath := name + ".go"
-	err = ioutil.WriteFile(fpath, []byte(s), os.ModePerm)
+	err = os.WriteFile(fpath, []byte(s), os.ModePerm)
 	if err != nil {
 		return err
 	}

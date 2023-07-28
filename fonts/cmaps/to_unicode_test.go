@@ -5,12 +5,10 @@ import (
 	"fmt"
 	"reflect"
 	"testing"
-
-	"github.com/benoitkugler/textlayout/fonts"
 )
 
 func TestToUnicode(t *testing.T) {
-	data := map[fonts.GID][]rune{
+	data := map[uint32][]rune{
 		2:  {12, 4, 789},
 		4:  {12, 4, 789},
 		5:  {78},
@@ -28,7 +26,7 @@ func TestToUnicode(t *testing.T) {
 		if !ok {
 			t.Fatal()
 		}
-		expected := data[fonts.GID(m.From)]
+		expected := data[uint32(m.From)]
 
 		if !reflect.DeepEqual(expected, m.Dest) {
 			t.Fatalf("expected %v, got  %v", expected, m.Dest)

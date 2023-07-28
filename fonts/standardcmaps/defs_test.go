@@ -1,14 +1,14 @@
 package standardcmaps
 
 import (
-	"io/ioutil"
+	"os"
 	"testing"
 
 	"github.com/benoitkugler/pdf/fonts/cmaps"
 )
 
 func TestUnicodeMapping(t *testing.T) {
-	b, err := ioutil.ReadFile("../cmaps/test/Adobe-CNS1-3.cmap")
+	b, err := os.ReadFile("../cmaps/test/Adobe-CNS1-3.cmap")
 	if err != nil {
 		t.Fatal(err)
 	}

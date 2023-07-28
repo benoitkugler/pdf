@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"github.com/benoitkugler/pdf/model"
-	"github.com/benoitkugler/textlayout/fonts"
 )
 
 type ToUnicode interface {
@@ -72,7 +71,7 @@ func (u UnicodeCMap) ProperLookupTable() map[model.CID][]rune {
 
 // WriteAdobeIdentityUnicodeCMap dumps the given mapping to a Cmap ressource,
 // ready to be embedded in a PDF file.
-func WriteAdobeIdentityUnicodeCMap(dict map[fonts.GID][]rune) []byte {
+func WriteAdobeIdentityUnicodeCMap(dict map[uint32][]rune) []byte {
 	var buf bytes.Buffer
 	fmt.Fprintf(&buf, `/CIDInit /ProcSet findresource begin
 	12 dict begin

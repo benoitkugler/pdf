@@ -10,7 +10,7 @@ import (
 
 type (
 	t = cmaps.ToUnicodeTranslation
-	a = cmaps.ToUnicodeArray
+	// a = cmaps.ToUnicodeArray
 	p = cmaps.ToUnicodePair
 )
 

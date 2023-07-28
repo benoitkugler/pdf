@@ -121,43 +121,6 @@ func (cm CMap) CharCodeToCID() map[CharCode]model.CID {
 	return out
 }
 
-// BytesToCharcodes attempts to convert the entire byte array `data` to a list
-// of character codes from the ranges specified by `cmap`'s codespaces.
-// Returns:
-//      character code sequence (if there is a match complete match)
-//      matched?
-// NOTE: A partial list of character codes will be returned if a complete match
-//       is not possible.
-// func (cmap CMap) BytesToCharcodes(data []byte) ([]CharCode, bool) {
-// 	var charcodes []CharCode
-// 	if cmap.CMap.Simple() {
-// 		for _, b := range data {
-// 			charcodes = append(charcodes, CharCode(b))
-// 		}
-// 		return charcodes, true
-// 	}
-// 	for i := 0; i < len(data); {
-// 		code, n, matched := cmap.matchCode(data[i:])
-// 		if !matched {
-// 			return charcodes, false
-// 		}
-// 		charcodes = append(charcodes, code)
-// 		i += n
-// 	}
-// 	return charcodes, true
-// }
-
-type charRange struct {
-	code0 CharCode
-	code1 CharCode
-}
-
-type fbRange struct {
-	code0 CharCode
-	code1 CharCode
-	r0    rune
-}
-
 // ParseUnicodeCMap parses the cmap `data` and returns the resulting CMap.
 // See 9.10.3 ToUnicode CMaps
 func ParseUnicodeCMap(data []byte) (UnicodeCMap, error) {
@@ -300,10 +263,13 @@ func (cmap *parser) computeInverseMappings() {
 // BytesToCharcodes attempts to convert the entire byte array `data` to a list
 // of character codes from the ranges specified by `cmap`'s codespaces.
 // Returns:
-//      character code sequence (if there is a match complete match)
-//      matched?
+//
+//	character code sequence (if there is a match complete match)
+//	matched?
+//
 // NOTE: A partial list of character codes will be returned if a complete match
-//       is not possible.
+//
+//	is not possible.
 func (cmap *CMap) BytesToCharcodes(data []byte) ([]CharCode, bool) {
 	var charcodes []CharCode
 	if cmap.Simple() {
@@ -332,9 +298,10 @@ func (cmap *CMap) BytesToCharcodes(data []byte) ([]CharCode, bool) {
 
 // matchCode attempts to match the byte array `data` with a character code in `cmap`'s codespaces.
 // Returns:
-//      character code (if there is a match) of
-//      number of bytes read (if there is a match)
-//      matched?
+//
+//	character code (if there is a match) of
+//	number of bytes read (if there is a match)
+//	matched?
 func (cmap CMap) matchCode(data []byte) (code CharCode, n int, matched bool) {
 	for j := 0; j < maxCodeLen; j++ {
 		if j < len(data) {
@@ -359,96 +326,3 @@ func (cmap CMap) inCodespace(code CharCode, numBytes int) bool {
 	}
 	return false
 }
-
-// // toBfData returns the bfchar and bfrange sections of a CMap text file.
-// // Both sections are computed from cmap.unicode.CodeToUnicode.
-// func (cmap *parser) toBfData() string {
-// 	if len(cmap.unicode.CodeToUnicode) == 0 {
-// 		return ""
-// 	}
-
-// 	// codes is a sorted list of the codeToUnicode keys.
-// 	var codes []CharCode
-// 	for code := range cmap.unicode.CodeToUnicode {
-// 		codes = append(codes, code)
-// 	}
-// 	sort.Slice(codes, func(i, j int) bool { return codes[i] < codes[j] })
-
-// 	// charRanges is a list of the contiguous character code ranges in `codes`.
-// 	var charRanges []charRange
-// 	c0, c1 := codes[0], codes[0]+1
-// 	for _, c := range codes[1:] {
-// 		if c != c1 {
-// 			charRanges = append(charRanges, charRange{c0, c1})
-// 			c0 = c
-// 		}
-// 		c1 = c + 1
-// 	}
-// 	if c1 > c0 {
-// 		charRanges = append(charRanges, charRange{c0, c1})
-// 	}
-
-// 	// fbChars is a list of single character ranges. fbRanges is a list of multiple character ranges.
-// 	var fbChars []CharCode
-// 	var fbRanges []fbRange
-// 	for _, cr := range charRanges {
-// 		if cr.code0+1 == cr.code1 {
-// 			fbChars = append(fbChars, cr.code0)
-// 		} else {
-// 			fbRanges = append(fbRanges, fbRange{
-// 				code0: cr.code0,
-// 				code1: cr.code1,
-// 				r0:    cmap.unicode.CodeToUnicode[cr.code0],
-// 			})
-// 		}
-// 	}
-
-// 	var lines []string
-// 	if len(fbChars) > 0 {
-// 		numRanges := (len(fbChars) + maxBfEntries - 1) / maxBfEntries
-// 		for i := 0; i < numRanges; i++ {
-// 			n := min(len(fbChars)-i*maxBfEntries, maxBfEntries)
-// 			lines = append(lines, fmt.Sprintf("%d beginbfchar", n))
-// 			for j := 0; j < n; j++ {
-// 				code := fbChars[i*maxBfEntries+j]
-// 				r := cmap.unicode.CodeToUnicode[code]
-// 				lines = append(lines, fmt.Sprintf("<%04x> <%04x>", code, r))
-// 			}
-// 			lines = append(lines, "endbfchar")
-// 		}
-// 	}
-// 	if len(fbRanges) > 0 {
-// 		numRanges := (len(fbRanges) + maxBfEntries - 1) / maxBfEntries
-// 		for i := 0; i < numRanges; i++ {
-// 			n := min(len(fbRanges)-i*maxBfEntries, maxBfEntries)
-// 			lines = append(lines, fmt.Sprintf("%d beginbfrange", n))
-// 			for j := 0; j < n; j++ {
-// 				rng := fbRanges[i*maxBfEntries+j]
-// 				r := rng.r0
-// 				lines = append(lines, fmt.Sprintf("<%04x><%04x> <%04x>", rng.code0, rng.code1-1, r))
-// 			}
-// 			lines = append(lines, "endbfrange")
-// 		}
-// 	}
-// 	return strings.Join(lines, "\n")
-// }
-
-const (
-	maxBfEntries = 100 // Maximum number of entries in a bfchar or bfrange section.
-	cmapHeader   = `
-/CIDInit/ProcSet findresource begin
-12 dict begin
-begincmap
-/CIDSystemInfo <</Registry (Adobe)/Ordering (UCS)/Supplement 0 >> def
-/CMapName/Adobe-Identity-UCS def
-/CMapType 2 def
-1 begincodespacerange
-<0000> <FFFF>
-endcodespacerange
-`
-	cmapTrailer = `endcmap
-CMapName currentdict/CMap defineresource pop
-end
-end
-`
-)

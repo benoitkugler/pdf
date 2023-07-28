@@ -2,7 +2,7 @@ package cmaps
 
 import (
 	"fmt"
-	"io/ioutil"
+	"os"
 	"testing"
 
 	"github.com/benoitkugler/pdf/model"
@@ -415,7 +415,7 @@ func TestFullCIDCMap(t *testing.T) {
 		"test/KSCms-UHC-H.cmap",
 		"test/usecmap.cmap",
 	} {
-		b, err := ioutil.ReadFile(file)
+		b, err := os.ReadFile(file)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -440,7 +440,7 @@ func TestFullToUnicodeCMap(t *testing.T) {
 		"../standardcmaps/generate/Adobe-Korea1-UCS2.txt",
 		"../standardcmaps/generate/Adobe-KR-UCS2.txt",
 	} {
-		b, err := ioutil.ReadFile(file)
+		b, err := os.ReadFile(file)
 		if err != nil {
 			t.Fatal(err)
 		}

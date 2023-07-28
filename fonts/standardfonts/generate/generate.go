@@ -3,7 +3,6 @@ package main
 
 import (
 	"fmt"
-	"io/ioutil"
 	"log"
 	"os"
 	"os/exec"
@@ -11,8 +10,8 @@ import (
 	"strings"
 
 	"github.com/benoitkugler/pdf/fonts/standardfonts"
+	"github.com/benoitkugler/pdf/fonts/type1"
 	"github.com/benoitkugler/pdf/model"
-	"github.com/benoitkugler/textlayout/fonts/type1"
 )
 
 // only widths
@@ -157,7 +156,7 @@ func dumpFontDescriptor(fs []type1.AFMFont) error {
 	code.WriteString("\n" + sumupMap.String())
 
 	filename := "fonts.go"
-	err := ioutil.WriteFile(filename, []byte(code.String()), os.ModePerm)
+	err := os.WriteFile(filename, []byte(code.String()), os.ModePerm)
 	if err != nil {
 		return err
 	}
@@ -167,7 +166,7 @@ func dumpFontDescriptor(fs []type1.AFMFont) error {
 }
 
 func main() {
-	files, err := ioutil.ReadDir("generate/afms")
+	files, err := os.ReadDir("generate/afms")
 	if err != nil {
 		log.Fatal(err)
 	}

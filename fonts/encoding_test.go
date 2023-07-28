@@ -1,7 +1,7 @@
 package fonts
 
 import (
-	"io/ioutil"
+	"os"
 	"testing"
 
 	"github.com/benoitkugler/pdf/model"
@@ -19,7 +19,7 @@ func TestDefinedEnc(t *testing.T) {
 		t.Error()
 	}
 
-	content, err := ioutil.ReadFile("test/CalligrapherRegular.pfb")
+	content, err := os.ReadFile("test/CalligrapherRegular.pfb")
 	if err != nil {
 		t.Fatal(err)
 	}

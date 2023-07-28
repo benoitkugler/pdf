@@ -5,12 +5,12 @@ import (
 	"log"
 
 	"github.com/benoitkugler/pdf/fonts/cmaps"
+	"github.com/benoitkugler/pdf/fonts/simpleencodings"
 	"github.com/benoitkugler/pdf/fonts/standardcmaps"
 	"github.com/benoitkugler/pdf/fonts/standardfonts"
+	"github.com/benoitkugler/pdf/fonts/type1"
+	type1c "github.com/benoitkugler/pdf/fonts/type1C"
 	"github.com/benoitkugler/pdf/model"
-	"github.com/benoitkugler/textlayout/fonts/simpleencodings"
-	"github.com/benoitkugler/textlayout/fonts/type1"
-	type1c "github.com/benoitkugler/textlayout/fonts/type1C"
 )
 
 // We follow here the logic from poppler, which itself is based on the PDF spec.
@@ -154,7 +154,7 @@ func builtinType1Encoding(desc model.FontDescriptor) *simpleencodings.Encoding {
 	}
 	isCFF := desc.FontFile.Subtype == "Type1C"
 	if isCFF {
-		info, err := type1c.Parse(bytes.NewReader(content))
+		enc, err := type1c.ParseEncoding(bytes.NewReader(content))
 		if err != nil {
 			log.Printf("invalid Type1C embedded font file: %s\n", err)
 		}
@@ -163,21 +163,21 @@ func builtinType1Encoding(desc model.FontDescriptor) *simpleencodings.Encoding {
 		// T1C->T1 conversion (since the 'seac' operator depends on having
 		// the accents in the encoding), so we fill in any gaps from
 		// StandardEncoding
-		if info.Encoding != nil {
+		if enc != nil {
 			for i, std := range simpleencodings.AdobeStandard {
-				if info.Encoding[i] == "" {
-					info.Encoding[i] = std
+				if enc[i] == "" {
+					enc[i] = std
 				}
 			}
 		}
-		return info.Encoding
+		return enc
 	} else {
-		info, err := type1.Parse(bytes.NewReader(content))
+		info, err := type1.ParseEncoding(bytes.NewReader(content))
 		if err != nil {
 			log.Printf("invalid Type1 embedded font file: %s\n", err)
 			return &simpleencodings.AdobeStandard
 		}
-		return info.Encoding
+		return info
 	}
 }
 

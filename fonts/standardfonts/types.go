@@ -3,9 +3,9 @@ package standardfonts
 import (
 	"log"
 
+	"github.com/benoitkugler/pdf/fonts/simpleencodings"
+	"github.com/benoitkugler/pdf/fonts/type1"
 	"github.com/benoitkugler/pdf/model"
-	"github.com/benoitkugler/textlayout/fonts/simpleencodings"
-	"github.com/benoitkugler/textlayout/fonts/type1"
 )
 
 //go:generate go run generate/generate.go
@@ -30,27 +30,6 @@ type Metrics struct {
 	// Represents the section KernPairs in the AFM file. The key is
 	// the name of the first character and the value is an array of each kern pair.
 	KernPairs map[string][]type1.KernPair
-}
-
-// KernsWithEncoding uses the given encoding (byte to name)
-// and the available `KernPairs` field to build a condensed map of kerns,
-// to be used with the encoding.
-func (m Metrics) KernsWithEncoding(enc simpleencodings.Encoding) map[uint16]int {
-	out := make(map[uint16]int)
-	nameToByte := enc.NameToByte()
-	for b, name := range enc {
-		if name == "" || name == type1.Notdef {
-			continue
-		}
-		for _, kern := range m.KernPairs[name] {
-			// we only keep encoded kern pairs
-			if b2, ok := nameToByte[kern.SndChar]; ok {
-				key := uint16(b)<<8 | uint16(b2)
-				out[key] = kern.KerningDistance
-			}
-		}
-	}
-	return out
 }
 
 // WidthsWithEncoding uses the given encoding (byte to name)
