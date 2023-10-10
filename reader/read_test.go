@@ -25,7 +25,7 @@ func init() {
 	// the PDF spec is used in several tests, but is heavy
 	// so, when working on isolated test, you may want to avoid loading it
 	// by commenting this line
-	loadPDFSpec()
+	// loadPDFSpec()
 }
 
 func loadPDFSpec() {
@@ -362,5 +362,19 @@ func TestJapanseOutline(t *testing.T) {
 	}
 	if doc.Catalog.Outlines != nil {
 		t.Fatal()
+	}
+}
+
+func TestFreeObjects(t *testing.T) {
+	for range [10]int{} {
+		f, err := os.Open("test/JEM-0943.pdf")
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, _, err = ParsePDFReader(f, Options{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		f.Close()
 	}
 }

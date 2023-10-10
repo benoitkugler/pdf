@@ -105,6 +105,10 @@ func Read(rs io.ReadSeeker, conf *Configuration) (PDFFile, error) {
 	}
 
 	for k, v := range ctx.xrefTable.objects {
+		// ignore free objects
+		if v.free {
+			continue
+		}
 		out.XrefTable[k.ObjectNumber] = v.object
 	}
 
