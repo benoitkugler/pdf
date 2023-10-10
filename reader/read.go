@@ -76,8 +76,6 @@ func newResolver() resolver {
 	}
 }
 
- 
-
 func isUTF16(b []byte) bool {
 	if len(b) < 2 {
 		return false
@@ -86,9 +84,7 @@ func isUTF16(b []byte) bool {
 	return b[0] == 0xFE && b[1] == 0xFF || b[0] == 0xff && b[1] == 0xfe
 }
 
-var (
-	utf16Dec  = unicode.UTF16(unicode.BigEndian, unicode.UseBOM).NewDecoder()
-)
+var utf16Dec = unicode.UTF16(unicode.BigEndian, unicode.UseBOM).NewDecoder()
 
 // DecodeTextString expects a "text string" as defined in PDF spec,
 // that is, either a PDFDocEncoded string or a UTF-16BE string,

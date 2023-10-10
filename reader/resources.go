@@ -575,7 +575,7 @@ func (r resolver) processCIDWidths(wds model.Object) []model.CIDWidth {
 				// invalid, ignore last element
 				return out
 			}
-			w, _ := r.resolveInt(ar[i+2])
+			w, _ := r.resolveNumber(ar[i+2])
 			out = append(out, model.CIDWidthRange{
 				First: model.CID(first), Last: model.CID(last),
 				Width: w,
@@ -584,10 +584,11 @@ func (r resolver) processCIDWidths(wds model.Object) []model.CIDWidth {
 		case model.ObjArray:
 			cid := model.CIDWidthArray{
 				Start: model.CID(first),
-				W:     make([]int, len(next)),
+				W:     make([]Fl, len(next)),
 			}
 			for j, w := range next {
-				cid.W[j], _ = r.resolveInt(w)
+				// also accept floating point numbers
+				cid.W[j], _ = r.resolveNumber(w)
 			}
 			out = append(out, cid)
 			i += 2

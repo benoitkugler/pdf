@@ -25,7 +25,7 @@ func init() {
 	// the PDF spec is used in several tests, but is heavy
 	// so, when working on isolated test, you may want to avoid loading it
 	// by commenting this line
-	// loadPDFSpec()
+	loadPDFSpec()
 }
 
 func loadPDFSpec() {
@@ -376,5 +376,17 @@ func TestFreeObjects(t *testing.T) {
 			t.Fatal(err)
 		}
 		f.Close()
+	}
+}
+
+func TestWrite2(t *testing.T) {
+	doc, _, err := ParsePDFFile("test/text_orig.pdf", Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = doc.WriteFile("test/text.pdf", nil)
+	if err != nil {
+		t.Fatal(err)
 	}
 }

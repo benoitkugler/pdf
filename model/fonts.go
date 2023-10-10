@@ -387,7 +387,9 @@ func (enc SimpleEncodingPredefined) cloneSE(cloneCache) SimpleEncoding { return 
 
 // Differences describes the differences from the encoding specified by BaseEncoding
 // It is written in a PDF file as a more condensed form: it is an array:
-// 	[ code1, name1_1, name1_2, code2, name2_1, name2_2, name2_3 ... ]
+//
+//	[ code1, name1_1, name1_2, code2, name2_1, name2_2, name2_3 ... ]
+//
 // where code1 -> name1_1 ; code1 + 1 -> name1_2 ; ...
 type Differences map[byte]Name
 
@@ -592,8 +594,8 @@ type CIDFontDictionary struct {
 
 // Widths resolve the mapping from CID to glypth widths
 // CID not found should be mapped to the default width
-func (c CIDFontDictionary) Widths() map[CID]int {
-	out := make(map[CID]int, len(c.W)) // at least
+func (c CIDFontDictionary) Widths() map[CID]Fl {
+	out := make(map[CID]Fl, len(c.W)) // at least
 	for _, w := range c.W {
 		w.Widths(out)
 	}
@@ -683,7 +685,7 @@ type CID uint16 // See Table C.1 – Architectural limits for the 2^16 limit.
 // either CIDWidthRange or CIDWidthArray
 type CIDWidth interface {
 	// Widths accumulate the widths for each character, defined in user units
-	Widths(map[CID]int)
+	Widths(map[CID]Fl)
 	// String returns a PDF representation of the width
 	String() string
 	// Clone returns a deepcopy, preserving the concrete type
@@ -691,46 +693,48 @@ type CIDWidth interface {
 }
 
 // CIDWidthRange is written in PDF as
+//
 //	c_first c_last w
 type CIDWidthRange struct {
 	First, Last CID
-	Width       int
+	Width       Fl
 }
 
-func (c CIDWidthRange) Widths(out map[CID]int) {
+func (c CIDWidthRange) Widths(out map[CID]Fl) {
 	for r := c.First; r <= c.Last; r++ {
 		out[r] = c.Width
 	}
 }
 
 func (c CIDWidthRange) String() string {
-	return fmt.Sprintf("%d %d %d", c.First, c.Last, c.Width)
+	return fmt.Sprintf("%d %d %f", c.First, c.Last, c.Width)
 }
 
 // Clone return a deep copy of `c`, with concrete type `CIDWidthRange`
 func (c CIDWidthRange) Clone() CIDWidth { return c }
 
 // CIDWidthArray is written in PDF as
+//
 //	start [ w_1 w_2 ... w_n ]
 type CIDWidthArray struct {
 	Start CID
-	W     []int
+	W     []Fl
 }
 
-func (c CIDWidthArray) Widths(out map[CID]int) {
+func (c CIDWidthArray) Widths(out map[CID]Fl) {
 	for i, w := range c.W {
 		out[c.Start+CID(i)] = w
 	}
 }
 
 func (c CIDWidthArray) String() string {
-	return fmt.Sprintf("%d %s", c.Start, writeIntArray(c.W))
+	return fmt.Sprintf("%d %s", c.Start, writeFloatArray(c.W))
 }
 
 // Clone return a deep copy of `c`, with concrete type `CIDWidthArray`
 func (c CIDWidthArray) Clone() CIDWidth {
 	out := c
-	out.W = append([]int(nil), c.W...) // nil to preserve deep equal
+	out.W = append([]Fl(nil), c.W...) // nil to preserve deep equal
 	return out
 }
 
@@ -755,6 +759,7 @@ type CIDVerticalMetric interface {
 }
 
 // CIDVerticalMetricRange is written in PDF as
+//
 //	c_first c_last w v_w v_y
 type CIDVerticalMetricRange struct {
 	First, Last    CID
@@ -775,6 +780,7 @@ func (c CIDVerticalMetricRange) String() string {
 func (c CIDVerticalMetricRange) Clone() CIDVerticalMetric { return c }
 
 // CIDVerticalMetricArray is written in PDF as
+//
 //	c [ w_1 w_2 ... w_n ]
 type CIDVerticalMetricArray struct {
 	Start     CID
