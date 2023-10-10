@@ -252,7 +252,7 @@ func (f XObjectForm) commonFields(pdf pdfWriter, ref Reference) StreamHeader {
 	if f.StructParent != nil {
 		args.Fields["StructParent"] = f.StructParent.(ObjInt).Write(nil, 0)
 	} else if f.StructParents != nil {
-		args.Fields["StructParents"] = f.StructParent.(ObjInt).Write(nil, 0)
+		args.Fields["StructParents"] = f.StructParents.(ObjInt).Write(nil, 0)
 	}
 	return args
 }
