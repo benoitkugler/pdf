@@ -109,17 +109,23 @@ type pdfWriter struct {
 	fields    map[*FormFieldDict]Reference
 	structure map[*StructureElement]Reference
 
+	// needed by annotations and accroform,
+	// setup early
+	catalog           Reference
+	mergedAccroFields map[*AnnotationDict]*FormFieldDict
+
 	encrypt *Encrypt
 }
 
 func newWriter(dest io.Writer, encrypt *Encrypt) pdfWriter {
 	return pdfWriter{
-		output:   &output{dst: dest, objOffsets: []int{0}},
-		cache:    make(map[Referenceable]Reference),
-		pages:    make(map[PageNode]Reference),
-		outlines: make(map[*OutlineItem]Reference),
-		fields:   make(map[*FormFieldDict]Reference),
-		encrypt:  encrypt,
+		output:            &output{dst: dest, objOffsets: []int{0}},
+		cache:             make(map[Referenceable]Reference),
+		pages:             make(map[PageNode]Reference),
+		outlines:          make(map[*OutlineItem]Reference),
+		fields:            make(map[*FormFieldDict]Reference),
+		mergedAccroFields: make(map[*AnnotationDict]*FormFieldDict),
+		encrypt:           encrypt,
 	}
 }
 

@@ -65,6 +65,13 @@ func (f FormFieldInheritable) merge(parent FormFieldInheritable) FormFieldInheri
 	return f
 }
 
+// FormFieldInherited associate to a field
+// the values resolved from its ancestors
+type FormFieldInherited struct {
+	Field  *FormFieldDict
+	Merged FormFieldInheritable
+}
+
 // FormFields are organized hierarchically into one or more tree structures.
 // Many field attributes are inheritable, meaning that if they are not explicitly
 // specified for a given field, their values are taken from those of its parent in the field hierarchy.
@@ -103,13 +110,6 @@ type FormFieldDict struct {
 	RV string // optional, text string, may be written in PDF as a stream
 }
 
-// FormFieldInherited associate to a field
-// the values resolved from its ancestors
-type FormFieldInherited struct {
-	Field  *FormFieldDict
-	Merged FormFieldInheritable
-}
-
 func (f *FormFieldDict) resolve(parentName string, parentFields FormFieldInheritable, currentMap map[string]FormFieldInherited) {
 	fullName := f.T
 	if f.Parent != nil {
@@ -135,40 +135,22 @@ func (f *FormFieldDict) FullFieldName() string {
 	return f.Parent.FullFieldName() + "." + f.T
 }
 
-// also allocate an object number for itself and stores it into pdf.fields
-// pages annotations must have been written
-func (f *FormFieldDict) pdfString(pdf pdfWriter, catalog Reference) string {
-	// before recursing, first register it's own ref
-	// so that it is accessible by the kids
-	ownRef := pdf.CreateObject()
-	pdf.fields[f] = ownRef // register to the cache
+func (f *FormFieldDict) shouldBeMerged() (*AnnotationDict, bool) {
+	if len(f.Kids) == 0 && len(f.Widgets) == 1 {
+		return f.Widgets[0].AnnotationDict, true
+	}
+	return nil, false
+}
 
+// returns the fields to be included in the annotation dictionnary
+func (f *FormFieldDict) mergedFields(pdf pdfWriter, ownRef Reference) string {
 	b := newBuffer()
-	b.WriteString("<<")
 	if f.FT != nil { // might be nil if inherited
-		b.WriteString(f.FT.formFieldAttrs(pdf, catalog, ownRef))
+		b.WriteString(f.FT.formFieldAttrs(pdf, ownRef))
 	}
 	if f.Parent != nil {
 		parent := pdf.fields[f.Parent]
 		b.fmt("/Parent %s", parent)
-	}
-
-	if len(f.Kids) != 0 {
-		refs := make([]Reference, len(f.Kids))
-		for i, kid := range f.Kids {
-			kidS := kid.pdfString(pdf, catalog)
-			kidRef := pdf.fields[kid] // now valid
-			pdf.WriteObject(kidS, kidRef)
-			refs[i] = kidRef
-		}
-		b.fmt("/Kids %s", writeRefArray(refs))
-	} else if len(f.Widgets) != 0 {
-		// we use the annotations previously written
-		refs := make([]Reference, len(f.Widgets))
-		for i, w := range f.Widgets {
-			refs[i] = pdf.cache[w.AnnotationDict]
-		}
-		b.fmt("/Kids %s", writeRefArray(refs))
 	}
 	if f.T != "" {
 		b.fmt("/T %s", pdf.EncodeString(f.T, TextString, ownRef))
@@ -197,8 +179,48 @@ func (f *FormFieldDict) pdfString(pdf pdfWriter, catalog Reference) string {
 	if f.RV != "" {
 		b.line("/RV %s", pdf.EncodeString(f.RV, TextString, ownRef))
 	}
-	b.fmt(">>")
 	return b.String()
+}
+
+// also allocate an object number for itself and stores it into pdf.fields
+// pages annotations must have been written
+func (f *FormFieldDict) pdfString(pdf pdfWriter) (content string, writeObject bool) {
+	if annot, ok := f.shouldBeMerged(); ok {
+		// do not create a new object : use the annotation ref
+		ref := pdf.cache[annot]
+		pdf.fields[f] = ref
+		return ref.String(), false
+	}
+
+	// before recursing, first register it's own ref
+	// so that it is accessible by the kids
+	ownRef := pdf.CreateObject()
+	pdf.fields[f] = ownRef // register to the cache
+
+	fields := f.mergedFields(pdf, ownRef)
+
+	var kids string
+	if len(f.Kids) != 0 {
+		refs := make([]Reference, len(f.Kids))
+		for i, kid := range f.Kids {
+			kidS, write := kid.pdfString(pdf)
+			kidRef := pdf.fields[kid] // now valid
+			if write {
+				pdf.WriteObject(kidS, kidRef)
+			}
+			refs[i] = kidRef
+		}
+		kids = writeRefArray(refs)
+	} else if len(f.Widgets) != 0 {
+		// we use the annotations previously written
+		refs := make([]Reference, len(f.Widgets))
+		for i, w := range f.Widgets {
+			refs[i] = pdf.cache[w.AnnotationDict]
+		}
+		kids = writeRefArray(refs)
+	}
+
+	return fmt.Sprintf("<<%s /Kids %s>>", fields, kids), true
 }
 
 // also stores into pdf.fields
@@ -237,11 +259,6 @@ type FormFieldWidget struct {
 	*AnnotationDict
 }
 
-func (w FormFieldWidget) pdfString(pdf pdfWriter, ownRef, parent Reference) string {
-	return fmt.Sprintf("<<%s %s/Parent %s>>",
-		w.BaseAnnotation.fields(pdf, ownRef), w.Subtype.annotationFields(pdf, ownRef), parent)
-}
-
 func (w FormFieldWidget) clone(cache cloneCache) FormFieldWidget {
 	if w.AnnotationDict == nil {
 		return FormFieldWidget{}
@@ -254,9 +271,9 @@ func (w FormFieldWidget) clone(cache cloneCache) FormFieldWidget {
 // depending on the field type.
 type FormField interface {
 	// must include the type entry/FT
-	// `catalog` is needed by FieldSignature
+	// `pdf.catalog` is used by FieldSignature
 	// `fieldRef` is the reference of the field dict object
-	formFieldAttrs(pdf pdfWriter, catalog, fieldRef Reference) string
+	formFieldAttrs(pdf pdfWriter, fieldRef Reference) string
 	// return a deep copy, preserving concrete type
 	clone(cache cloneCache) FormField
 }
@@ -267,7 +284,7 @@ type FormFieldText struct {
 	MaxLen MaybeInt // optional
 }
 
-func (f FormFieldText) formFieldAttrs(pdf pdfWriter, _, fieldRef Reference) string {
+func (f FormFieldText) formFieldAttrs(pdf pdfWriter, fieldRef Reference) string {
 	out := fmt.Sprintf("/FT/Tx/V %s", pdf.EncodeString(f.V, TextString, fieldRef))
 	if f.MaxLen != nil {
 		out += fmt.Sprintf("/MaxLen %d", f.MaxLen.(ObjInt))
@@ -285,7 +302,7 @@ type FormFieldButton struct {
 	Opt []string // optional, text strings, same length as Widgets
 }
 
-func (f FormFieldButton) formFieldAttrs(pdf pdfWriter, _, fieldRef Reference) string {
+func (f FormFieldButton) formFieldAttrs(pdf pdfWriter, fieldRef Reference) string {
 	out := "/FT/Btn"
 	if f.V != "" {
 		out += "/V " + f.V.String()
@@ -330,7 +347,7 @@ type FormFieldChoice struct {
 	I   []int    // optional
 }
 
-func (f FormFieldChoice) formFieldAttrs(pdf pdfWriter, _, fieldRef Reference) string {
+func (f FormFieldChoice) formFieldAttrs(pdf pdfWriter, fieldRef Reference) string {
 	b := newBuffer()
 	b.fmt("/FT/Ch")
 	if len(f.V) == 0 {
@@ -373,10 +390,10 @@ type FormFieldSignature struct {
 	SV   *SeedDict      // optional
 }
 
-func (f FormFieldSignature) formFieldAttrs(pdf pdfWriter, catalog, fieldRef Reference) string {
+func (f FormFieldSignature) formFieldAttrs(pdf pdfWriter, fieldRef Reference) string {
 	out := "/FT/Sig"
 	if f.V != nil {
-		out += fmt.Sprintf("/V %s", f.V.pdfString(pdf, catalog, fieldRef))
+		out += fmt.Sprintf("/V %s", f.V.pdfString(pdf, fieldRef))
 	}
 	if lock := f.Lock; lock != nil {
 		ref := pdf.addObject(f.Lock.pdfString(pdf, fieldRef))
@@ -420,7 +437,7 @@ type SignatureDict struct {
 	Prop_AuthType Name      // optional
 }
 
-func (s SignatureDict) pdfString(pdf pdfWriter, catalog, fieldRef Reference) string {
+func (s SignatureDict) pdfString(pdf pdfWriter, fieldRef Reference) string {
 	b := newBuffer()
 	b.WriteString("<<")
 	if s.Filter != "" {
@@ -443,7 +460,7 @@ func (s SignatureDict) pdfString(pdf pdfWriter, catalog, fieldRef Reference) str
 	if len(s.Reference) != 0 {
 		b.fmt("/Reference [")
 		for _, val := range s.Reference {
-			b.fmt(" %s", val.pdfString(pdf, catalog, fieldRef))
+			b.fmt(" %s", val.pdfString(pdf, fieldRef))
 		}
 		b.fmt("]")
 	}
@@ -511,9 +528,9 @@ type SignatureRefDict struct {
 	DigestMethod Name
 }
 
-func (s SignatureRefDict) pdfString(pdf pdfWriter, catalog, ref Reference) string {
+func (s SignatureRefDict) pdfString(pdf pdfWriter, ref Reference) string {
 	return fmt.Sprintf("<</TransformMethod %s/TransformParams %s/DigestMethod %s ∕Data %s>>",
-		s.TransformMethod, s.TransformParams.transformParamsDict(pdf, ref), s.DigestMethod, catalog)
+		s.TransformMethod, s.TransformParams.transformParamsDict(pdf, ref), s.DigestMethod, pdf.catalog)
 }
 
 // Clone returns a deep copy
@@ -865,13 +882,38 @@ func (a AcroForm) Flatten() map[string]FormFieldInherited {
 	return out
 }
 
-func (a AcroForm) pdfString(pdf pdfWriter, catalog, acroRef Reference) string {
+func (a AcroForm) toBeMerged() map[*AnnotationDict]*FormFieldDict {
+	out := make(map[*AnnotationDict]*FormFieldDict)
+
+	var aux func(field *FormFieldDict)
+	aux = func(field *FormFieldDict) {
+		if annot, ok := field.shouldBeMerged(); ok {
+			out[annot] = field
+			return
+		}
+
+		// recurse on Kids
+		for _, kid := range field.Kids {
+			aux(kid)
+		}
+	}
+
+	for _, fi := range a.Fields {
+		aux(fi)
+	}
+
+	return out
+}
+
+func (a AcroForm) pdfString(pdf pdfWriter, acroRef Reference) string {
 	b := newBuffer()
 	refs := make([]Reference, len(a.Fields))
 	for i, f := range a.Fields {
-		s := f.pdfString(pdf, catalog)
-		fieldRef := pdf.fields[f] // add to the cache
-		pdf.WriteObject(s, fieldRef)
+		s, write := f.pdfString(pdf)
+		fieldRef := pdf.fields[f]
+		if write {
+			pdf.WriteObject(s, fieldRef)
+		}
 		refs[i] = fieldRef
 	}
 	b.fmt("<</Fields %s", writeRefArray(refs))

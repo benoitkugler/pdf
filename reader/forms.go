@@ -28,7 +28,7 @@ func (r resolver) processAcroForm(acroForm model.Object) (model.AcroForm, error)
 		out.Fields[i] = ff
 	}
 	if na, ok := r.resolveBool(form["NeedAppearances"]); ok {
-		out.NeedAppearances = bool(na)
+		out.NeedAppearances = na
 	}
 	if sig, ok := r.resolveInt(form["SigFlags"]); ok {
 		out.SigFlags = model.SignatureFlag(sig)

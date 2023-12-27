@@ -190,15 +190,6 @@ type PageObject struct {
 	parent *PageTree
 }
 
-// AddFormFieldWidget creates a new form field widget
-// and adds it both on the page (via the PageObject.Annots list) and to the
-// form field tree (via the FormFieldDict.Widgets list)
-func (p *PageObject) AddFormFieldWidget(f *FormFieldDict, base BaseAnnotation, widget AnnotationWidget) {
-	annot := FormFieldWidget{AnnotationDict: &AnnotationDict{BaseAnnotation: base, Subtype: widget}}
-	p.Annots = append(p.Annots, annot.AnnotationDict)
-	f.Widgets = append(f.Widgets, annot)
-}
-
 // DecodeAllContents read each content stream and returns the
 // aggregated one.
 func (p *PageObject) DecodeAllContents() ([]byte, error) {

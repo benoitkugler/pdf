@@ -63,8 +63,9 @@ func (doc *Document) Write(output io.Writer, encryption *Encrypt) error {
 
 	wr.writeHeader()
 
-	root := wr.CreateObject()
-	wr.WriteObject(doc.Catalog.pdfString(wr, root), root)
+	doc.Catalog.setupWriter(&wr)
+	wr.WriteObject(doc.Catalog.pdfString(wr), wr.catalog)
+
 	info := wr.CreateObject()
 	wr.WriteObject(doc.Trailer.Info.pdfString(wr, info), info)
 
@@ -73,7 +74,7 @@ func (doc *Document) Write(output io.Writer, encryption *Encrypt) error {
 		encRef = wr.addObject(encryption.pdfString())
 	}
 
-	wr.writeFooter(doc.Trailer, root, info, encRef)
+	wr.writeFooter(doc.Trailer, wr.catalog, info, encRef)
 
 	return wr.err
 }
@@ -119,9 +120,18 @@ type Catalog struct {
 	Lang       string
 }
 
+func (cat *Catalog) setupWriter(pdf *pdfWriter) {
+	// register the catalog ref
+	catalogRef := pdf.CreateObject()
+	pdf.catalog = catalogRef
+	// fetch the form field to be merged to annotation
+	pdf.mergedAccroFields = cat.AcroForm.toBeMerged()
+}
+
 // returns the Dictionary of `cat`
-// `catalog` is needed by the potential signature fields
-func (cat *Catalog) pdfString(pdf pdfWriter, catalog Reference) string {
+// `pdf.catalog` is needed by the potential signature fields
+// and destinations
+func (cat *Catalog) pdfString(pdf pdfWriter) string {
 	// some pages may need to know in advance the
 	// object number of an arbitrary page, such as annotation link
 	// with GoTo actions
@@ -148,7 +158,7 @@ func (cat *Catalog) pdfString(pdf pdfWriter, catalog Reference) string {
 	if dests := cat.Dests; len(dests) != 0 {
 		b.line("/Dests <<")
 		for name, dest := range dests {
-			b.line("%s %s", name, dest.pdfDestination(pdf, catalog))
+			b.line("%s %s", name, dest.pdfDestination(pdf, pdf.catalog))
 		}
 		b.line(">>")
 	}
@@ -164,7 +174,7 @@ func (cat *Catalog) pdfString(pdf pdfWriter, catalog Reference) string {
 	}
 	if ac := cat.AcroForm; len(ac.Fields) != 0 {
 		ref := pdf.CreateObject()
-		pdf.WriteObject(ac.pdfString(pdf, catalog, ref), ref)
+		pdf.WriteObject(ac.pdfString(pdf, ref), ref)
 		b.line("/AcroForm %s", ref)
 	}
 	if outline := cat.Outlines; outline != nil && outline.First != nil {
@@ -181,13 +191,13 @@ func (cat *Catalog) pdfString(pdf pdfWriter, catalog Reference) string {
 		b.line("/MarkInfo %s", m)
 	}
 	if cat.URI != "" {
-		b.line("/URI <</Base %s>>", pdf.EncodeString(cat.URI, ByteString, catalog))
+		b.line("/URI <</Base %s>>", pdf.EncodeString(cat.URI, ByteString, pdf.catalog))
 	}
 	if cat.OpenAction.ActionType != nil {
-		b.line("/OpenAction %s", cat.OpenAction.pdfString(pdf, catalog))
+		b.line("/OpenAction %s", cat.OpenAction.pdfString(pdf, pdf.catalog))
 	}
 	if cat.Lang != "" {
-		b.fmt("/Lang " + pdf.EncodeString(cat.Lang, TextString, catalog))
+		b.fmt("/Lang " + pdf.EncodeString(cat.Lang, TextString, pdf.catalog))
 	}
 	b.fmt(">>")
 

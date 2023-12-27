@@ -211,23 +211,23 @@ func (ba BaseAnnotation) clone(cache cloneCache) BaseAnnotation {
 // AnnotationMarkup groups attributes common to all markup annotations
 // See Table 170 – Additional entries specific to markup annotations
 // Markup annotations are:
-//	- Text
-//	- FreeText
-//	- Line
-//	- Square
-//	- Circle
-//	- Polygon
-//	- PolyLine
-//	- Highlight
-//	- Underline
-//	- Squiggly
-//	- StrikeOut
-//	- Stamp
-//	- Caret
-//	- Ink
-//	- FileAttachment
-//	- Sound
-//	- Redact
+//   - Text
+//   - FreeText
+//   - Line
+//   - Square
+//   - Circle
+//   - Polygon
+//   - PolyLine
+//   - Highlight
+//   - Underline
+//   - Squiggly
+//   - StrikeOut
+//   - Stamp
+//   - Caret
+//   - Ink
+//   - FileAttachment
+//   - Sound
+//   - Redact
 type AnnotationMarkup struct {
 	T            string           // optional
 	Popup        *AnnotationPopup // optional, written as an indirect reference
@@ -311,7 +311,13 @@ func (a *AnnotationDict) GetStructParent() MaybeInt {
 func (a *AnnotationDict) pdfContent(pdf pdfWriter, ref Reference) (StreamHeader, string, []byte) {
 	base := a.BaseAnnotation.fields(pdf, ref)
 	subtype := a.Subtype.annotationFields(pdf, ref)
-	return StreamHeader{}, fmt.Sprintf("<<%s %s >>", base, subtype), nil
+
+	var form string
+	if field := pdf.mergedAccroFields[a]; field != nil {
+		form = field.mergedFields(pdf, ref)
+	}
+
+	return StreamHeader{}, fmt.Sprintf("<<%s %s %s>>", base, subtype, form), nil
 }
 
 func (a *AnnotationDict) clone(cache cloneCache) Referenceable {
@@ -873,7 +879,7 @@ type AnnotationScreen struct {
 }
 
 func (w AnnotationScreen) annotationFields(pdf pdfWriter, ref Reference) string {
-	out :="/Subtype/Screen"
+	out := "/Subtype/Screen"
 	if w.T != "" {
 		out += "/T " + pdf.EncodeString(w.T, TextString, ref)
 	}

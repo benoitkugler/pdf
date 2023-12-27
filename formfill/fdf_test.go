@@ -5,6 +5,7 @@ import (
 	"os"
 	"testing"
 
+	"github.com/benoitkugler/pdf/model"
 	"github.com/benoitkugler/pdf/reader"
 	"github.com/benoitkugler/pdf/reader/file"
 )
@@ -43,37 +44,6 @@ var data = []FDFField{
 	{T: "z54", Values: Values{V: FDFText("2020")}},
 }
 
-func TestFDF(t *testing.T) {
-	const path = "test/ModeleRecuFiscalEditable.pdf"
-	doc, _, err := reader.ParsePDFFile(path, reader.Options{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if L := len(doc.Catalog.AcroForm.Flatten()); L != 65 {
-		t.Errorf("expected 65 fields, got %d", L)
-	}
-
-	// ft := doc.Catalog.AcroForm.DR.Font["Helv"]
-	// fmt.Println(fonts.BuildFont(ft).Font.GetWidth('à', 10))
-	// t1 := ft.Subtype.(model.FontType1)
-	// fmt.Println(t1.Widths[224-t1.FirstChar])
-	// fmt.Println(enc.BaseEncoding)
-	// fmt.Println(enc.Differences)
-
-	err = FillForm(&doc, FDFDict{Fields: data}, true)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	out, err := os.Create("test/filled.pdf")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err = doc.Write(out, nil); err != nil {
-		t.Error(err)
-	}
-}
-
 func TestFDFFile(t *testing.T) {
 	fi, err := file.ReadFDFFile("test/sample.fdf")
 	if err != nil {
@@ -87,4 +57,69 @@ func TestFDFFile(t *testing.T) {
 		t.Fatal()
 	}
 	fmt.Println(out)
+}
+
+func TestFill1(t *testing.T) {
+	const path = "test/sample1.pdf"
+	doc, _, err := reader.ParsePDFFile(path, reader.Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if L := len(doc.Catalog.AcroForm.Flatten()); L != 65 {
+		t.Errorf("expected 65 fields, got %d", L)
+	}
+
+	err = FillForm(&doc, FDFDict{Fields: data}, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	out, err := os.Create("test/sample1_filled.pdf")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = doc.Write(out, nil); err != nil {
+		t.Error(err)
+	}
+}
+
+func TestFillPDFjs(t *testing.T) {
+	const path = "test/sample2.pdf"
+	doc, _, err := reader.ParsePDFFile(path, reader.Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	page := doc.Catalog.Pages.Flatten()[0]
+	annots := make(map[*model.AnnotationDict]bool)
+	for _, annot := range page.Annots {
+		annots[annot] = true
+	}
+	for _, field := range doc.Catalog.AcroForm.Flatten() {
+		if len(field.Field.Widgets) != 1 {
+			t.Fatal("expected one widget only")
+		}
+		annot := field.Field.Widgets[0].AnnotationDict
+		if !annots[annot] {
+			t.Fatal("missing annotation widget in page Annots")
+		}
+	}
+
+	err = FillForm(&doc, FDFDict{Fields: []FDFField{
+		{
+			T:      "Text1",
+			Values: Values{V: FDFText("My text sample 1")},
+		},
+		{
+			T:      "Text2",
+			Values: Values{V: FDFText("My text sample 2")},
+		},
+	}}, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err = doc.WriteFile("test/sample2_filled.pdf", nil); err != nil {
+		t.Fatal(err)
+	}
 }
