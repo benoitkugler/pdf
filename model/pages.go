@@ -31,6 +31,8 @@ type PageTree struct {
 
 // Count returns the number of Page objects (leaf node)
 // in all the descendants of `p` (not only in its direct children)
+//
+// This is an efficient equivalent of `len(p.Flatten())`
 func (p *PageTree) Count() int {
 	out := 0
 	for _, kid := range p.Kids {

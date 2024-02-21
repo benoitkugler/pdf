@@ -11,13 +11,13 @@ import (
 // Object is a node of a PDF syntax tree.
 //
 // It serves two purposes:
-//	- representing a PDF file in-memory, before turning it into a Document.
-//	In this case, it is obtained from a PDF file by tokenizing and parsing its content,
-//	and the concrete types used will be the basic PDF types defined in this file.
-//	- allowing arbitrary user defined content, which is needed for some edge-cases like
-//	property list or signature build information.
-//	In this case, custom type may be used, but care should be taken to handle indirect objects:
-//	when implementing WriteToPDF, new objects must be created using CreateObject.
+//   - representing a PDF file in-memory, before turning it into a Document.
+//     In this case, it is obtained from a PDF file by tokenizing and parsing its content,
+//     and the concrete types used will be the basic PDF types defined in this file.
+//   - allowing arbitrary user defined content, which is needed for some edge-cases like
+//     property list or signature build information.
+//     In this case, custom type may be used, but care should be taken to handle indirect objects:
+//     when implementing WriteToPDF, new objects must be created using CreateObject.
 //
 // Note that the PDF null object is represented by its own concrete type,
 // so Object must never be nil.
@@ -43,10 +43,10 @@ type Object interface {
 
 type ObjNull struct{}
 
+func (ObjNull) String() string { return "<null>" }
+
 // String returns the PDF representation of a name
-func (n ObjNull) Write(PDFWritter, Reference) string {
-	return "null"
-}
+func (ObjNull) Write(PDFWritter, Reference) string { return "null" }
 
 func (n ObjNull) Clone() Object { return n }
 
