@@ -12,6 +12,7 @@ type nameTree interface {
 	createKid() nameTree
 	appendKid(kid nameTree) // kid will be the value returned by createKid
 	// must handle the case where `value` is indirect
+	// also, value may be 'null'
 	resolveLeafValueAppend(r resolver, name string, value model.Object) error
 }
 
@@ -111,6 +112,11 @@ func (d appearanceNameTree) appendKid(kid nameTree) {
 }
 
 func (d appearanceNameTree) resolveLeafValueAppend(r resolver, name string, value model.Object) error {
+	// Some trees may have a key but a null value (see issue #7) :
+	// simply ignore thoose
+	if value == (model.ObjNull{}) {
+		return nil
+	}
 	form, err := r.resolveOneXObjectForm(value)
 	d.out.Names = append(d.out.Names, model.NameToAppearance{Name: name, Appearance: form})
 	return err

@@ -354,17 +354,6 @@ func TestDecrompress(t *testing.T) {
 	}
 }
 
-func TestJapanseOutline(t *testing.T) {
-	file := "samples/JapaneseOutline.pdf"
-	doc, _, err := ParsePDFFile(file, Options{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if doc.Catalog.Outlines != nil {
-		t.Fatal()
-	}
-}
-
 func TestFreeObjects(t *testing.T) {
 	for range [10]int{} {
 		f, err := os.Open("test/JEM-0943.pdf")
@@ -388,5 +377,33 @@ func TestWrite2(t *testing.T) {
 	err = doc.WriteFile("test/text.pdf", nil)
 	if err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestJapanseOutline(t *testing.T) {
+	// https://github.com/benoitkugler/pdf/issues/5
+	file := "samples/JapaneseOutline.pdf"
+	doc, _, err := ParsePDFFile(file, Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if doc.Catalog.Outlines != nil {
+		t.Fatal()
+	}
+}
+
+func TestCerfaForm(t *testing.T) {
+	// https://github.com/benoitkugler/pdf/issues/7
+	file := "samples/CerfaArret.pdf"
+	doc, _, err := ParsePDFFile(file, Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if L := doc.Catalog.Pages.Count(); L != 5 {
+		t.Fatal()
+	}
+	ap := doc.Catalog.Names.AP.LookupTable()
+	if len(ap) != 0 {
+		t.Fatal()
 	}
 }
