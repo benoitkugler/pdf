@@ -252,7 +252,7 @@ func (ac filler) setField(formResources model.ResourcesDict, field model.FormFie
 	case model.FormFieldText:
 		value, ok := values.V.(FDFText)
 		if !ok {
-			return fmt.Errorf("unexpected value type for text field: %T", values.V)
+			return fmt.Errorf("unexpected value type for text field: expected FDFText, got %T", values.V)
 		}
 		if ml, _ := type_.MaxLen.(model.ObjInt); ml > 0 {
 			asRunes := []rune(value)
@@ -271,7 +271,7 @@ func (ac filler) setField(formResources model.ResourcesDict, field model.FormFie
 		case FDFText: // only one selection
 			type_.V = []string{string(value)}
 		default:
-			return fmt.Errorf("unexpected value type for choices field: %T", values.V)
+			return fmt.Errorf("unexpected value type for choices field: expected FDFChoices or FDFText, got %T", values.V)
 		}
 		// ssteward; it might disagree w/ V in a Ch widget
 		// PDF spec this shouldn't matter, but Reader 9 gives I precedence over V
@@ -286,7 +286,7 @@ func (ac filler) setField(formResources model.ResourcesDict, field model.FormFie
 	case model.FormFieldButton:
 		value, ok := values.V.(FDFName)
 		if !ok {
-			return fmt.Errorf("unexpected value type for button field: %T", values.V)
+			return fmt.Errorf("unexpected value type for button field: expected FDFName, got %T", values.V)
 		}
 		flags := field.Merged.Ff
 		if (flags & model.Pushbutton) != 0 {

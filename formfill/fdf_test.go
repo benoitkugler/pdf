@@ -123,3 +123,33 @@ func TestFillPDFjs(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestFill3(t *testing.T) {
+	// https://github.com/benoitkugler/pdf/issues/8
+	doc, _, err := reader.ParsePDFFile("test/sample3.pdf", reader.Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	const fieldName = "3.2 Companies' House Reg No"
+	field := doc.Catalog.AcroForm.Flatten()[fieldName]
+	_, isText := field.Field.FT.(model.FormFieldText)
+	if !isText {
+		t.Fatal(err)
+	}
+	err = FillForm(&doc, FDFDict{Fields: []FDFField{
+		{
+			T: "3", Kids: []FDFField{
+				{
+					T:      "2 Companies' House Reg No",
+					Values: Values{V: FDFText("A sample number")},
+				},
+			}},
+	}}, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err = doc.WriteFile("test/sample3_filled.pdf", nil); err != nil {
+		t.Fatal(err)
+	}
+}

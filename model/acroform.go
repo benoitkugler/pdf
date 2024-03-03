@@ -99,7 +99,9 @@ type FormFieldDict struct {
 	// for a convenient way of doing so.
 	Widgets []FormFieldWidget
 
-	T  string                    // optional, text string
+	// Partial field name (optional, text string)
+	T string
+
 	TU string                    // optional, text string, alternate field name
 	TM string                    // optional, text string, mapping name
 	AA FormFielAdditionalActions // optional
