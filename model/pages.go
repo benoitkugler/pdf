@@ -551,7 +551,7 @@ func (o *Outline) clone(cache cloneCache) *Outline {
 		return nil
 	}
 	out := *o
-	out.First = o.First.clone(cache, o)
+	out.First = o.First.clone(cache, &out)
 	return &out
 }
 
