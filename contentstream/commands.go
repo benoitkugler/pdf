@@ -26,9 +26,13 @@ type Operation interface {
 // WriteOperations concatenate the given operations.
 func WriteOperations(ops ...Operation) []byte {
 	var out bytes.Buffer
-	for _, op := range ops {
+	for i, op := range ops {
 		op.Add(&out)
-		out.WriteByte('\n')
+		if i%10 == 0 {
+			out.WriteByte('\n')
+		} else {
+			out.WriteByte(' ')
+		}
 	}
 	return out.Bytes()
 }
