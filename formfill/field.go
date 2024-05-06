@@ -307,7 +307,7 @@ func (t fieldAppearanceBuilder) buildAppearance(ufont fonts.BuiltFont, fontSize 
 	} else {
 		app.SetColorFill(t.textColor)
 	}
-	app.BeginVariableText()
+	app.BeginText()
 	ptext := t.text // fixed by Kazuya Ujihara (ujihara.jp)
 	ptextRunes := []rune(t.text)
 	if (t.options & model.Password) != 0 {
