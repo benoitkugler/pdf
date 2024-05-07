@@ -41,25 +41,17 @@ func (f FontStyle) clone(cache cloneCache) FontStyle {
 	return out
 }
 
-var _ XObject = (*XObjectTransparencyGroup)(nil)
-
-// XObjectTransparencyGroup is a sequence of consecutive objects in a transparency stack that shall be collected
-// together and composited to produce a single colour, shape, and opacity at each point. The result shall then be
-// treated as if it were a single object for subsequent compositing operations. Groups may be nested within other
-// groups to form a tree-structured group hierarchy.
-// See Table 147 – Additional entries specific to a transparency group attributes dictionary
-type XObjectTransparencyGroup struct {
-	XObjectForm
-
-	// the followings are written in PDF under a /Group dict.
+type TransparencyGroup struct {
 	CS ColorSpace
 	I  bool // optional, default value: false
 	K  bool // optional, default value: false
 }
 
-func (tg *XObjectTransparencyGroup) pdfContent(pdf pdfWriter, ref Reference) (StreamHeader, string, []byte) {
-	base := tg.XObjectForm.commonFields(pdf, ref)
-	gDict := "<</Type/Group /S/Transparency"
+func (tg TransparencyGroup) pdfString(pdf pdfWriter, ref Reference, withType bool) string {
+	gDict := "<</S/Transparency"
+	if withType {
+		gDict += " /Type/Group"
+	}
 	if tg.CS != nil {
 		gDict += "/CS " + tg.CS.colorSpaceWrite(pdf, ref)
 	}
@@ -70,6 +62,31 @@ func (tg *XObjectTransparencyGroup) pdfContent(pdf pdfWriter, ref Reference) (St
 		gDict += "/K true"
 	}
 	gDict += ">>"
+	return gDict
+}
+
+func (tg TransparencyGroup) clone(cache cloneCache) TransparencyGroup {
+	out := tg
+	out.CS = cloneColorSpace(tg.CS, cache)
+	return out
+}
+
+var _ XObject = (*XObjectTransparencyGroup)(nil)
+
+// XObjectTransparencyGroup is a sequence of consecutive objects in a transparency stack that shall be collected
+// together and composited to produce a single colour, shape, and opacity at each point. The result shall then be
+// treated as if it were a single object for subsequent compositing operations. Groups may be nested within other
+// groups to form a tree-structured group hierarchy.
+// See Table 147 – Additional entries specific to a transparency group attributes dictionary
+type XObjectTransparencyGroup struct {
+	XObjectForm
+
+	Group TransparencyGroup
+}
+
+func (tg *XObjectTransparencyGroup) pdfContent(pdf pdfWriter, ref Reference) (StreamHeader, string, []byte) {
+	base := tg.XObjectForm.commonFields(pdf, ref)
+	gDict := tg.Group.pdfString(pdf, ref, true)
 	base.Fields["Group"] = gDict
 	return base, "", tg.Content
 }
@@ -80,16 +97,16 @@ func (tg *XObjectTransparencyGroup) clone(cache cloneCache) Referenceable {
 	}
 	out := *tg
 	out.XObjectForm = *(tg.XObjectForm.clone(cache).(*XObjectForm))
-	out.CS = cloneColorSpace(tg.CS, cache)
+	out.Group = tg.Group.clone(cache)
 	return &out
 }
 
 // SoftMaskDict
 // See Table 144 – Entries in a soft-mask dictionary
 // In addition, we use the following convention:
-//	- S == "" means 'nil' (not specified)
-//	- S == /None means the name None
-//	- other value means normal dictionary
+//   - S == "" means 'nil' (not specified)
+//   - S == /None means the name None
+//   - other value means normal dictionary
 type SoftMaskDict struct {
 	S  Name                      // required
 	G  *XObjectTransparencyGroup // required
@@ -131,11 +148,11 @@ func (s SoftMaskDict) clone(cache cloneCache) SoftMaskDict {
 // GraphicState precises parameters in the graphics state.
 // See Table 58 – Entries in a Graphics State Parameter Dictionary
 // TODO: The following entries are not yet supported:
-//	- OP, op, OPM
-//	- BG, BG2, UCR, UCR2, TR, TR2
-//	- HT
-//	- FL
-//	- TK
+//   - OP, op, OPM
+//   - BG, BG2, UCR, UCR2, TR, TR2
+//   - HT
+//   - FL
+//   - TK
 type GraphicState struct {
 	LW   Fl
 	LC   MaybeInt // optional, >= 0
@@ -313,6 +330,7 @@ type BaseGradient struct {
 }
 
 //	update out
+//
 // `pdf` is used to write the functions
 func (g BaseGradient) pdfString(pdf pdfWriter, out map[Name]string) {
 	fns := pdf.writeFunctions(g.Function)
@@ -388,7 +406,6 @@ type ShadingStream struct {
 	BitsPerComponent  uint8 // 1, 2, 4, 8, 12, or 16
 	Decode            [][2]Fl
 	Function          []FunctionDict // optional, one 1->n function or n 1->1 functions (n is the number of colour components)
-
 }
 
 // Clone returns a deep copy

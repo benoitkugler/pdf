@@ -84,6 +84,21 @@ func (r resolver) resolvePageObject(node model.ObjDict, page *model.PageObject) 
 	page.BleedBox = r.rectangleFromArray(node["BleedBox"])
 	page.TrimBox = r.rectangleFromArray(node["TrimBox"])
 	page.ArtBox = r.rectangleFromArray(node["ArtBox"])
+
+	if group, ok := r.resolve(node["Group"]).(model.ObjDict); ok {
+		var (
+			gr  model.TransparencyGroup
+			err error
+		)
+		gr.CS, err = r.resolveOneColorSpace(group["CS"])
+		if err != nil {
+			return err
+		}
+		gr.I, _ = r.resolveBool(group["I"])
+		gr.K, _ = r.resolveBool(group["K"])
+		page.Group = &gr
+	}
+
 	if rot, ok := r.resolveInt(node["Rotate"]); ok {
 		page.Rotate = model.NewRotation(rot)
 	}

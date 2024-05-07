@@ -182,10 +182,11 @@ type PageObject struct {
 	// If nil, will be inherited from the parent.
 	// Only multiple of 90 are allowed (see the constants)
 	Rotate        Rotation
-	Annots        []*AnnotationDict // optional, should not contain annotation widget
-	Contents      []ContentStream   // array of stream (often of length 1)
-	StructParents MaybeInt          // Required if the page contains structural content items
-	Tabs          Name              // optional, one of R , C or S
+	Group         *TransparencyGroup // optional
+	Annots        []*AnnotationDict  // optional, should not contain annotation widget
+	Contents      []ContentStream    // array of stream (often of length 1)
+	StructParents MaybeInt           // Required if the page contains structural content items
+	Tabs          Name               // optional, one of R , C or S
 
 	// cache, set up during pre-allocation
 	// a nil value indicates a template page
@@ -242,6 +243,10 @@ func (p *PageObject) pdfString(pdf pdfWriter) string {
 	}
 	if p.Rotate != Unset {
 		b.line("/Rotate %d", p.Rotate.Degrees())
+	}
+	if p.Group != nil {
+		parentReference := pdf.pages[p.parent]
+		b.line("/Group %s", p.Group.pdfString(pdf, parentReference, false))
 	}
 	if len(p.Annots) != 0 {
 		annots := make([]Reference, len(p.Annots))
@@ -307,6 +312,10 @@ func (po *PageObject) clone(cache cloneCache) PageNode {
 		out.ArtBox = &r
 	}
 	out.Rotate = po.Rotate
+	if po.Group != nil {
+		g := po.Group.clone(cache)
+		out.Group = &g
+	}
 	if po.Annots != nil { // preserve reflect.DeepEqual
 		out.Annots = make([]*AnnotationDict, len(po.Annots))
 	}

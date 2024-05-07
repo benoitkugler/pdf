@@ -262,12 +262,12 @@ func (r *resolver) resolveOneXObjectGroup(obj model.Object) (*model.XObjectTrans
 	// here we known resolved obj is a valid StreamDict
 	gDict := r.resolve(obj).(model.ObjStream).Args
 	group, _ := r.resolve(gDict["Group"]).(model.ObjDict)
-	out.CS, err = r.resolveOneColorSpace(group["CS"])
+	out.Group.CS, err = r.resolveOneColorSpace(group["CS"])
 	if err != nil {
 		return out, err
 	}
-	out.I, _ = r.resolveBool(group["I"])
-	out.K, _ = r.resolveBool(group["K"])
+	out.Group.I, _ = r.resolveBool(group["I"])
+	out.Group.K, _ = r.resolveBool(group["K"])
 
 	return out, nil
 }
