@@ -337,7 +337,9 @@ func (img Image) PDFFields(inline bool) StreamHeader {
 	if len(img.Decode) != 0 {
 		base.Fields["Decode"] = writePointsArray(img.Decode)
 	}
-	base.Fields["Interpolate"] = strconv.FormatBool(img.Interpolate)
+	if img.Interpolate {
+		base.Fields["Interpolate"] = strconv.FormatBool(img.Interpolate)
+	}
 	return base
 }
 
@@ -360,7 +362,9 @@ func (f *ImageSMask) pdfContent(pdf pdfWriter, _ Reference) (StreamHeader, strin
 	base := f.Image.PDFFields(false)
 	base.Fields["Subtype"] = "/Image"
 	base.Fields["ColorSpace"] = Name(ColorSpaceGray).String()
-	base.Fields["Matte"] = writeFloatArray(f.Matte)
+	if len(f.Matte) != 0 {
+		base.Fields["Matte"] = writeFloatArray(f.Matte)
+	}
 	return base, "", f.Content
 }
 
