@@ -147,7 +147,7 @@ func (cat *Catalog) pdfString(pdf pdfWriter) string {
 
 	if pLabel := cat.PageLabels; pLabel != nil {
 		labelsRef := pdf.CreateObject()
-		pdf.WriteObject(pLabel.pdfString(pdf, labelsRef), labelsRef)
+		pdf.WriteObject(pLabel.pdfString(pdf, labelsRef, true), labelsRef)
 		b.line("/PageLabels %s", labelsRef)
 	}
 

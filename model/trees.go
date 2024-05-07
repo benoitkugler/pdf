@@ -362,7 +362,16 @@ type PageLabel struct {
 }
 
 func (p PageLabel) pdfString(st PDFWritter, ref Reference) string {
-	return fmt.Sprintf("<</S %s /P %s /St %d>>", p.S, st.EncodeString(p.P, TextString, ref), p.St)
+	b := newBuffer()
+	b.fmt("<</S %s", p.S)
+	if p.P != "" {
+		b.fmt(" /P %s", st.EncodeString(p.P, TextString, ref))
+	}
+	if p.St != 1 {
+		b.fmt(" /St %d", p.St)
+	}
+	b.fmt(">>")
+	return b.String()
 }
 
 type NumToPageLabel struct {
@@ -418,15 +427,18 @@ func (d PageLabelsTree) LookupTable() map[int]PageLabel {
 	return out
 }
 
-func (p PageLabelsTree) pdfString(pdf pdfWriter, ref Reference) string {
+func (p PageLabelsTree) pdfString(pdf pdfWriter, ref Reference, isRoot bool) string {
 	b := newBuffer()
-	limits := p.Limits()
-	b.line("<</Limits [%d %d]", limits[0], limits[1])
+	b.fmt("<<")
+	if !isRoot {
+		limits := p.Limits()
+		b.fmt("/Limits [%d %d] ", limits[0], limits[1])
+	}
 	if len(p.Kids) != 0 {
 		b.fmt("/Kids [")
 		for _, kid := range p.Kids {
 			kidRef := pdf.CreateObject()
-			pdf.WriteObject(kid.pdfString(pdf, kidRef), kidRef)
+			pdf.WriteObject(kid.pdfString(pdf, kidRef, false), kidRef)
 			b.fmt("%s ", kidRef)
 		}
 		b.line("]")
