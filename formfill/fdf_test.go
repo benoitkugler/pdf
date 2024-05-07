@@ -143,7 +143,8 @@ func TestFill3(t *testing.T) {
 					T:      "2 Companies' House Reg No",
 					Values: Values{V: FDFText("A sample number")},
 				},
-			}},
+			},
+		},
 	}}, true)
 	if err != nil {
 		t.Fatal(err)
