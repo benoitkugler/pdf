@@ -65,8 +65,13 @@ func TestFill1(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if L := len(doc.Catalog.AcroForm.Flatten()); L != 65 {
+	fields := doc.Catalog.AcroForm.Flatten()
+	if L := len(fields); L != 65 {
 		t.Errorf("expected 65 fields, got %d", L)
+	}
+
+	if fields["z9"].Field.CheckKey() != "Oui" {
+		t.Errorf("")
 	}
 
 	err = FillForm(&doc, FDFDict{Fields: data}, true)

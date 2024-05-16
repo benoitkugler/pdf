@@ -125,6 +125,37 @@ func (f *FormFieldDict) resolve(parentName string, parentFields FormFieldInherit
 	}
 }
 
+// CheckKey returns the key used for the 'on' (checked) state
+// of a checkbox.
+//
+// It returns a zero value if the field is not a [FormFieldButton],
+// has several widgets, or has several (normal) appearances defined ('Off' excluded).
+//
+// See 12.7.4.2.3 Check Boxes
+func (f *FormFieldDict) CheckKey() (key Name) {
+	if _, ok := f.FT.(FormFieldButton); !ok {
+		return ""
+	}
+	if len(f.Widgets) != 1 {
+		return ""
+	}
+	widget := f.Widgets[0]
+	if widget.AP == nil {
+		return ""
+	}
+	var allKeys []Name
+	for key := range widget.AP.N {
+		if key == "Off" {
+			continue
+		}
+		allKeys = append(allKeys, key)
+	}
+	if len(allKeys) == 1 {
+		return allKeys[0]
+	}
+	return ""
+}
+
 // FullFieldName returns the fully qualified field name, which is not explicitly defined
 // but is constructed from the partial field names of the field
 // and all of its ancestors.

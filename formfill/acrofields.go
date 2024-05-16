@@ -329,7 +329,7 @@ func isInAP(widget model.FormFieldWidget, check model.ObjName) bool {
 	if widget.AP == nil {
 		return false
 	}
-	return widget.AP.N != nil && widget.AP.N[check] != nil
+	return widget.AP.N[check] != nil
 }
 
 // update `acro` in place, according to the value in `fdf`
