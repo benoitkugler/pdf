@@ -68,7 +68,7 @@ func TestBad(t *testing.T) {
 }
 
 func randString(l int) string {
-	var chars = []rune("           \n\n\n\n\n\n\nazero\tpqsdfv[]{}+-* bn,;:ù89456123<>ù!?./%µ")
+	chars := []rune("           \n\n\n\n\n\n\nazero\tpqsdfv[]{}+-* bn,;:ù89456123<>ù!?./%µ")
 	out := make([]rune, l)
 	for i := range out {
 		n := rand.Intn(len(chars))
@@ -79,7 +79,7 @@ func randString(l int) string {
 
 func TestRandom(t *testing.T) {
 	for range [200]int{} {
-		s := randString(200)
+		s := randString(500)
 		p := newparser([]byte(s))
 		err := p.parse()
 		if err == nil {
