@@ -3,6 +3,7 @@ package model
 import (
 	"fmt"
 	"image/color"
+	"sort"
 	"strings"
 	"time"
 )
@@ -382,6 +383,7 @@ func (ap AppearanceEntry) pdfString(pdf pdfWriter) string {
 		ref := pdf.addItem(f)
 		chunks = append(chunks, fmt.Sprintf("%s %s", n, ref))
 	}
+	sort.Strings(chunks)
 	return fmt.Sprintf("<<%s>>", strings.Join(chunks, " "))
 }
 
