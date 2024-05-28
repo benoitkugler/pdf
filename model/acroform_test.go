@@ -99,12 +99,12 @@ func TestCheckedKey(t *testing.T) {
 			"No":  &XObjectForm{},
 		}}}}},
 	}
-	if !reflect.DeepEqual(f.ApperanceKeys(), []Name{"No", "Off", "Yes"}) {
+	if !reflect.DeepEqual(f.AppearanceKeys(), []Name{"No", "Off", "Yes"}) {
 		t.Error()
 	}
 
 	f.FT = FormFieldText{}
-	if f.ApperanceKeys() != nil {
+	if f.AppearanceKeys() != nil {
 		t.Error()
 	}
 }

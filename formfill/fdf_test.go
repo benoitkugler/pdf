@@ -71,7 +71,7 @@ func TestFill1(t *testing.T) {
 		t.Errorf("expected 65 fields, got %d", L)
 	}
 
-	if got := fields["z9"].Field.ApperanceKeys(); !reflect.DeepEqual(got, []model.Name{"Oui"}) {
+	if got := fields["z9"].Field.AppearanceKeys(); !reflect.DeepEqual(got, []model.Name{"Oui"}) {
 		t.Error(got)
 	}
 
@@ -168,10 +168,10 @@ func TestFill4(t *testing.T) {
 	}
 
 	fields := doc.Catalog.AcroForm.Flatten()
-	if got := fields["SOR A"].Field.ApperanceKeys(); !reflect.DeepEqual(got, []model.Name{"NON", "Oui"}) {
+	if got := fields["SOR A"].Field.AppearanceKeys(); !reflect.DeepEqual(got, []model.Name{"NON", "Oui"}) {
 		t.Fatal(got)
 	}
-	if got := fields["SOR B"].Field.ApperanceKeys(); !reflect.DeepEqual(got, []model.Name{"NON", "Oui"}) {
+	if got := fields["SOR B"].Field.AppearanceKeys(); !reflect.DeepEqual(got, []model.Name{"NON", "Oui"}) {
 		t.Fatal(got)
 	}
 
