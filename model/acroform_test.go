@@ -89,16 +89,22 @@ func TestResolve(t *testing.T) {
 func TestCheckedKey(t *testing.T) {
 	var f FormFieldDict
 	f.FT = FormFieldButton{}
-	f.Widgets = []FormFieldWidget{{&AnnotationDict{BaseAnnotation: BaseAnnotation{AP: &AppearanceDict{N: AppearanceEntry{
-		"Yes": &XObjectForm{},
-		"Off": &XObjectForm{},
-	}}}}}}
-	if f.CheckKey() != "Yes" {
+	f.Widgets = []FormFieldWidget{
+		{&AnnotationDict{BaseAnnotation: BaseAnnotation{AP: &AppearanceDict{N: AppearanceEntry{
+			"Yes": &XObjectForm{},
+			"Off": &XObjectForm{},
+		}}}}},
+		{&AnnotationDict{BaseAnnotation: BaseAnnotation{AP: &AppearanceDict{N: AppearanceEntry{
+			"Yes": &XObjectForm{},
+			"No":  &XObjectForm{},
+		}}}}},
+	}
+	if !reflect.DeepEqual(f.ApperanceKeys(), []Name{"No", "Off", "Yes"}) {
 		t.Error()
 	}
 
 	f.FT = FormFieldText{}
-	if f.CheckKey() != "" {
+	if f.ApperanceKeys() != nil {
 		t.Error()
 	}
 }

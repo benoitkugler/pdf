@@ -3,6 +3,7 @@ package formfill
 import (
 	"fmt"
 	"os"
+	"reflect"
 	"testing"
 
 	"github.com/benoitkugler/pdf/model"
@@ -70,8 +71,8 @@ func TestFill1(t *testing.T) {
 		t.Errorf("expected 65 fields, got %d", L)
 	}
 
-	if fields["z9"].Field.CheckKey() != "Oui" {
-		t.Errorf("")
+	if got := fields["z9"].Field.ApperanceKeys(); !reflect.DeepEqual(got, []model.Name{"Oui"}) {
+		t.Error(got)
 	}
 
 	err = FillForm(&doc, FDFDict{Fields: data}, true)
@@ -156,6 +157,37 @@ func TestFill3(t *testing.T) {
 	}
 
 	if err = doc.WriteFile("test/sample3_filled.pdf", nil); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestFill4(t *testing.T) {
+	doc, _, err := reader.ParsePDFFile("test/sample4.pdf", reader.Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	fields := doc.Catalog.AcroForm.Flatten()
+	if got := fields["SOR A"].Field.ApperanceKeys(); !reflect.DeepEqual(got, []model.Name{"NON", "Oui"}) {
+		t.Fatal(got)
+	}
+	if got := fields["SOR B"].Field.ApperanceKeys(); !reflect.DeepEqual(got, []model.Name{"NON", "Oui"}) {
+		t.Fatal(got)
+	}
+
+	err = FillForm(&doc, FDFDict{Fields: []FDFField{
+		{
+			T: "SOR A", Values: Values{V: FDFName("Oui")},
+		},
+		{
+			T: "SOR B", Values: Values{V: FDFName("Oui")},
+		},
+	}}, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err = doc.WriteFile("test/sample4_filled.pdf", nil); err != nil {
 		t.Fatal(err)
 	}
 }

@@ -2,6 +2,7 @@ package model
 
 import (
 	"fmt"
+	"sort"
 	"time"
 )
 
@@ -125,41 +126,37 @@ func (f *FormFieldDict) resolve(parentName string, parentFields FormFieldInherit
 	}
 }
 
-// CheckKey returns the key used for the 'on' (checked) state
-// of a checkbox.
+// ApperanceKeys returns the (sorted, unique) keys used in widgets appearances, usually used to check a checkbox.
 //
-// It returns a zero value if the field is not a [FormFieldButton],
-// has several widgets, or has several (normal) appearances defined ('Off' excluded).
+// It returns an empty list if the field is not a [FormFieldButton].
 //
 // See 12.7.4.2.3 Check Boxes
-func (f *FormFieldDict) CheckKey() (key Name) {
+func (f *FormFieldDict) ApperanceKeys() (keys []Name) {
 	if _, ok := f.FT.(FormFieldButton); !ok {
-		return ""
+		return nil
 	}
-	if len(f.Widgets) != 1 {
-		return ""
-	}
-	widget := f.Widgets[0]
-	if widget.AP == nil {
-		return ""
-	}
-	var allKeys []Name
-	for key := range widget.AP.N {
-		if key == "Off" {
+
+	uniq := map[Name]bool{}
+	for _, widget := range f.Widgets {
+		if widget.AP == nil {
 			continue
 		}
-		allKeys = append(allKeys, key)
+		for key := range widget.AP.N {
+			uniq[key] = true
+		}
 	}
-	if len(allKeys) == 1 {
-		return allKeys[0]
+	out := make([]Name, 0, len(uniq))
+	for k := range uniq {
+		out = append(out, k)
 	}
-	return ""
+	sort.Slice(out, func(i, j int) bool { return out[i] < out[j] })
+	return out
 }
 
 // FullFieldName returns the fully qualified field name, which is not explicitly defined
 // but is constructed from the partial field names of the field
 // and all of its ancestors.
-// This is a convenient function, but not efficient if all called
+// This is a convenient function, but not efficient if called
 // on all the fields of the tree.
 func (f *FormFieldDict) FullFieldName() string {
 	if f.Parent == nil {
