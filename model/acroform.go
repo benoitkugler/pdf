@@ -3,6 +3,7 @@ package model
 import (
 	"fmt"
 	"sort"
+	"strconv"
 	"time"
 )
 
@@ -113,16 +114,20 @@ type FormFieldDict struct {
 	RV string // optional, text string, may be written in PDF as a stream
 }
 
-func (f *FormFieldDict) resolve(parentName string, parentFields FormFieldInheritable, currentMap map[string]FormFieldInherited) {
-	fullName := f.T
+func (f *FormFieldDict) resolve(parentName string, index int, parentFields FormFieldInheritable, currentMap map[string]FormFieldInherited) {
+	name := f.T
+	if f.T == "" {
+		name = strconv.Itoa(index)
+	}
+	fullName := name
 	if f.Parent != nil {
-		fullName = parentName + "." + f.T
+		fullName = parentName + "." + name
 	}
 	merged := f.FormFieldInheritable.merge(parentFields)
 	currentMap[fullName] = FormFieldInherited{Field: f, Merged: merged}
 	// recursion
-	for _, kid := range f.Kids {
-		kid.resolve(fullName, merged, currentMap)
+	for index, kid := range f.Kids {
+		kid.resolve(fullName, index, merged, currentMap)
 	}
 }
 
@@ -145,18 +150,6 @@ func (f *FormFieldDict) AppearanceKeys() (keys []Name) {
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i] < out[j] })
 	return out
-}
-
-// FullFieldName returns the fully qualified field name, which is not explicitly defined
-// but is constructed from the partial field names of the field
-// and all of its ancestors.
-// This is a convenient function, but not efficient if called
-// on all the fields of the tree.
-func (f *FormFieldDict) FullFieldName() string {
-	if f.Parent == nil {
-		return f.T
-	}
-	return f.Parent.FullFieldName() + "." + f.T
 }
 
 func (f *FormFieldDict) shouldBeMerged() (*AnnotationDict, bool) {
@@ -900,8 +893,8 @@ type AcroForm struct {
 // used as keys of the returned map.
 func (a AcroForm) Flatten() map[string]FormFieldInherited {
 	out := make(map[string]FormFieldInherited)
-	for _, kid := range a.Fields {
-		kid.resolve("", FormFieldInheritable{DA: a.DA, Q: a.Q}, out)
+	for index, kid := range a.Fields {
+		kid.resolve("", index, FormFieldInheritable{DA: a.DA, Q: a.Q}, out)
 	}
 	return out
 }

@@ -63,26 +63,34 @@ func TestResolve(t *testing.T) {
 	}
 	a2 := a1
 	a2.T = "5"
+	a3 := a1
+	a3.T = ""
 	b := &FormFieldDict{
-		Kids: []*FormFieldDict{&a1, &a2},
+		T:    "first",
+		Kids: []*FormFieldDict{&a1, &a2, &a3},
 		FormFieldInheritable: FormFieldInheritable{
 			DA: "564",
 		},
 	}
 	a1.Parent = b
 	a2.Parent = b
+	a3.Parent = b
 
 	ac := AcroForm{
 		Fields: []*FormFieldDict{b},
 	}
 	m := ac.Flatten()
-	if L := len(m); L != 3 {
+	if L := len(m); L != 4 {
 		t.Errorf("expected 3 fields, got %d", L)
 	}
 	for _, f := range m {
 		if f.Merged.DA != "564" {
 			t.Error()
 		}
+	}
+	_, ok := m["first.2"]
+	if !ok {
+		t.Error()
 	}
 }
 

@@ -5,6 +5,7 @@ package formfill
 
 import (
 	"errors"
+	"strconv"
 
 	"github.com/benoitkugler/pdf/model"
 	"github.com/benoitkugler/pdf/reader"
@@ -47,21 +48,25 @@ type FDFDict struct {
 // walk the tree and construct the full names
 func (f FDFDict) resolve() map[string]Values {
 	out := map[string]Values{}
-	var walk func(FDFField, string)
-	walk = func(fi FDFField, parentName string) {
-		fullName := parentName + "." + fi.T
+	var walk func(FDFField, string, int)
+	walk = func(fi FDFField, parentName string, index int) {
+		name := fi.T
+		if fi.T == "" {
+			name = strconv.Itoa(index)
+		}
+		fullName := parentName + "." + name
 		if parentName == "" { // exception for the root elements
-			fullName = fi.T
+			fullName = name
 		}
 		if fi.V != nil || fi.RV != "" {
 			out[fullName] = fi.Values
 		}
-		for _, kid := range fi.Kids {
-			walk(kid, fullName)
+		for index, kid := range fi.Kids {
+			walk(kid, fullName, index)
 		}
 	}
-	for _, rootField := range f.Fields {
-		walk(rootField, "")
+	for index, rootField := range f.Fields {
+		walk(rootField, "", index)
 	}
 	return out
 }
