@@ -128,14 +128,8 @@ func (f *FormFieldDict) resolve(parentName string, parentFields FormFieldInherit
 
 // AppearanceKeys returns the (sorted, unique) keys used in widgets appearances, usually used to check a checkbox.
 //
-// It returns an empty list if the field is not a [FormFieldButton].
-//
 // See 12.7.4.2.3 Check Boxes
 func (f *FormFieldDict) AppearanceKeys() (keys []Name) {
-	if _, ok := f.FT.(FormFieldButton); !ok {
-		return nil
-	}
-
 	uniq := map[Name]bool{}
 	for _, widget := range f.Widgets {
 		if widget.AP == nil {

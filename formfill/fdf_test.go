@@ -174,6 +174,9 @@ func TestFill4(t *testing.T) {
 	if got := fields["SOR B"].Field.AppearanceKeys(); !reflect.DeepEqual(got, []model.Name{"NON", "Oui"}) {
 		t.Fatal(got)
 	}
+	if got := fields["INI."].Field.AppearanceKeys(); !reflect.DeepEqual(got, []model.Name{"NON"}) {
+		t.Fatal(got)
+	}
 
 	err = FillForm(&doc, FDFDict{Fields: []FDFField{
 		{
@@ -181,6 +184,9 @@ func TestFill4(t *testing.T) {
 		},
 		{
 			T: "SOR B", Values: Values{V: FDFName("Oui")},
+		},
+		{
+			T: "INI.", Values: Values{V: FDFName("NON")},
 		},
 	}}, true)
 	if err != nil {

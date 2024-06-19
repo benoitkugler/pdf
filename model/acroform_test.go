@@ -86,7 +86,7 @@ func TestResolve(t *testing.T) {
 	}
 }
 
-func TestCheckedKey(t *testing.T) {
+func TestAppearanceKeys(t *testing.T) {
 	var f FormFieldDict
 	f.FT = FormFieldButton{}
 	f.Widgets = []FormFieldWidget{
@@ -103,8 +103,8 @@ func TestCheckedKey(t *testing.T) {
 		t.Error()
 	}
 
-	f.FT = FormFieldText{}
-	if f.AppearanceKeys() != nil {
+	f.Widgets = nil
+	if len(f.AppearanceKeys()) != 0 {
 		t.Error()
 	}
 }
