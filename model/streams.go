@@ -311,31 +311,46 @@ func (m *XObjectImage) cloneMask(cache cloneCache) Mask { return m.clone(cache).
 type Image struct {
 	Stream
 
-	BitsPerComponent uint8 // 1, 2, 4, 8, or  16.
+	BitsPerComponent uint8 // (BPC) 1, 2, 4, 8, or  16.
 
-	Width, Height int
-	// optional. Array of length : number of color component required by color space.
+	Width, Height int // (W, H)
+
+	// (D) Decode is optional. Array of length : number of color component required by color space.
 	// Special case for Mask image where [1 0] is also allowed
 	Decode      [][2]Fl
-	ImageMask   bool // optional
+	ImageMask   bool // (IM) optional
 	Intent      Name // optional
-	Interpolate bool // optional
+	Interpolate bool // (I) optional
 }
 
 // PDFFields return the image characteristics.
 func (img Image) PDFFields(inline bool) StreamHeader {
 	base := img.PDFCommonFields(!inline)
-	base.Fields["Width"] = strconv.Itoa(img.Width)
-	base.Fields["Height"] = strconv.Itoa(img.Height)
-	base.Fields["BitsPerComponent"] = strconv.Itoa(int(img.BitsPerComponent))
+	if inline {
+		base.Fields["W"] = strconv.Itoa(img.Width)
+		base.Fields["H"] = strconv.Itoa(img.Height)
+		base.Fields["BPC"] = strconv.Itoa(int(img.BitsPerComponent))
+	} else {
+		base.Fields["Width"] = strconv.Itoa(img.Width)
+		base.Fields["Height"] = strconv.Itoa(img.Height)
+		base.Fields["BitsPerComponent"] = strconv.Itoa(int(img.BitsPerComponent))
+	}
 	if img.ImageMask {
-		base.Fields["ImageMask"] = strconv.FormatBool(img.ImageMask)
+		if inline {
+			base.Fields["IM"] = strconv.FormatBool(img.ImageMask)
+		} else {
+			base.Fields["ImageMask"] = strconv.FormatBool(img.ImageMask)
+		}
 	}
 	if img.Intent != "" {
 		base.Fields["Intent"] = img.Intent.String()
 	}
 	if len(img.Decode) != 0 {
-		base.Fields["Decode"] = writePointsArray(img.Decode)
+		if inline {
+			base.Fields["D"] = writePointsArray(img.Decode)
+		} else {
+			base.Fields["Decode"] = writePointsArray(img.Decode)
+		}
 	}
 	if img.Interpolate {
 		base.Fields["Interpolate"] = strconv.FormatBool(img.Interpolate)
