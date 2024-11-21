@@ -768,7 +768,7 @@ func (c ImageColorSpaceIndexed) ToColorSpace() model.ColorSpace {
 
 // BI ... ID ... EI
 type OpBeginImage struct {
-	ColorSpace ImageColorSpace
+	ColorSpace ImageColorSpace // optionnal
 	Image      model.Image
 }
 
