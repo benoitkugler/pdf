@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-func TestTmp(t *testing.T) {
+func TestTables(t *testing.T) {
 	if !sort.SliceIsSorted(glyphToRuneTable[:], func(i, j int) bool { return glyphToRuneTable[i].name < glyphToRuneTable[j].name }) {
 		t.Fatal("glyphToRuneTable is not sorted")
 	}
