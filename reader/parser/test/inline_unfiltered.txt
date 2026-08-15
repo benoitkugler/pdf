@@ -1,0 +1,1 @@
+BI /W 2 /H 2 /BPC 8 /CS /DeviceGray ID ABCDEI
