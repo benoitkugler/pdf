@@ -790,7 +790,7 @@ func (o OpBeginImage) Add(out *bytes.Buffer) {
 func (img OpBeginImage) Metrics(res model.ResourcesColorSpace) (comps, bits int, err error) {
 	bits = int(img.Image.BitsPerComponent)
 	if img.Image.ImageMask {
-		bits = 1
+		return 1, 1, nil
 	}
 	colorSpace, err := img.resolveColorSpace(res)
 	if err != nil {

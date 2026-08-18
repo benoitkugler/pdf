@@ -295,6 +295,44 @@ func TestInlineData(t *testing.T) {
 	}
 }
 
+func TestInlineImageMask(t *testing.T) {
+	mask := contentstream.OpBeginImage{  // 8x8 1-bit image mask
+		Image: model.Image{
+			Width:            8,
+			Height:           8,
+			BitsPerComponent: 1,
+			ImageMask:        true,
+			Stream:           model.Stream{Content: []byte{0, 1, 2, 3, 4, 5, 6, 7}},
+		},
+	}
+
+	var content bytes.Buffer
+	mask.Add(&content)
+
+	ops, err := ParseContent(content.Bytes(), nil)
+	if err != nil {
+		t.Fatalf("parsing inline image mask failed: %s", err)
+	}
+	if len(ops) != 1 {
+		t.Fatalf("expected 1 operation, got %d: %v", len(ops), ops)
+	}
+	img, ok := ops[0].(contentstream.OpBeginImage)
+	if !ok {
+		t.Fatalf("expected OpBeginImage, got %T", ops[0])
+	}
+	if !img.Image.ImageMask {
+		t.Fatal("expected ImageMask to be preserved")
+	}
+	// A mask has no color space: Metrics must report 1 component / 1 bit instead of failing to resolve a color space
+	comps, bits, err := img.Metrics(nil)
+	if err != nil {
+		t.Fatalf("Metrics failed for image mask: %s", err)
+	}
+	if comps != 1 || bits != 1 {
+		t.Fatalf("expected 1 component / 1 bit, got %d / %d", comps, bits)
+	}
+}
+
 func TestForgePDFInlineData(t *testing.T) {
 	// generate samples demonstrating inline data
 	filtersName := []model.ObjName{
