@@ -334,12 +334,9 @@ func TestInlineImageMask(t *testing.T) {
 }
 
 func TestInlineDataUnfiltered(t *testing.T) {
-	b, err := os.ReadFile("test/inline_unfiltered.txt")
-	if err != nil {
-		t.Fatal(err)
-	}
+	content := []byte("BI /W 2 /H 2 /BPC 8 /CS /DeviceGray ID ABCDEI")
 
-	ops, err := ParseContent(b, nil)
+	ops, err := ParseContent(content, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
