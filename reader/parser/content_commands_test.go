@@ -333,6 +333,23 @@ func TestInlineImageMask(t *testing.T) {
 	}
 }
 
+func TestInlineDataUnfiltered(t *testing.T) {
+	content := []byte("BI /W 2 /H 2 /BPC 8 /CS /DeviceGray ID ABCDEI")
+
+	ops, err := ParseContent(content, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	ops2, err := ParseContent(contentstream.WriteOperations(ops...), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(ops, ops2) {
+		t.Fatalf("round-trip not idempotent:\nfirst:  %v\nsecond: %v", ops, ops2)
+	}
+}
+
 func TestForgePDFInlineData(t *testing.T) {
 	// generate samples demonstrating inline data
 	filtersName := []model.ObjName{

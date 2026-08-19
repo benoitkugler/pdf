@@ -277,8 +277,8 @@ func (pr *Parser) parseImageData(img *contentstream.OpBeginImage, fils, decodePa
 			return err
 		}
 		n := img.Image.Height * ((img.Image.Width*comps*bits + 7) / 8)
-
-		img.Image.Content = pr.tokens.SkipBytes(n + 1) // with space after ID
+		pr.tokens.SkipBytes(1) // with space after ID
+		img.Image.Content = pr.tokens.SkipBytes(n)
 	} else {
 		pr.tokens.SkipBytes(1) // with space after ID
 		input := pr.tokens.Bytes()
