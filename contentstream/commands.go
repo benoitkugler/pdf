@@ -502,8 +502,11 @@ func (o OpShowSpaceText) Add(out *bytes.Buffer) {
 // TJ - OpShowSpaceGlyphs enables font kerning
 type SpacedGlyph struct {
 	SpaceSubtractedBefore int
-	GID                   uint32 // will be hex encoded in the content stream
-	SpaceSubtractedAfter  int
+	// GID will be hex encoded in the content stream
+	// The special value 0xFFFFFFFF may be used to
+	// not include a glyph, but still write the spacing.
+	GID                  uint32
+	SpaceSubtractedAfter int
 }
 
 // TJ - OpShowSpaceGlyph is the same as OpShowSpaceText
