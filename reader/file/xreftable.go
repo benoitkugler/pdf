@@ -8,6 +8,7 @@ import (
 
 	"github.com/benoitkugler/pdf/model"
 	"github.com/benoitkugler/pdf/reader/parser"
+	"github.com/benoitkugler/pdf/reader/streams"
 )
 
 // XrefTable maps object numbers to objects.
@@ -229,7 +230,7 @@ func (ctx *context) xRefStreamDict(d parser.Dict, streamOffset int64) (xrefStrea
 	}
 
 	// Decode stream content:
-	r, err := filters.DecodeReader(bytes.NewReader(content))
+	r, err := streams.DecodeFilters(filters, bytes.NewReader(content))
 	if err != nil {
 		return details, nil, err
 	}

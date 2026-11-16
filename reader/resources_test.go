@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/benoitkugler/pdf/model"
+	"github.com/benoitkugler/pdf/reader/streams"
 )
 
 func TestDifferences(t *testing.T) {
@@ -46,7 +47,7 @@ func TestGradients(t *testing.T) {
 		}
 		for name, state := range r.ExtGState {
 			if g := state.SMask.G; g != nil {
-				b, _ := g.Decode()
+				b, _ := streams.DecodeStream(g.Stream)
 				fmt.Println("SMask  for", name, ":", string(b))
 				fmt.Println("BBox for soft max Xobject", g.BBox)
 				processRes(g.Resources)
@@ -98,7 +99,7 @@ func TestFontType1C(t *testing.T) {
 				if fontFile == nil {
 					continue
 				}
-				b, err := fontFile.Decode()
+				b, err := streams.DecodeStream(fontFile.Stream)
 				if err != nil {
 					t.Fatal(err)
 				}

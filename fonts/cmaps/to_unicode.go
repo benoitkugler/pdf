@@ -1,9 +1,6 @@
 package cmaps
 
 import (
-	"bytes"
-	"fmt"
-
 	"github.com/benoitkugler/pdf/model"
 )
 
@@ -67,38 +64,4 @@ func (u UnicodeCMap) ProperLookupTable() map[model.CID][]rune {
 		m.MergeTo(out)
 	}
 	return out
-}
-
-// WriteAdobeIdentityUnicodeCMap dumps the given mapping to a Cmap ressource,
-// ready to be embedded in a PDF file.
-func WriteAdobeIdentityUnicodeCMap(dict map[uint32][]rune) []byte {
-	var buf bytes.Buffer
-	fmt.Fprintf(&buf, `/CIDInit /ProcSet findresource begin
-	12 dict begin
-	begincmap
-	/CIDSystemInfo
-	<< /Registry (Adobe)
-	/Ordering (UCS)
-	/Supplement 0
-	>> def
-	/CMapName /Adobe-Identity-UCS def
-	/CMapType 2 def
-	1 begincodespacerange
-	<0000> <ffff>
-	endcodespacerange
-	%d beginbfchar
-	`, len(dict))
-
-	for glyph, text := range dict {
-		fmt.Fprintf(&buf, "<%04x> <%s>\n", glyph, runesToHex(text))
-	}
-
-	buf.WriteString(`
-	endbfchar
-	endcmap
-	CMapName currentdict /CMap defineresource pop
-	end
-	end`)
-
-	return buf.Bytes()
 }

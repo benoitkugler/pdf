@@ -5,14 +5,14 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/benoitkugler/pdf/fonts"
+	"github.com/benoitkugler/pdf/fonts/builder"
 	"github.com/benoitkugler/pdf/fonts/standardfonts"
 	"github.com/benoitkugler/pdf/model"
 )
 
 func TestBreaks(t *testing.T) {
 	s := strings.Repeat("84'(à)ç,lkfiiiiiiiiiiiiiiiiiiiiii", 10)
-	font, err := fonts.BuildFont(&model.FontDict{Subtype: standardfonts.Times_BoldItalic.WesternType1Font()})
+	font, err := builder.BuildFont(&model.FontDict{Subtype: standardfonts.Times_BoldItalic.WesternType1Font()})
 	if err != nil {
 		t.Errorf("can't built standard font: %s", err)
 	}

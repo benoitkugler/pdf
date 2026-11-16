@@ -4,11 +4,8 @@ import (
 	"bytes"
 	"compress/zlib"
 	"fmt"
-	"io"
 	"strconv"
 	"strings"
-
-	"github.com/benoitkugler/pdf/reader/parser/filters"
 )
 
 const (
@@ -41,15 +38,6 @@ func (f Filter) Clone() Filter {
 	return out
 }
 
-func (fi Filter) DecodeReader(r io.Reader) (io.Reader, error) {
-	// special case for Crypt filters
-	if fi.Name == "Crypt" {
-		return r, nil
-	}
-
-	return filters.NewFilter(string(fi.Name), fi.DecodeParms, r)
-}
-
 // // NewFilter validate `s` and returns
 // // an empty string it is not a known filter
 // func NewFilter(s string) Filter {
@@ -74,19 +62,6 @@ var booleanNames = map[string]bool{
 
 type Filters []Filter
 
-// DecodeReader accumulate the filters to produce a Reader,
-// decoding `r`.
-func (fs Filters) DecodeReader(r io.Reader) (io.Reader, error) {
-	var err error
-	for _, fi := range fs {
-		r, err = fi.DecodeReader(r)
-		if err != nil {
-			return nil, err
-		}
-	}
-	return r, nil
-}
-
 // Stream is a PDF stream.
 //
 // A new stream can be created
@@ -110,16 +85,6 @@ func NewCompressedStream(content []byte) Stream {
 		Content: buf.Bytes(),
 		Filter:  Filters{{Name: Flate}},
 	}
-}
-
-// Decode attemps to apply the Filters to decode its content.
-// Be aware that not all PDF filters are supported (see filters.List).
-func (s Stream) Decode() ([]byte, error) {
-	r, err := s.Filter.DecodeReader(bytes.NewReader(s.Content))
-	if err != nil {
-		return nil, err
-	}
-	return io.ReadAll(r)
 }
 
 func (c Stream) Length() int { return len(c.Content) }

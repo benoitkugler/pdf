@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/benoitkugler/pdf/model"
+	"github.com/benoitkugler/pdf/reader/streams"
 )
 
 // ListAttachments returns a list of embedded file attachment names of `doc`.
@@ -56,9 +57,6 @@ func AddAttachments(doc *model.Document, enc *model.Encrypt, w io.Writer, files 
 
 		// compression with flate, optional
 		emb.Stream = model.NewCompressedStream(content)
-		if err != nil {
-			return fmt.Errorf("can't compress file : %w", err)
-		}
 
 		fs := model.FileSpec{
 			UF:   filepath.Base(fileName),
@@ -100,7 +98,7 @@ func ExtractContent(doc model.Document, outDir string, pageNumbers []int) error 
 
 		var totalPageContent []byte
 		for _, ct := range pages[pageNumber].Contents {
-			ctContent, err := ct.Decode()
+			ctContent, err := streams.DecodeContentStream(ct)
 			if err != nil {
 				return err
 			}

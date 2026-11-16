@@ -8,9 +8,9 @@ There are already numerous good PDF libraries for Go, and this one deliberatly t
 
 The package model is the corner stone of this library. Then, packages may be divided in two parts:
 
-- [reader](reader) imports a PDF file into memory
+- [reader](reader) imports a PDF file into memory; stream decoding is provided by [reader/streams](reader/streams)
 
-- [fonts](fonts) provides support to use embeded PDF fonts
+- [fonts](fonts) provides the types needed to write text using embeded PDF fonts, while [fonts/builder](fonts/builder) builds them from a `model.FontDict`
 
 - [contentstream](contentstream) and [formfill](formfill) provides tools to create PDF models
 

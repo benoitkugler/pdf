@@ -1,4 +1,4 @@
-package fonts
+package builder
 
 import (
 	"os"
@@ -19,7 +19,7 @@ func TestDefinedEnc(t *testing.T) {
 		t.Error()
 	}
 
-	content, err := os.ReadFile("test/CalligrapherRegular.pfb")
+	content, err := os.ReadFile("../test/CalligrapherRegular.pfb")
 	if err != nil {
 		t.Fatal(err)
 	}

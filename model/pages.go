@@ -193,21 +193,6 @@ type PageObject struct {
 	parent *PageTree
 }
 
-// DecodeAllContents read each content stream and returns the
-// aggregated one.
-func (p *PageObject) DecodeAllContents() ([]byte, error) {
-	var totalPageContent []byte
-	for _, ct := range p.Contents {
-		ctContent, err := ct.Decode()
-		if err != nil {
-			return nil, err
-		}
-		totalPageContent = append(totalPageContent, ctContent...)
-	}
-
-	return totalPageContent, nil
-}
-
 // the pdf page map is used to fetch the object number
 // of the parent
 func (p *PageObject) pdfString(pdf pdfWriter) string {

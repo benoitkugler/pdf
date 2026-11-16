@@ -1,4 +1,4 @@
-package fonts
+package builder
 
 import (
 	"bytes"
@@ -11,6 +11,7 @@ import (
 	"github.com/benoitkugler/pdf/fonts/type1"
 	type1c "github.com/benoitkugler/pdf/fonts/type1C"
 	"github.com/benoitkugler/pdf/model"
+	"github.com/benoitkugler/pdf/reader/streams"
 )
 
 // We follow here the logic from poppler, which itself is based on the PDF spec.
@@ -147,7 +148,7 @@ func builtinType1Encoding(desc model.FontDescriptor) *simpleencodings.Encoding {
 	if desc.FontFile == nil {
 		return &simpleencodings.AdobeStandard
 	}
-	content, err := desc.FontFile.Decode()
+	content, err := streams.DecodeStream(desc.FontFile.Stream)
 	if err != nil {
 		log.Printf("unable to decode embedded font file: %s\n", err)
 		return &simpleencodings.AdobeStandard
@@ -316,7 +317,7 @@ func builtinType1Encoding(desc model.FontDescriptor) *simpleencodings.Encoding {
 
 // parse the CMap and resolve the chain of UseCMap if needed
 func resolveToUnicode(cmap model.UnicodeCMap) (map[model.CID][]rune, error) {
-	content, err := cmap.Decode()
+	content, err := streams.DecodeStream(cmap.Stream)
 	if err != nil {
 		return nil, err
 	}

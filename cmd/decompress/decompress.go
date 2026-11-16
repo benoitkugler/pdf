@@ -8,6 +8,7 @@ import (
 
 	"github.com/benoitkugler/pdf/model"
 	"github.com/benoitkugler/pdf/reader"
+	"github.com/benoitkugler/pdf/reader/streams"
 )
 
 func main() {
@@ -23,7 +24,7 @@ func main() {
 
 	for _, page := range fi.Catalog.Pages.Flatten() {
 		for i, ct := range page.Contents {
-			decoded, err := ct.Decode()
+			decoded, err := streams.DecodeContentStream(ct)
 			if err != nil {
 				log.Fatal(err)
 			}

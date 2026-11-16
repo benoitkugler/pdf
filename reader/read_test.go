@@ -11,9 +11,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/benoitkugler/pdf/fonts"
+	"github.com/benoitkugler/pdf/fonts/builder"
 	"github.com/benoitkugler/pdf/model"
 	"github.com/benoitkugler/pdf/reader/file"
+	"github.com/benoitkugler/pdf/reader/streams"
 )
 
 // the SPEC is a good test candidate
@@ -227,7 +228,7 @@ func TestImportPage(t *testing.T) {
 	}
 
 	// for _, p := range doc.Catalog.Pages.Flatten() {
-	// b, _ := p.DecodeAllContents()
+	// b, _ := streams.DecodePageContents(p)
 	// fmt.Println(string(b))
 	// fmt.Println(p.Resources.XObject["Im1"].(*model.XObjectImage).Filter)
 	// fmt.Println(p.Resources.XObject["Im0"].(*model.XObjectImage).Filter)
@@ -269,7 +270,7 @@ func TestEmbeddedTTF(t *testing.T) {
 			if r := page.Resources; r != nil {
 				for _, font := range r.Font {
 					if ttf, ok := font.Subtype.(model.FontTrueType); ok {
-						_, err := fonts.BuildFont(font)
+						_, err := builder.BuildFont(font)
 						if err != nil {
 							t.Fatal(err)
 						}
@@ -326,7 +327,7 @@ func TestDecrompress(t *testing.T) {
 	}
 	decrompress := func(s *model.ContentStream) {
 		fmt.Println("found content stream")
-		b, err := s.Decode()
+		b, err := streams.DecodeContentStream(*s)
 		if err != nil {
 			t.Fatal(err)
 		}

@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/benoitkugler/pdf/fonts"
+	"github.com/benoitkugler/pdf/fonts/builder"
 	"github.com/benoitkugler/pdf/fonts/standardfonts"
 	"github.com/benoitkugler/pdf/model"
 )
@@ -18,7 +19,7 @@ func (ap GraphicStream) toPageObject() *model.PageObject {
 
 func TestKerning(t *testing.T) {
 	fontDict := model.FontDict{Subtype: standardfonts.Helvetica.WesternType1Font()}
-	font, err := fonts.BuildFont(&fontDict)
+	font, err := builder.BuildFont(&fontDict)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -8,8 +8,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-
-	"golang.org/x/text/encoding/unicode"
+	"unicode/utf16"
 )
 
 // Reference is the object number of a PDF object.
@@ -138,10 +137,7 @@ const (
 	TextString // one of the PDF encoding: PDFDocEncoding or UTF16-BE
 )
 
-var (
-	replacer = strings.NewReplacer("\\", "\\\\", "(", "\\(", ")", "\\)", "\r", "\\r")
-	utf16Enc = unicode.UTF16(unicode.BigEndian, unicode.UseBOM)
-)
+var replacer = strings.NewReplacer("\\", "\\\\", "(", "\\(", ")", "\\)", "\r", "\\r")
 
 // WrittenObject represents a PDF object to write on a file.
 // This intermediate representation makes to possible to
@@ -220,6 +216,19 @@ func EspaceHexString(sb []byte) string {
 	return "<" + hex.EncodeToString(sb) + ">"
 }
 
+// encodeTextString returns the UTF-16BE encoding of s,
+// prefixed with the byte order mark, as required for PDF text strings.
+func encodeTextString(s string) []byte {
+	units := utf16.Encode([]rune(s))
+	out := make([]byte, 2+2*len(units))
+	out[0], out[1] = 0xFE, 0xFF
+	for i, u := range units {
+		out[2+2*i] = byte(u >> 8)
+		out[3+2*i] = byte(u)
+	}
+	return out
+}
+
 func (p pdfWriter) EncodeString(s string, mode PDFStringEncoding, context Reference) string {
 	if p.err != nil {
 		return ""
@@ -233,11 +242,7 @@ func (p pdfWriter) EncodeString(s string, mode PDFStringEncoding, context Refere
 		if ok {
 			sb = s1
 		} else {
-			sb, err = utf16Enc.NewEncoder().Bytes(sb)
-			if err != nil {
-				p.err = fmt.Errorf("invalid text string %s: %w", s, err)
-				return ""
-			}
+			sb = encodeTextString(s)
 		}
 	}
 

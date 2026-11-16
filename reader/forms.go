@@ -6,6 +6,7 @@ import (
 
 	"github.com/benoitkugler/pdf/model"
 	"github.com/benoitkugler/pdf/reader/file"
+	"github.com/benoitkugler/pdf/reader/streams"
 )
 
 func (r resolver) processAcroForm(acroForm model.Object) (model.AcroForm, error) {
@@ -133,7 +134,7 @@ func (r resolver) textOrStream(object model.Object) string {
 	if stream, ok := content.(model.ObjStream); ok {
 		s, ok, _ := r.resolveStream(stream)
 		if ok {
-			decoded, err := s.Decode()
+			decoded, err := streams.DecodeStream(s)
 			if err != nil { // best effort: we return the raw stream
 				log.Println("failed to decode text stream", err)
 				decoded = s.Content

@@ -10,6 +10,7 @@ import (
 
 	cs "github.com/benoitkugler/pdf/contentstream"
 	"github.com/benoitkugler/pdf/fonts"
+	"github.com/benoitkugler/pdf/fonts/builder"
 	"github.com/benoitkugler/pdf/fonts/standardfonts"
 	"github.com/benoitkugler/pdf/model"
 	"github.com/benoitkugler/pdf/reader/parser"
@@ -109,7 +110,7 @@ func (ac *filler) buildAppearance(formResources model.ResourcesDict, fields mode
 					log.Printf("can't resolve font %s -> using default", dab.font)
 					fd = defaultFont
 				}
-				font, err = fonts.BuildFont(fd)
+				font, err = builder.BuildFont(fd)
 				if err != nil {
 					return nil, 0, err
 				}
@@ -118,7 +119,7 @@ func (ac *filler) buildAppearance(formResources model.ResourcesDict, fields mode
 		} else {
 			log.Println("no font specified in DA string -> using default")
 			// use a default font
-			font, err = fonts.BuildFont(defaultFont)
+			font, err = builder.BuildFont(defaultFont)
 			if err != nil {
 				return nil, 0, err
 			}

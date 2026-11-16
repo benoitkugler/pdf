@@ -9,6 +9,7 @@ import (
 	"github.com/benoitkugler/pdf/model"
 	"github.com/benoitkugler/pdf/reader/parser"
 	"github.com/benoitkugler/pdf/reader/parser/filters"
+	"github.com/benoitkugler/pdf/reader/streams"
 )
 
 type streamDictHeader struct {
@@ -98,7 +99,7 @@ func (ctx *context) decodeStreamContent(ref model.ObjIndirectRef, filters model.
 	}
 
 	// Decode stream content:
-	r, err := filters.DecodeReader(bytes.NewReader(content))
+	r, err := streams.DecodeFilters(filters, bytes.NewReader(content))
 	if err != nil {
 		return nil, fmt.Errorf("invalid stream content: %s", err)
 	}
